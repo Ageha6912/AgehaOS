@@ -17,8 +17,11 @@
 | `npm run test`          | 运行全部单元测试（一次性） |
 | `npm run test:watch`    | 监听模式测试               |
 | `npm run test:coverage` | 覆盖率报告                 |
+| `npm run test:e2e`      | 构建 + Playwright E2E      |
 | `npm run lint`          | ESLint 检查                |
 | `npm run format`        | Prettier 格式化            |
+
+E2E（`e2e/*.spec.ts`）运行于生产构建（`vite preview`），覆盖 PRD §34.3 核心路径；首次运行前需 `npx playwright install chromium`。
 
 ## 3. 分支模型
 

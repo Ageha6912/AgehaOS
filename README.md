@@ -13,7 +13,7 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 
 ## 当前状态
 
-**Phase 0 / MVP 功能面已完成**（对应 PRD §51 第 01–05、07–12 步，仅剩测试加固与发布）：
+**Phase 0 / MVP 功能面 + E2E 已完成**（对应 PRD §51 第 01–05、07–13 步，仅剩加固与发布）：
 
 - ✅ 工程脚手架（Vite + React 19 + TypeScript + Tailwind CSS 4 + Vitest 5 + ESLint + Prettier）
 - ✅ 目录骨架（按 PRD §19.1 规划）
@@ -29,7 +29,8 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 - ✅ **Settings 应用**（PRD §14/§27/§41）：主题切换（浅色/深色/跟随系统，设计 Token 双主题化）、字体大小、界面语言切换（中/英）、权限总览（各应用已授权能力）、关于页；设置持久化到 localStorage
 - ✅ **Notes 应用**（PRD §26/§11.2）：基于 VFS 的文本编辑器——/Documents 笔记列表、新建（防覆盖保护）、编辑、保存（脏状态指示）
 - ✅ **用户系统**（PRD §12/§23.2/§24.1/§45.5）：`AuthService`（注册/登录/登出，盐值 SHA-256 密码哈希，7 天过期 Session，`user.login/logout` 事件）、启动流程接入会话检查（无会话 → Login 界面）、任务栏用户菜单（登出）、会话跨刷新恢复、过期会话清除与提示
-- ⏳ 下一步：E2E（13）→ 性能/安全加固（14）→ v0.1 发布（15）；后端化（Milestone 5）时仅替换 AuthService 存储层
+- ✅ **E2E 测试**（PRD §34.3）：Playwright 覆盖核心路径 登录→桌面→打开应用→创建文件→保存→关闭→重开，含会话刷新恢复与登出（`npm run test:e2e`，运行于生产构建）
+- ⏳ 下一步：性能/安全加固（14）→ v0.1 发布（15）；后端化（Milestone 5）时仅替换 AuthService 存储层
 
 ## 快速开始
 
@@ -39,10 +40,13 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 npm install       # 安装依赖
 npm run dev       # 启动开发服务器
 npm run test      # 运行单元测试
+npm run test:e2e  # 构建并运行 Playwright E2E 测试
 npm run lint      # ESLint 检查
 npm run typecheck # TypeScript 检查
 npm run build     # 生产构建（含 typecheck）
 ```
+
+E2E 首次运行前需安装浏览器：`npx playwright install chromium`。
 
 ## 目录结构
 

@@ -153,6 +153,6 @@
 2. **暂不引入 React Router / TanStack Query**：Login 与 Desktop 是状态而非路由；待后端与多页面诉求（PRD Phase 3）出现再引入。
 3. **UI 文案从第一行代码起走 i18n**：避免后期迁移成本（PRD §41）。
 4. **事件名以 PRD §22 为唯一契约源**：新增事件需先改 `SystemEventMap` 并附测试。
-5. **测试策略**（PRD §34）：`core/` 单测全覆盖，UI 组件用 Testing Library，E2E（Playwright）在 Milestone 6 前补齐核心路径 `Login → Desktop → Open App → Create File → Save → Close → Reopen`。
+5. **测试策略**（PRD §34）：`core/` 单测全覆盖，UI 组件用 Testing Library，E2E 用 Playwright 运行于生产构建（`vite preview`），已覆盖核心路径 `Login → Desktop → Open App → Create File → Save → Close → Reopen` 及会话恢复、登出、错误凭据（`e2e/core-path.spec.ts`）。
 6. **权限名以 §10.1 为准**：PRD §9 示例中的裸 `filesystem` 不在白名单，校验层直接拒绝（有测试固化此决定）。
 7. **`src/apps/` 下的纯数据文件**（如 `builtin-manifests.ts`）允许被 store 引用；含组件的文件禁止反向依赖。
