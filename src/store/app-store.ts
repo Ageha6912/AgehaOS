@@ -11,6 +11,8 @@ interface AppStoreState {
   apps: AppManifest[]
 }
 
+const INSTALLED_KEY = 'agehaos.apps.installed.v1'
+
 let registry = new AppRegistry(systemBus)
 
 export const useAppStore = create<AppStoreState>()(() => ({
@@ -19,6 +21,47 @@ export const useAppStore = create<AppStoreState>()(() => ({
 
 function commit(): void {
   useAppStore.setState({ apps: registry.list() })
+}
+
+function builtinIds(): Set<string> {
+  return new Set(BUILTIN_APP_MANIFESTS.map((manifest) => (manifest as AppManifest).id))
+}
+
+/** Persists non-builtin installed manifests (App Store installs) for the next boot. */
+function persistInstalledApps(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const builtins = builtinIds()
+    const installed = registry.list().filter((app) => !builtins.has(app.id))
+    localStorage.setItem(INSTALLED_KEY, JSON.stringify(installed))
+  } catch {
+    /* quota or privacy mode: installs stay in memory */
+  }
+}
+
+/**
+ * Re-installs persisted App Store installs (PRD §42 local first). Each entry
+ * re-runs full manifest validation; corrupted entries are skipped so a dirty
+ * payload can never break boot. Capability grants live in permission-manager's
+ * own persistent store.
+ */
+export function restoreInstalledApps(): void {
+  if (typeof localStorage === 'undefined') return
+  let raw: string
+  try {
+    raw = localStorage.getItem(INSTALLED_KEY) ?? ''
+  } catch {
+    return
+  }
+  if (raw === '') return
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return
+  }
+  if (!Array.isArray(parsed)) return
+  for (const item of parsed) installApp(item)
 }
 
 /** Validates and installs an app manifest; returns the validation result. */
@@ -32,6 +75,7 @@ export function installApp(input: unknown): ManifestParseResult {
       errors: [{ path: 'id', message: `App "${result.manifest.id}" is already installed` }],
     }
   }
+  if (!builtinIds().has(result.manifest.id)) persistInstalledApps()
   commit()
   return result
 }
@@ -40,6 +84,7 @@ export function uninstallApp(appId: string): boolean {
   const removed = registry.unregister(appId)
   if (removed) {
     permissionManager.forgetApp(appId)
+    if (!builtinIds().has(appId)) persistInstalledApps()
     commit()
   }
   return removed
@@ -69,4 +114,5 @@ export function resetAppStore(): void {
   commit()
   resetPermissionManager()
   registerBuiltinApps()
+  restoreInstalledApps()
 }

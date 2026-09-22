@@ -6,7 +6,10 @@ import { componentFor } from '@/apps/builtin'
 import { MissingApp } from '@/apps/placeholder-app'
 import { useTranslation } from '@/core/i18n'
 import type { WindowInstance } from '@/core/window'
+import { isAllowedWebAppEntry } from '@/core/apps/web-app'
 import { AppErrorBoundary } from '@/components/app-error-boundary'
+import { WebAppFrame } from '@/components/web-app-frame'
+import { getAppManifest } from '@/store/app-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { getWorkspaceViewport } from './viewport'
@@ -31,6 +34,18 @@ interface ResizeOrigin {
  */
 function swallowPointerDown(event: ReactPointerEvent<HTMLElement>) {
   event.stopPropagation()
+}
+
+/**
+ * Type A（内置组件）之外的应用按 Type B 渲染：manifest entry 必须通过同源
+ * `/apps/sites/` allowlist（§30.3 纵深防御的第二道闸；第一道在安装目录）。
+ */
+function TypeBOrMissing({ appId, title, windowId }: { appId: string; title: string; windowId: string }) {
+  const manifest = getAppManifest(appId)
+  if (manifest && isAllowedWebAppEntry(manifest.entry)) {
+    return <WebAppFrame entry={manifest.entry} title={title} />
+  }
+  return <MissingApp windowId={windowId} />
 }
 
 export function WindowFrame({ win }: { win: WindowInstance }) {
@@ -184,7 +199,11 @@ export function WindowFrame({ win }: { win: WindowInstance }) {
 
       <div className="min-h-0 flex-1 overflow-auto">
         <AppErrorBoundary appId={win.appId} windowId={win.id}>
-          {app ? <app.Component windowId={win.id} /> : <MissingApp windowId={win.id} />}
+          {app ? (
+            <app.Component windowId={win.id} />
+          ) : (
+            <TypeBOrMissing appId={win.appId} title={win.title} windowId={win.id} />
+          )}
         </AppErrorBoundary>
       </div>
 

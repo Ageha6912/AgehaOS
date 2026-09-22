@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>时钟</title>
+    <link rel="stylesheet" href="./clock.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="card" aria-label="时钟">
+        <p id="clock" class="clock">--:--:--</p>
+        <p id="date" class="date">-</p>
+      </section>
+      <section class="card" aria-label="秒表">
+        <p id="stopwatch" class="stopwatch">00:00.0</p>
+        <div class="row">
+          <button id="start" type="button">开始</button>
+          <button id="stop" type="button">停止</button>
+          <button id="reset" type="button">归零</button>
+        </div>
+      </section>
+    </main>
+    <script src="./clock.js"></script>
+  </body>
+</html>

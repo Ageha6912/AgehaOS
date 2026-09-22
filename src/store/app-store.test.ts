@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { permissionManager } from '@/core/permissions'
 
-import { getAppManifest, installApp, resetAppStore, uninstallApp, useAppStore } from './app-store'
+import {
+  getAppManifest,
+  installApp,
+  resetAppStore,
+  uninstallApp,
+  useAppStore,
+} from './app-store'
 
 const VALID_APP = {
   id: 'com.ageha.thirdparty',
@@ -12,7 +18,10 @@ const VALID_APP = {
   permissions: ['storage'],
 }
 
+const INSTALLED_KEY = 'agehaos.apps.installed.v1'
+
 beforeEach(() => {
+  localStorage.removeItem(INSTALLED_KEY)
   resetAppStore()
 })
 
@@ -24,6 +33,8 @@ describe('app-store', () => {
       'com.ageha.notes',
       'com.ageha.files',
       'com.ageha.settings',
+      'com.ageha.store',
+      'com.ageha.calculator',
     ])
   })
 
@@ -41,7 +52,7 @@ describe('app-store', () => {
 
     expect(result.ok).toBe(true)
     expect(getAppManifest('com.ageha.thirdparty')?.name).toBe('Third Party')
-    expect(useAppStore.getState().apps).toHaveLength(4)
+    expect(useAppStore.getState().apps).toHaveLength(6)
   })
 
   it('rejects installing an app whose id is already registered', () => {
@@ -62,7 +73,7 @@ describe('app-store', () => {
     expect(uninstallApp('com.ageha.notes')).toBe(false)
 
     expect(getAppManifest('com.ageha.notes')).toBeNull()
-    expect(useAppStore.getState().apps).toHaveLength(2)
+    expect(useAppStore.getState().apps).toHaveLength(4)
   })
 
   it('auto-grants capabilities to trusted built-in apps at boot', () => {
@@ -82,5 +93,41 @@ describe('app-store', () => {
     installApp(VALID_APP)
 
     expect(permissionManager.grantedPermissions('com.ageha.thirdparty')).toEqual([])
+  })
+})
+
+describe('installed-app persistence (App Store 重装恢复)', () => {
+  it('persists third-party installs and restores them on reboot', () => {
+    installApp(VALID_APP)
+    const persisted = JSON.parse(localStorage.getItem(INSTALLED_KEY) ?? '[]')
+    expect(persisted.map((app: { id: string }) => app.id)).toEqual(['com.ageha.thirdparty'])
+
+    // 模拟重启：完全重建注册表并恢复。
+    resetAppStore()
+    expect(getAppManifest('com.ageha.thirdparty')?.name).toBe('Third Party')
+    expect(useAppStore.getState().apps).toHaveLength(6)
+  })
+
+  it('does not persist built-in apps', () => {
+    uninstallApp('com.ageha.notes')
+    expect(localStorage.getItem(INSTALLED_KEY)).toBeNull()
+  })
+
+  it('drops the entry when a third-party app is uninstalled', () => {
+    installApp(VALID_APP)
+    uninstallApp('com.ageha.thirdparty')
+
+    expect(JSON.parse(localStorage.getItem(INSTALLED_KEY) ?? '[]')).toEqual([])
+    resetAppStore()
+    expect(getAppManifest('com.ageha.thirdparty')).toBeNull()
+  })
+
+  it('skips corrupted restore payloads instead of breaking boot', () => {
+    localStorage.setItem(INSTALLED_KEY, '[{"id":"broken"}, "junk", 42]')
+    resetAppStore()
+
+    // 非法条目被逐项拒绝，不注册、不崩溃。
+    expect(getAppManifest('broken')).toBeNull()
+    expect(useAppStore.getState().apps).toHaveLength(5)
   })
 })

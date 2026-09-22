@@ -31,4 +31,20 @@ export const BUILTIN_APP_MANIFESTS: readonly unknown[] = [
     permissions: [],
     window: { width: 840, height: 560 },
   },
+  {
+    id: 'com.ageha.store',
+    name: 'App Store',
+    version: '0.2.0',
+    entry: '/apps/store/index.html',
+    permissions: [],
+    window: { width: 560, height: 520, resizable: true },
+  },
+  {
+    id: 'com.ageha.calculator',
+    name: 'Calculator',
+    version: '0.2.0',
+    entry: '/apps/calculator/index.html',
+    permissions: [],
+    window: { width: 300, height: 440, resizable: false },
+  },
 ]

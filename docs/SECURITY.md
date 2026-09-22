@@ -2,13 +2,13 @@
 
 > 依据 PRD §30（安全需求）、§45.6（安全验收）、§47（风险与应对）。本文档随安全相关改动同步更新。
 
-## 1. 当前状态总览（v0.1）
+## 1. 当前状态总览（v0.2）
 
 | 要求（PRD §30）                                                         | 状态       | 说明                                                                                                                                        |
 | ----------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| §30.1 App Sandbox（Default Deny → Explicit Permission → Scoped Access） | ✅ 部分    | `PermissionManager` Default Deny 已落地，`launchApp` 门禁强制校验；「Scoped Access」随 SDK 与 Type B/C 应用细化                             |
+| §30.1 App Sandbox（Default Deny → Explicit Permission → Scoped Access） | ✅ 部分    | `PermissionManager` Default Deny 已落地，`launchApp` 门禁强制校验；Type B 应用零能力运行；「Scoped Access」随 Type C SDK 应用细化             |
 | §30.2 XSS                                                               | ✅         | 全程 React 默认转义；代码库禁用 `dangerouslySetInnerHTML` / `innerHTML`（CI 可grep 审计）；生产构建注入 CSP                                 |
-| §30.3 iframe 安全                                                       | ⏳ 待用    | iframe 应用类型（Type B）尚未实现；实现时必须：`sandbox` 属性、来源 allowlist、postMessage 校验                                             |
+| §30.3 iframe 安全                                                       | ✅         | Type B 已实现：`sandbox="allow-scripts"`（不给 `allow-same-origin`，不透明 origin）+ `/apps/sites/` 同源 allowlist（`src/core/apps/web-app.ts`）+ postMessage 白名单 schema 校验（`event.source` 严格相等、未知类型与字段一律丢弃）；App Store 目录为安装侧第一道闸 |
 | §30.4 Token                                                             | ✅/⚠️ 折衷 | 本地 v0.1：会话令牌仅存于同源 localStorage，泄露面等同同源脚本，风险可接受；接入后端（Milestone 5）后必须迁移为 HttpOnly Cookie + CSRF 防护 |
 | §30.5 API 安全（鉴权/限流/审计）                                        | ⏳ 后端    | `permission.denied` / `user.login` 等审计事件已在事件总线记录；限流与鉴权随 Milestone 5 后端落地                                            |
 
@@ -36,8 +36,8 @@ object-src 'none'; base-uri 'self'; form-action 'self'
 
 ## 4. 已知风险与后续项（PRD §47）
 
-- **iframe 应用**（Type B）：实现前禁止任何第三方页面嵌入；实现时按 §30.3 全量落实。
-- **第三方 App**（v0.2 App Store）：Manifest 校验已就绪；需补来源校验、权限审核流、签名与版本管理。
+- **iframe 应用（Type B，v0.2 已落地）**：当前仅允许随构建打包的同源站点（`/apps/sites/`）；接入远端分发前必须先落来源校验、签名与版本管理，并重估 CSP `frame-src`。
+- **第三方 App（App Store）**：Manifest 校验 + 权限确认流已就绪（零权限应用可直接安装）；目录当前随构建打包，远端目录需补来源校验、权限审核流、签名与版本管理。
 - **大文件**：VFS 当前为文本内容；二进制与超大文件必须走 OPFS/流式方案（§47.3）。
 - **依赖安全**：`npm audit` 纳入发布前检查（当前 0 已知漏洞）。
 

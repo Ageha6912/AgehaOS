@@ -74,7 +74,7 @@ export function PermissionConsentDialog({
           </button>
           <button
             type="button"
-            disabled={selected.size === 0}
+            disabled={permissions.length > 0 && selected.size === 0}
             className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-contrast hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             onClick={() => onAllow([...selected])}
           >

@@ -145,12 +145,20 @@
 - **渲染**：`WallpaperLayer` 双层交叉淡化（600ms，reduced-motion 150ms，过渡中打断直接替换目标）；canvas 不可用时回落 CSS 渐变（能力探测）；`Desktop.tsx` 仅在「开关开且有生成结果」时挂载壁纸层。
 - **透明性**：桌面右下「✦ AI 生成」徽标（固定后消失，可隐藏）；Settings「动态桌面」section 提供总开关/滑杆/固定/屏蔽/历史回滚/清除数据与结构化生成理由。
 
+### 3.15 应用生态第一步（Type B 沙箱 + App Store + Calculator，v0.2）
+
+- **Type B Web App 宿主**（PRD §8.1、§30.3）：`src/core/apps/web-app.ts` 纯 TS 定义三层隔离——`/apps/sites/` 同源 entry allowlist、`sandbox="allow-scripts"`（**不给** `allow-same-origin`，应用运行于不透明 origin，拿不到父 DOM/cookie/storage）、postMessage 白名单 schema（`event.source` 严格相等 + 未知类型/字段丢弃）。React 容器 `src/components/web-app-frame.tsx`：load 后发 `agehaos:hello` 握手，揭示遮罩；`WindowFrame` 对无内置组件的应用做 allowlist 兜底校验后渲染 `WebAppFrame`，否则 MissingApp。
+- **App Store**（PRD §26 P1 骨架）：`src/apps/store/`——目录随构建打包（`catalog.ts`，全部零权限 Type B 样例），安装走既有 `PermissionConsentDialog`（零权限应用可直接确认）→ `installApp`（parseManifest + 注册）→ `permissionManager.grantAll`；已装应用 manifest 持久化于 `agehaos.apps.installed.v1`（`restoreInstalledApps()` 在 boot 逐项重新校验恢复，坏数据跳过），卸载联动 `uninstallApp` + 权限遗忘。
+- **Calculator**（PRD §26 P1）：`src/apps/calculator/` 经典即时执行状态机（无 eval），支持键盘输入与连续等号重复运算。
+- **示例站点**：`public/apps/sites/clock|sketch/`（外部 JS，无内联脚本，兼容任意 CSP）。
+- 缓办：Type C SDK 加载器（`src/sdk/` 仍空）、远端应用目录（来源校验/签名/版本管理）、应用内 set-title 等 postMessage 扩展协议。
+
 ## 4. 后续模块技术要点
 
 ### 4.1 应用运行时完善（`src/core/runtime`，PRD §8/§25）
 
-- 已就位：Manifest 校验、AppRegistry、生命周期跟踪、崩溃隔离、权限门禁（见 §3.6/§3.7）。
-- 待补：Type B（iframe 沙箱 + postMessage 校验）与 Type C（Ageha SDK 应用）的加载器；Suspended 状态；App Loader 按 `entry` 拉取应用资源。
+- 已就位：Manifest 校验、AppRegistry、生命周期跟踪、崩溃隔离、权限门禁（见 §3.6/§3.7）；Type B iframe 沙箱运行时与 App Store 骨架（见 §3.15）。
+- 待补：Type C（Ageha SDK 应用）的加载器；Suspended 状态；App Loader 按 `entry` 拉取应用资源；Type B 应用的 set-title / resize 等 postMessage 扩展协议。
 - SDK API 层（`AgehaOS.*`）每个入口先过 `permissionManager.has()`，再执行能力。
 
 ### 4.2 虚拟文件系统完善（后续）

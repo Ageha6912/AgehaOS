@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>画板</title>
+    <link rel="stylesheet" href="./sketch.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <div class="toolbar">
+        <label>
+          颜色
+          <input id="color" type="color" value="#2dd4bf" />
+        </label>
+        <label>
+          粗细
+          <input id="width" type="range" min="1" max="24" value="4" />
+        </label>
+        <button id="clear" type="button">清空</button>
+      </div>
+      <canvas id="canvas"></canvas>
+    </main>
+    <script src="./sketch.js"></script>
+  </body>
+</html>

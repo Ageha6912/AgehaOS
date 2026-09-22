@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
 
-import { FolderOpen, GearSix, NotePencil } from '@phosphor-icons/react'
+import { Calculator, FolderOpen, GearSix, NotePencil, Storefront } from '@phosphor-icons/react'
 
 import type { MessageKey } from '@/core/i18n'
 
 import { FileManagerApp } from './files/FileManagerApp'
 import { NotesApp } from './notes/NotesApp'
 import { SettingsApp } from './settings/SettingsApp'
+import { StoreApp } from './store/StoreApp'
+import { CalculatorApp } from './calculator/CalculatorApp'
 import type { AppHostProps } from './placeholder-app'
 
 export interface AppUiMeta {
@@ -35,6 +37,16 @@ export const APP_UI_META: Record<string, AppUiMeta> = {
     titleKey: 'app.settings.title',
     icon: <GearSix size={16} weight="regular" />,
     Component: SettingsApp,
+  },
+  'com.ageha.store': {
+    titleKey: 'app.store.title',
+    icon: <Storefront size={16} weight="regular" />,
+    Component: StoreApp,
+  },
+  'com.ageha.calculator': {
+    titleKey: 'app.calculator.title',
+    icon: <Calculator size={16} weight="regular" />,
+    Component: CalculatorApp,
   },
 }
 
