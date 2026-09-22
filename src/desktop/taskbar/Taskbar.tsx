@@ -2,6 +2,7 @@ import { useWindowStore } from '@/store/window-store'
 
 import { AppLauncher } from './AppLauncher'
 import { useClock } from './use-clock'
+import { UserMenu } from './UserMenu'
 
 export function Taskbar() {
   const clock = useClock()
@@ -38,6 +39,7 @@ export function Taskbar() {
         ))}
       </div>
 
+      <UserMenu />
       <time className="shrink-0 px-2 text-xs text-text-muted">{clock}</time>
     </footer>
   )

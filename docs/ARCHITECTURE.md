@@ -63,28 +63,84 @@
 ### 3.5 桌面 Shell（`src/desktop`，PRD §6/§23.3）
 
 - `Desktop` = 壁纸渐变层 + `WindowLayer`（底部留出任务栏 48px）+ `Taskbar`。
-- `Taskbar`：开始菜单（`AppLauncher`，列出内置应用）、运行窗口按钮（点击在 聚焦/最小化/还原 间切换）、时钟（`Intl.DateTimeFormat` 随 i18n locale）。
-- 内置应用目录 `src/apps/registry.ts`：`{ appId, titleKey, icon, width, height, Component }`，当前全部指向占位组件；Runtime 里程碑（PRD §9）将由 Manifest 驱动的正式 App Registry 取代。
+- `Taskbar`：开始菜单（`AppLauncher`，列出注册表内应用）、运行窗口按钮（点击在 聚焦/最小化/还原 间切换）、时钟（`Intl.DateTimeFormat` 随 i18n locale）。
 - 桌面图标依赖真实文件系统，随 VFS 里程碑（M3）实现。
 
-### 3.6 设计 Token（`src/index.css`，PRD §27）
+### 3.6 应用清单与注册表（`src/core/runtime` + `src/store/app-store`，PRD §9/§24）
 
-- Tailwind CSS 4 `@theme` 定义 `--color-*`、`--radius-*`、`--shadow-window`，UI 一律消费 Token，不写魔法值。
-- Light / Dark / System 三态切换待 Settings 应用接入（计划用 Tailwind 自定义 `dark` variant）。
+- `parseManifest(input)`：不可信 Manifest 的全量校验，一次性收集所有问题（`{ path, message }[]`）。规则：`id` 反域名格式（`com.ageha.notes`）、`version` semver、`entry` 绝对路径、`permissions` 必须属于 §10.1 白名单（PRD §9 示例中的裸 `filesystem` 按 §10.1 拒绝，拆分为 `filesystem.read/write`）、`window` 仅接受 `width/height/resizable`。解析成功后深冻结，防止运行时篡改。
+- `AppRegistry`：注册（去重，成功发 `app.installed`）/ 注销 / 查询；Zustand `app-store` 以单例注册表驱动，`installApp = parse + register + commit`。
+- 内置应用：`src/apps/builtin-manifests.ts`（纯数据 Manifest，随启动注册）+ `src/apps/builtin.tsx`（`APP_UI_META`：图标 / 本地化标题键 / 组件映射）。Manifest 的 `name` 是规范名，UI 显示名走 i18n（PRD §41）。
+- 启动流程 `launchApp`（`src/apps/launch.ts`，PRD §24.2）：Registry 查询 → **权限门禁**（任一请求的 capability 未授权即拒绝，并发 `permission.denied` 审计事件，§30.5）→ 本地化标题 → 按 Manifest 窗口默认值开窗。
+- 生命周期跟踪器 `createAppLifecycleTracker`：订阅 `window.created/closed`，按 0→1 / 1→0 转换派生 `app.started / app.stopped`；`systemAppLifecycle` 在 `main.tsx` 显式 `start()`。
+- 崩溃隔离：`components/AppErrorBoundary` 包裹窗口内容，抛错即发 `app.crashed` 并显示恢复 UI（重新加载 = 重挂载），单应用崩溃不影响桌面（PRD §25/§45.3）。
+
+### 3.7 权限系统（`src/core/permissions`，PRD §10/§13.2）
+
+- `PermissionManager`：按 `{appId → Permission}` 记录显式授权。**Default Deny**——应用拥有的只有被授予的，绝非 Manifest 声明的（§10.3）。
+- API：`grant / grantAll / revoke / has / grantedPermissions / forgetApp / clear`；`grant` 与 `revoke` 分别发 `permission.granted / permission.denied`。
+- 持久化：localStorage（键 `agehaos.permissions.v1`），构造时恢复；损坏的 JSON、非法权限名、写入失败（隐私模式/配额）均静默降级为内存态。存储可注入，测试用假存储。
+- 与注册表的协作：内置系统应用（§8.1 受信）在 `registerBuiltinApps` 时静默授权；第三方安装走 `PermissionConsentDialog`（勾选式逐项授权，全不勾则禁止安装）后由调用方执行 `installApp + grantAll`——对话框已就绪，等 App Store（v0.2）接入；`uninstallApp` 会同时 `forgetApp` 清理授权。
+- RBAC（§13.2 的角色一侧）依赖用户系统，随第 12 步（Login/User）补齐；`launchApp` 的门禁即 App Capability 的第一个执行点，未来 SDK API 层复用同一 `has()` 检查。
+
+### 3.8 虚拟文件系统（`src/core/filesystem` + `src/services/vfs`，PRD §11）
+
+- **架构**：`Vfs`（内存文件树 + 校验 + 事件）→ `VfsStorageAdapter` → `IdbAdapter`（IndexedDB，默认）/ `MemoryAdapter`（能力检测降级，§31）。全量快照保存，v0.1 规模下足够；分片写入随云同步（§43）引入。
+- **数据模型**：`VfsNode { id, parentId, name, type, content, size, trashed, createdAt, updatedAt }`。v0.1 文件内容为 UTF-8 文本（`size` 为字节长度），二进制大文件走 OPFS 适配器（待补，§47.3）。
+- **默认目录树**（§11.1）：首次启动播种 `/Desktop、Documents、Downloads、Pictures、Videos、Music、Apps、Trash、System`，之后从存储恢复。
+- **操作**：`list / listTrash / get / createDirectory / writeFile（创建或更新）/ readFile / rename / move / copy（目录深拷贝）/ remove（进回收站）/ restore / purge / emptyTrash / search（大小写不敏感子串）/ pathOfId`。所有操作异步、经 boot promise 串行化，路径错误抛 `VfsError { code }`（UI 层转友好文案，§39）。
+- **保护规则**：根目录与全部根级系统目录禁止删除/改名/移动（`root-protected`）；目录不能移入自身子树（`cycle`）；同级重名拒绝（`already-exists`）；回收站恢复时若原名被占用则拒绝，由用户先重命名。
+- **事件**：`file.created / updated / deleted` 携带 `{ fileId, path }`；彻底删除（purge/emptyTrash）同样广播 `file.deleted`，让打开中的视图即时移除条目。
+- **启动**：`services/vfs.ts` 创建单例，`main.tsx` 中 `systemVfs.ready()` 异步初始化，不阻塞首屏。
+
+### 3.9 File Manager（`src/apps/files`，PRD §23.4/§26/§45.4）
+
+- 首个真实系统应用，`FileManagerApp` 绑定 `systemVfs` 单例；`com.ageha.files` 的 UI 元数据指向它（其余应用仍为占位组件）。
+- 布局（§23.4）：侧边栏快速访问（根级系统目录 + 回收站虚拟视图）｜面包屑导航 + 工具栏 + 搜索框｜图标网格（单击选中、双击进入目录/打开预览）。
+- 操作映射：新建文件夹 → `createDirectory`；新建文本文件 → `writeFile`；重命名 → `rename`；删除 → `remove`（进回收站）；回收站视图提供 `restore / purge`；搜索框按当前目录子树实时 `search`；双击文件打开只读预览（编辑随 Notes 落地）。
+- 通用 `PromptDialog`（`components/prompt-dialog.tsx`）：带校验错误位的输入对话框，供新建/重命名复用。
+- 三态齐备（§46）：Loading（`entries === null` 派生）、Empty（目录为空/回收站为空）、Error（`VfsError` 经 `vfsErrorMessageKey` 映射为 i18n 文案，横幅或对话框内 `role=alert` 展示）。
+- 订阅 `file.*` 事件保持多窗口/跨应用视图同步；React hooks v7 的 `set-state-in-effect` 约束下，刷新经 `setTimeout(0)` 回调触发。
+
+### 3.10 设计 Token（`src/index.css`，PRD §27）
+
+- 双主题：原始变量定义在 `:root`（浅色）与 `.dark`（深色），经 `@theme inline` 映射为稳定的工具类 Token——UI 组件不感知主题，切换零成本（PRD §27 Light/Dark/System）。
+- 主题由 `store/settings-store` 驱动：切换即在 `<html>` 上增删 `.dark`；「跟随系统」监听 `prefers-color-scheme`；主题/字体大小/语言持久化到 localStorage（键 `agehaos.settings.v1`）。
+- 字体大小设置直接调整根 `font-size`（14/16/18px），全站 rem 布局随之缩放。
+- Light / Dark / System 之外的个性化（壁纸等）待后续。
+
+### 3.11 Settings（`src/apps/settings`，PRD §14）
+
+- 侧边栏 + 内容区（§23.5）：外观（主题/字体大小）、语言（中/英，写入 i18n store）、权限（各应用已授权能力总览，来自 PermissionManager）、关于。
+- 语言切换即时生效且持久化——所有 UI 文案走 i18n 的策略在此闭环。
+
+### 3.12 Notes（`src/apps/notes`，PRD §26/§11.2）
+
+- 基于系统 VFS 的文本编辑器：笔记即 `/Documents` 下的文本文件。
+- 新建有防覆盖保护（`writeFile` 是创建或更新语义，新建前显式查重，PRD §39）；编辑产生脏状态（圆点指示 + 保存按钮启用）；保存经 `writeFile` 落盘并广播 `file.updated`。
+- 订阅 `file.*` 事件，与 File Manager 保持跨应用同步。
+
+### 3.13 用户系统（`src/core/auth` + `src/store/session-store`，PRD §12/§24.1）
+
+- `AuthService`：注册（用户名 `3–32` 位字母/数字/`-`/`_`，密码 ≥6 位）、登录、登出；密码以「盐值 + SHA-256」存储，绝不明文落盘；对外的 `User` 类型不含任何密码材料。
+- Session：`{ token, userId, expiresAt }`，默认 7 天 TTL，存于 localStorage（键 `agehaos.session.v1`）；`getSession()` 惰性校验过期并在过期时清除；TTL 可注入，测试用短 TTL 验证「Session Expire」（§45.5）。
+- 事件：登录/登出发 `user.login / user.logout`。
+- 启动集成（§24.1）：boot 状态机增加 `login` 阶段——`loading` 结束时按 session-store 状态决定进入 `ready`（有会话）或 `login`（无会话）；会话过期后再次启动时，Login 界面显示一次性过期提示。
+- 桌面侧：任务栏 `UserMenu` 显示当前用户并提供退出登录；登出后由 App 响应 session 状态切回 Login。
+- 后端化（Milestone 5）：仅替换 AuthService 的存储层与校验实现（REST/JWT），`session-store` 与 UI 不变。
 
 ## 4. 后续模块技术要点
 
-### 4.1 应用运行时（`src/core/runtime`，PRD §8–10、§25）—— 下一步
+### 4.1 应用运行时完善（`src/core/runtime`，PRD §8/§25）
 
-- App 三类型：System / Web（iframe 沙箱）/ Ageha（SDK）。
-- Manifest 解析与校验独立成纯函数模块，替换现有 `src/apps/registry.ts` 的临时目录；生命周期事件走 `systemBus`。
-- 权限模型 `RBAC + App Capability`，Default Deny（PRD §30.1）。
+- 已就位：Manifest 校验、AppRegistry、生命周期跟踪、崩溃隔离、权限门禁（见 §3.6/§3.7）。
+- 待补：Type B（iframe 沙箱 + postMessage 校验）与 Type C（Ageha SDK 应用）的加载器；Suspended 状态；App Loader 按 `entry` 拉取应用资源。
+- SDK API 层（`AgehaOS.*`）每个入口先过 `permissionManager.has()`，再执行能力。
 
-### 4.2 虚拟文件系统（`src/core/filesystem`，PRD §11）
+### 4.2 虚拟文件系统完善（后续）
 
-- `VFS API → Storage Adapter → IndexedDB / OPFS / File System Access / 远程对象存储`。
-- 所有浏览器差异化 API 必须做 Capability Detection（PRD §31）。
-- Local First：本地优先 + 同步队列（PRD §42）。
+- OPFS / File System Access / 远程对象存储适配器；上传、下载、文件编辑随后续应用落地。
+- Local First 同步队列（§42）与冲突策略（MVP：Last Write Wins）。
 
 ### 4.3 后端（`server/`，Milestone 5，PRD §20）
 
@@ -98,3 +154,5 @@
 3. **UI 文案从第一行代码起走 i18n**：避免后期迁移成本（PRD §41）。
 4. **事件名以 PRD §22 为唯一契约源**：新增事件需先改 `SystemEventMap` 并附测试。
 5. **测试策略**（PRD §34）：`core/` 单测全覆盖，UI 组件用 Testing Library，E2E（Playwright）在 Milestone 6 前补齐核心路径 `Login → Desktop → Open App → Create File → Save → Close → Reopen`。
+6. **权限名以 §10.1 为准**：PRD §9 示例中的裸 `filesystem` 不在白名单，校验层直接拒绝（有测试固化此决定）。
+7. **`src/apps/` 下的纯数据文件**（如 `builtin-manifests.ts`）允许被 store 引用；含组件的文件禁止反向依赖。

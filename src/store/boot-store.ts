@@ -1,16 +1,17 @@
 import { create } from 'zustand'
 
-export type BootPhase = 'booting' | 'loading' | 'ready'
+export type BootPhase = 'booting' | 'loading' | 'ready' | 'login'
 
 interface BootState {
   phase: BootPhase
   setPhase: (phase: BootPhase) => void
+  /** booting → loading, then the caller decides ready vs login (PRD §24.1). */
   advance: () => void
+  finishBoot: (target: 'ready' | 'login') => void
 }
 
-const NEXT_PHASE: Record<Exclude<BootPhase, 'ready'>, BootPhase> = {
+const NEXT_PHASE: Record<'booting', BootPhase> = {
   booting: 'loading',
-  loading: 'ready',
 }
 
 export const useBootStore = create<BootState>((set) => ({
@@ -18,6 +19,7 @@ export const useBootStore = create<BootState>((set) => ({
   setPhase: (phase) => set({ phase }),
   advance: () =>
     set((state) => ({
-      phase: state.phase === 'ready' ? state.phase : NEXT_PHASE[state.phase],
+      phase: state.phase === 'booting' ? NEXT_PHASE.booting : state.phase,
     })),
+  finishBoot: (target) => set((state) => (state.phase === 'loading' ? { phase: target } : state)),
 }))

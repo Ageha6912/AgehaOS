@@ -58,7 +58,7 @@ export class WindowManager {
     for (const win of this.windows.values()) {
       win.focused = win.id === id
     }
-    this.bus.emit('window.created', { windowId: id })
+    this.bus.emit('window.created', { windowId: id, appId: instance.appId })
     this.bus.emit('window.focused', { windowId: id })
     return this.get(id)!
   }
@@ -75,8 +75,9 @@ export class WindowManager {
   }
 
   close(id: string): boolean {
-    if (!this.windows.delete(id)) return false
-    this.bus.emit('window.closed', { windowId: id })
+    const target = this.windows.get(id)
+    if (!target || !this.windows.delete(id)) return false
+    this.bus.emit('window.closed', { windowId: id, appId: target.appId })
     this.focusTopmost()
     return true
   }

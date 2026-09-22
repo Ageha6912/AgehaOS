@@ -1,21 +1,19 @@
 import { useState } from 'react'
 
-import { BUILTIN_APPS, type RegisteredApp } from '@/apps/registry'
+import { componentFor } from '@/apps/builtin'
+import { launchApp } from '@/apps/launch'
 import { useTranslation } from '@/core/i18n'
-import { useWindowStore } from '@/store/window-store'
+import { useAppStore } from '@/store/app-store'
+
+const FALLBACK_ICON = '📦'
 
 export function AppLauncher() {
   const [open, setOpen] = useState(false)
   const { t } = useTranslation()
-  const openWindow = useWindowStore((s) => s.open)
+  const apps = useAppStore((s) => s.apps)
 
-  const launch = (app: RegisteredApp) => {
-    openWindow({
-      appId: app.appId,
-      title: t(app.titleKey),
-      width: app.width,
-      height: app.height,
-    })
+  const launch = (appId: string) => {
+    launchApp(appId)
     setOpen(false)
   }
 
@@ -37,20 +35,23 @@ export function AppLauncher() {
           aria-label={t('taskbar.start')}
           className="absolute bottom-10 left-0 z-50 w-56 rounded-lg border border-border bg-surface p-1.5 shadow-window"
         >
-          {BUILTIN_APPS.map((app) => (
-            <li key={app.appId}>
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm text-text hover:bg-surface-raised"
-                onClick={() => launch(app)}
-              >
-                <span aria-hidden="true" className="text-lg">
-                  {app.icon}
-                </span>
-                {t(app.titleKey)}
-              </button>
-            </li>
-          ))}
+          {apps.map((app) => {
+            const meta = componentFor(app.id)
+            return (
+              <li key={app.id}>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm text-text hover:bg-surface-raised"
+                  onClick={() => launch(app.id)}
+                >
+                  <span aria-hidden="true" className="text-lg">
+                    {meta?.icon ?? FALLBACK_ICON}
+                  </span>
+                  {meta ? t(meta.titleKey) : app.name}
+                </button>
+              </li>
+            )
+          })}
         </menu>
       )}
     </div>

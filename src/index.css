@@ -1,20 +1,44 @@
 @import 'tailwindcss';
 
-/* AgehaOS design tokens (PRD §27) */
-@theme {
-  --color-bg: #0b0d14;
-  --color-surface: #151823;
-  --color-surface-raised: #1d2133;
-  --color-text: #e8eaf2;
-  --color-text-muted: #9aa1b5;
-  --color-primary: #8b7cf0;
-  --color-border: #2a2f42;
+/* Theme strategy (PRD §27): raw tokens flip on `.dark`, utilities stay stable. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --ag-bg: #eef0f6;
+  --ag-surface: #ffffff;
+  --ag-surface-raised: #e9ebf3;
+  --ag-text: #1a1d29;
+  --ag-text-muted: #5c6373;
+  --ag-primary: #6c5ce7;
+  --ag-border: #d7dbe7;
+  --ag-shadow-window: 0 16px 48px rgb(15 18 35 / 18%);
+}
+
+.dark {
+  --ag-bg: #0b0d14;
+  --ag-surface: #151823;
+  --ag-surface-raised: #1d2133;
+  --ag-text: #e8eaf2;
+  --ag-text-muted: #9aa1b5;
+  --ag-primary: #8b7cf0;
+  --ag-border: #2a2f42;
+  --ag-shadow-window: 0 16px 48px rgb(0 0 0 / 45%);
+}
+
+@theme inline {
+  --color-bg: var(--ag-bg);
+  --color-surface: var(--ag-surface);
+  --color-surface-raised: var(--ag-surface-raised);
+  --color-text: var(--ag-text);
+  --color-text-muted: var(--ag-text-muted);
+  --color-primary: var(--ag-primary);
+  --color-border: var(--ag-border);
 
   --radius-sm: 6px;
   --radius-md: 12px;
   --radius-lg: 16px;
 
-  --shadow-window: 0 16px 48px rgb(0 0 0 / 45%);
+  --shadow-window: var(--ag-shadow-window);
 }
 
 html,
@@ -25,8 +49,8 @@ body,
 
 body {
   margin: 0;
-  background-color: var(--color-bg);
-  color: var(--color-text);
+  background-color: var(--ag-bg);
+  color: var(--ag-text);
   font-family:
     system-ui,
     -apple-system,

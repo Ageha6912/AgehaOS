@@ -11,16 +11,16 @@ beforeEach(() => {
 
 describe('WindowFrame (via WindowLayer)', () => {
   it('renders the title bar and app body', () => {
-    useWindowStore.getState().open({ appId: 'notes', title: '记事', x: 100, y: 100 })
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事', x: 100, y: 100 })
 
     render(<WindowLayer />)
 
     expect(screen.getByRole('region', { name: '记事' })).toBeInTheDocument()
-    expect(screen.getByText('该应用正在开发中，将在后续版本提供。')).toBeInTheDocument()
+    expect(screen.getByText('选择或新建一条笔记')).toBeInTheDocument()
   })
 
   it('closes the window via the close button', () => {
-    useWindowStore.getState().open({ appId: 'notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
 
     render(<WindowLayer />)
 
@@ -30,7 +30,7 @@ describe('WindowFrame (via WindowLayer)', () => {
   })
 
   it('minimizes the window via the minimize button', () => {
-    useWindowStore.getState().open({ appId: 'notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
 
     render(<WindowLayer />)
 
@@ -40,7 +40,7 @@ describe('WindowFrame (via WindowLayer)', () => {
   })
 
   it('toggles maximize via the maximize button and double-click on the title bar', () => {
-    useWindowStore.getState().open({ appId: 'notes', title: '记事', x: 100, y: 100 })
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事', x: 100, y: 100 })
 
     render(<WindowLayer />)
 
@@ -56,23 +56,23 @@ describe('WindowFrame (via WindowLayer)', () => {
   })
 
   it('focuses the window on pointer down', () => {
-    useWindowStore.getState().open({ appId: 'notes', title: '记事' })
-    useWindowStore.getState().open({ appId: 'files', title: '文件' })
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
 
     render(<WindowLayer />)
-    expect(useWindowStore.getState().windows.find((win) => win.appId === 'notes')?.focused).toBe(
-      false,
-    )
+    expect(
+      useWindowStore.getState().windows.find((win) => win.appId === 'com.ageha.notes')?.focused,
+    ).toBe(false)
 
     fireEvent.pointerDown(screen.getByRole('region', { name: '记事' }))
 
-    expect(useWindowStore.getState().windows.find((win) => win.appId === 'notes')?.focused).toBe(
-      true,
-    )
+    expect(
+      useWindowStore.getState().windows.find((win) => win.appId === 'com.ageha.notes')?.focused,
+    ).toBe(true)
   })
 
   it('keeps a minimized window mounted but hidden', () => {
-    useWindowStore.getState().open({ appId: 'notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
 
     render(<WindowLayer />)
     fireEvent.click(screen.getByRole('button', { name: '最小化窗口' }))
@@ -83,7 +83,7 @@ describe('WindowFrame (via WindowLayer)', () => {
   })
 
   it('hides the maximize button for non-resizable windows', () => {
-    useWindowStore.getState().open({ appId: 'notes', title: '记事', resizable: false })
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事', resizable: false })
 
     render(<WindowLayer />)
 

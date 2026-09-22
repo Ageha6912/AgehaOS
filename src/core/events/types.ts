@@ -1,7 +1,7 @@
 export interface SystemEventMap {
-  'window.created': { windowId: string }
+  'window.created': { windowId: string; appId: string }
   'window.focused': { windowId: string }
-  'window.closed': { windowId: string }
+  'window.closed': { windowId: string; appId: string }
   'window.minimized': { windowId: string }
   'window.maximized': { windowId: string }
   'window.restored': { windowId: string }

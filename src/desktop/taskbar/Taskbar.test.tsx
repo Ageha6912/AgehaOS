@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
+import { resetAppStore } from '@/store/app-store'
 
 import { Taskbar } from './Taskbar'
 
@@ -9,6 +10,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-09-21T10:30:00'))
   resetWindowStore()
+  resetAppStore()
 })
 
 describe('Taskbar', () => {
@@ -26,13 +28,14 @@ describe('Taskbar', () => {
 
     const windows = useWindowStore.getState().windows
     expect(windows).toHaveLength(1)
-    expect(windows[0]?.appId).toBe('notes')
+    expect(windows[0]?.appId).toBe('com.ageha.notes')
     expect(windows[0]?.title).toBe('记事')
+    expect(windows[0]?.width).toBe(720)
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
   it('minimizes the focused window and restores it from the taskbar', () => {
-    useWindowStore.getState().open({ appId: 'notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     render(<Taskbar />)
 
     fireEvent.click(screen.getByTitle('记事'))
@@ -44,14 +47,14 @@ describe('Taskbar', () => {
   })
 
   it('focuses an unfocused window instead of minimizing it', () => {
-    useWindowStore.getState().open({ appId: 'notes', title: '记事' })
-    useWindowStore.getState().open({ appId: 'files', title: '文件' })
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
     render(<Taskbar />)
 
     fireEvent.click(screen.getByTitle('记事'))
 
     const windows = useWindowStore.getState().windows
-    expect(windows.find((win) => win.appId === 'notes')?.focused).toBe(true)
-    expect(windows.find((win) => win.appId === 'files')?.focused).toBe(false)
+    expect(windows.find((win) => win.appId === 'com.ageha.notes')?.focused).toBe(true)
+    expect(windows.find((win) => win.appId === 'com.ageha.files')?.focused).toBe(false)
   })
 })

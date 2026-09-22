@@ -1,8 +1,10 @@
 import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 
-import { getApp, MissingApp } from '@/apps/registry'
+import { componentFor } from '@/apps/builtin'
+import { MissingApp } from '@/apps/placeholder-app'
 import { useTranslation } from '@/core/i18n'
 import type { WindowInstance } from '@/core/window'
+import { AppErrorBoundary } from '@/components/app-error-boundary'
 import { useWindowStore } from '@/store/window-store'
 
 import { getWorkspaceViewport } from './viewport'
@@ -43,7 +45,7 @@ export function WindowFrame({ win }: { win: WindowInstance }) {
 
   const maximized = win.state === 'maximized'
   const minimized = win.state === 'minimized'
-  const app = getApp(win.appId)
+  const app = componentFor(win.appId)
 
   const style: CSSProperties = maximized
     ? { left: 0, top: 0, width: '100%', height: '100%', zIndex: win.zIndex }
@@ -175,7 +177,9 @@ export function WindowFrame({ win }: { win: WindowInstance }) {
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {app ? <app.Component windowId={win.id} /> : <MissingApp windowId={win.id} />}
+        <AppErrorBoundary appId={win.appId} windowId={win.id}>
+          {app ? <app.Component windowId={win.id} /> : <MissingApp windowId={win.id} />}
+        </AppErrorBoundary>
       </div>
 
       {win.resizable && !maximized && (

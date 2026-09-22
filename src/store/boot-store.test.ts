@@ -11,20 +11,27 @@ describe('useBootStore', () => {
     expect(useBootStore.getState().phase).toBe('booting')
   })
 
-  it('advances booting → loading → ready', () => {
-    const { advance } = useBootStore.getState()
-
-    advance()
+  it('advances booting → loading', () => {
+    useBootStore.getState().advance()
     expect(useBootStore.getState().phase).toBe('loading')
+  })
 
-    advance()
+  it('finishes boot into the desktop or the login screen', () => {
+    useBootStore.getState().advance()
+    useBootStore.getState().finishBoot('ready')
     expect(useBootStore.getState().phase).toBe('ready')
+
+    useBootStore.setState(useBootStore.getInitialState())
+    useBootStore.getState().advance()
+    useBootStore.getState().finishBoot('login')
+    expect(useBootStore.getState().phase).toBe('login')
   })
 
   it('stays ready once boot completed', () => {
     useBootStore.getState().setPhase('ready')
 
     useBootStore.getState().advance()
+    useBootStore.getState().finishBoot('login')
 
     expect(useBootStore.getState().phase).toBe('ready')
   })

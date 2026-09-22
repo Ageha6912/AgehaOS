@@ -13,7 +13,7 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 
 ## 当前状态
 
-**Phase 0 / Project Bootstrap + Desktop Core 已完成**（对应 PRD §51 第 01–03 步）：
+**Phase 0 / MVP 功能面已完成**（对应 PRD §51 第 01–05、07–12 步，仅剩测试加固与发布）：
 
 - ✅ 工程脚手架（Vite + React 19 + TypeScript + Tailwind CSS 4 + Vitest 5 + ESLint + Prettier）
 - ✅ 目录骨架（按 PRD §19.1 规划）
@@ -21,8 +21,15 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 - ✅ 设计 Token（PRD §27）已接入 Tailwind 主题
 - ✅ **窗口管理器**（PRD §7）：生命周期、焦点、z 序、拖拽、缩放、最小化/最大化/还原，含 31 项核心单测
 - ✅ **桌面 Shell**（PRD §6/§23.3）：Desktop + 窗口层 + 任务栏（运行窗口切换、时钟）+ 开始菜单启动器
-- ✅ 内置应用占位注册表（Notes / Files / Settings 占位，真实应用待 Milestone 4）
-- ⏳ 下一步：Event Bus 已就绪 → App Registry / Manifest（05）→ App Runtime（06）→ 权限系统（07）→ VFS（08）（见 PRD §51）
+- ✅ **App Manifest 与注册表**（PRD §9/§10.1/§24.2）：`parseManifest` 全量校验（id 反域名、semver、权限白名单、窗口配置）、`AppRegistry`（`app.installed`）、内置应用迁移到 Manifest 驱动
+- ✅ **App 生命周期与崩溃隔离**（PRD §22/§25）：`app.started/stopped` 由窗口事件推导；`AppErrorBoundary` 崩溃隔离 + 恢复 UI（`app.crashed`）
+- ✅ **权限系统**（PRD §10/§13.2/§45.6）：`PermissionManager` Default Deny + localStorage 持久化（`permission.granted/denied` 事件）、内置应用自动授权、卸载清理授权、`launchApp` 权限门禁（拒绝启动并审计 `permission.denied`）、`PermissionConsentDialog` 安装授权对话框（App Store v0.2 接入）
+- ✅ **虚拟文件系统 VFS**（PRD §11/§22/§45.4）：`Vfs` 核心（§11.1 默认目录树、CRUD、重命名/移动/复制、回收站删除/恢复/清空、名称搜索、`file.created/updated/deleted` 事件）、`VFS API → Storage Adapter` 架构、IndexedDB 适配器 + 能力检测降级（§31）、启动时自动初始化并跨刷新恢复
+- ✅ **File Manager 应用**（PRD §23.4/§26/§45.4）：首个真实系统应用——侧边栏快速访问 + 回收站视图、面包屑导航、新建文件夹/文本文件、重命名、删除→回收站、还原/彻底删除、目录内搜索、只读文件预览；通用 `PromptDialog` 组件；Loading/Empty/Error 三态齐备
+- ✅ **Settings 应用**（PRD §14/§27/§41）：主题切换（浅色/深色/跟随系统，设计 Token 双主题化）、字体大小、界面语言切换（中/英）、权限总览（各应用已授权能力）、关于页；设置持久化到 localStorage
+- ✅ **Notes 应用**（PRD §26/§11.2）：基于 VFS 的文本编辑器——/Documents 笔记列表、新建（防覆盖保护）、编辑、保存（脏状态指示）
+- ✅ **用户系统**（PRD §12/§23.2/§24.1/§45.5）：`AuthService`（注册/登录/登出，盐值 SHA-256 密码哈希，7 天过期 Session，`user.login/logout` 事件）、启动流程接入会话检查（无会话 → Login 界面）、任务栏用户菜单（登出）、会话跨刷新恢复、过期会话清除与提示
+- ⏳ 下一步：E2E（13）→ 性能/安全加固（14）→ v0.1 发布（15）；后端化（Milestone 5）时仅替换 AuthService 存储层
 
 ## 快速开始
 
@@ -45,9 +52,9 @@ src/
 │   ├── events/      # ✅ 事件总线 + 系统事件映射
 │   ├── i18n/        # ✅ 国际化（zh-CN / en）
 │   ├── window/      # ✅ 窗口管理器（生命周期/焦点/z序/几何约束）
-│   ├── runtime/     # 应用运行时（待开发）
-│   ├── filesystem/  # 虚拟文件系统 VFS（待开发）
-│   └── permissions/ # 权限系统（待开发）
+│   ├── runtime/     # ✅ Manifest 校验 + AppRegistry + 生命周期跟踪
+│   ├── filesystem/  # ✅ VFS（文件树/CRUD/回收站/搜索 + IndexedDB 适配器）
+│   └── permissions/ # ✅ 权限系统（PermissionManager，Default Deny + 持久化）
 ├── desktop/         # 桌面环境 UI
 │   ├── boot/        # ✅ Boot Screen
 │   ├── window/      # ✅ WindowFrame / WindowLayer（拖拽、缩放、按钮）
@@ -55,11 +62,11 @@ src/
 │   ├── launcher/    # 开始菜单增强（搜索/分类，待开发）
 │   ├── notification/# 通知中心（待开发）
 │   └── wallpaper/   # 壁纸（待开发）
-├── apps/            # 系统应用（✅ 占位注册表；files/settings/notes 待实现）
+├── apps/            # 系统应用（✅ files / notes / settings 均为真实应用）
 ├── sdk/             # AgehaOS App SDK（AgehaOS.window / .files / …）
-├── store/           # 全局状态（✅ boot-store / window-store）
+├── store/           # 全局状态（✅ boot-store / window-store / app-store）
 ├── services/        # 平台服务封装
-├── components/      # 通用 UI 组件
+├── components/      # 通用 UI 组件（✅ AppErrorBoundary / PermissionConsentDialog）
 └── main.tsx
 ```
 
