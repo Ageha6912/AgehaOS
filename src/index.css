@@ -21,6 +21,7 @@
   --ag-warning: #d97706; /* amber-600 */
   --ag-shadow-window:
     0 16px 48px rgb(28 25 23 / 16%), 0 2px 8px rgb(28 25 23 / 8%);
+  --ag-shadow-window-flat: 0 8px 24px rgb(28 25 23 / 10%);
 
   /* Glass material (web glassmorphism approximation; solid fallback below). */
   --ag-glass-bg: rgb(255 255 255 / 86%);
@@ -48,6 +49,7 @@
   --ag-warning: #fbbf24; /* amber-400 */
   --ag-shadow-window:
     0 16px 48px rgb(0 0 0 / 45%), 0 2px 8px rgb(0 0 0 / 30%);
+  --ag-shadow-window-flat: 0 8px 24px rgb(0 0 0 / 28%);
 
   --ag-glass-bg: rgb(28 25 23 / 80%);
   --ag-glass-border: rgb(255 255 255 / 10%);
@@ -72,6 +74,7 @@
   --radius-lg: 16px;
 
   --shadow-window: var(--ag-shadow-window);
+  --shadow-window-flat: var(--ag-shadow-window-flat);
 
   --ease-os: var(--ag-motion-ease);
 }

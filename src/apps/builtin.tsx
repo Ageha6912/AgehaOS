@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 
+import { FolderOpen, GearSix, NotePencil } from '@phosphor-icons/react'
+
 import type { MessageKey } from '@/core/i18n'
 
 import { FileManagerApp } from './files/FileManagerApp'
@@ -10,7 +12,7 @@ import type { AppHostProps } from './placeholder-app'
 export interface AppUiMeta {
   /** Localized display name for the launcher/window title (PRD §41). */
   titleKey: MessageKey
-  icon: string
+  icon: ReactNode
   Component: (props: AppHostProps) => ReactNode
 }
 
@@ -19,9 +21,21 @@ export interface AppUiMeta {
  * without an entry here fall back to their manifest name and a generic icon.
  */
 export const APP_UI_META: Record<string, AppUiMeta> = {
-  'com.ageha.notes': { titleKey: 'app.notes.title', icon: '📝', Component: NotesApp },
-  'com.ageha.files': { titleKey: 'app.files.title', icon: '📁', Component: FileManagerApp },
-  'com.ageha.settings': { titleKey: 'app.settings.title', icon: '⚙️', Component: SettingsApp },
+  'com.ageha.notes': {
+    titleKey: 'app.notes.title',
+    icon: <NotePencil size={16} weight="regular" />,
+    Component: NotesApp,
+  },
+  'com.ageha.files': {
+    titleKey: 'app.files.title',
+    icon: <FolderOpen size={16} weight="regular" />,
+    Component: FileManagerApp,
+  },
+  'com.ageha.settings': {
+    titleKey: 'app.settings.title',
+    icon: <GearSix size={16} weight="regular" />,
+    Component: SettingsApp,
+  },
 }
 
 export function componentFor(appId: string): AppUiMeta | null {

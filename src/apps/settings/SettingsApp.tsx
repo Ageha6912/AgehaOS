@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+
+import { GlobeHemisphereWest, LockSimple, Palette, Sparkle } from '@phosphor-icons/react'
 
 import { useTranslation, useLocaleStore } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
@@ -10,11 +12,11 @@ import { DynamicDesktopSection } from './DynamicDesktopSection'
 
 type SectionId = 'appearance' | 'dynamic' | 'language' | 'permissions' | 'about'
 
-const SECTIONS: Array<{ id: SectionId; labelKey: MessageKey; icon: string }> = [
-  { id: 'appearance', labelKey: 'settings.appearance', icon: '🎨' },
-  { id: 'dynamic', labelKey: 'dynamicDesktop.section', icon: '✨' },
-  { id: 'language', labelKey: 'settings.language', icon: '🌐' },
-  { id: 'permissions', labelKey: 'settings.permissions', icon: '🔒' },
+const SECTIONS: Array<{ id: SectionId; labelKey: MessageKey; icon: ReactNode }> = [
+  { id: 'appearance', labelKey: 'settings.appearance', icon: <Palette size={14} weight="regular" /> },
+  { id: 'dynamic', labelKey: 'dynamicDesktop.section', icon: <Sparkle size={14} weight="regular" /> },
+  { id: 'language', labelKey: 'settings.language', icon: <GlobeHemisphereWest size={14} weight="regular" /> },
+  { id: 'permissions', labelKey: 'settings.permissions', icon: <LockSimple size={14} weight="regular" /> },
   { id: 'about', labelKey: 'settings.about', icon: '🦋' },
 ]
 

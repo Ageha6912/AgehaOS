@@ -1,5 +1,7 @@
 import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 
+import { Minus, Square, X } from '@phosphor-icons/react'
+
 import { componentFor } from '@/apps/builtin'
 import { MissingApp } from '@/apps/placeholder-app'
 import { useTranslation } from '@/core/i18n'
@@ -121,9 +123,13 @@ export function WindowFrame({ win }: { win: WindowInstance }) {
   return (
     <section
       aria-label={win.title}
-      className={`absolute flex flex-col overflow-hidden border bg-surface ${minimized ? 'hidden' : ''} ${
-        maximized ? 'rounded-none' : 'rounded-md'
-      } ${win.focused ? 'border-primary/50 shadow-window' : 'border-border'}`}
+      className={`surface-glass animate-os-pop-in absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
+        maximized ? 'rounded-none' : 'rounded-lg'
+      } ${
+        win.focused
+          ? 'border-primary/50 shadow-window'
+          : 'border-border shadow-window-flat'
+      }`}
       style={style}
       onPointerDown={() => focus(win.id)}
     >
@@ -145,32 +151,32 @@ export function WindowFrame({ win }: { win: WindowInstance }) {
           <button
             type="button"
             aria-label={t('window.minimize')}
-            className="flex h-6 w-6 items-center justify-center rounded-sm text-xs text-text-muted hover:bg-surface hover:text-text"
+            className="flex h-6 w-6 items-center justify-center rounded-sm text-text-muted hover:bg-surface-raised hover:text-text"
             onPointerDown={swallowPointerDown}
             onClick={() => minimize(win.id)}
           >
-            –
+            <Minus size={12} weight="bold" />
           </button>
           {win.resizable && (
             <button
               type="button"
               aria-label={maximized ? t('window.restore') : t('window.maximize')}
-              className="flex h-6 w-6 items-center justify-center rounded-sm text-xs text-text-muted hover:bg-surface hover:text-text"
+              className="flex h-6 w-6 items-center justify-center rounded-sm text-text-muted hover:bg-surface-raised hover:text-text"
               onPointerDown={swallowPointerDown}
               onClick={() => toggleMaximize(win.id)}
             >
-              {maximized ? '❐' : '□'}
+              <Square size={10} weight={maximized ? 'fill' : 'bold'} />
             </button>
           )}
           {win.closable && (
             <button
               type="button"
               aria-label={t('window.close')}
-              className="flex h-6 w-6 items-center justify-center rounded-sm text-xs text-text-muted hover:bg-red-500/80 hover:text-white"
+              className="flex h-6 w-6 items-center justify-center rounded-sm text-text-muted hover:bg-danger hover:text-white"
               onPointerDown={swallowPointerDown}
               onClick={() => close(win.id)}
             >
-              ✕
+              <X size={12} weight="bold" />
             </button>
           )}
         </div>

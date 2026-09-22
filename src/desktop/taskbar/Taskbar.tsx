@@ -18,7 +18,7 @@ export function Taskbar() {
   }
 
   return (
-    <footer className="absolute inset-x-0 bottom-0 z-40 flex h-12 items-center gap-2 border-t border-border bg-surface/95 px-2 backdrop-blur">
+    <footer className="surface-glass absolute inset-x-0 bottom-0 z-40 flex h-12 items-center gap-2 border-t border-border px-2">
       <AppLauncher />
 
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">

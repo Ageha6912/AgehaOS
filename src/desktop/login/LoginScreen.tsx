@@ -53,8 +53,12 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4">
-      <div className="flex flex-col items-center gap-1">
+    <div className="relative flex h-full flex-col items-center justify-center gap-4 overflow-hidden bg-bg">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,color-mix(in_srgb,var(--ag-primary)_10%,transparent),transparent)]"
+      />
+      <div className="relative flex flex-col items-center gap-1">
         <div className="text-5xl select-none" aria-hidden="true">
           🦋
         </div>
@@ -64,7 +68,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
 
       <form
         aria-label={mode === 'login' ? t('auth.loginTitle') : t('auth.registerTitle')}
-        className="w-full max-w-xs rounded-lg border border-border bg-surface p-4 shadow-window"
+        className="surface-glass animate-os-pop-in relative w-full max-w-xs rounded-lg border border-border p-4 shadow-window"
         onSubmit={(event) => void submit(event)}
       >
         <h2 className="text-base font-semibold text-text">
@@ -85,7 +89,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
             autoComplete="username"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
-            className="mt-1 w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text focus:border-primary focus:outline-none"
+            className="mt-1 w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text transition-colors focus:border-primary"
           />
         </label>
         <label className="mt-2 block text-xs text-text-muted">
@@ -96,12 +100,12 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="mt-1 w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text focus:border-primary focus:outline-none"
+            className="mt-1 w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text transition-colors focus:border-primary"
           />
         </label>
 
         {errorKey && (
-          <p role="alert" className="mt-2 text-xs text-red-400">
+          <p role="alert" className="mt-2 text-xs text-danger">
             {t(errorKey)}
           </p>
         )}

@@ -27,14 +27,25 @@ export function BootScreen() {
   }, [phase, advance, finishBoot, sessionStatus])
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-6">
-      <div className="text-6xl select-none" aria-hidden="true">
+    <div className="relative flex h-full flex-col items-center justify-center gap-6 overflow-hidden bg-bg">
+      {/* 主题感知的品牌氛围：顶部一抹极淡的强调色辉光（双主题安全）。 */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,color-mix(in_srgb,var(--ag-primary)_10%,transparent),transparent)]"
+      />
+      <div className="relative text-6xl select-none" aria-hidden="true">
         🦋
       </div>
-      <h1 className="text-3xl font-semibold tracking-wide text-text">AgehaOS</h1>
-      <p className="text-sm text-text-muted" role="status">
+      <h1 className="relative text-3xl font-semibold tracking-wide text-text">AgehaOS</h1>
+      <p className="relative text-sm text-text-muted" role="status">
         {t(`boot.${phase}`)}
       </p>
+      <div
+        aria-hidden="true"
+        className="relative h-0.5 w-24 overflow-hidden rounded-full bg-surface-raised"
+      >
+        <div className="animate-os-fade-in h-full w-1/2 rounded-full bg-primary/70" />
+      </div>
     </div>
   )
 }

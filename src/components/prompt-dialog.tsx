@@ -35,10 +35,10 @@ export function PromptDialog({
     <div
       role="dialog"
       aria-label={title}
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-6"
+      className="animate-os-fade-in fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm"
     >
       <form
-        className="w-full max-w-sm rounded-lg border border-border bg-surface p-4 shadow-window"
+        className="surface-glass animate-os-pop-in w-full max-w-sm rounded-lg border border-border p-4 shadow-window"
         onSubmit={submit}
       >
         <h2 className="text-base font-semibold text-text">{title}</h2>
@@ -52,7 +52,7 @@ export function PromptDialog({
           />
         </label>
         {error && (
-          <p role="alert" className="mt-2 text-xs text-red-400">
+          <p role="alert" className="mt-2 text-xs text-danger">
             {error}
           </p>
         )}
