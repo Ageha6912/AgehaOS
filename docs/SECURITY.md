@@ -6,7 +6,7 @@
 
 | 要求（PRD §30）                                                         | 状态       | 说明                                                                                                                                        |
 | ----------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| §30.1 App Sandbox（Default Deny → Explicit Permission → Scoped Access） | ✅ 部分    | `PermissionManager` Default Deny 已落地，`launchApp` 门禁强制校验；Type B 应用零能力运行；「Scoped Access」随 Type C SDK 应用细化             |
+| §30.1 App Sandbox（Default Deny → Explicit Permission → Scoped Access） | ✅ 部分    | `PermissionManager` Default Deny 已落地，`launchApp` 门禁强制校验；Type B 应用零能力运行；Type C SDK 提供按 appId 命名空间隔离的存储（Scoped Access）；File/Notification/User API 随后续阶段细化                             |
 | §30.2 XSS                                                               | ✅         | 全程 React 默认转义；代码库禁用 `dangerouslySetInnerHTML` / `innerHTML`（CI 可grep 审计）；生产构建注入 CSP                                 |
 | §30.3 iframe 安全                                                       | ✅         | Type B 已实现：`sandbox="allow-scripts"`（不给 `allow-same-origin`，不透明 origin）+ `/apps/sites/` 同源 allowlist（`src/core/apps/web-app.ts`）+ postMessage 白名单 schema 校验（`event.source` 严格相等、未知类型与字段一律丢弃）；App Store 目录为安装侧第一道闸 |
 | §30.4 Token                                                             | ✅/⚠️ 折衷 | 本地 v0.1：会话令牌仅存于同源 localStorage，泄露面等同同源脚本，风险可接受；接入后端（Milestone 5）后必须迁移为 HttpOnly Cookie + CSRF 防护 |

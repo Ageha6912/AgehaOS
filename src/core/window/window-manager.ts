@@ -10,6 +10,9 @@ export const MIN_WINDOW_HEIGHT = 200
 /** Minimum of a window (px) that must stay inside the viewport when moving. */
 export const MIN_VISIBLE_EDGE = 80
 
+/** Upper bound for window titles (SDK setTitle 与系统启动路径共用)。 */
+export const MAX_TITLE_LENGTH = 120
+
 const CASCADE_BASE = 80
 const CASCADE_STEP = 32
 const CASCADE_CYCLE = 8
@@ -155,6 +158,16 @@ export class WindowManager {
     const maxHeight = viewport ? viewport.height - target.y : Number.POSITIVE_INFINITY
     target.width = clamp(width, target.minWidth, maxWidth)
     target.height = clamp(height, target.minHeight, maxHeight)
+    return true
+  }
+
+  /** SDK Window API：应用更新自己窗口的标题（空标题与超长标题被拒绝）。 */
+  setTitle(id: string, title: string): boolean {
+    const target = this.windows.get(id)
+    if (!target) return false
+    const trimmed = typeof title === 'string' ? title.trim() : ''
+    if (trimmed === '' || trimmed.length > MAX_TITLE_LENGTH) return false
+    target.title = trimmed
     return true
   }
 

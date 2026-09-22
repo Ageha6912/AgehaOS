@@ -151,14 +151,15 @@
 - **App Store**（PRD §26 P1 骨架）：`src/apps/store/`——目录随构建打包（`catalog.ts`，全部零权限 Type B 样例），安装走既有 `PermissionConsentDialog`（零权限应用可直接确认）→ `installApp`（parseManifest + 注册）→ `permissionManager.grantAll`；已装应用 manifest 持久化于 `agehaos.apps.installed.v1`（`restoreInstalledApps()` 在 boot 逐项重新校验恢复，坏数据跳过），卸载联动 `uninstallApp` + 权限遗忘。
 - **Calculator**（PRD §26 P1）：`src/apps/calculator/` 经典即时执行状态机（无 eval），支持键盘输入与连续等号重复运算。
 - **示例站点**：`public/apps/sites/clock|sketch/`（外部 JS，无内联脚本，兼容任意 CSP）。
-- 缓办：Type C SDK 加载器（`src/sdk/` 仍空）、远端应用目录（来源校验/签名/版本管理）、应用内 set-title 等 postMessage 扩展协议。
+- **Type C SDK**（PRD §8.1）：`src/core/apps/sdk-bridge.ts` 纯 TS 桥——请求白名单 schema（`agehaos:sdk` 信封 + reqId/api/action/params 严格形状）、逐请求 Default Deny 门禁（`SDK_API_PERMISSIONS`：storage→`storage`、window→`window`、theme 免许可只读）、按 appId 命名空间隔离的 KV 存储（`agehaos.sdk.storage.<appId>`，键 1–64 字符、单值 ≤32KB、每应用 ≤64 键 / ≤256KB，坏命名空间回落空）。客户端库 `public/sdk/ageha-sdk.js`（Promise 封装 + 5s 超时，暴露 `AgehaOS.storage/window/theme`）。示例应用「便签」（商店可装，permissions: storage+window）演示三个 API。Window API 底座为 `WindowManager.setTitle`（标题 ≤120 字符）。
+- 缓办：远端应用目录（来源校验/签名/版本管理）、SDK 的 File/Notification/User API（分别依赖 VFS 按应用授权、通知中心、后端用户面）、应用内 set-title 之外的 postMessage 扩展协议。
 
 ## 4. 后续模块技术要点
 
 ### 4.1 应用运行时完善（`src/core/runtime`，PRD §8/§25）
 
-- 已就位：Manifest 校验、AppRegistry、生命周期跟踪、崩溃隔离、权限门禁（见 §3.6/§3.7）；Type B iframe 沙箱运行时与 App Store 骨架（见 §3.15）。
-- 待补：Type C（Ageha SDK 应用）的加载器；Suspended 状态；App Loader 按 `entry` 拉取应用资源；Type B 应用的 set-title / resize 等 postMessage 扩展协议。
+- 已就位：Manifest 校验、AppRegistry、生命周期跟踪、崩溃隔离、权限门禁（见 §3.6/§3.7）；Type B iframe 沙箱运行时、App Store 骨架与 Type C SDK 桥（见 §3.15）。
+- 待补：App Loader 按 `entry` 拉取应用资源；SDK 的 File/Notification/User API；Suspended 状态。
 - SDK API 层（`AgehaOS.*`）每个入口先过 `permissionManager.has()`，再执行能力。
 
 ### 4.2 虚拟文件系统完善（后续）

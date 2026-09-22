@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>便签</title>
+    <link rel="stylesheet" href="./sticky.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <div class="composer">
+        <input id="text" type="text" placeholder="记点什么…" maxlength="60" autocomplete="off" />
+        <button id="add" type="button">添加</button>
+      </div>
+      <ul id="notes" class="notes"></ul>
+      <p id="status" class="status">正在通过 AgehaOS SDK 连接…</p>
+    </main>
+    <script src="/sdk/ageha-sdk.js"></script>
+    <script src="./sticky.js"></script>
+  </body>
+</html>

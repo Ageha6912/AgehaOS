@@ -14,6 +14,7 @@ interface WindowStoreState {
   restore: (id: string) => void
   move: (id: string, x: number, y: number, viewport?: Viewport) => void
   resize: (id: string, width: number, height: number, viewport?: Viewport) => void
+  setTitle: (id: string, title: string) => void
 }
 
 let engine = new WindowManager(systemBus)
@@ -65,6 +66,11 @@ export const useWindowStore = create<WindowStoreState>()((set) => {
 
     resize: (id, width, height, viewport) => {
       engine.resize(id, width, height, viewport)
+      commit()
+    },
+
+    setTitle: (id, title) => {
+      engine.setTitle(id, title)
       commit()
     },
   }

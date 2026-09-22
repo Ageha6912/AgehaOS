@@ -419,3 +419,18 @@ describe('WindowManager snapshots', () => {
     expect(manager.list().map((w) => w.id)).toEqual([second.id, first.id])
   })
 })
+
+describe('WindowManager.setTitle（SDK Window API 底座）', () => {
+  it('updates the title of an existing window and rejects invalid titles', () => {
+    const { manager } = createManager()
+
+    const win = manager.create({ appId: 'a', title: '时钟' })
+    expect(manager.setTitle(win.id, '便签 (3)')).toBe(true)
+    expect(manager.get(win.id)?.title).toBe('便签 (3)')
+
+    expect(manager.setTitle(win.id, '   ')).toBe(false)
+    expect(manager.setTitle(win.id, 'x'.repeat(121))).toBe(false)
+    expect(manager.setTitle('missing', '任何标题')).toBe(false)
+    expect(manager.get(win.id)?.title).toBe('便签 (3)')
+  })
+})

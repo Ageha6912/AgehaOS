@@ -43,7 +43,7 @@ function swallowPointerDown(event: ReactPointerEvent<HTMLElement>) {
 function TypeBOrMissing({ appId, title, windowId }: { appId: string; title: string; windowId: string }) {
   const manifest = getAppManifest(appId)
   if (manifest && isAllowedWebAppEntry(manifest.entry)) {
-    return <WebAppFrame entry={manifest.entry} title={title} />
+    return <WebAppFrame entry={manifest.entry} appId={appId} windowId={windowId} title={title} />
   }
   return <MissingApp windowId={windowId} />
 }

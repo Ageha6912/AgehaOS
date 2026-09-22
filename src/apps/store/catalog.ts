@@ -45,4 +45,16 @@ export const STORE_CATALOG: StoreCatalogEntry[] = [
       description: '随手涂鸦画板，Type B 沙箱示例应用。',
     },
   },
+  {
+    manifest: {
+      id: 'com.ageha.samples.sticky',
+      name: '便签',
+      version: '1.0.0',
+      entry: '/apps/sites/sticky/index.html',
+      permissions: ['storage', 'window'],
+      window: { width: 380, height: 460, resizable: true },
+      author: 'AgehaOS Samples',
+      description: 'SDK 示例应用：便签经沙箱桥持久化，标题随数量更新。',
+    },
+  },
 ]
