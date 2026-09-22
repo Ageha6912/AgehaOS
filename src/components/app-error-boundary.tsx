@@ -29,7 +29,7 @@ function CrashScreen({ onReload }: { onReload: () => void }) {
       <p className="text-sm text-text-muted">{t('app.crash.body')}</p>
       <button
         type="button"
-        className="mt-1 rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:opacity-90"
+        className="mt-1 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-contrast hover:opacity-90"
         onClick={onReload}
       >
         {t('app.crash.reload')}

@@ -144,7 +144,7 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {error && (
-          <p role="alert" className="border-b border-border px-3 py-2 text-xs text-red-400">
+          <p role="alert" className="border-b border-border px-3 py-2 text-xs text-danger">
             {t(error)}
           </p>
         )}
@@ -166,7 +166,7 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
               <button
                 type="button"
                 disabled={!dirty}
-                className="ml-auto rounded-md bg-primary px-3 py-1 text-xs text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                className="ml-auto rounded-md bg-primary px-3 py-1 text-xs text-primary-contrast hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                 onClick={() => void save()}
               >
                 {t('notes.save')}
@@ -176,7 +176,7 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
               aria-label={t('notes.editor')}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              className="min-h-0 flex-1 resize-none bg-surface p-3 text-sm leading-relaxed text-text focus:outline-none"
+              className="min-h-0 flex-1 resize-none bg-surface p-3 text-sm leading-relaxed text-text"
             />
           </>
         )}

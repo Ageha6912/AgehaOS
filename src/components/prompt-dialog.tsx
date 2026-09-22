@@ -48,7 +48,7 @@ export function PromptDialog({
             autoFocus
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            className="mt-1 w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text focus:border-primary focus:outline-none"
+            className="mt-1 w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text focus:border-primary"
           />
         </label>
         {error && (

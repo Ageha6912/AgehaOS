@@ -290,7 +290,7 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
               placeholder={t('files.search.placeholder')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="w-36 rounded-md border border-border bg-surface-raised px-2 py-1 text-xs text-text placeholder:text-text-muted focus:border-primary focus:outline-none"
+              className="w-36 rounded-md border border-border bg-surface-raised px-2 py-1 text-xs text-text placeholder:text-text-muted focus:border-primary"
             />
           </div>
         </div>
@@ -301,7 +301,7 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
               {t('files.loading')}
             </p>
           ) : error ? (
-            <p className="p-4 text-red-400" role="alert">
+            <p className="p-4 text-danger" role="alert">
               {t(error)}
             </p>
           ) : entries.length === 0 ? (
