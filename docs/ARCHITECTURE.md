@@ -129,6 +129,22 @@
 - 桌面侧：任务栏 `UserMenu` 显示当前用户并提供退出登录；登出后由 App 响应 session 状态切回 Login。
 - 后端化（Milestone 5）：仅替换 AuthService 的存储层与校验实现（REST/JWT），`session-store` 与 UI 不变。
 
+### 3.14 AI 动态桌面 Phase A（`src/core/dynamic` + `src/store/dynamic-desktop-store` + `src/desktop/wallpaper`，v0.2.x）
+
+设计文档：[AI-DYNAMIC-DESKTOP-DESIGN.md](AI-DYNAMIC-DESKTOP-DESIGN.md)（下称 DDS）。Phase A = 纯本地程序化生成，总开关默认关闭，关闭后桌面与 v0.1 行为完全一致。
+
+- **内核**（纯 TS 零 React，`src/core/dynamic/`）：
+  - `generative/seed.ts`：同步 SHA-256 + mulberry32；`sessionSeed = SHA-256(userId|日期|会话计数)`，`domainSeed` 再混域名/序号/contextVersion（DDS §6.1，禁裸 `Math.random()`）。
+  - `generative/palettes.ts` + `templates.ts`：24 组策展调色板（明暗×饱和四象限各 6 组）× 5 风格 × 8 构图 × 5 密度；图元由种子确定性派生，三元组 `(seed, generatorVersion, templateId)` 可重放。
+  - `decision/engine.ts`：五级滑杆（§DDS 6.3）→ 三区配比 + ε 上限，与个性化阶段 ε 阶梯（`feedback/epsilon.ts`）取更保守者；Top-3 权重 35% 截断、每 7 次强制探索位、Shannon 熵 <1.5 bits 强制全局采样。
+  - `governance/`：WCAG 对比度纯函数、质量门（亮度窗口/正文与 UI 对比度/光敏闪烁/装饰重叠）、硬件三档判据与 §7.3 相对阈值降级判定。
+  - `generative/pipeline.ts`：3 次可行域重采样 → F1 种子重放 → F2 内置精选 12 张（过质量门）→ F3 静态渐变；每步发 `desktop.*` 事件。
+  - `history.ts`：生成历史仅文本元数据落盘 VFS `/Pictures/wallpapers/history.v1.json`（≤30 条 LRU、≤64KB）；Phase A 位图不落盘。
+- **状态**：`dynamic-desktop-store`，显式偏好+画像按 userId 分键 `agehaos.dynamic-desktop.v1.<userId>` 持久化（脏数据逐字段回落默认），提供 `resetDynamicDesktopStore()`。
+- **装配**：`systemDynamicDesktop`（`src/services/dynamic-desktop.ts`）在 `main.tsx` 既有装配链之后 `start()`：订阅 `user.login/logout`、触发生成、历史落盘。
+- **渲染**：`WallpaperLayer` 双层交叉淡化（600ms，reduced-motion 150ms，过渡中打断直接替换目标）；canvas 不可用时回落 CSS 渐变（能力探测）；`Desktop.tsx` 仅在「开关开且有生成结果」时挂载壁纸层。
+- **透明性**：桌面右下「✦ AI 生成」徽标（固定后消失，可隐藏）；Settings「动态桌面」section 提供总开关/滑杆/固定/屏蔽/历史回滚/清除数据与结构化生成理由。
+
 ## 4. 后续模块技术要点
 
 ### 4.1 应用运行时完善（`src/core/runtime`，PRD §8/§25）
@@ -156,3 +172,6 @@
 5. **测试策略**（PRD §34）：`core/` 单测全覆盖，UI 组件用 Testing Library，E2E 用 Playwright 运行于生产构建（`vite preview`），已覆盖核心路径 `Login → Desktop → Open App → Create File → Save → Close → Reopen` 及会话恢复、登出、错误凭据（`e2e/core-path.spec.ts`）。
 6. **权限名以 §10.1 为准**：PRD §9 示例中的裸 `filesystem` 不在白名单，校验层直接拒绝（有测试固化此决定）。
 7. **`src/apps/` 下的纯数据文件**（如 `builtin-manifests.ts`）允许被 store 引用；含组件的文件禁止反向依赖。
+8. **动态桌面质量门的亮度口径（Phase A 裁决）**：DDS §4.4 的绝对窗口 [0.2, 0.85] 会把 v0.1 默认深色渐变一并判死，Phase A 以「感知亮度（RGB 均值/255）+ 按主题相对窗口（dark [0.08,0.85] / light [0.55,0.93]）」实现同一质量意图；正文对比度按「深/浅墨色至少一种达 WCAG AA（含 40% 遮罩）」判定。偏差已在代码注释与 DDS §12.2 精神下留痕。
+9. **调色板可行域按主题过滤**：深色主题只采深色家族、浅色只采浅色（DDS §2.1 主题权重 0.25 的硬性部分）；风格可行域同时要求该主题下至少有一个兼容调色板，避免采样进不可行空间。装饰重叠门只约束矩形装饰（几何/网格），流体色块、粒子与山水剪影的重叠属设计意图。
+10. **动态桌面 Phase A 缓办项**（记录于 DDS §12.3，随后续阶段落）：boot 合成基准 FPS 探测（`detectTier` 已支持 `measuredFps` 入参，运行期探测未接线）、定时换新调度器（滑杆频率映射已实现，仅 login/手动触发已接线）、桌面右键菜单入口、`desktop.feedback` 的全量隐式信号采集（Phase A 仅接线「换一张」负反馈与 ε 阶梯推导）。

@@ -870,7 +870,23 @@ user.logout
 permission.requested
 permission.granted
 permission.denied
+
+desktop.wallpaper.generate-started
+desktop.wallpaper.generated
+desktop.wallpaper.applied
+desktop.wallpaper.fallback
+desktop.generation.failed
+desktop.layout.suggested
+desktop.feedback
+desktop.perf.degraded
+ai.content.ready
+ai.content.blocked
+ai.decision.performed
 ```
+
+> AI 动态桌面事件（`desktop.*` / `ai.*`）由 `docs/AI-DYNAMIC-DESKTOP-DESIGN.md` §3.3 定义载荷契约；
+> Phase A（v0.2.x）仅发射 `desktop.wallpaper.*`、`desktop.generation.failed`、`desktop.feedback`、
+> `desktop.perf.degraded` 与 `ai.decision.performed`，其余为 Phase B/C 预留契约。
 
 好处：
 

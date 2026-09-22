@@ -6,11 +6,13 @@ import { PERMISSION_LABEL_KEYS, permissionManager } from '@/core/permissions'
 import type { ThemePreference, FontSize } from '@/store/settings-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useAppStore } from '@/store/app-store'
+import { DynamicDesktopSection } from './DynamicDesktopSection'
 
-type SectionId = 'appearance' | 'language' | 'permissions' | 'about'
+type SectionId = 'appearance' | 'dynamic' | 'language' | 'permissions' | 'about'
 
 const SECTIONS: Array<{ id: SectionId; labelKey: MessageKey; icon: string }> = [
   { id: 'appearance', labelKey: 'settings.appearance', icon: '🎨' },
+  { id: 'dynamic', labelKey: 'dynamicDesktop.section', icon: '✨' },
   { id: 'language', labelKey: 'settings.language', icon: '🌐' },
   { id: 'permissions', labelKey: 'settings.permissions', icon: '🔒' },
   { id: 'about', labelKey: 'settings.about', icon: '🦋' },
@@ -60,6 +62,7 @@ export function SettingsApp() {
 
       <div className="min-w-0 flex-1 overflow-y-auto p-4">
         {section === 'appearance' && <AppearanceSection />}
+        {section === 'dynamic' && <DynamicDesktopSection />}
         {section === 'language' && <LanguageSection />}
         {section === 'permissions' && <PermissionsSection />}
         {section === 'about' && <AboutSection />}

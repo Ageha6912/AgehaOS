@@ -21,6 +21,32 @@ export interface SystemEventMap {
   'permission.requested': { appId: string; permission: string }
   'permission.granted': { appId: string; permission: string }
   'permission.denied': { appId: string; permission: string }
+
+  // AI 动态桌面（设计文档 §3.3，Phase A 仅发射 desktop.wallpaper.* / desktop.generation.*
+  // / desktop.feedback / desktop.perf.degraded / ai.decision.performed）
+  'desktop.wallpaper.generate-started': {
+    seed: string
+    tier: 'high' | 'mid' | 'low'
+    trigger: 'login' | 'timer' | 'manual'
+  }
+  'desktop.wallpaper.generated': { seed: string; templateId: string; generatorVersion: number }
+  'desktop.wallpaper.applied': { seed: string; tier: 'high' | 'mid' | 'low'; durationMs: number }
+  'desktop.wallpaper.fallback': {
+    from: 'L0' | 'F1' | 'F2' | 'F3'
+    to: 'F1' | 'F2' | 'F3'
+    reason: string
+  }
+  'desktop.generation.failed': {
+    seed: string
+    stage: 'generate' | 'constraint' | 'gate'
+    reason: string
+  }
+  'desktop.layout.suggested': { layoutId: string }
+  'desktop.feedback': { signal: string; targetId: string; weight: number }
+  'desktop.perf.degraded': { metric: string; value: number; action: string }
+  'ai.content.ready': { panelId: string; itemCount: number }
+  'ai.content.blocked': { panelId: string; reason: string }
+  'ai.decision.performed': { domain: string; source: 'local' | 'llm' | 'cache' }
 }
 
 export type SystemEventName = keyof SystemEventMap & string

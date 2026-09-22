@@ -1,8 +1,13 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { buildWallpaperPlan, COMPOSITIONS } from '@/core/dynamic/generative/templates'
 import { useBootStore } from '@/store/boot-store'
 import { resetAppStore } from '@/store/app-store'
+import {
+  resetDynamicDesktopStore,
+  useDynamicDesktopStore,
+} from '@/store/dynamic-desktop-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
 import { Desktop } from './Desktop'
@@ -13,6 +18,7 @@ beforeEach(() => {
   useBootStore.setState(useBootStore.getInitialState())
   resetWindowStore()
   resetAppStore()
+  resetDynamicDesktopStore()
 })
 
 function launchFromStartMenu(appName: RegExp) {
@@ -54,5 +60,51 @@ describe('Desktop', () => {
     windows = useWindowStore.getState().windows
     expect(windows.find((win) => win.appId === 'com.ageha.notes')?.focused).toBe(true)
     expect(windows.find((win) => win.appId === 'com.ageha.files')?.focused).toBe(false)
+  })
+})
+
+describe('Desktop × dynamic wallpaper (验收 ⑨)', () => {
+  const wallpaperPlan = buildWallpaperPlan({
+    seed: 'desktop-seed',
+    style: 'fluid-gradient',
+    paletteId: 'midnight-ink',
+    compositionId: COMPOSITIONS[0].id,
+    density: 0.1,
+    zone: 'converge',
+    reason: { signals: [], palette: 'midnight-ink', motif: 'fluid-gradient' },
+  })
+
+  function enableDynamicDesktop() {
+    useDynamicDesktopStore.setState({
+      currentPlan: wallpaperPlan,
+      prefs: { enabled: true, randomness: 40, hideBadge: false, pinned: null, blockedStyles: [] },
+    })
+  }
+
+  it('keeps the v0.1 desktop untouched when the dynamic desktop is off', () => {
+    render(<Desktop />)
+
+    expect(screen.queryByTestId('wallpaper-layer')).toBeNull()
+    // v0.1 行为不变：启动器照常工作
+    launchFromStartMenu(/记事/)
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+  })
+
+  it('mounts the wallpaper layer when enabled with a generated plan', () => {
+    enableDynamicDesktop()
+    render(<Desktop />)
+
+    expect(screen.getByTestId('wallpaper-layer')).toBeInTheDocument()
+    expect(screen.getByTestId('ai-badge')).toBeInTheDocument()
+  })
+
+  it('unmounts the wallpaper layer again when the user switches the feature off', () => {
+    enableDynamicDesktop()
+    const { rerender } = render(<Desktop />)
+    expect(screen.getByTestId('wallpaper-layer')).toBeInTheDocument()
+
+    useDynamicDesktopStore.getState().setEnabled(false)
+    rerender(<Desktop />)
+    expect(screen.queryByTestId('wallpaper-layer')).toBeNull()
   })
 })
