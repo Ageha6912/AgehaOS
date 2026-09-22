@@ -10,10 +10,12 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 - 系统架构图：[docs/assets/system-architecture.png](docs/assets/system-architecture.png)
 - 技术架构说明：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - 协作约定：[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
+- 安全说明：[docs/SECURITY.md](docs/SECURITY.md)
+- 更新日志：[CHANGELOG.md](CHANGELOG.md)
 
 ## 当前状态
 
-**Phase 0 / MVP 功能面 + E2E 已完成**（对应 PRD §51 第 01–05、07–13 步，仅剩加固与发布）：
+**🎉 v0.1.0 已发布**——MVP 功能面、E2E 与安全加固全部完成（PRD §51 第 01–05、07–15 步）：
 
 - ✅ 工程脚手架（Vite + React 19 + TypeScript + Tailwind CSS 4 + Vitest 5 + ESLint + Prettier）
 - ✅ 目录骨架（按 PRD §19.1 规划）
@@ -30,7 +32,10 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 - ✅ **Notes 应用**（PRD §26/§11.2）：基于 VFS 的文本编辑器——/Documents 笔记列表、新建（防覆盖保护）、编辑、保存（脏状态指示）
 - ✅ **用户系统**（PRD §12/§23.2/§24.1/§45.5）：`AuthService`（注册/登录/登出，盐值 SHA-256 密码哈希，7 天过期 Session，`user.login/logout` 事件）、启动流程接入会话检查（无会话 → Login 界面）、任务栏用户菜单（登出）、会话跨刷新恢复、过期会话清除与提示
 - ✅ **E2E 测试**（PRD §34.3）：Playwright 覆盖核心路径 登录→桌面→打开应用→创建文件→保存→关闭→重开，含会话刷新恢复与登出（`npm run test:e2e`，运行于生产构建）
-- ⏳ 下一步：性能/安全加固（14）→ v0.1 发布（15）；后端化（Milestone 5）时仅替换 AuthService 存储层
+- ✅ **安全加固**（PRD §30/§45.6）：生产构建 CSP、`no-referrer`、无原生 HTML 注入审计、盐值哈希口令（详见 [docs/SECURITY.md](docs/SECURITY.md)）
+- ✅ **性能验证**（PRD §29）：E2E 断言刷新后 3 秒内可交互、20 窗口下桌面保持响应
+- 🎉 **v0.1.0 已发布**（PRD §51 第 15 步）——见 [CHANGELOG.md](CHANGELOG.md)
+- ⏳ 下一步：后端化（Milestone 5，仅替换 AuthService 存储层）→ Type B/C 应用运行时 → App Store（v0.2）
 
 ## 快速开始
 
