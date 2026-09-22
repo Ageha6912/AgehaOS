@@ -24,10 +24,10 @@ export function staticGradientPlan(theme: 'light' | 'dark'): WallpaperPlan {
   }
 }
 
-/** L3 渲染用的渐变 stops（dark 取 v0.1 桌面渐变原值；light 取 --ag-bg 家族）。 */
+/** L3 渲染用的渐变 stops（warm stone 石墨系，与 index.css 的 --ag-bg 家族一致）。 */
 export const STATIC_GRADIENT_STOPS: Record<'light' | 'dark', string[]> = {
-  dark: ['#231437', '#151033', '#0b0d14'],
-  light: ['#eef0f6', '#e2e6ef', '#d3d9e6'],
+  dark: ['#292524', '#1c1917', '#0c0a09'],
+  light: ['#fafaf9', '#f0efee', '#e7e5e4'],
 }
 
 const LIGHT_CURATED_PALETTES = new Set([

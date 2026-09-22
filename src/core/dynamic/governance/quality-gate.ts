@@ -23,10 +23,10 @@ export const MAX_FLICKER_PER_SEC = 3
 /** 装饰元素重叠率上限。 */
 export const MAX_OVERLAP_RATIO = 0.3
 
-/** 文字墨色取自设计 Token（src/index.css：--ag-text 双主题值）。 */
-export const INK_DARK = '#1a1d29'
-export const INK_LIGHT = '#e8eaf2'
-export const SURFACE_DARK = '#151823'
+/** 文字墨色取自设计 Token（src/index.css：--ag-text 双主题值，warm stone 色板）。 */
+export const INK_DARK = '#1c1917'
+export const INK_LIGHT = '#e7e5e4'
+export const SURFACE_DARK = '#1c1917'
 export const SURFACE_LIGHT = '#ffffff'
 
 /** 感知亮度：RGB 均值 / 255（0–1）。 */

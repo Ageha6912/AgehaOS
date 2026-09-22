@@ -8,7 +8,7 @@ export function Desktop() {
   const showWallpaper = useDynamicDesktopStore((s) => s.prefs.enabled && s.currentPlan !== null)
 
   return (
-    <div className="relative h-full overflow-hidden bg-gradient-to-b from-[#231437] via-[#151033] to-[#0b0d14]">
+    <div className="relative h-full overflow-hidden bg-gradient-to-b from-[#292524] via-[#1c1917] to-[#0c0a09]">
       {showWallpaper && <WallpaperLayer />}
       <WindowLayer />
       <Taskbar />

@@ -109,7 +109,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
         <button
           type="submit"
           disabled={busy}
-          className="mt-4 w-full rounded-md bg-primary px-3 py-2 text-sm text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-4 w-full rounded-md bg-primary px-3 py-2 text-sm text-primary-contrast hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {mode === 'login' ? t('auth.login') : t('auth.register')}
         </button>
