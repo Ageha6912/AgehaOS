@@ -27,6 +27,11 @@ export class MemoryDataStore implements DataStore {
     this.users.set(user.id, user)
   }
 
+  async updateUser(user: UserRecord): Promise<void> {
+    if (!this.users.has(user.id)) throw new Error(`Unknown user ${user.id}`)
+    this.users.set(user.id, user)
+  }
+
   async createSession(session: SessionRecord): Promise<void> {
     this.sessions.set(session.token, session)
   }
@@ -48,5 +53,16 @@ export class MemoryDataStore implements DataStore {
       }
     }
     return pruned
+  }
+
+  async deleteSessionsForUserExcept(userId: string, keepToken: string): Promise<number> {
+    let revoked = 0
+    for (const [token, session] of this.sessions) {
+      if (session.userId === userId && token !== keepToken) {
+        this.sessions.delete(token)
+        revoked += 1
+      }
+    }
+    return revoked
   }
 }

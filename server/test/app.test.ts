@@ -228,6 +228,154 @@ describe('auth API', () => {
     expect(response.json()).toEqual({ error: 'invalid-body' })
   })
 
+  it('updates profile fields via PATCH /users/me and reflects them in session', async () => {
+    app = await makeApp()
+    const registered = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'profileuser', password: 'secret123' },
+    })
+    const cookies = { agehaos_session: sessionCookie(registered) ?? '' }
+
+    const patched = await app.inject({
+      method: 'PATCH',
+      url: '/api/users/me',
+      cookies,
+      payload: { displayName: '爱丽丝', email: 'alice@example.com' },
+    })
+    expect(patched.statusCode).toBe(200)
+    expect(patched.json()).toMatchObject({
+      user: { username: 'profileuser', displayName: '爱丽丝', email: 'alice@example.com' },
+    })
+
+    const me = await app.inject({ method: 'GET', url: '/api/users/me', cookies })
+    expect(me.json()).toMatchObject({ user: { displayName: '爱丽丝' } })
+
+    // Explicit null clears; absent leaves untouched.
+    const cleared = await app.inject({
+      method: 'PATCH',
+      url: '/api/users/me',
+      cookies,
+      payload: { email: null },
+    })
+    expect(cleared.json().user.email).toBeUndefined()
+    expect(cleared.json().user.displayName).toBe('爱丽丝')
+  })
+
+  it('rejects profile updates without a session or with a malformed email', async () => {
+    app = await makeApp()
+    const anonymous = await app.inject({
+      method: 'PATCH',
+      url: '/api/users/me',
+      payload: { displayName: 'x' },
+    })
+    expect(anonymous.statusCode).toBe(401)
+
+    const registered = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'profileuser2', password: 'secret123' },
+    })
+    const badEmail = await app.inject({
+      method: 'PATCH',
+      url: '/api/users/me',
+      cookies: { agehaos_session: sessionCookie(registered) ?? '' },
+      payload: { email: 'not-an-email' },
+    })
+    expect(badEmail.statusCode).toBe(400)
+    expect(badEmail.json()).toEqual({ error: 'invalid-body' })
+  })
+
+  it('changes password, keeps the current session and revokes other sessions', async () => {
+    app = await makeApp()
+    const registered = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'pwuser', password: 'secret123' },
+    })
+    const currentToken = sessionCookie(registered) ?? ''
+    const other = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'pwuser', password: 'secret123' },
+    })
+    const otherToken = sessionCookie(other) ?? ''
+
+    const wrongCurrent = await app.inject({
+      method: 'POST',
+      url: '/api/users/me/password',
+      cookies: { agehaos_session: currentToken },
+      payload: { currentPassword: 'wrong!!', newPassword: 'newpass123' },
+    })
+    expect(wrongCurrent.statusCode).toBe(401)
+    expect(wrongCurrent.json()).toEqual({ error: 'invalid-credentials' })
+
+    const changed = await app.inject({
+      method: 'POST',
+      url: '/api/users/me/password',
+      cookies: { agehaos_session: currentToken },
+      payload: { currentPassword: 'secret123', newPassword: 'newpass123' },
+    })
+    expect(changed.statusCode).toBe(204)
+
+    // Current session survives; the pre-change one is revoked; old password dead.
+    expect(
+      (await app.inject({ method: 'GET', url: '/api/users/me', cookies: { agehaos_session: currentToken } }))
+        .statusCode,
+    ).toBe(200)
+    expect(
+      (await app.inject({ method: 'GET', url: '/api/users/me', cookies: { agehaos_session: otherToken } }))
+        .statusCode,
+    ).toBe(401)
+    const oldLogin = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'pwuser', password: 'secret123' },
+    })
+    expect(oldLogin.statusCode).toBe(401)
+    const newLogin = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'pwuser', password: 'newpass123' },
+    })
+    expect(newLogin.statusCode).toBe(200)
+  })
+
+  it('revokes other sessions on demand while keeping the current one', async () => {
+    app = await makeApp()
+    const registered = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'revokeuser', password: 'secret123' },
+    })
+    const currentToken = sessionCookie(registered) ?? ''
+    await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'revokeuser', password: 'secret123' },
+    })
+    await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'revokeuser', password: 'secret123' },
+    })
+
+    const revoked = await app.inject({
+      method: 'POST',
+      url: '/api/auth/sessions/revoke-others',
+      cookies: { agehaos_session: currentToken },
+    })
+    expect(revoked.statusCode).toBe(200)
+    expect(revoked.json()).toEqual({ revoked: 2 })
+    expect(
+      (await app.inject({ method: 'GET', url: '/api/users/me', cookies: { agehaos_session: currentToken } }))
+        .statusCode,
+    ).toBe(200)
+
+    const anonymous = await app.inject({ method: 'POST', url: '/api/auth/sessions/revoke-others' })
+    expect(anonymous.statusCode).toBe(401)
+  })
+
   it('answers unknown routes with JSON 404', async () => {
     app = await makeApp()
     const response = await app.inject({ method: 'GET', url: '/api/nope' })

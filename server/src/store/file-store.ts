@@ -69,6 +69,12 @@ export class FileDataStore implements DataStore {
     await this.persist()
   }
 
+  async updateUser(user: UserRecord): Promise<void> {
+    if (!this.users.has(user.id)) throw new Error(`Unknown user ${user.id}`)
+    this.users.set(user.id, user)
+    await this.persist()
+  }
+
   async createSession(session: SessionRecord): Promise<void> {
     this.sessions.set(session.token, session)
     await this.persist()
@@ -92,6 +98,18 @@ export class FileDataStore implements DataStore {
     }
     if (pruned > 0) await this.persist()
     return pruned
+  }
+
+  async deleteSessionsForUserExcept(userId: string, keepToken: string): Promise<number> {
+    let revoked = 0
+    for (const [token, session] of this.sessions) {
+      if (session.userId === userId && token !== keepToken) {
+        this.sessions.delete(token)
+        revoked += 1
+      }
+    }
+    if (revoked > 0) await this.persist()
+    return revoked
   }
 
   /** Serializes writes so concurrent requests cannot clobber each other. */

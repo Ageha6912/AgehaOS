@@ -4,6 +4,9 @@ export interface UserRecord {
   createdAt: string
   updatedAt: string
   passwordHash: string
+  /** Optional profile fields (PRD §12.1 修改昵称/资料); absent = unset. */
+  displayName?: string
+  email?: string
 }
 
 export interface SessionRecord {
@@ -32,9 +35,13 @@ export interface DataStore {
   findUserById(id: string): Promise<UserRecord | null>
   /** Rejects with UsernameTakenError when the username already exists. */
   createUser(user: UserRecord): Promise<void>
+  /** Persists profile/hash changes for an existing user. */
+  updateUser(user: UserRecord): Promise<void>
   createSession(session: SessionRecord): Promise<void>
   findSession(token: string): Promise<SessionRecord | null>
   deleteSession(token: string): Promise<void>
   /** Deletes sessions whose expiresAt is before `now`; returns count. */
   pruneExpiredSessions(now: number): Promise<number>
+  /** Revokes every session of the user except `keepToken`; returns count. */
+  deleteSessionsForUserExcept(userId: string, keepToken: string): Promise<number>
 }

@@ -44,6 +44,17 @@ async function expectStoreBehavior(store: DataStore): Promise<void> {
   await store.deleteSession('tok-2')
   expect(await store.findSession('tok-2')).toBeNull()
 
+  await store.createSession({ token: 'tok-3', userId: 'u1', expiresAt: 6000 })
+  await store.createSession({ token: 'tok-4', userId: 'u1', expiresAt: 7000 })
+  expect(await store.deleteSessionsForUserExcept('u1', 'tok-4')).toBe(1)
+  expect(await store.findSession('tok-3')).toBeNull()
+  expect(await store.findSession('tok-4')).not.toBeNull()
+
+  const updated = makeUser({ displayName: 'Alice Liddell', email: 'alice@example.com' })
+  await store.updateUser(updated)
+  expect((await store.findUserById('u1'))?.displayName).toBe('Alice Liddell')
+  expect((await store.findUserByUsername('alice'))?.email).toBe('alice@example.com')
+
   await store.close()
 }
 
@@ -159,12 +170,13 @@ describe('PostgresDataStore', () => {
     const store = new PostgresDataStore(pool)
     await store.init()
     const initTexts = pool.queries.map((query) => query.text)
-    expect(initTexts).toHaveLength(3)
+    expect(initTexts).toHaveLength(5)
     expect(
       initTexts.every(
         (text) =>
           text.includes('CREATE TABLE IF NOT EXISTS') ||
-          text.includes('CREATE INDEX IF NOT EXISTS'),
+          text.includes('CREATE INDEX IF NOT EXISTS') ||
+          text.includes('ADD COLUMN IF NOT EXISTS'),
       ),
     ).toBe(true)
     await store.close()
@@ -172,7 +184,7 @@ describe('PostgresDataStore', () => {
   })
 
   it('binds parameters for user and session writes', async () => {
-    const pool = makeFakePool()
+    const pool = makeFakePool({ rowCount: 1 })
     const store = new PostgresDataStore(pool)
 
     await store.createUser(makeUser())
@@ -183,6 +195,8 @@ describe('PostgresDataStore', () => {
       '2026-09-23T00:00:00.000Z',
       '2026-09-23T00:00:00.000Z',
       'scrypt$32768$8$1$c2FsdA$aGFzaA',
+      null,
+      null,
     ])
 
     await store.findUserByUsername('alice')
@@ -204,6 +218,23 @@ describe('PostgresDataStore', () => {
 
     await store.pruneExpiredSessions(1000)
     expect(pool.queries[6]?.values).toEqual([new Date(1000).toISOString()])
+
+    await store.deleteSessionsForUserExcept('u1', 'tok')
+    expect(pool.queries[7]?.text).toContain('DELETE FROM ageha_sessions WHERE user_id')
+    expect(pool.queries[7]?.values).toEqual(['u1', 'tok'])
+
+    await store.updateUser(
+      makeUser({ displayName: 'Alice', email: 'a@example.com' }),
+    )
+    expect(pool.queries[8]?.text).toContain('UPDATE ageha_users')
+    expect(pool.queries[8]?.values).toEqual([
+      'u1',
+      'alice',
+      '2026-09-23T00:00:00.000Z',
+      'scrypt$32768$8$1$c2FsdA$aGFzaA',
+      'Alice',
+      'a@example.com',
+    ])
   })
 
   it('maps pg rows to records', async () => {
@@ -224,10 +255,29 @@ describe('PostgresDataStore', () => {
           created_at: '2026-09-23T00:00:00.000Z',
           updated_at: '2026-09-23T00:00:00.000Z',
           password_hash: 'h',
+          display_name: 'Alice',
+          email: 'a@example.com',
         },
       ],
     })
     expect(await new PostgresDataStore(userPool).findUserById('u1')).toEqual(
+      makeUser({ passwordHash: 'h', displayName: 'Alice', email: 'a@example.com' }),
+    )
+
+    const nullProfilePool = makeFakePool({
+      rows: [
+        {
+          id: 'u1',
+          username: 'alice',
+          created_at: '2026-09-23T00:00:00.000Z',
+          updated_at: '2026-09-23T00:00:00.000Z',
+          password_hash: 'h',
+          display_name: null,
+          email: null,
+        },
+      ],
+    })
+    expect(await new PostgresDataStore(nullProfilePool).findUserById('u1')).toEqual(
       makeUser({ passwordHash: 'h' }),
     )
 
