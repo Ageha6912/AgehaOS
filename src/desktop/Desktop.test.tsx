@@ -77,7 +77,7 @@ describe('Desktop × dynamic wallpaper (验收 ⑨)', () => {
   function enableDynamicDesktop() {
     useDynamicDesktopStore.setState({
       currentPlan: wallpaperPlan,
-      prefs: { enabled: true, randomness: 40, hideBadge: false, pinned: null, blockedStyles: [] },
+      prefs: { enabled: true, randomness: 40, hideBadge: false, pinned: null, blockedStyles: [], llmEnhance: false },
     })
   }
 

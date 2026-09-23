@@ -7,6 +7,7 @@ import type { FastifyError, FastifyInstance } from 'fastify'
 import { loadConfig } from './config'
 import type { ServerConfig } from './config'
 import { originCheck } from './plugins/origin-check'
+import { aiRoutes } from './routes/ai'
 import { authRoutes } from './routes/auth'
 import { createStore } from './store'
 import type { DataStore } from './store'
@@ -48,6 +49,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     ...base,
     ...options.config,
     rateLimit: { ...base.rateLimit, ...options.config?.rateLimit },
+    ai: { ...base.ai, ...options.config?.ai },
   }
 
   const app = Fastify({ logger: options.logger ?? false, trustProxy: true })
@@ -83,6 +85,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     sessionTtlMs: config.sessionTtlMs,
     cookieSecure: config.cookieSecure,
     rateLimit: config.rateLimit,
+  })
+  await app.register(aiRoutes, {
+    prefix: '/api',
+    ai: config.ai,
+    rateLimitWindowMs: config.rateLimit.windowMs,
   })
 
   return app

@@ -74,7 +74,7 @@ const PHASE_SUGGESTIONS: Record<TimePhase, readonly string[]> = {
 }
 
 /** 提示卡轮换池（tipId = cards.tip.<tipId> 词典键后缀）。 */
-const TIP_IDS = ['privacy', 'pin', 'shortcut'] as const
+export const TIP_IDS = ['privacy', 'pin', 'shortcut'] as const
 
 /** 卡片文案长度上限（过滤管线的 schema 项，为 Phase C 自由文本预备）。 */
 export const MAX_CARD_FIELD_LENGTH = 120

@@ -165,6 +165,9 @@ export const dictionaries = {
     'dynamicDesktop.enable': '启用 AI 动态桌面',
     'dynamicDesktop.enableHint':
       '开启后每次登录生成一张新壁纸。所有生成均在本机完成，默认零网络请求；关闭时桌面外观与系统默认完全一致。',
+    'dynamicDesktop.llmEnhance': 'LLM 深度增强',
+    'dynamicDesktop.llmEnhanceHint':
+      '经本机后端同源代理请求 LLM，仅接受结构化编排结果，失败自动回退本地模板；默认关闭。',
     'dynamicDesktop.randomness': '随机度',
     'dynamicDesktop.band.fixed': '固定',
     'dynamicDesktop.band.fine': '微调',
@@ -390,6 +393,9 @@ export const dictionaries = {
     'dynamicDesktop.enable': 'Enable AI dynamic desktop',
     'dynamicDesktop.enableHint':
       'Generates a fresh wallpaper on each sign-in. Everything runs locally with zero network requests by default; when off, the desktop looks and behaves exactly like the default.',
+    'dynamicDesktop.llmEnhance': 'LLM deep enhancement',
+    'dynamicDesktop.llmEnhanceHint':
+      'Requests the LLM through the same-origin backend proxy. Only structured orchestration results are accepted; failures fall back to local templates. Off by default.',
     'dynamicDesktop.randomness': 'Randomness',
     'dynamicDesktop.band.fixed': 'Fixed',
     'dynamicDesktop.band.fine': 'Fine-tune',

@@ -11,6 +11,16 @@ import { resetSettingsStore } from '@/store/settings-store'
 
 import { DynamicPanelApp } from './DynamicPanelApp'
 
+const requestAiSlots = vi.fn()
+
+vi.mock('@/core/dynamic/llm/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/core/dynamic/llm/client')>()
+  return {
+    ...actual,
+    requestAiSlots: (...args: unknown[]) => requestAiSlots(...args),
+  }
+})
+
 // 模块级注册一次（systemBus 是单例；vi.clearAllMocks 每个用例重置计数）。
 const readySpy = vi.fn()
 const decisionSpy = vi.fn()
@@ -24,6 +34,7 @@ beforeEach(() => {
   resetAppStore()
   resetDynamicDesktopStore()
   resetSettingsStore()
+  requestAiSlots.mockReset()
 })
 
 describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
@@ -61,7 +72,7 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
     useDynamicDesktopStore.setState({
       currentPlan: plan,
       currentLevel: 'L0',
-      prefs: { enabled: true, randomness: 40, hideBadge: false, pinned: null, blockedStyles: [] },
+      prefs: { enabled: true, randomness: 40, hideBadge: false, pinned: null, blockedStyles: [], llmEnhance: false },
     })
     render(<DynamicPanelApp />)
 
@@ -87,7 +98,7 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
 
   it('shows the layout card with apply/reset when the dynamic desktop is on', async () => {
     useDynamicDesktopStore.setState({
-      prefs: { enabled: true, randomness: 40, hideBadge: false, pinned: null, blockedStyles: [] },
+      prefs: { enabled: true, randomness: 40, hideBadge: false, pinned: null, blockedStyles: [], llmEnhance: false },
     })
     render(<DynamicPanelApp />)
 
@@ -102,5 +113,65 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
     expect(screen.getByTestId('layout-applied-badge')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('layout-reset'))
     expect(useDynamicDesktopStore.getState().appliedLayout).toBeNull()
+  })
+
+  it('skips LLM enhancement unless both the master switch and the opt-in are on', async () => {
+    useDynamicDesktopStore.setState({
+      prefs: {
+        enabled: true,
+        randomness: 40,
+        hideBadge: false,
+        pinned: null,
+        blockedStyles: [],
+        llmEnhance: false,
+      },
+    })
+    render(<DynamicPanelApp />)
+    await waitFor(() => expect(screen.getByTestId('panel-card-greeting')).toBeInTheDocument())
+    await Promise.resolve()
+    expect(requestAiSlots).not.toHaveBeenCalled()
+    expect(screen.getByTestId('panel-decision-source').textContent).toContain('本地规则')
+  })
+
+  it('upgrades the tip card from an accepted LLM slot without blocking assembly', async () => {
+    useDynamicDesktopStore.setState({
+      prefs: {
+        enabled: true,
+        randomness: 40,
+        hideBadge: false,
+        pinned: null,
+        blockedStyles: [],
+        llmEnhance: true,
+      },
+    })
+    requestAiSlots.mockResolvedValue([{ slotId: 'tip', text: 'shortcut' }])
+    render(<DynamicPanelApp />)
+
+    // 本地装配先上屏（异步增强不阻塞）。
+    await waitFor(() => expect(screen.getByTestId('panel-tip-body')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('panel-tip-body').textContent).toContain('随机度'))
+    expect(decisionSpy).toHaveBeenCalledWith({ domain: 'content', source: 'llm' })
+    expect(screen.getByTestId('panel-decision-source').textContent).toContain('云端模型')
+  })
+
+  it('falls back to the cached slot when the LLM call fails', async () => {
+    const client = await import('@/core/dynamic/llm/client')
+    client.resetAiSessionState()
+    vi.spyOn(client, 'getCachedAiSlots').mockReturnValue([{ slotId: 'tip', text: 'privacy' }])
+    useDynamicDesktopStore.setState({
+      prefs: {
+        enabled: true,
+        randomness: 40,
+        hideBadge: false,
+        pinned: null,
+        blockedStyles: [],
+        llmEnhance: true,
+      },
+    })
+    requestAiSlots.mockRejectedValue(new Error('ai-http-503'))
+    render(<DynamicPanelApp />)
+
+    await waitFor(() => expect(screen.getByTestId('panel-tip-body').textContent).toContain('数据不会离开'))
+    expect(screen.getByTestId('panel-decision-source').textContent).toContain('缓存重放')
   })
 })

@@ -41,6 +41,7 @@ const DEFAULT_PREFS: DynamicDesktopPrefs = {
   hideBadge: false,
   pinned: null,
   blockedStyles: [],
+  llmEnhance: false,
 }
 
 /** 手动「换一张」节流（§4.6：≥5s 防连点）。 */
@@ -80,6 +81,7 @@ interface DynamicDesktopState {
   setEnabled: (enabled: boolean) => void
   setRandomness: (randomness: number) => void
   setHideBadge: (hideBadge: boolean) => void
+  setLlmEnhance: (llmEnhance: boolean) => void
   pinCurrent: () => void
   unpin: () => void
   blockCurrentStyle: () => void
@@ -164,6 +166,7 @@ function sanitizePrefs(value: unknown): DynamicDesktopPrefs {
     blockedStyles: Array.isArray(v.blockedStyles)
       ? v.blockedStyles.filter((s): s is string => typeof s === 'string').slice(0, 200)
       : [],
+    llmEnhance: typeof v.llmEnhance === 'boolean' ? v.llmEnhance : DEFAULT_PREFS.llmEnhance,
   }
 }
 
@@ -272,6 +275,11 @@ export const useDynamicDesktopStore = create<DynamicDesktopState>()((set, get) =
 
   setHideBadge: (hideBadge) => {
     set({ prefs: { ...get().prefs, hideBadge } })
+    persist(get())
+  },
+
+  setLlmEnhance: (llmEnhance) => {
+    set({ prefs: { ...get().prefs, llmEnhance } })
     persist(get())
   },
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ArrowClockwise, Sparkle } from '@phosphor-icons/react'
 
@@ -10,11 +10,13 @@ import {
   assembleContentCards,
   greetingBodyKey,
   greetingTitleKey,
+  TIP_IDS,
   tipBodyKey,
 } from '@/core/dynamic/content/engine'
 import type { ContentCardMeta } from '@/core/dynamic/content/engine'
 import { buildLayoutSuggestion } from '@/core/dynamic/layout/engine'
 import type { LayoutSuggestion } from '@/core/dynamic/layout/engine'
+import { getCachedAiSlots, requestAiSlots } from '@/core/dynamic/llm/client'
 import { useAppStore } from '@/store/app-store'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
@@ -26,6 +28,12 @@ import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
  */
 
 const PANEL_ID = 'com.ageha.dynamic.panel'
+
+const SOURCE_KEYS: Record<'local' | 'llm' | 'cache', MessageKey> = {
+  local: 'dynamicDesktop.source.local',
+  llm: 'dynamicDesktop.source.llm',
+  cache: 'dynamicDesktop.source.cache',
+}
 
 function themeOf(): 'light' | 'dark' {
   if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
@@ -39,6 +47,17 @@ export function DynamicPanelApp() {
   const [metas, setMetas] = useState<ContentCardMeta[]>([])
   const [layoutSuggestion, setLayoutSuggestionState] = useState<LayoutSuggestion | null>(null)
   const [assemblyNonce, setAssemblyNonce] = useState(0)
+  /** LLM 增强选中的提示卡变体（null = 本地轮换）；来源三态对应决策日志。 */
+  const [enhancedTipId, setEnhancedTipId] = useState<string | null>(null)
+  const [enhanceSource, setEnhanceSource] = useState<'local' | 'llm' | 'cache'>('local')
+  const aliveRef = useRef(true)
+
+  useEffect(() => {
+    aliveRef.current = true
+    return () => {
+      aliveRef.current = false
+    }
+  }, [])
 
   const runAssembly = useCallback(() => {
     // 全部本地信号（§2.1 白名单）：时间相/季节/主题 + 动态桌面状态 + 已安装应用。
@@ -55,6 +74,8 @@ export function DynamicPanelApp() {
       installedAppIds: installed,
     })
     setMetas(result.cards)
+    setEnhancedTipId(null)
+    setEnhanceSource('local')
     // 布局建议（§5.1 域②）：仅在动态桌面开启时产出；AI 只建议，采纳靠用户。
     let suggestion: LayoutSuggestion | null = null
     if (dynamic.prefs.enabled) {
@@ -68,6 +89,31 @@ export function DynamicPanelApp() {
     useDynamicDesktopStore.getState().setLayoutSuggestion(suggestion)
     systemBus.emit('ai.content.ready', { panelId: PANEL_ID, itemCount: result.cards.length })
     systemBus.emit('ai.decision.performed', { domain: 'content', source: 'local' })
+
+    // LLM 深度增强（§5.3）：异步叠加、绝不阻塞本地装配；失败链 = 缓存 → 本地。
+    if (dynamic.prefs.enabled && dynamic.prefs.llmEnhance) {
+      void (async () => {
+        try {
+          const items = await requestAiSlots({
+            locale: document.documentElement.lang === 'en' ? 'en' : 'zh-CN',
+            context: { timePhase: snapshot.timePhase, season: snapshot.season },
+            prefs: [],
+            slots: ['tip'],
+          })
+          const tip = items.find((item) => item.slotId === 'tip')
+          if (!aliveRef.current || !tip) return
+          setEnhancedTipId(tip.text)
+          setEnhanceSource('llm')
+          systemBus.emit('ai.decision.performed', { domain: 'content', source: 'llm' })
+        } catch {
+          const cached = getCachedAiSlots().find((item) => item.slotId === 'tip')
+          if (!aliveRef.current || !cached) return
+          setEnhancedTipId(cached.text)
+          setEnhanceSource('cache')
+          systemBus.emit('ai.decision.performed', { domain: 'content', source: 'cache' })
+        }
+      })()
+    }
   }, [])
 
   useEffect(() => {
@@ -181,12 +227,20 @@ export function DynamicPanelApp() {
                 </p>
               </>
             )}
-            {meta.card.kind === 'tip' && (
-              <>
-                <p className="font-medium text-text">{t('cards.tip.title')}</p>
-                <p className="mt-1 text-xs text-text-muted">{t(tipBodyKey(meta.card.tipId))}</p>
-              </>
-            )}
+            {meta.card.kind === 'tip' && (() => {
+              const tipId =
+                enhancedTipId !== null && TIP_IDS.includes(enhancedTipId as never)
+                  ? enhancedTipId
+                  : meta.card.tipId
+              return (
+                <>
+                  <p className="font-medium text-text">{t('cards.tip.title')}</p>
+                  <p className="mt-1 text-xs text-text-muted" data-testid="panel-tip-body">
+                    {t(tipBodyKey(tipId))}
+                  </p>
+                </>
+              )
+            })()}
             <p className="mt-2 flex items-center gap-1 text-[10px] text-text-muted">
               <Sparkle size={10} weight="fill" className="text-primary" />
               {t('dynamicDesktop.badgeLabel')} · {t('dynamicDesktop.source.local')}
@@ -195,8 +249,8 @@ export function DynamicPanelApp() {
         ))}
       </ul>
 
-      <p className="border-t border-border px-4 py-2 text-[10px] text-text-muted">
-        {t('cards.panel.decisionBy')} {t('dynamicDesktop.source.local')}
+      <p className="border-t border-border px-4 py-2 text-[10px] text-text-muted" data-testid="panel-decision-source">
+        {t('cards.panel.decisionBy')} {t(SOURCE_KEYS[enhanceSource])}
       </p>
     </div>
   )

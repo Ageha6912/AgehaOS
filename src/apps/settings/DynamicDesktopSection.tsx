@@ -66,6 +66,7 @@ export function DynamicDesktopSection() {
   const generating = useDynamicDesktopStore((s) => s.generating)
   const history = useDynamicDesktopStore((s) => s.history)
   const setEnabled = useDynamicDesktopStore((s) => s.setEnabled)
+  const setLlmEnhance = useDynamicDesktopStore((s) => s.setLlmEnhance)
   const setRandomness = useDynamicDesktopStore((s) => s.setRandomness)
   const setHideBadge = useDynamicDesktopStore((s) => s.setHideBadge)
   const pinCurrent = useDynamicDesktopStore((s) => s.pinCurrent)
@@ -98,6 +99,24 @@ export function DynamicDesktopSection() {
           {t('dynamicDesktop.enable')}
         </button>
         <p className="mt-1 text-xs text-text-muted">{t('dynamicDesktop.enableHint')}</p>
+      </div>
+
+      <div className="mb-5">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={prefs.llmEnhance}
+          data-testid="llm-enhance-toggle"
+          className={`rounded-md border px-3 py-1.5 text-xs ${
+            prefs.llmEnhance
+              ? 'border-primary/60 bg-primary/10 text-text'
+              : 'border-border text-text-muted hover:bg-surface-raised hover:text-text'
+          } ${prefs.enabled ? '' : 'pointer-events-none opacity-50'}`}
+          onClick={() => setLlmEnhance(!prefs.llmEnhance)}
+        >
+          {t('dynamicDesktop.llmEnhance')}
+        </button>
+        <p className="mt-1 text-xs text-text-muted">{t('dynamicDesktop.llmEnhanceHint')}</p>
       </div>
 
       <div className="mb-5">

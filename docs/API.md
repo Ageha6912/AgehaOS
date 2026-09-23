@@ -80,6 +80,17 @@ docker compose -f server/docker-compose.yml up -d   # 可选：本地 PostgreSQL
 
 `200 { revoked: <count> }` —— 登出当前会话以外的全部会话（PRD §12.1 Session 管理）。无会话 → `401`。
 
+### POST /api/ai/proxy（DDS §5.3，Phase B）
+
+同源 LLM 代理：API Key 只存在服务端（`AGEHA_AI_API_KEY`，未配置 → `503 {"error":"ai-not-configured"}`，客户端走降级链）。
+
+- 请求契约（schema 白名单，未知字段拒绝）：`{ anonymId (8–64), locale ('zh-CN'|'en'), context (≤16 键 / ≤2KB), prefs (≤20×32), slots (1–8×32) }`。
+- 隐私：`anonymId` 为一次性随机 ID，仅服务端记日志分键，**不上游转发**；上游只收到 locale/context/prefs/slots。
+- 上游：OpenAI 兼容 `/chat/completions`（`AGEHA_AI_BASE_URL`/`AGEHA_AI_MODEL`），超时 `AGEHA_AI_TIMEOUT_MS`（默认 2s）。
+- 响应：`200 { items: [{slotId, text}] }` —— 服务端已过滤（未知槽位/超 200 字符/重复槽位丢弃，≤8 条）；空数组表示模型无可用品。
+- 错误：`400 invalid-body`、`403 forbidden`（CSRF origin）、`429 rate-limited`（20/min/IP）、`502 ai-upstream`、`502 ai-invalid-response`（模型输出非 JSON）、`504 ai-timeout`。
+- 阶段门控：Phase B 客户端只接受词表内的**结构化编排值**（提示卡变体号），自由文本一律丢弃不渲染（§5.3/§8.4）；Phase C 起扩展为完整过滤管线。
+
 ## 4. 安全机制（PRD §30.5）
 
 - **口令哈希**：scrypt（N=2¹⁵, r=8, p=1, 64B key, 16B 随机盐，`maxmem` 64 MiB），存储格式 `scrypt$N$r$p$盐$哈希`（参数随哈希保存，可平滑升级成本），校验用 `timingSafeEqual`。

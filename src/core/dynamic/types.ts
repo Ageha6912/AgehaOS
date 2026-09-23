@@ -148,6 +148,8 @@ export interface DynamicDesktopPrefs {
   pinned: WallpaperPlan | null
   /** 屏蔽的风格标签（≤200 条）。 */
   blockedStyles: string[]
+  /** LLM 深度增强（DDS §5.3，需同源 /api/ai/* 代理；默认关闭 = 纯本地）。 */
+  llmEnhance: boolean
 }
 
 /** 生成结果：计划 + 兜底层级 + 性能埋点。 */

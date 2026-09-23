@@ -176,6 +176,13 @@
 - **安全**：mutating 请求 `Origin` 校验（CSRF，配合代理 `X-Forwarded-Host` + `trustProxy`）、按 IP 路由限流（login 10/min / register 20/min）、JSON Schema 输入校验、helmet 安全头、pino 审计日志（`auth.*`，只记 userId）。
 - **前端接线（零 UI/store 面改动）**：`src/core/auth/provider.ts` 把 `systemAuthService` 变为可切换 facade（`AuthProvider` 接口），`RemoteAuthClient`（`backend-client.ts`）以 fetch 调用同源 `/api`，localStorage 只缓存 `{user, expiresAt}` 非敏感元数据；`main.tsx` 按 `VITE_AUTH_BACKEND` 装配并触发 `reconcile()`（会话以服务端为准）；本地 `AuthService` 增加同名 `reconcile()` 保持契约。LoginScreen/SessionStore 逻辑不变。
 - **账户 UI**：Settings 新增「账户」区（`AccountSection.tsx`）——昵称/邮箱资料保存、修改密码（当前密码校验 + 确认输入）、登出其他设备；任务栏用户菜单显示 `displayName ?? username`；本地模式同等可用（改密码走本地盐哈希，revoke 为单会话 no-op）。
+
+### 3.19 LLM 同源代理与深度增强（DDS §5.3，Phase B 切片）
+
+- **服务端代理**（`server/src/routes/ai.ts`）：`POST /api/ai/proxy` —— 请求 schema 白名单（anonymId/locale/context/prefs/slots，未知字段拒绝）、`anonymId` 只作服务端审计分键**不上游转发**、OpenAI 兼容转发（`AGEHA_AI_API_KEY/BASE_URL/MODEL/TIMEOUT_MS`，默认 2s 超时）、响应 schema 过滤（未知槽位/超长文本/重复丢弃）、20/min/IP 限流；未配置 Key → `503`。测试以真 HTTP fake upstream 覆盖（含密钥不下发、超时 504、非 JSON 502）。
+- **客户端降级链**（`src/core/dynamic/llm/client.ts`）：2s AbortController 超时、会话最多尝试 2 次（首试 + 重试 ≤1）、**Phase B 词表门控**（`PHASE_B_VOCABULARY`：LLM 只能从提示卡变体白名单里选，自由文本丢弃不渲染）+ 会话缓存（`getCachedAiSlots`）。降级链：LLM → 缓存 → 本地模板（装配永不被阻塞）。
+- **面板接线**：`prefs.llmEnhance`（Settings 动态桌面区开关，默认关，总开关关时禁用）开启后，装配完成异步请求 `tip` 槽位；成功 → 提示卡渲染词表选中的模板变体 + 页脚来源「云端模型」；失败 → 缓存（「缓存重放」）→ 本地轮换（「本地规则」）。`ai.decision.performed {domain:'content', source: llm|cache|local}` 三值可查（DDS §11.2 验收 ③）。
+- 缓办：Phase C 自由文本生成 + §8.4 完整过滤管线（违规/误导/不适三类）+ 举报通道；品味画像跨周修订；分类器服务端化。
 - 缓办：活 PostgreSQL 集成验证、Redis（多实例限流/会话缓存）、S3 对象存储（云文件面）、OAuth/2FA、`user` 资源其余端点（改昵称/头像/密码，PRD §12.1 P1 前置）。
 
 ## 4. 后续模块技术要点

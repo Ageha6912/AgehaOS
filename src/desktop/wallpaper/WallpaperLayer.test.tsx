@@ -96,7 +96,7 @@ describe('WallpaperLayer (§4.5，验收 ⑧)', () => {
       resetDynamicDesktopStore()
       useDynamicDesktopStore.setState({
         currentPlan: PLAN_A,
-        prefs: { enabled: true, randomness: 40, hideBadge: false, pinned: PLAN_A, blockedStyles: [] },
+        prefs: { enabled: true, randomness: 40, hideBadge: false, pinned: PLAN_A, blockedStyles: [], llmEnhance: false },
       })
     })
     expect(screen.queryByTestId('ai-badge')).toBeNull()
@@ -105,7 +105,7 @@ describe('WallpaperLayer (§4.5，验收 ⑧)', () => {
   it('hides the badge when the user opts out (§6.5)', () => {
     useDynamicDesktopStore.setState({
       currentPlan: PLAN_A,
-      prefs: { enabled: true, randomness: 40, hideBadge: true, pinned: null, blockedStyles: [] },
+      prefs: { enabled: true, randomness: 40, hideBadge: true, pinned: null, blockedStyles: [], llmEnhance: false },
     })
     render(<WallpaperLayer />)
     expect(screen.queryByTestId('ai-badge')).toBeNull()
