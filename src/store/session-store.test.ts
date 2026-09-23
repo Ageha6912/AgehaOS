@@ -121,6 +121,8 @@ describe('session-store', () => {
       },
       changePassword: async () => {},
       revokeOtherSessions: async () => 0,
+      listSessions: async () => [],
+      revokeSession: async () => {},
     })
     try {
       await useSessionStore.getState().reconcile()
@@ -149,6 +151,8 @@ describe('session-store', () => {
       },
       changePassword: async () => {},
       revokeOtherSessions: async () => 0,
+      listSessions: async () => [],
+      revokeSession: async () => {},
     })
     try {
       await useSessionStore.getState().reconcile()
