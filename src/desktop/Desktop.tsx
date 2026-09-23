@@ -1,6 +1,7 @@
 import { Taskbar } from '@/desktop/taskbar/Taskbar'
 import { WindowLayer } from '@/desktop/window/WindowLayer'
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
+import { NotificationToasts } from '@/desktop/NotificationToasts'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
 export function Desktop() {
@@ -11,6 +12,7 @@ export function Desktop() {
     <div className="relative h-full overflow-hidden bg-gradient-to-b from-[#292524] via-[#1c1917] to-[#0c0a09]">
       {showWallpaper && <WallpaperLayer />}
       <WindowLayer />
+      <NotificationToasts />
       <Taskbar />
     </div>
   )

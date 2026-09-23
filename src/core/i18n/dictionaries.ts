@@ -21,6 +21,18 @@ export const dictionaries = {
     'auth.sessionExpired': '上次登录已过期，请重新登录',
     'auth.logout': '退出登录',
 
+    'notification.title.appCrashed': '应用出现问题',
+    'notification.body.appCrashed': '「{app}」已停止响应，系统其余部分不受影响。',
+    'notification.title.wallpaperFailed': '动态桌面生成失败',
+    'notification.body.wallpaperFailed': '本次壁纸生成未通过质量门，已回退兜底壁纸。',
+    'notification.center': '通知中心',
+    'notification.empty': '暂无通知',
+    'notification.markRead': '标记已读',
+    'notification.markAllRead': '全部已读',
+    'notification.remove': '删除通知',
+    'notification.clear': '清空',
+    'notification.toasts': '桌面通知',
+
     'taskbar.start': '开始',
 
     'window.close': '关闭窗口',
@@ -252,6 +264,18 @@ export const dictionaries = {
     'auth.sessionExpired': 'Your session expired, please sign in again',
     'auth.logout': 'Sign out',
 
+    'notification.title.appCrashed': 'App problem',
+    'notification.body.appCrashed': '"{app}" stopped responding. The rest of the system is unaffected.',
+    'notification.title.wallpaperFailed': 'Wallpaper generation failed',
+    'notification.body.wallpaperFailed': 'This wallpaper did not pass the quality gate; the fallback was applied.',
+    'notification.center': 'Notification center',
+    'notification.empty': 'No notifications',
+    'notification.markRead': 'Mark as read',
+    'notification.markAllRead': 'Mark all read',
+    'notification.remove': 'Delete notification',
+    'notification.clear': 'Clear all',
+    'notification.toasts': 'Desktop notifications',
+
     'taskbar.start': 'Start',
 
     'window.close': 'Close window',
@@ -475,4 +499,9 @@ export const DEFAULT_LOCALE: Locale = 'zh-CN'
 
 export function translate(locale: Locale, key: MessageKey): string {
   return dictionaries[locale][key]
+}
+
+/** 占位参数插值：`{name}` → params.name（通知正文等带参数的模板用）。 */
+export function formatMessage(template: string, params: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/gu, (match, name: string) => params[name] ?? match)
 }

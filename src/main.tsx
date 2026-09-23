@@ -8,6 +8,7 @@ import { registerBuiltinApps, restoreInstalledApps } from '@/store/app-store'
 import { useSessionStore } from '@/store/session-store'
 import { systemVfs } from '@/services/vfs'
 import { systemDynamicDesktop } from '@/services/dynamic-desktop'
+import { startNotificationBridge } from '@/services/notification-bridge'
 import '@/index.css'
 
 const rootElement = document.getElementById('root')
@@ -29,6 +30,8 @@ systemVfs.ready().catch((error) => {
 })
 // 动态桌面单例：追加在既有装配链之后，不改变启动顺序（设计文档 §3.2）。
 systemDynamicDesktop.start()
+// 系统事件 → 通知桥（PRD §16）：崩溃与生成失败转通知。
+startNotificationBridge()
 
 createRoot(rootElement).render(
   <StrictMode>

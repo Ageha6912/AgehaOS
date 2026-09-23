@@ -1,0 +1,113 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
+import type { NotificationInput } from '@/store/notification-store'
+
+import { NotificationCenter } from './NotificationCenter'
+
+function pushSample(overrides: Partial<NotificationInput> = {}): string {
+  return useNotificationStore.getState().push({
+    appId: 'system',
+    titleKey: 'notification.title.appCrashed',
+    ...overrides,
+  })
+}
+
+beforeEach(() => {
+  resetNotificationStore()
+})
+
+describe('NotificationCenter (PRD §16.2)', () => {
+  it('shows an empty panel without a badge when there are no notifications', () => {
+    render(<NotificationCenter />)
+
+    expect(screen.getByTestId('notification-bell')).toBeInTheDocument()
+    expect(screen.queryByTestId('notification-badge')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('notification-bell'))
+    expect(screen.getByTestId('notification-panel')).toBeInTheDocument()
+    expect(screen.getByText('暂无通知')).toBeInTheDocument()
+  })
+
+  it('lists history with unread badge and parameterized body', () => {
+    pushSample({ bodyKey: 'notification.body.appCrashed', bodyParams: { app: '记事' } })
+    render(<NotificationCenter />)
+
+    expect(screen.getByTestId('notification-badge')).toHaveTextContent('1')
+    fireEvent.click(screen.getByTestId('notification-bell'))
+    expect(screen.getAllByTestId('notification-item')).toHaveLength(1)
+    expect(screen.getByText('应用出现问题')).toBeInTheDocument()
+    expect(screen.getByText('「记事」已停止响应，系统其余部分不受影响。')).toBeInTheDocument()
+  })
+
+  it('marks read (badge clears), deletes single items and clears all', () => {
+    pushSample()
+    pushSample({ titleKey: 'notification.title.wallpaperFailed' })
+    render(<NotificationCenter />)
+
+    fireEvent.click(screen.getByTestId('notification-bell'))
+    // 单条已读（两条都未读 → 取第一条）
+    const firstMark = screen.getAllByRole('button', { name: '标记已读' })[0]
+    const firstItemId = useNotificationStore.getState().items[0]?.id
+    fireEvent.click(firstMark)
+    expect(useNotificationStore.getState().items.find((item) => item.id === firstItemId)?.read).toBe(true)
+    expect(screen.getByTestId('notification-badge')).toHaveTextContent('1')
+
+    // 全部已读
+    fireEvent.click(screen.getByTestId('notification-mark-all'))
+    expect(useNotificationStore.getState().items.every((item) => item.read)).toBe(true)
+    expect(screen.queryByTestId('notification-badge')).toBeNull()
+
+    // 单条删除
+    fireEvent.click(screen.getAllByRole('button', { name: '删除通知' })[0])
+    expect(useNotificationStore.getState().items).toHaveLength(1)
+
+    // 清空
+    fireEvent.click(screen.getByTestId('notification-clear'))
+    expect(useNotificationStore.getState().items).toHaveLength(0)
+    expect(screen.getByText('暂无通知')).toBeInTheDocument()
+  })
+
+  it('keeps the history capped at the store limit', () => {
+    for (let index = 0; index < 35; index += 1) {
+      pushSample()
+    }
+    render(<NotificationCenter />)
+    fireEvent.click(screen.getByTestId('notification-bell'))
+    expect(screen.getAllByTestId('notification-item')).toHaveLength(30)
+  })
+})
+
+describe('NotificationToasts (PRD §16.1)', () => {
+  it('auto-dismisses a toast after its TTL', async () => {
+    const { act } = await import('@testing-library/react')
+    const { NotificationToasts } = await import('@/desktop/NotificationToasts')
+    vi.useFakeTimers()
+    try {
+      pushSample()
+      render(<NotificationToasts />)
+      expect(screen.getByTestId('notification-toast')).toBeInTheDocument()
+
+      act(() => {
+        vi.advanceTimersByTime(8500)
+      })
+      expect(screen.queryByTestId('notification-toast')).toBeNull()
+      // 自动消失不改已读状态（历史仍在，等用户去中心查看）。
+      expect(useNotificationStore.getState().items).toHaveLength(1)
+      expect(useNotificationStore.getState().items[0]?.read).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('marks the notification read when clicked', async () => {
+    const { NotificationToasts } = await import('@/desktop/NotificationToasts')
+    pushSample()
+    render(<NotificationToasts />)
+
+    fireEvent.click(screen.getByRole('button', { name: '应用出现问题' }))
+    expect(useNotificationStore.getState().items[0]?.read).toBe(true)
+    expect(screen.queryByTestId('notification-toast')).toBeNull()
+  })
+})

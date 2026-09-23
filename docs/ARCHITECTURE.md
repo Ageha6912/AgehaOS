@@ -177,7 +177,14 @@
 - **前端接线（零 UI/store 面改动）**：`src/core/auth/provider.ts` 把 `systemAuthService` 变为可切换 facade（`AuthProvider` 接口），`RemoteAuthClient`（`backend-client.ts`）以 fetch 调用同源 `/api`，localStorage 只缓存 `{user, expiresAt}` 非敏感元数据；`main.tsx` 按 `VITE_AUTH_BACKEND` 装配并触发 `reconcile()`（会话以服务端为准）；本地 `AuthService` 增加同名 `reconcile()` 保持契约。LoginScreen/SessionStore 逻辑不变。
 - **账户 UI**：Settings 新增「账户」区（`AccountSection.tsx`）——头像（`src/core/auth/avatar.ts`：canvas cover-crop 128×128 JPEG + 格式白名单，体积与原图无关）、昵称/邮箱资料保存、修改密码（当前密码校验 + 确认输入）、登出其他设备；任务栏用户菜单显示 `displayName ?? username` 与头像；本地模式同等可用（改密码走本地盐哈希，revoke 为单会话 no-op）。
 
-### 3.19 LLM 同源代理与深度增强（DDS §5.3，Phase B 切片）
+### 3.19 通知中心（PRD §16，v0.2）
+
+- **状态**（`src/store/notification-store.ts`）：`push / markRead / markAllRead / remove / clear`，历史上限 30 条 LRU（新者先，通知是易逝信息不入持久层，登出即清）；未读数派生 `unreadCount`。
+- **桥接**（`src/services/notification-bridge.ts`，幂等启动）：只挑高价值系统事件——`app.crashed`（critical，正文带应用名）与 `desktop.generation.failed`（normal）；高频事件（file.*/窗口）绝不入通知避免疲劳。后续 Type C SDK 的 `AgehaOS.notification.show` 将走同一 store。
+- **呈现**：桌面 toast（`NotificationToasts.tsx`，只显示最新一条，critical 8s / normal 4.5s 自动消失，点击即读）+ 任务栏铃铛（`NotificationCenter.tsx`，未读徽标 + 历史面板：标记已读/全部已读/单条删除/清空）。
+- **文案**：通知一律存 i18n 键 + `bodyParams`，渲染经 `formatMessage` 占位插值（`{app}` 等）；`translate`/`formatMessage` 均为纯函数。
+
+### 3.20 LLM 同源代理与深度增强（DDS §5.3，Phase B 切片）
 
 - **服务端代理**（`server/src/routes/ai.ts`）：`POST /api/ai/proxy` —— 请求 schema 白名单（anonymId/locale/context/prefs/slots，未知字段拒绝）、`anonymId` 只作服务端审计分键**不上游转发**、OpenAI 兼容转发（`AGEHA_AI_API_KEY/BASE_URL/MODEL/TIMEOUT_MS`，默认 2s 超时）、响应 schema 过滤（未知槽位/超长文本/重复丢弃）、20/min/IP 限流；未配置 Key → `503`。测试以真 HTTP fake upstream 覆盖（含密钥不下发、超时 504、非 JSON 502）。
 - **客户端降级链**（`src/core/dynamic/llm/client.ts`）：2s AbortController 超时、会话最多尝试 2 次（首试 + 重试 ≤1）、**Phase B 词表门控**（`PHASE_B_VOCABULARY`：LLM 只能从提示卡变体白名单里选，自由文本丢弃不渲染）+ 会话缓存（`getCachedAiSlots`）。降级链：LLM → 缓存 → 本地模板（装配永不被阻塞）。

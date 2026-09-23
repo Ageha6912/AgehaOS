@@ -1,0 +1,83 @@
+import { create } from 'zustand'
+
+import type { MessageKey } from '@/core/i18n'
+
+/**
+ * 通知中心状态（PRD §16）：历史查看、标记已读、清空、单条删除。
+ *
+ * 通知文本一律存 i18n 词典键 + 参数（系统框架文案走词典，铁律 15）；历史
+ * 上限 30 条 LRU——通知是易逝信息，不是持久数据，登出清空。
+ */
+
+export const NOTIFICATION_LIMIT = 30
+
+export type NotificationPriority = 'normal' | 'critical'
+
+export interface NotificationInput {
+  appId: string
+  titleKey: MessageKey
+  bodyKey?: MessageKey
+  /** 渲染时经 formatMessage 填充的占位参数（如 {app}）。 */
+  bodyParams?: Record<string, string>
+  priority?: NotificationPriority
+}
+
+export interface NotificationItem extends NotificationInput {
+  id: string
+  priority: NotificationPriority
+  createdAt: number
+  read: boolean
+}
+
+interface NotificationState {
+  items: NotificationItem[]
+  push: (input: NotificationInput) => string
+  markRead: (id: string) => void
+  markAllRead: () => void
+  remove: (id: string) => void
+  clear: () => void
+}
+
+let sequence = 0
+
+export const useNotificationStore = create<NotificationState>()((set, get) => ({
+  items: [],
+
+  push: (input) => {
+    sequence += 1
+    const item: NotificationItem = {
+      ...input,
+      id: `ntf-${sequence}`,
+      priority: input.priority ?? 'normal',
+      createdAt: Date.now(),
+      read: false,
+    }
+    set({ items: [item, ...get().items].slice(0, NOTIFICATION_LIMIT) })
+    return item.id
+  },
+
+  markRead: (id) => {
+    set({
+      items: get().items.map((item) => (item.id === id ? { ...item, read: true } : item)),
+    })
+  },
+
+  markAllRead: () => {
+    set({ items: get().items.map((item) => ({ ...item, read: true })) })
+  },
+
+  remove: (id) => {
+    set({ items: get().items.filter((item) => item.id !== id) })
+  },
+
+  clear: () => set({ items: [] }),
+}))
+
+export function unreadCount(items: NotificationItem[]): number {
+  return items.filter((item) => !item.read).length
+}
+
+/** 测试间隔离。 */
+export function resetNotificationStore(): void {
+  useNotificationStore.setState({ items: [] })
+}

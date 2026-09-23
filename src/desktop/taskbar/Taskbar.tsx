@@ -1,6 +1,7 @@
 import { useWindowStore } from '@/store/window-store'
 
 import { AppLauncher } from './AppLauncher'
+import { NotificationCenter } from './NotificationCenter'
 import { useClock } from './use-clock'
 import { UserMenu } from './UserMenu'
 
@@ -39,6 +40,7 @@ export function Taskbar() {
         ))}
       </div>
 
+      <NotificationCenter />
       <UserMenu />
       <time className="shrink-0 px-2 text-xs text-text-muted">{clock}</time>
     </footer>
