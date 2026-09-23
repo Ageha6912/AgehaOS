@@ -201,7 +201,7 @@ function AboutSection() {
         <div>
           <p className="font-medium text-text">AgehaOS</p>
           <p className="text-xs text-text-muted">
-            {t('settings.aboutVersion')} 0.1.0 · {t('settings.aboutDescription')}
+            {t('settings.aboutVersion')} 0.2.0 · {t('settings.aboutDescription')}
           </p>
         </div>
       </div>

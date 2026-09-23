@@ -15,7 +15,9 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 
 ## 当前状态
 
-**🎉 v0.1.0 已发布**——MVP 功能面、E2E 与安全加固全部完成（PRD §51 第 01–05、07–15 步）：
+**🎉 v0.2.0 已发布**（2026-09-23）——v0.1 MVP 之上完成：应用生态（App Store + Type B 沙箱 + Type C SDK + Calculator + Terminal）、AI 动态桌面三域（壁纸/桌面编排/内容面板 + LLM 同源代理）、通知中心、全局搜索与快捷键、Milestone 5 后端认证（HttpOnly Cookie 会话）、用户资料与会话管理。
+
+**v0.1.0 基线**（2026-09-21）——MVP 功能面、E2E 与安全加固（PRD §51 第 01–05、07–15 步）：
 
 - ✅ 工程脚手架（Vite + React 19 + TypeScript + Tailwind CSS 4 + Vitest 5 + ESLint + Prettier）
 - ✅ 目录骨架（按 PRD §19.1 规划）

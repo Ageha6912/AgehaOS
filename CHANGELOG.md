@@ -2,7 +2,9 @@
 
 本文件遵循 Keep a Changelog 风格，版本号遵循语义化版本。
 
-## [Unreleased]
+## [0.2.0] - 2026-09-23
+
+v0.2 功能面（PRD §35 Phase 2 全清单）+ 应用生态 + AI 动态桌面三域 + Milestone 5 后端认证。
 
 ### 后端认证服务（Milestone 5，PRD §20/§30.4）
 

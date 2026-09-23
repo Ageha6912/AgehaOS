@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { version } from '../../../package.json'
 import { useLocaleStore } from '@/core/i18n'
 import { resetAppStore } from '@/store/app-store'
 import { resetSettingsStore, useSettingsStore } from '@/store/settings-store'
@@ -71,6 +72,6 @@ describe('SettingsApp', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /关于/ }))
 
-    expect(screen.getByText(/0\.1\.0/)).toBeInTheDocument()
+    expect(screen.getByText(new RegExp(version))).toBeInTheDocument()
   })
 })
