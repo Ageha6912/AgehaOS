@@ -1,9 +1,11 @@
 export interface User {
   id: string
   username: string
-  /** Optional profile fields (PRD §12.1 修改昵称/资料). */
+  /** Optional profile fields (PRD §12.1 修改昵称/头像). */
   displayName?: string
   email?: string
+  /** Client-resized avatar data URL (png/jpeg/webp, ≤64KB chars). */
+  avatar?: string
   createdAt: string
   updatedAt: string
 }
@@ -26,6 +28,7 @@ export type AuthErrorCode =
 export interface ProfileInput {
   displayName?: string | null
   email?: string | null
+  avatar?: string | null
 }
 
 export class AuthError extends Error {

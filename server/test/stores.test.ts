@@ -50,10 +50,11 @@ async function expectStoreBehavior(store: DataStore): Promise<void> {
   expect(await store.findSession('tok-3')).toBeNull()
   expect(await store.findSession('tok-4')).not.toBeNull()
 
-  const updated = makeUser({ displayName: 'Alice Liddell', email: 'alice@example.com' })
+  const updated = makeUser({ displayName: 'Alice Liddell', email: 'alice@example.com', avatar: 'data:image/jpeg;base64,QUJD' })
   await store.updateUser(updated)
   expect((await store.findUserById('u1'))?.displayName).toBe('Alice Liddell')
   expect((await store.findUserByUsername('alice'))?.email).toBe('alice@example.com')
+  expect((await store.findUserById('u1'))?.avatar).toBe('data:image/jpeg;base64,QUJD')
 
   await store.close()
 }
@@ -170,7 +171,7 @@ describe('PostgresDataStore', () => {
     const store = new PostgresDataStore(pool)
     await store.init()
     const initTexts = pool.queries.map((query) => query.text)
-    expect(initTexts).toHaveLength(5)
+    expect(initTexts).toHaveLength(6)
     expect(
       initTexts.every(
         (text) =>
@@ -195,6 +196,7 @@ describe('PostgresDataStore', () => {
       '2026-09-23T00:00:00.000Z',
       '2026-09-23T00:00:00.000Z',
       'scrypt$32768$8$1$c2FsdA$aGFzaA',
+      null,
       null,
       null,
     ])
@@ -224,7 +226,7 @@ describe('PostgresDataStore', () => {
     expect(pool.queries[7]?.values).toEqual(['u1', 'tok'])
 
     await store.updateUser(
-      makeUser({ displayName: 'Alice', email: 'a@example.com' }),
+      makeUser({ displayName: 'Alice', email: 'a@example.com', avatar: 'data:image/png;base64,QUJD' }),
     )
     expect(pool.queries[8]?.text).toContain('UPDATE ageha_users')
     expect(pool.queries[8]?.values).toEqual([
@@ -234,6 +236,7 @@ describe('PostgresDataStore', () => {
       'scrypt$32768$8$1$c2FsdA$aGFzaA',
       'Alice',
       'a@example.com',
+      'data:image/png;base64,QUJD',
     ])
   })
 
@@ -257,11 +260,17 @@ describe('PostgresDataStore', () => {
           password_hash: 'h',
           display_name: 'Alice',
           email: 'a@example.com',
+          avatar: 'data:image/png;base64,QUJD',
         },
       ],
     })
     expect(await new PostgresDataStore(userPool).findUserById('u1')).toEqual(
-      makeUser({ passwordHash: 'h', displayName: 'Alice', email: 'a@example.com' }),
+      makeUser({
+        passwordHash: 'h',
+        displayName: 'Alice',
+        email: 'a@example.com',
+        avatar: 'data:image/png;base64,QUJD',
+      }),
     )
 
     const nullProfilePool = makeFakePool({
@@ -274,6 +283,7 @@ describe('PostgresDataStore', () => {
           password_hash: 'h',
           display_name: null,
           email: null,
+          avatar: null,
         },
       ],
     })

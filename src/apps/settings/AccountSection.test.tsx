@@ -1,12 +1,23 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { systemAuthService } from '@/core/auth'
+import { fileToAvatarDataUrl } from '@/core/auth/avatar'
 
 import { resetSessionStore, seedSessionForTests, useSessionStore } from '@/store/session-store'
 
 import { AccountSection } from './AccountSection'
+
+vi.mock('@/core/auth/avatar', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/core/auth/avatar')>()
+  return {
+    ...actual,
+    fileToAvatarDataUrl: vi.fn(),
+  }
+})
+
+const AVATAR = 'data:image/jpeg;base64,QUJD'
 
 // The auth singleton keeps users across tests in this file — unique names.
 let userCounter = 0
@@ -97,5 +108,41 @@ describe('AccountSection', () => {
     await waitFor(() =>
       expect(screen.getAllByRole('status')[0]).toHaveTextContent('已登出其他设备的会话'),
     )
+  })
+
+  it('sets and removes the avatar through the picker', async () => {
+    await seedUser()
+    const mocked = vi.mocked(fileToAvatarDataUrl)
+    mocked.mockResolvedValue(AVATAR)
+    render(<AccountSection />)
+
+    // 无头像：占位符为用户名首字母。
+    expect(screen.getByTestId('account-avatar-preview').textContent).toBe('A')
+
+    const input = document.querySelector('input[type=file]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File([new Uint8Array([1])], 'me.png', { type: 'image/png' })] } })
+
+    await waitFor(() =>
+      expect(useSessionStore.getState().user?.avatar).toBe(AVATAR),
+    )
+    expect(screen.getByTestId('account-avatar-preview')).toHaveAttribute('src', AVATAR)
+    expect(mocked).toHaveBeenCalledTimes(1)
+
+    await userEvent.click(screen.getByTestId('avatar-remove'))
+    await waitFor(() => expect(useSessionStore.getState().user?.avatar).toBeUndefined())
+    expect(screen.queryByTestId('avatar-remove')).toBeNull()
+  })
+
+  it('shows a friendly message when avatar processing fails', async () => {
+    await seedUser()
+    const { AvatarError } = await import('@/core/auth/avatar')
+    vi.mocked(fileToAvatarDataUrl).mockRejectedValue(new AvatarError('avatar-too-large'))
+    render(<AccountSection />)
+
+    const input = document.querySelector('input[type=file]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File([new Uint8Array([1])], 'huge.png', { type: 'image/png' })] } })
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('头像处理失败'))
+    expect(useSessionStore.getState().user?.avatar).toBeUndefined()
   })
 })

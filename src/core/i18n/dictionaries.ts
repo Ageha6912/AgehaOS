@@ -123,6 +123,11 @@ export const dictionaries = {
 
     'settings.account': '账户',
     'settings.account.username': '用户名',
+    'settings.account.avatar': '头像',
+    'settings.account.avatarChange': '更换头像',
+    'settings.account.avatarRemove': '移除头像',
+    'settings.account.avatarTooLarge': '头像处理失败：图片过大，请换一张',
+    'settings.account.avatarInvalid': '无法处理该图片，请换一张',
     'settings.account.displayName': '昵称',
     'settings.account.displayNameHint': '登录后任务栏与其他界面显示的名称',
     'settings.account.email': '邮箱',
@@ -349,6 +354,11 @@ export const dictionaries = {
 
     'settings.account': 'Account',
     'settings.account.username': 'Username',
+    'settings.account.avatar': 'Avatar',
+    'settings.account.avatarChange': 'Change avatar',
+    'settings.account.avatarRemove': 'Remove avatar',
+    'settings.account.avatarTooLarge': 'Avatar failed: the image is too large, try another one',
+    'settings.account.avatarInvalid': 'Cannot process this image, try another one',
     'settings.account.displayName': 'Display name',
     'settings.account.displayNameHint': 'Shown in the taskbar and across the system',
     'settings.account.email': 'Email',

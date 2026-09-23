@@ -262,6 +262,49 @@ describe('auth API', () => {
     expect(cleared.json().user.displayName).toBe('爱丽丝')
   })
 
+  it('updates the avatar via PATCH /users/me with a format whitelist', async () => {
+    app = await makeApp()
+    const registered = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'avataruser', password: 'secret123' },
+    })
+    const cookies = { agehaos_session: sessionCookie(registered) ?? '' }
+    const avatar = 'data:image/jpeg;base64,/9j/4AAQSkZJRg=='
+
+    const set = await app.inject({
+      method: 'PATCH',
+      url: '/api/users/me',
+      cookies,
+      payload: { avatar },
+    })
+    expect(set.statusCode).toBe(200)
+    expect(set.json().user.avatar).toBe(avatar)
+
+    const me = await app.inject({ method: 'GET', url: '/api/users/me', cookies })
+    expect(me.json().user.avatar).toBe(avatar)
+
+    const cleared = await app.inject({
+      method: 'PATCH',
+      url: '/api/users/me',
+      cookies,
+      payload: { avatar: null },
+    })
+    expect(cleared.json().user.avatar).toBeUndefined()
+
+    // 格式白名单：svg（可携带脚本）与 http URL 一律拒绝。
+    for (const evil of ['data:image/svg+xml;base64,PHN2Zz4=', 'https://evil.example/a.png']) {
+      const rejected = await app.inject({
+        method: 'PATCH',
+        url: '/api/users/me',
+        cookies,
+        payload: { avatar: evil },
+      })
+      expect(rejected.statusCode).toBe(400)
+      expect(rejected.json()).toEqual({ error: 'invalid-body' })
+    }
+  })
+
   it('rejects profile updates without a session or with a malformed email', async () => {
     app = await makeApp()
     const anonymous = await app.inject({

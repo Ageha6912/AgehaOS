@@ -68,9 +68,10 @@ docker compose -f server/docker-compose.yml up -d   # 可选：本地 PostgreSQL
 
 ### PATCH /api/users/me
 
-请求体（全部可选，缺省 = 不变，显式 `null` = 清除）：`{ displayName?: string|null (1–32), email?: string|null }` → `200 { user }`。
+请求体（全部可选，缺省 = 不变，显式 `null` = 清除）：`{ displayName?: string|null (1–32), email?: string|null, avatar?: string|null }` → `200 { user }`。
 
-- 错误：`400 invalid-body`（schema 或邮箱格式）、`401 not-authenticated`。
+- `avatar` 为客户端缩放后的 data URL（≤64KB 字符，格式白名单 `png/jpeg/webp` base64，拒绝 svg 等；PRD §12.1 修改头像）。
+- 错误：`400 invalid-body`（schema、邮箱格式或头像格式）、`401 not-authenticated`。
 
 ### POST /api/users/me/password
 

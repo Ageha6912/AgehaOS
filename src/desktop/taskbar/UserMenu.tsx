@@ -22,7 +22,16 @@ export function UserMenu() {
         className="flex h-8 items-center gap-2 rounded-md px-2 text-xs text-text hover:bg-surface-raised"
         onClick={() => setOpen((value) => !value)}
       >
-        <User size={14} weight="regular" />
+        {user.avatar ? (
+          <img
+            src={user.avatar}
+            alt=""
+            data-testid="user-avatar"
+            className="h-5 w-5 rounded-full object-cover"
+          />
+        ) : (
+          <User size={14} weight="regular" />
+        )}
         {user.displayName ?? user.username}
       </button>
       {open && (

@@ -170,12 +170,12 @@
 ### 3.18 后端认证服务（`server/`，Milestone 5，PRD §12/§20/§30.4）
 
 - **技术栈**：Node.js 24 + Fastify 5 + `@fastify/cookie` / `@fastify/helmet` / `@fastify/rate-limit` + `pg`。API 契约见 [API.md](API.md)。
-- **端点**：`POST /api/auth/register|login|logout`、`GET /api/auth/session`、`GET/ PATCH /api/users/me`、`POST /api/users/me/password`、`POST /api/auth/sessions/revoke-others`、`GET /api/health`；错误统一 `{ error: <code> }` 且 code 与前端 `AuthErrorCode` 对齐。用户资料字段 `displayName` / `email`（PRD §12.1 修改昵称；改密码后自动吊销其他会话；头像待对象存储落地后补）。
+- **端点**：`POST /api/auth/register|login|logout`、`GET /api/auth/session`、`GET/ PATCH /api/users/me`、`POST /api/users/me/password`、`POST /api/auth/sessions/revoke-others`、`POST /api/ai/proxy`、`GET /api/health`；错误统一 `{ error: <code> }` 且 code 与前端 `AuthErrorCode` 对齐。用户资料字段 `displayName` / `email` / `avatar`（PRD §12.1 修改昵称/头像；改密码后自动吊销其他会话；头像为客户端缩放 data URL，格式白名单 png/jpeg/webp、≤64KB 字符）。
 - **会话**：256-bit opaque token 仅存 `agehaos_session` HttpOnly Cookie（`SameSite=Lax`，生产 `Secure`），服务端 DataStore 持会话表，登录轮换、登出即删、惰性过期 + 登录时顺带清理；令牌零 JS 可见（§30.4 达成）。
 - **存储**：`DataStore` 接口三驱动——`memory`（测试）、`file`（本地 dev 默认，JSON 原子写）、`postgres`（`DATABASE_URL`，幂等建表 + 参数化语句；活库集成待环境，见 `server/docker-compose.yml`）。口令 scrypt（N=2¹⁵/r=8/p=1，参数随哈希存储）。
 - **安全**：mutating 请求 `Origin` 校验（CSRF，配合代理 `X-Forwarded-Host` + `trustProxy`）、按 IP 路由限流（login 10/min / register 20/min）、JSON Schema 输入校验、helmet 安全头、pino 审计日志（`auth.*`，只记 userId）。
 - **前端接线（零 UI/store 面改动）**：`src/core/auth/provider.ts` 把 `systemAuthService` 变为可切换 facade（`AuthProvider` 接口），`RemoteAuthClient`（`backend-client.ts`）以 fetch 调用同源 `/api`，localStorage 只缓存 `{user, expiresAt}` 非敏感元数据；`main.tsx` 按 `VITE_AUTH_BACKEND` 装配并触发 `reconcile()`（会话以服务端为准）；本地 `AuthService` 增加同名 `reconcile()` 保持契约。LoginScreen/SessionStore 逻辑不变。
-- **账户 UI**：Settings 新增「账户」区（`AccountSection.tsx`）——昵称/邮箱资料保存、修改密码（当前密码校验 + 确认输入）、登出其他设备；任务栏用户菜单显示 `displayName ?? username`；本地模式同等可用（改密码走本地盐哈希，revoke 为单会话 no-op）。
+- **账户 UI**：Settings 新增「账户」区（`AccountSection.tsx`）——头像（`src/core/auth/avatar.ts`：canvas cover-crop 128×128 JPEG + 格式白名单，体积与原图无关）、昵称/邮箱资料保存、修改密码（当前密码校验 + 确认输入）、登出其他设备；任务栏用户菜单显示 `displayName ?? username` 与头像；本地模式同等可用（改密码走本地盐哈希，revoke 为单会话 no-op）。
 
 ### 3.19 LLM 同源代理与深度增强（DDS §5.3，Phase B 切片）
 

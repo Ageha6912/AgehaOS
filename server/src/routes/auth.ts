@@ -43,6 +43,7 @@ const profileSchema = {
   properties: {
     displayName: { type: ['string', 'null'], minLength: 1, maxLength: 32 },
     email: { type: ['string', 'null'], minLength: 3, maxLength: 254 },
+    avatar: { type: ['string', 'null'], maxLength: 65536 },
   },
 }
 
@@ -57,9 +58,11 @@ const passwordChangeSchema = {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+/** §8.4 格式白名单：只接受客户端缩放后的 png/jpeg/webp data URL。 */
+const AVATAR_PATTERN = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/
 
 type PublicUser = Pick<UserRecord, 'id' | 'username' | 'createdAt' | 'updatedAt'> &
-  Partial<Pick<UserRecord, 'displayName' | 'email'>>
+  Partial<Pick<UserRecord, 'displayName' | 'email' | 'avatar'>>
 
 function publicUser(user: UserRecord): PublicUser {
   const result: PublicUser = {
@@ -70,6 +73,7 @@ function publicUser(user: UserRecord): PublicUser {
   }
   if (user.displayName !== undefined) result.displayName = user.displayName
   if (user.email !== undefined) result.email = user.email
+  if (user.avatar !== undefined) result.avatar = user.avatar
   return result
 }
 
@@ -221,14 +225,22 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
       if (!resolved) {
         return reply.code(401).send({ error: 'not-authenticated' })
       }
-      const body = request.body as { displayName?: string | null; email?: string | null }
+      const body = request.body as {
+        displayName?: string | null
+        email?: string | null
+        avatar?: string | null
+      }
       if (body.email !== undefined && body.email !== null && !EMAIL_PATTERN.test(body.email)) {
+        return reply.code(400).send({ error: 'invalid-body' })
+      }
+      if (body.avatar !== undefined && body.avatar !== null && !AVATAR_PATTERN.test(body.avatar)) {
         return reply.code(400).send({ error: 'invalid-body' })
       }
       const user = resolved.user
       // Absent = unchanged; explicit null = clear the field (PRD §12.1).
       if (body.displayName !== undefined) user.displayName = body.displayName ?? undefined
       if (body.email !== undefined) user.email = body.email ?? undefined
+      if (body.avatar !== undefined) user.avatar = body.avatar ?? undefined
       user.updatedAt = new Date().toISOString()
       await store.updateUser(user)
       app.log.info({ audit: 'auth.profile_updated', userId: user.id }, 'profile updated')

@@ -20,6 +20,7 @@ const SCHEMA_MIGRATIONS = [
    )`,
   `ALTER TABLE ageha_users ADD COLUMN IF NOT EXISTS display_name TEXT`,
   `ALTER TABLE ageha_users ADD COLUMN IF NOT EXISTS email TEXT`,
+  `ALTER TABLE ageha_users ADD COLUMN IF NOT EXISTS avatar TEXT`,
   `CREATE TABLE IF NOT EXISTS ageha_sessions (
      token TEXT PRIMARY KEY,
      user_id TEXT NOT NULL REFERENCES ageha_users(id) ON DELETE CASCADE,
@@ -54,7 +55,7 @@ export class PostgresDataStore implements DataStore {
 
   async findUserByUsername(username: string): Promise<UserRecord | null> {
     const result = await this.pool.query(
-      'SELECT id, username, created_at, updated_at, password_hash, display_name, email FROM ageha_users WHERE username = $1',
+      'SELECT id, username, created_at, updated_at, password_hash, display_name, email, avatar FROM ageha_users WHERE username = $1',
       [username],
     )
     const row = result.rows[0]
@@ -63,7 +64,7 @@ export class PostgresDataStore implements DataStore {
 
   async findUserById(id: string): Promise<UserRecord | null> {
     const result = await this.pool.query(
-      'SELECT id, username, created_at, updated_at, password_hash, display_name, email FROM ageha_users WHERE id = $1',
+      'SELECT id, username, created_at, updated_at, password_hash, display_name, email, avatar FROM ageha_users WHERE id = $1',
       [id],
     )
     const row = result.rows[0]
@@ -73,8 +74,8 @@ export class PostgresDataStore implements DataStore {
   async createUser(user: UserRecord): Promise<void> {
     try {
       await this.pool.query(
-        'INSERT INTO ageha_users (id, username, created_at, updated_at, password_hash, display_name, email) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [user.id, user.username, user.createdAt, user.updatedAt, user.passwordHash, user.displayName ?? null, user.email ?? null],
+        'INSERT INTO ageha_users (id, username, created_at, updated_at, password_hash, display_name, email, avatar) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+        [user.id, user.username, user.createdAt, user.updatedAt, user.passwordHash, user.displayName ?? null, user.email ?? null, user.avatar ?? null],
       )
     } catch (cause) {
       if (isPgError(cause, UNIQUE_VIOLATION)) throw new UsernameTakenError(user.username)
@@ -84,8 +85,8 @@ export class PostgresDataStore implements DataStore {
 
   async updateUser(user: UserRecord): Promise<void> {
     const result = await this.pool.query(
-      'UPDATE ageha_users SET username = $2, updated_at = $3, password_hash = $4, display_name = $5, email = $6 WHERE id = $1',
-      [user.id, user.username, user.updatedAt, user.passwordHash, user.displayName ?? null, user.email ?? null],
+      'UPDATE ageha_users SET username = $2, updated_at = $3, password_hash = $4, display_name = $5, email = $6, avatar = $7 WHERE id = $1',
+      [user.id, user.username, user.updatedAt, user.passwordHash, user.displayName ?? null, user.email ?? null, user.avatar ?? null],
     )
     if ((result.rowCount ?? 0) === 0) throw new Error(`Unknown user ${user.id}`)
   }
@@ -140,6 +141,9 @@ function rowToUser(row: Record<string, unknown>): UserRecord {
   }
   if (row.email !== null && row.email !== undefined) {
     user.email = String(row.email)
+  }
+  if (row.avatar !== null && row.avatar !== undefined) {
+    user.avatar = String(row.avatar)
   }
   return user
 }

@@ -1,13 +1,19 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
+import { AvatarError, fileToAvatarDataUrl } from '@/core/auth/avatar'
 import { AuthError } from '@/core/auth'
 import { useSessionStore } from '@/store/session-store'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-function actionErrorKey(error: AuthError | undefined): MessageKey {
+function actionErrorKey(error: AuthError | AvatarError | undefined): MessageKey {
+  if (error instanceof AvatarError) {
+    return error.code === 'avatar-too-large'
+      ? 'settings.account.avatarTooLarge'
+      : 'settings.account.avatarInvalid'
+  }
   switch (error?.code) {
     case 'invalid-credentials':
       return 'settings.account.wrongPassword'
@@ -35,8 +41,26 @@ export function AccountSection() {
   const [passwordNotice, setPasswordNotice] = useState<MessageKey | null>(null)
 
   const [revokeNotice, setRevokeNotice] = useState<MessageKey | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   if (!user) return null
+
+  const applyAvatar = async (dataUrl: string | null): Promise<void> => {
+    setProfileNotice(null)
+    const result = await updateProfile({ avatar: dataUrl })
+    if (!result.ok) setProfileNotice(actionErrorKey(result.error))
+  }
+
+  const onAvatarFile = async (file: File | undefined): Promise<void> => {
+    if (!file) return
+    setProfileNotice(null)
+    try {
+      const dataUrl = await fileToAvatarDataUrl(file)
+      await applyAvatar(dataUrl)
+    } catch (cause) {
+      setProfileNotice(actionErrorKey(cause instanceof AvatarError ? cause : undefined))
+    }
+  }
 
   const saveProfile = async (): Promise<void> => {
     setProfileNotice(null)
@@ -86,6 +110,54 @@ export function AccountSection() {
       <h2 className="mb-4 text-base font-semibold text-text">{t('settings.account')}</h2>
 
       <div className="mb-6 max-w-md space-y-3">
+        <div className="flex items-center gap-4">
+          {user.avatar ? (
+            <img
+              src={user.avatar}
+              alt={t('settings.account.avatar')}
+              data-testid="account-avatar-preview"
+              className="h-16 w-16 rounded-full border border-border object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden="true"
+              data-testid="account-avatar-preview"
+              className="flex h-16 w-16 items-center justify-center rounded-full border border-border bg-surface-raised text-2xl text-text-muted"
+            >
+              {user.username.charAt(0).toUpperCase()}
+            </span>
+          )}
+          <div className="space-x-2">
+            <button
+              type="button"
+              data-testid="avatar-change"
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-text hover:bg-surface-raised"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {t('settings.account.avatarChange')}
+            </button>
+            {user.avatar && (
+              <button
+                type="button"
+                data-testid="avatar-remove"
+                className="rounded-md px-3 py-1.5 text-xs text-text-muted hover:bg-surface-raised hover:text-text"
+                onClick={() => void applyAvatar(null)}
+              >
+                {t('settings.account.avatarRemove')}
+              </button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(event) => {
+                void onAvatarFile(event.target.files?.[0])
+                event.target.value = ''
+              }}
+            />
+          </div>
+        </div>
         <div>
           <label htmlFor="account-username" className="mb-1 block text-xs text-text-muted">
             {t('settings.account.username')}

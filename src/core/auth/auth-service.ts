@@ -143,6 +143,7 @@ export class AuthService {
     const user = this.currentUserOrThrow()
     if (input.displayName !== undefined) user.displayName = input.displayName ?? undefined
     if (input.email !== undefined) user.email = input.email ?? undefined
+    if (input.avatar !== undefined) user.avatar = input.avatar ?? undefined
     user.updatedAt = new Date(this.now()).toISOString()
     this.persistUsers()
     return this.toPublicUser(user)
@@ -209,6 +210,7 @@ export class AuthService {
     }
     if (user.displayName !== undefined) publicUser.displayName = user.displayName
     if (user.email !== undefined) publicUser.email = user.email
+    if (user.avatar !== undefined) publicUser.avatar = user.avatar
     return publicUser
   }
 

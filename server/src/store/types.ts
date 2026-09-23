@@ -7,6 +7,8 @@ export interface UserRecord {
   /** Optional profile fields (PRD §12.1 修改昵称/资料); absent = unset. */
   displayName?: string
   email?: string
+  /** Avatar as a client-resized data URL (format-whitelisted, ≤64KB chars). */
+  avatar?: string
 }
 
 export interface SessionRecord {
