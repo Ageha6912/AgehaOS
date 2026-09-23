@@ -18,6 +18,8 @@ interface SessionState {
   login: (username: string, password: string) => Promise<LoginResult>
   register: (username: string, password: string) => Promise<LoginResult>
   logout: () => Promise<void>
+  /** Boot-time re-check against the active auth provider (remote sessions). */
+  reconcile: () => Promise<void>
   clearExpiredNotice: () => void
 }
 
@@ -63,6 +65,15 @@ export const useSessionStore = create<SessionState>()(() => ({
   logout: async () => {
     systemAuthService.logout()
     useSessionStore.setState({ user: null, status: 'anonymous' })
+  },
+
+  reconcile: async () => {
+    const user = await systemAuthService.reconcile()
+    if (user) {
+      useSessionStore.setState({ user, status: 'authenticated', sessionExpired: false })
+    } else {
+      useSessionStore.setState({ user: null, status: 'anonymous' })
+    }
   },
 
   clearExpiredNotice: () => useSessionStore.setState({ sessionExpired: false }),

@@ -28,6 +28,7 @@
 | `src/sdk/`                  | 面向第三方 App 的稳定 API（`AgehaOS.*`）               | `core`（只经权限校验的能力封装）               |
 | `src/components/`           | 通用 UI 组件                                           | 仅 UI 库                                       |
 | `src/services/`             | 平台服务封装（日志、上报等）                           | `core`                                         |
+| `server/`                   | 后端认证服务（Fastify，Milestone 5）                    | 独立 tsconfig，不依赖 `src/`                   |
 
 依赖方向只能自上而下（UI → store → core），不允许反向引用。`core` 保持框架无关，便于未来抽取为独立 package（monorepo 化预留）。
 
@@ -160,6 +161,16 @@
 - **面板应用**：`com.ageha.dynamic.panel`（DDS §5.5：dynamic.* 前缀 + 零权限注册），`src/apps/dynamic-panel/`——打开时装配一次 + 手动刷新（无自动定时刷新，窗口内容不热替换）；每张卡带「AI 生成 · 本地规则」标识（§6.5 透明机制）；装配发 `ai.content.ready` 与 `ai.decision.performed {domain:'content', source:'local'}`（§3.3）。
 - 缓办：布局建议域（§5.1 域②）、LLM 异步增强与三级降级（§5.3，依赖同源后端）、30 分钟后台刷新与聚焦冻结、隐式反馈采集。
 
+### 3.17 后端认证服务（`server/`，Milestone 5，PRD §12/§20/§30.4）
+
+- **技术栈**：Node.js 24 + Fastify 5 + `@fastify/cookie` / `@fastify/helmet` / `@fastify/rate-limit` + `pg`。API 契约见 [API.md](API.md)。
+- **端点**：`POST /api/auth/register|login|logout`、`GET /api/auth/session`、`GET /api/users/me`、`GET /api/health`；错误统一 `{ error: <code> }` 且 code 与前端 `AuthErrorCode` 对齐。
+- **会话**：256-bit opaque token 仅存 `agehaos_session` HttpOnly Cookie（`SameSite=Lax`，生产 `Secure`），服务端 DataStore 持会话表，登录轮换、登出即删、惰性过期 + 登录时顺带清理；令牌零 JS 可见（§30.4 达成）。
+- **存储**：`DataStore` 接口三驱动——`memory`（测试）、`file`（本地 dev 默认，JSON 原子写）、`postgres`（`DATABASE_URL`，幂等建表 + 参数化语句；活库集成待环境，见 `server/docker-compose.yml`）。口令 scrypt（N=2¹⁵/r=8/p=1，参数随哈希存储）。
+- **安全**：mutating 请求 `Origin` 校验（CSRF，配合代理 `X-Forwarded-Host` + `trustProxy`）、按 IP 路由限流（login 10/min / register 20/min）、JSON Schema 输入校验、helmet 安全头、pino 审计日志（`auth.*`，只记 userId）。
+- **前端接线（零 UI/store 面改动）**：`src/core/auth/provider.ts` 把 `systemAuthService` 变为可切换 facade（`AuthProvider` 接口），`RemoteAuthClient`（`backend-client.ts`）以 fetch 调用同源 `/api`，localStorage 只缓存 `{user, expiresAt}` 非敏感元数据；`main.tsx` 按 `VITE_AUTH_BACKEND` 装配并触发 `reconcile()`（会话以服务端为准）；本地 `AuthService` 增加同名 `reconcile()` 保持契约。LoginScreen/SessionStore 逻辑不变。
+- 缓办：活 PostgreSQL 集成验证、Redis（多实例限流/会话缓存）、S3 对象存储（云文件面）、OAuth/2FA、`user` 资源其余端点（改昵称/头像/密码，PRD §12.1 P1 前置）。
+
 ## 4. 后续模块技术要点
 
 ### 4.1 应用运行时完善（`src/core/runtime`，PRD §8/§25）
@@ -173,10 +184,11 @@
 - OPFS / File System Access / 远程对象存储适配器；上传、下载、文件编辑随后续应用落地。
 - Local First 同步队列（§42）与冲突策略（MVP：Last Write Wins）。
 
-### 4.3 后端（`server/`，Milestone 5，PRD §20）
+### 4.3 后端完善（`server/`，Milestone 5 进行中，PRD §20）
 
-- Node.js + Fastify/NestJS，PostgreSQL + Redis + S3 兼容存储；数据模型见 PRD §21。
-- Token 用 HttpOnly Cookie，禁止入 LocalStorage（PRD §30.4）。
+- 已落地：认证面（register/login/logout/session）+ HttpOnly Cookie 会话 + DataStore 三驱动（见 §3.17 与 [API.md](API.md)）。
+- 待补：PostgreSQL 活库集成验证（驱动与建表语句就绪）；Redis（多实例限流共享、会话缓存）；S3 兼容对象存储（随云文件/Cloud Sync，PRD Phase 3）；用户资源扩展（昵称/头像/密码修改）；OAuth / Passkey（PRD §12.1 P1）。
+- 数据模型对齐 PRD §21.1（`ageha_users`：id/username/created_at/updated_at/password_hash；email/avatar 随 P1 用户面补列）。
 
 ## 5. 已记录的工程决策（ADR 摘要）
 
@@ -190,3 +202,6 @@
 8. **动态桌面质量门的亮度口径（Phase A 裁决）**：DDS §4.4 的绝对窗口 [0.2, 0.85] 会把 v0.1 默认深色渐变一并判死，Phase A 以「感知亮度（RGB 均值/255）+ 按主题相对窗口（dark [0.08,0.85] / light [0.55,0.93]）」实现同一质量意图；正文对比度按「深/浅墨色至少一种达 WCAG AA（含 40% 遮罩）」判定。偏差已在代码注释与 DDS §12.2 精神下留痕。
 9. **调色板可行域按主题过滤**：深色主题只采深色家族、浅色只采浅色（DDS §2.1 主题权重 0.25 的硬性部分）；风格可行域同时要求该主题下至少有一个兼容调色板，避免采样进不可行空间。装饰重叠门只约束矩形装饰（几何/网格），流体色块、粒子与山水剪影的重叠属设计意图。
 10. **动态桌面 Phase A 缓办项**（记录于 DDS §12.3，随后续阶段落）：boot 合成基准 FPS 探测（`detectTier` 已支持 `measuredFps` 入参，运行期探测未接线）、定时换新调度器（滑杆频率映射已实现，仅 login/手动触发已接线）、桌面右键菜单入口、`desktop.feedback` 的全量隐式信号采集（Phase A 仅接线「换一张」负反馈与 ε 阶梯推导）。
+11. **认证走 provider facade 而非改 AuthService**：`systemAuthService` 变为可切换 `AuthProvider` facade（默认本地实现，行为与 v0.1 完全一致），远程模式由 `RemoteAuthClient` 实现同一契约——UI 与 store 只多一个 boot 期 `reconcile()` 动作；会话令牌从此不出服务端（HttpOnly Cookie）。
+12. **后端存储默认 file 而非强制 Postgres**：本机开发环境无 Docker/PG，`DataStore` 接口下以 file 驱动保证「注册→重启→登录」真实可用；postgres 驱动（幂等建表 + 参数化 SQL）就绪并以 fake Pool 测 SQL 形状，活库集成验证列为显式缓办（`server/docker-compose.yml` 一键补环境）。
+13. **scrypt 成本参数显式放宽 maxmem**：N=2¹⁵/r=8 所需 128·N·r 恰为 32 MiB，触发 Node 默认 maxmem 上限直接抛错；显式 `maxmem: 64 MiB` 并把参数写进哈希串以便未来平滑升级。

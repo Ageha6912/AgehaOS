@@ -129,6 +129,15 @@ export class AuthService {
     return user ? this.toPublicUser(user) : null
   }
 
+  /**
+   * Boot-time consistency check: localStorage is the source of truth here,
+   * so this only re-validates the stored session (AuthProvider contract).
+   */
+  async reconcile(): Promise<User | null> {
+    if (!this.getSession()) return null
+    return this.getUser()
+  }
+
   // ---- internals ----------------------------------------------------------
 
   private createSession(user: StoredUser): Session {
@@ -198,6 +207,3 @@ export class AuthService {
     }
   }
 }
-
-/** Process-level auth service backed by localStorage. */
-export const systemAuthService = new AuthService()

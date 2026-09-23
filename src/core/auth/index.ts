@@ -1,4 +1,7 @@
-export { AuthService, systemAuthService } from './auth-service'
+export { AuthService } from './auth-service'
+export { RemoteAuthClient } from './backend-client'
+export { getAuthProvider, setAuthProvider, systemAuthService } from './provider'
+export type { AuthProvider } from './provider'
 export { hashPassword, verifyPassword, generateSalt } from './password'
 export { AuthError } from './types'
 export type { User, Session, StoredUser, AuthErrorCode, AuthResult } from './types'

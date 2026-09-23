@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 
-import { systemAuthService } from '@/core/auth'
+import { setAuthProvider, systemAuthService } from '@/core/auth'
 
-import { resetSessionStore, useSessionStore } from './session-store'
+import { resetSessionStore, seedSessionForTests, useSessionStore } from './session-store'
 
 // Unique usernames per test: the auth singleton keeps users for the file.
 beforeEach(() => {
@@ -48,5 +48,56 @@ describe('session-store', () => {
 
     expect(useSessionStore.getState().status).toBe('anonymous')
     expect(useSessionStore.getState().user).toBeNull()
+  })
+
+  it('reconciles against the provider: live session keeps the user', async () => {
+    seedSessionForTests({ id: 'u9', username: 'remote-reconcile', createdAt: '', updatedAt: '' })
+    setAuthProvider({
+      register: async () => {
+        throw new Error('unused')
+      },
+      login: async () => {
+        throw new Error('unused')
+      },
+      logout: () => null,
+      getSession: () => null,
+      getUser: () => null,
+      reconcile: async () => ({
+        id: 'u9',
+        username: 'remote-reconcile',
+        createdAt: '',
+        updatedAt: '',
+      }),
+    })
+    try {
+      await useSessionStore.getState().reconcile()
+      expect(useSessionStore.getState().status).toBe('authenticated')
+      expect(useSessionStore.getState().user?.id).toBe('u9')
+    } finally {
+      setAuthProvider(null)
+    }
+  })
+
+  it('reconciles against the provider: dead session signs out', async () => {
+    seedSessionForTests({ id: 'u9', username: 'remote-reconcile', createdAt: '', updatedAt: '' })
+    setAuthProvider({
+      register: async () => {
+        throw new Error('unused')
+      },
+      login: async () => {
+        throw new Error('unused')
+      },
+      logout: () => null,
+      getSession: () => null,
+      getUser: () => null,
+      reconcile: async () => null,
+    })
+    try {
+      await useSessionStore.getState().reconcile()
+      expect(useSessionStore.getState().status).toBe('anonymous')
+      expect(useSessionStore.getState().user).toBeNull()
+    } finally {
+      setAuthProvider(null)
+    }
   })
 })

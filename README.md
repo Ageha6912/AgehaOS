@@ -35,7 +35,8 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 - ✅ **安全加固**（PRD §30/§45.6）：生产构建 CSP、`no-referrer`、无原生 HTML 注入审计、盐值哈希口令（详见 [docs/SECURITY.md](docs/SECURITY.md)）
 - ✅ **性能验证**（PRD §29）：E2E 断言刷新后 3 秒内可交互、20 窗口下桌面保持响应
 - 🎉 **v0.1.0 已发布**（PRD §51 第 15 步）——见 [CHANGELOG.md](CHANGELOG.md)
-- ⏳ 下一步：后端化（Milestone 5，仅替换 AuthService 存储层）→ Type B/C 应用运行时 → App Store（v0.2）
+- 🆕 **后端认证服务**（Milestone 5，PRD §20/§30.4，契约见 [docs/API.md](docs/API.md)）：`server/` 下 Node.js 24 + Fastify 5——注册/登录/登出/会话端点、256-bit opaque 令牌仅存 HttpOnly Cookie（SameSite=Lax，JS 不可见）、scrypt 口令哈希、CSRF Origin 校验、按 IP 路由限流、helmet 安全头、pino 审计；存储三驱动 memory/file/postgres（`DataStore` 可插拔，file 支持重启持久化，postgres 驱动就绪待活库验证）。前端 `systemAuthService` 升级为可切换 Provider：`VITE_AUTH_BACKEND=1` 即远程模式，UI 零改动，未设置保持本地行为
+- ⏳ 下一步：后端补全（PostgreSQL 活库验证、Redis 限流共享、S3 云文件）→ 布局建议域 / LLM 增强（Phase B 后续）→ SDK File/Notification API → v0.2 收口
 
 ## 快速开始
 
@@ -52,6 +53,15 @@ npm run build     # 生产构建（含 typecheck）
 ```
 
 E2E 首次运行前需安装浏览器：`npx playwright install chromium`。
+
+### 后端（可选，Milestone 5）
+
+```bash
+npm run dev:server   # 认证 API（tsx watch）→ http://127.0.0.1:8787
+npm run test:server  # 后端测试（vitest，node 环境）
+```
+
+开发服务器带 `VITE_AUTH_BACKEND=1 npm run dev` 即切换为远程认证：登录/注册经同源 `/api`（Vite 代理 → :8787）走后端，会话变为 HttpOnly Cookie；不带该变量则维持本地 localStorage 认证。完整环境变量与端点说明见 [docs/API.md](docs/API.md)。
 
 ## 目录结构
 
@@ -79,16 +89,16 @@ src/
 └── main.tsx
 ```
 
-`docs/` 存放产品与技术文档；后端服务（Milestone 5）将位于 `server/`。
+`docs/` 存放产品与技术文档；后端认证服务（Milestone 5）位于 `server/`（独立 tsconfig 与 vitest 配置，契约见 [docs/API.md](docs/API.md)）。
 
 ## 技术栈
 
 | 层           | 选型                                                        |
 | ------------ | ----------------------------------------------------------- |
 | 前端         | React 19 · TypeScript · Vite · Zustand · Tailwind CSS 4     |
-| 测试         | Vitest · Testing Library · jsdom（E2E 后续引入 Playwright） |
+| 测试         | Vitest · Testing Library · jsdom · Playwright（E2E）        |
 | 工程化       | ESLint（flat config）· Prettier                             |
-| 后端（规划） | Node.js + Fastify/NestJS · PostgreSQL · Redis · S3 兼容存储 |
+| 后端         | Node.js 24 · Fastify 5 · pg（PostgreSQL，驱动就绪）· tsx    |
 
 ## 测试与质量基线
 
