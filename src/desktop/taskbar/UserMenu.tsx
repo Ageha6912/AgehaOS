@@ -23,7 +23,7 @@ export function UserMenu() {
         onClick={() => setOpen((value) => !value)}
       >
         <User size={14} weight="regular" />
-        {user.username}
+        {user.displayName ?? user.username}
       </button>
       {open && (
         <menu

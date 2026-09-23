@@ -150,6 +150,60 @@ describe('RemoteAuthClient', () => {
     expect(dead.storage.getItem('agehaos.auth.remote.v1')).toBeNull()
   })
 
+  it('patches the profile and keeps the cache in sync', async () => {
+    const updated = { ...USER, displayName: 'Alice Liddell', email: 'alice@example.com' }
+    const { client, requests } = makeClient([
+      { status: 200, body: SESSION_BODY },
+      { status: 200, body: { user: updated } },
+    ])
+    await client.login('alice', 'secret123')
+
+    const user = await client.updateProfile({ displayName: 'Alice Liddell', email: 'alice@example.com' })
+    expect(user).toEqual(updated)
+    expect(requests[1]?.url).toBe('/api/users/me')
+    expect(requests[1]?.init.method).toBe('PATCH')
+    expect(JSON.parse(String(requests[1]?.init.body))).toEqual({
+      displayName: 'Alice Liddell',
+      email: 'alice@example.com',
+    })
+    expect(client.getUser()).toEqual(updated)
+  })
+
+  it('changes password and revokes other sessions through the API', async () => {
+    const { client, requests } = makeClient([
+      { status: 200, body: SESSION_BODY },
+      { status: 204 },
+      { status: 200, body: { revoked: 2 } },
+    ])
+    await client.login('alice', 'secret123')
+
+    await expect(
+      client.changePassword('secret123', 'newpass123'),
+    ).resolves.toBeUndefined()
+    expect(requests[1]?.url).toBe('/api/users/me/password')
+    expect(requests[1]?.init.method).toBe('POST')
+    expect(JSON.parse(String(requests[1]?.init.body))).toEqual({
+      currentPassword: 'secret123',
+      newPassword: 'newpass123',
+    })
+
+    await expect(client.revokeOtherSessions()).resolves.toBe(2)
+    expect(requests[2]?.url).toBe('/api/auth/sessions/revoke-others')
+  })
+
+  it('maps a wrong current password onto AuthError', async () => {
+    const { client } = makeClient([
+      { status: 200, body: SESSION_BODY },
+      { status: 401, body: { error: 'invalid-credentials' } },
+    ])
+    await client.login('alice', 'secret123')
+    const error = await client
+      .changePassword('wrongpw1', 'newpass123')
+      .catch((cause: unknown) => cause)
+    expect(error).toBeInstanceOf(AuthError)
+    expect((error as AuthError).code).toBe('invalid-credentials')
+  })
+
   it('survives reloads by restoring the cache from storage', async () => {
     const storage = fakeStorage()
     storage.setItem('agehaos.auth.remote.v1', JSON.stringify(SESSION_BODY))

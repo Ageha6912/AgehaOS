@@ -3,7 +3,7 @@ import type { EventBus, SystemEventMap } from '@/core/events'
 
 import { generateSalt, hashPassword, verifyPassword } from './password'
 import { AuthError } from './types'
-import type { AuthResult, Session, StoredUser, User } from './types'
+import type { AuthResult, ProfileInput, Session, StoredUser, User } from './types'
 
 export interface KeyValueStorage {
   getItem(key: string): string | null
@@ -138,6 +138,35 @@ export class AuthService {
     return this.getUser()
   }
 
+  /** Local profile patch (PRD §12.1); requires a live session. */
+  async updateProfile(input: ProfileInput): Promise<User> {
+    const user = this.currentUserOrThrow()
+    if (input.displayName !== undefined) user.displayName = input.displayName ?? undefined
+    if (input.email !== undefined) user.email = input.email ?? undefined
+    user.updatedAt = new Date(this.now()).toISOString()
+    this.persistUsers()
+    return this.toPublicUser(user)
+  }
+
+  /** Verifies the current password before re-hashing (single-device local). */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const user = this.currentUserOrThrow()
+    const valid = await verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)
+    if (!valid) throw new AuthError('invalid-credentials', 'Current password is incorrect')
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      throw new AuthError('weak-password', `Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+    }
+    user.passwordHash = await hashPassword(newPassword, user.passwordSalt)
+    user.updatedAt = new Date(this.now()).toISOString()
+    this.persistUsers()
+  }
+
+  /** The local model holds exactly one session — there is nothing to revoke. */
+  async revokeOtherSessions(): Promise<number> {
+    this.currentUserOrThrow()
+    return 0
+  }
+
   // ---- internals ----------------------------------------------------------
 
   private createSession(user: StoredUser): Session {
@@ -178,7 +207,17 @@ export class AuthService {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }
+    if (user.displayName !== undefined) publicUser.displayName = user.displayName
+    if (user.email !== undefined) publicUser.email = user.email
     return publicUser
+  }
+
+  private currentUserOrThrow(): StoredUser {
+    const session = this.getSession()
+    if (!session) throw new AuthError('not-authenticated', 'Not signed in')
+    const user = this.users.get(session.userId)
+    if (!user) throw new AuthError('not-authenticated', 'Not signed in')
+    return user
   }
 
   private loadUsers(): void {

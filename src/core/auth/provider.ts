@@ -1,5 +1,7 @@
 import { AuthService } from './auth-service'
-import type { AuthResult, Session, User } from './types'
+import type { AuthResult, ProfileInput, Session, User } from './types'
+
+export type { ProfileInput } from './types'
 
 /**
  * Storage + transport contract for the auth system. Two implementations:
@@ -14,6 +16,12 @@ export interface AuthProvider {
   getUser(): User | null
   /** Boot-time re-check against the source of truth; null means signed out. */
   reconcile(): Promise<User | null>
+  /** Patch profile fields; absent = unchanged, explicit null = clear. */
+  updateProfile(input: ProfileInput): Promise<User>
+  /** Verifies the current password, then re-hashes and revokes other sessions. */
+  changePassword(currentPassword: string, newPassword: string): Promise<void>
+  /** Signs out every other session of this account; returns revoked count. */
+  revokeOtherSessions(): Promise<number>
 }
 
 const localAuthService = new AuthService()
@@ -32,6 +40,9 @@ export const systemAuthService: AuthProvider = {
   getSession: () => activeProvider.getSession(),
   getUser: () => activeProvider.getUser(),
   reconcile: () => activeProvider.reconcile(),
+  updateProfile: (input) => activeProvider.updateProfile(input),
+  changePassword: (current, next) => activeProvider.changePassword(current, next),
+  revokeOtherSessions: () => activeProvider.revokeOtherSessions(),
 }
 
 /** Installs an alternative provider; `null` restores the local one (tests). */

@@ -1,12 +1,18 @@
 import { create } from 'zustand'
 
 import { systemAuthService } from '@/core/auth'
-import type { AuthError, User } from '@/core/auth'
+import type { AuthError, ProfileInput, User } from '@/core/auth'
 
 export type SessionStatus = 'authenticated' | 'anonymous'
 
 export interface LoginResult {
   ok: boolean
+  error?: AuthError
+}
+
+export interface RevokeSessionsResult {
+  ok: boolean
+  revoked: number
   error?: AuthError
 }
 
@@ -20,6 +26,9 @@ interface SessionState {
   logout: () => Promise<void>
   /** Boot-time re-check against the active auth provider (remote sessions). */
   reconcile: () => Promise<void>
+  updateProfile: (input: ProfileInput) => Promise<LoginResult>
+  changePassword: (currentPassword: string, newPassword: string) => Promise<LoginResult>
+  revokeOtherSessions: () => Promise<RevokeSessionsResult>
   clearExpiredNotice: () => void
 }
 
@@ -73,6 +82,34 @@ export const useSessionStore = create<SessionState>()(() => ({
       useSessionStore.setState({ user, status: 'authenticated', sessionExpired: false })
     } else {
       useSessionStore.setState({ user: null, status: 'anonymous' })
+    }
+  },
+
+  updateProfile: async (input) => {
+    try {
+      const user = await systemAuthService.updateProfile(input)
+      useSessionStore.setState({ user })
+      return { ok: true }
+    } catch (cause) {
+      return { ok: false, error: cause as AuthError }
+    }
+  },
+
+  changePassword: async (currentPassword, newPassword) => {
+    try {
+      await systemAuthService.changePassword(currentPassword, newPassword)
+      return { ok: true }
+    } catch (cause) {
+      return { ok: false, error: cause as AuthError }
+    }
+  },
+
+  revokeOtherSessions: async () => {
+    try {
+      const revoked = await systemAuthService.revokeOtherSessions()
+      return { ok: true, revoked }
+    } catch (cause) {
+      return { ok: false, revoked: 0, error: cause as AuthError }
     }
   },
 

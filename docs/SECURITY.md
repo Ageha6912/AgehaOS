@@ -43,8 +43,9 @@ object-src 'none'; base-uri 'self'; form-action 'self'
 - **令牌不出服务端**：登录/注册由后端 `Set-Cookie` 下发 `agehaos_session`（HttpOnly、SameSite=Lax、Path=/、7 天，生产追加 Secure）；前端缓存仅 `{user, expiresAt}`（键 `agehaos.auth.remote.v1`），启动时 `reconcile()` 以服务端会话为准。
 - **CSRF**：SameSite=Lax 为主 + 后端对 mutating 请求做 `Origin` 校验（同 host / `AGEHA_ALLOWED_ORIGINS` 白名单放行，否则 403）；反代需转发 `X-Forwarded-Host`（Vite 开发代理已 `xfwd: true`），后端 `trustProxy` 采纳。
 - **口令哈希（服务端）**：scrypt N=2¹⁵/r=8/p=1、16B 盐、`timingSafeEqual` 校验；登录失败与账号不存在等时（dummy scrypt）防枚举。
-- **限流**：login 10/min、register 20/min 每 IP（可配），超限 `429 {"error":"rate-limited"}`。
+- **限流**：login 10/min、register 20/min 每 IP（可配），超限 `429 {"error":"rate-limited"}`；改密码路由与 login 同限流。
 - **审计**：pino 结构化 `auth.*` 事件；成功日志只含 userId。
+- **改密码即吊销其他会话**：`POST /api/users/me/password` 校验当前密码后重哈希，并吊销该用户除当前会话外的全部会话（防被窃 cookie 继续存活）；「登出其他设备」动作复用同一 DataStore 原语。
 
 ## 4. 已知风险与后续项（PRD §47）
 

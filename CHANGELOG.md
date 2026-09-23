@@ -13,6 +13,11 @@
 - 前端接线：`systemAuthService` 升级为可切换 `AuthProvider` facade（默认本地实现，行为不变），新增 `RemoteAuthClient` 与 boot 期 `reconcile()`；`VITE_AUTH_BACKEND=1` 启用远程模式（同源 `/api` 经 Vite 代理），UI 与 store 零改动
 - 工具链：`npm run dev:server / start:server / test:server`，typecheck 与 `npm run test` 覆盖前后端双套件
 
+### 用户资料与会话管理（PRD §12.1）
+
+- 后端：`PATCH /api/users/me`（昵称/邮箱，缺省不变、显式 null 清除）、`POST /api/users/me/password`（校验当前密码，成功后自动吊销其他会话）、`POST /api/auth/sessions/revoke-others`（登出其他设备）；`UserRecord` 扩展 `displayName`/`email`，Postgres 迁移自动补列
+- 前端：Settings 新增「账户」区（资料保存 / 修改密码 / 会话安全），任务栏用户菜单显示昵称；`AuthProvider` 增加 `updateProfile` / `changePassword` / `revokeOtherSessions`，本地与远程模式同等可用
+
 ## [0.1.0] - 2026-09-21
 
 AgehaOS 首个 MVP 版本（对应 PRD Phase 1 / §50 最小可运行范围）。

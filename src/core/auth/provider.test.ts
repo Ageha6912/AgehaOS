@@ -19,6 +19,9 @@ function stubProvider(loginResult: AuthResult): AuthProvider {
     getSession: vi.fn(() => loginResult.session),
     getUser: vi.fn(() => USER),
     reconcile: vi.fn(async () => USER),
+    updateProfile: vi.fn(async () => USER),
+    changePassword: vi.fn(async () => {}),
+    revokeOtherSessions: vi.fn(async () => 2),
   }
 }
 
@@ -42,10 +45,15 @@ describe('auth provider facade', () => {
       expect(systemAuthService.getSession()).toEqual(session)
       expect(systemAuthService.getUser()).toEqual(USER)
       await expect(systemAuthService.reconcile()).resolves.toEqual(USER)
+      await expect(systemAuthService.updateProfile({ displayName: 'Alice' })).resolves.toEqual(USER)
+      await expect(systemAuthService.changePassword('a', 'b')).resolves.toBeUndefined()
+      await expect(systemAuthService.revokeOtherSessions()).resolves.toBe(2)
     } finally {
       setAuthProvider(null)
     }
     expect(vi.mocked(stub.login)).toHaveBeenCalledWith('remote-alice', 'secret123')
+    expect(vi.mocked(stub.updateProfile)).toHaveBeenCalledWith({ displayName: 'Alice' })
+    expect(vi.mocked(stub.changePassword)).toHaveBeenCalledWith('a', 'b')
   })
 
   it('restores the local provider on setAuthProvider(null)', () => {

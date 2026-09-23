@@ -1,5 +1,5 @@
 import type { KeyValueStorage } from './auth-service'
-import type { AuthProvider } from './provider'
+import type { AuthProvider, ProfileInput } from './provider'
 import { AuthError } from './types'
 import type { AuthErrorCode, AuthResult, Session, User } from './types'
 
@@ -118,6 +118,30 @@ export class RemoteAuthClient implements AuthProvider {
       this.clearCache()
       return null
     }
+  }
+
+  async updateProfile(input: ProfileInput): Promise<User> {
+    const body = await this.request<{ user: User }>('/api/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    })
+    // Keep the local fast-path cache in sync with the server's copy.
+    if (this.cache) this.storeCache({ user: body.user, expiresAt: this.cache.expiresAt })
+    return body.user
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await this.request<null>('/api/users/me/password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
+  }
+
+  async revokeOtherSessions(): Promise<number> {
+    const body = await this.request<{ revoked: number }>('/api/auth/sessions/revoke-others', {
+      method: 'POST',
+    })
+    return body.revoked
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

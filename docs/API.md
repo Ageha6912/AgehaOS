@@ -66,6 +66,20 @@ docker compose -f server/docker-compose.yml up -d   # 可选：本地 PostgreSQL
 
 `200 { user, expiresAt }` 或 `401 { "error": "not-authenticated" }`。
 
+### PATCH /api/users/me
+
+请求体（全部可选，缺省 = 不变，显式 `null` = 清除）：`{ displayName?: string|null (1–32), email?: string|null }` → `200 { user }`。
+
+- 错误：`400 invalid-body`（schema 或邮箱格式）、`401 not-authenticated`。
+
+### POST /api/users/me/password
+
+请求 `{ currentPassword, newPassword }`（均 6–128 位）→ `204`。校验当前密码（错误 → `401 invalid-credentials`）；成功后**吊销该用户除当前会话外的全部会话**（防旧设备残留登录）。限流与 login 相同（10/min）。
+
+### POST /api/auth/sessions/revoke-others
+
+`200 { revoked: <count> }` —— 登出当前会话以外的全部会话（PRD §12.1 Session 管理）。无会话 → `401`。
+
 ## 4. 安全机制（PRD §30.5）
 
 - **口令哈希**：scrypt（N=2¹⁵, r=8, p=1, 64B key, 16B 随机盐，`maxmem` 64 MiB），存储格式 `scrypt$N$r$p$盐$哈希`（参数随哈希保存，可平滑升级成本），校验用 `timingSafeEqual`。
@@ -77,7 +91,7 @@ docker compose -f server/docker-compose.yml up -d   # 可选：本地 PostgreSQL
 
 ## 5. 存储
 
-`DataStore` 接口（`server/src/store/types.ts`）：`createUser / findUserByUsername / findUserById / createSession / findSession / deleteSession / pruneExpiredSessions`。
+`DataStore` 接口（`server/src/store/types.ts`）：`createUser / updateUser / findUserByUsername / findUserById / createSession / findSession / deleteSession / pruneExpiredSessions / deleteSessionsForUserExcept`。
 
 | 驱动       | 用途                                       | 测试状态                             |
 | ---------- | ------------------------------------------ | ------------------------------------ |

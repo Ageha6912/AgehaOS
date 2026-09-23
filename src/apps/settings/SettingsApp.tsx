@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 
-import { GlobeHemisphereWest, LockSimple, Palette, Sparkle } from '@phosphor-icons/react'
+import { GlobeHemisphereWest, LockSimple, Palette, Sparkle, UserCircle } from '@phosphor-icons/react'
 
 import { useTranslation, useLocaleStore } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
@@ -9,10 +9,12 @@ import type { ThemePreference, FontSize } from '@/store/settings-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useAppStore } from '@/store/app-store'
 import { DynamicDesktopSection } from './DynamicDesktopSection'
+import { AccountSection } from './AccountSection'
 
-type SectionId = 'appearance' | 'dynamic' | 'language' | 'permissions' | 'about'
+type SectionId = 'account' | 'appearance' | 'dynamic' | 'language' | 'permissions' | 'about'
 
 const SECTIONS: Array<{ id: SectionId; labelKey: MessageKey; icon: ReactNode }> = [
+  { id: 'account', labelKey: 'settings.account', icon: <UserCircle size={14} weight="regular" /> },
   { id: 'appearance', labelKey: 'settings.appearance', icon: <Palette size={14} weight="regular" /> },
   { id: 'dynamic', labelKey: 'dynamicDesktop.section', icon: <Sparkle size={14} weight="regular" /> },
   { id: 'language', labelKey: 'settings.language', icon: <GlobeHemisphereWest size={14} weight="regular" /> },
@@ -63,6 +65,7 @@ export function SettingsApp() {
       </aside>
 
       <div className="min-w-0 flex-1 overflow-y-auto p-4">
+        {section === 'account' && <AccountSection />}
         {section === 'appearance' && <AppearanceSection />}
         {section === 'dynamic' && <DynamicDesktopSection />}
         {section === 'language' && <LanguageSection />}
