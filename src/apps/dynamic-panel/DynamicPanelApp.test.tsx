@@ -14,8 +14,10 @@ import { DynamicPanelApp } from './DynamicPanelApp'
 // 模块级注册一次（systemBus 是单例；vi.clearAllMocks 每个用例重置计数）。
 const readySpy = vi.fn()
 const decisionSpy = vi.fn()
+const layoutSpy = vi.fn()
 systemBus.on('ai.content.ready', (payload) => readySpy(payload))
 systemBus.on('ai.decision.performed', (payload) => decisionSpy(payload))
+systemBus.on('desktop.layout.suggested', (payload) => layoutSpy(payload))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -74,5 +76,31 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
 
     fireEvent.click(screen.getByTestId('dynamic-panel-refresh'))
     await waitFor(() => expect(readySpy.mock.calls.length).toBe(countBefore + 1))
+  })
+
+  it('offers no layout card while the dynamic desktop is off', async () => {
+    render(<DynamicPanelApp />)
+    await waitFor(() => expect(screen.getByTestId('panel-card-greeting')).toBeInTheDocument())
+    expect(screen.queryByTestId('panel-card-layout')).toBeNull()
+    expect(layoutSpy).not.toHaveBeenCalled()
+  })
+
+  it('shows the layout card with apply/reset when the dynamic desktop is on', async () => {
+    useDynamicDesktopStore.setState({
+      prefs: { enabled: true, randomness: 40, hideBadge: false, pinned: null, blockedStyles: [] },
+    })
+    render(<DynamicPanelApp />)
+
+    await waitFor(() => expect(screen.getByTestId('panel-card-layout')).toBeInTheDocument())
+    expect(layoutSpy).toHaveBeenCalled()
+    expect(layoutSpy.mock.calls[0]?.[0]).toMatchObject({ layoutId: expect.any(String) })
+    expect(decisionSpy).toHaveBeenCalledWith({ domain: 'layout', source: 'local' })
+
+    // 采纳 → 写入 store；重置 → 清空。
+    fireEvent.click(screen.getByTestId('layout-apply'))
+    expect(useDynamicDesktopStore.getState().appliedLayout).not.toBeNull()
+    expect(screen.getByTestId('layout-applied-badge')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('layout-reset'))
+    expect(useDynamicDesktopStore.getState().appliedLayout).toBeNull()
   })
 })

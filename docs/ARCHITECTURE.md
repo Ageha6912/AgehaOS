@@ -161,7 +161,13 @@
 - **面板应用**：`com.ageha.dynamic.panel`（DDS §5.5：dynamic.* 前缀 + 零权限注册），`src/apps/dynamic-panel/`——打开时装配一次 + 手动刷新（无自动定时刷新，窗口内容不热替换）；每张卡带「AI 生成 · 本地规则」标识（§6.5 透明机制）；装配发 `ai.content.ready` 与 `ai.decision.performed {domain:'content', source:'local'}`（§3.3）。
 - 缓办：布局建议域（§5.1 域②）、LLM 异步增强与三级降级（§5.3，依赖同源后端）、30 分钟后台刷新与聚焦冻结、隐式反馈采集。
 
-### 3.17 后端认证服务（`server/`，Milestone 5，PRD §12/§20/§30.4）
+### 3.17 桌面编排建议（DDS §5.1 域②，本地规则切片）
+
+- **决策引擎**：`src/core/dynamic/layout/engine.ts` 纯函数——只产出「分组与排序建议」结构：布局档位三选一（single/double/grid，§5.4 离散档位无自由坐标）+ 分组（组名走 `dynamic.layout.group.*` i18n 键白名单、成员为已安装 appId、≤4 组 × ≤8 个）。本地类别启发式（calculator/clock/sticky→工具、sketch→创作、store/panel→资讯，未命中落工具兜底组），档位按目录规模 + 时段确定性推导。输出经 `validateLayoutSuggestion` 自校验（§8.4 过滤管线本地项），不合法一律返回 null。
+- **永不随机清单隔离（§5.2 铁律 11）**：`LAYOUT_PROTECTED_APP_IDS`（files/notes/settings）绝不进入建议成员；采纳后的开始菜单把系统应用固定在顶部「系统」组，位置零漂移。
+- **采纳链路**：动态面板（开启动态桌面时）出「桌面编排建议」卡 → `desktop.layout.suggested {layoutId}` + `ai.decision.performed {domain:'layout'}` 事件 → 用户点「应用」写入 `dynamic-desktop-store.appliedLayout`（按用户持久化、读档 sanitize）→ `AppLauncher` 以分组渲染 + 档位宽度呈现，「恢复默认布局」一键还原；渲染前 `pruneLayoutSuggestion` 裁剪已卸载成员。AI 不直接移动窗口、不卸载应用（§5.1）。
+
+### 3.18 后端认证服务（`server/`，Milestone 5，PRD §12/§20/§30.4）
 
 - **技术栈**：Node.js 24 + Fastify 5 + `@fastify/cookie` / `@fastify/helmet` / `@fastify/rate-limit` + `pg`。API 契约见 [API.md](API.md)。
 - **端点**：`POST /api/auth/register|login|logout`、`GET /api/auth/session`、`GET/ PATCH /api/users/me`、`POST /api/users/me/password`、`POST /api/auth/sessions/revoke-others`、`GET /api/health`；错误统一 `{ error: <code> }` 且 code 与前端 `AuthErrorCode` 对齐。用户资料字段 `displayName` / `email`（PRD §12.1 修改昵称；改密码后自动吊销其他会话；头像待对象存储落地后补）。
@@ -187,7 +193,7 @@
 
 ### 4.3 后端完善（`server/`，Milestone 5 进行中，PRD §20）
 
-- 已落地：认证面（register/login/logout/session）+ HttpOnly Cookie 会话 + DataStore 三驱动（见 §3.17 与 [API.md](API.md)）。
+- 已落地：认证面（register/login/logout/session）+ HttpOnly Cookie 会话 + DataStore 三驱动（见 §3.18 与 [API.md](API.md)）。
 - 待补：PostgreSQL 活库集成验证（驱动与建表语句就绪）；Redis（多实例限流共享、会话缓存）；S3 兼容对象存储（随云文件/Cloud Sync，PRD Phase 3）；用户资源扩展（昵称/头像/密码修改）；OAuth / Passkey（PRD §12.1 P1）。
 - 数据模型对齐 PRD §21.1（`ageha_users`：id/username/created_at/updated_at/password_hash；email/avatar 随 P1 用户面补列）。
 

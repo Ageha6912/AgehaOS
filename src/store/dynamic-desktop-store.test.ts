@@ -197,3 +197,72 @@ describe('resetDynamicDesktopStore isolation (验收 ⑥)', () => {
     expect(localStorage.getItem(`${DYNAMIC_DESKTOP_KEY_PREFIX}u1`)).toBeNull()
   })
 })
+
+describe('layout suggestion adoption (DDS §5.1 域②)', () => {
+  const suggestion = {
+    layoutId: 'layout-1',
+    tier: 'double' as const,
+    groups: [{ nameKey: 'tools' as const, appIds: ['com.ageha.calculator'] }],
+  }
+
+  beforeEach(() => {
+    seedDynamicDesktopForTests('u1')
+  })
+
+  it('keeps the suggestion session-scoped and applies it on request', () => {
+    useDynamicDesktopStore.getState().setLayoutSuggestion(suggestion)
+    expect(useDynamicDesktopStore.getState().layoutSuggestion?.layoutId).toBe('layout-1')
+    expect(localStorage.getItem(`${DYNAMIC_DESKTOP_KEY_PREFIX}u1`)).toBeNull()
+
+    useDynamicDesktopStore.getState().applyLayout(suggestion)
+    expect(useDynamicDesktopStore.getState().appliedLayout).toEqual(suggestion)
+    expect(useDynamicDesktopStore.getState().layoutSuggestion).toBeNull()
+    expect(
+      JSON.parse(localStorage.getItem(`${DYNAMIC_DESKTOP_KEY_PREFIX}u1`) ?? '{}').appliedLayout,
+    ).toEqual(suggestion)
+  })
+
+  it('restores the applied layout from the per-user key on hydrate', () => {
+    useDynamicDesktopStore.getState().applyLayout(suggestion)
+    useDynamicDesktopStore.getState().hydrateForUser('u1')
+    expect(useDynamicDesktopStore.getState().appliedLayout).toEqual(suggestion)
+  })
+
+  it('falls back to null on corrupted persisted layouts', () => {
+    const raw = JSON.parse(localStorage.getItem(`${DYNAMIC_DESKTOP_KEY_PREFIX}u1`) ?? '{}')
+    localStorage.setItem(
+      `${DYNAMIC_DESKTOP_KEY_PREFIX}u1`,
+      JSON.stringify({ ...raw, appliedLayout: { layoutId: 'x', tier: 'mega', groups: [] } }),
+    )
+    useDynamicDesktopStore.getState().hydrateForUser('u1')
+    expect(useDynamicDesktopStore.getState().appliedLayout).toBeNull()
+  })
+
+  it('refuses to persist protected apps inside an adopted layout', () => {
+    const evil = {
+      layoutId: 'layout-2',
+      tier: 'single' as const,
+      groups: [{ nameKey: 'tools' as const, appIds: ['com.ageha.settings'] }],
+    }
+    useDynamicDesktopStore.getState().applyLayout(evil)
+    // sanitizeLayout on next hydrate drops it — the store round-trip is the guard.
+    useDynamicDesktopStore.getState().hydrateForUser('u1')
+    expect(useDynamicDesktopStore.getState().appliedLayout).toBeNull()
+  })
+
+  it('resetAppliedLayout clears the adopted layout', () => {
+    useDynamicDesktopStore.getState().applyLayout(suggestion)
+    useDynamicDesktopStore.getState().resetAppliedLayout()
+    expect(useDynamicDesktopStore.getState().appliedLayout).toBeNull()
+    expect(
+      JSON.parse(localStorage.getItem(`${DYNAMIC_DESKTOP_KEY_PREFIX}u1`) ?? '{}').appliedLayout,
+    ).toBeNull()
+  })
+
+  it('logout clears both suggestion and applied layout from memory', () => {
+    useDynamicDesktopStore.getState().applyLayout(suggestion)
+    useDynamicDesktopStore.getState().handleLogout()
+    expect(useDynamicDesktopStore.getState().appliedLayout).toBeNull()
+    expect(useDynamicDesktopStore.getState().layoutSuggestion).toBeNull()
+  })
+})

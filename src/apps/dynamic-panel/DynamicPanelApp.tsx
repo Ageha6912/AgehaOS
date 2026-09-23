@@ -13,6 +13,8 @@ import {
   tipBodyKey,
 } from '@/core/dynamic/content/engine'
 import type { ContentCardMeta } from '@/core/dynamic/content/engine'
+import { buildLayoutSuggestion } from '@/core/dynamic/layout/engine'
+import type { LayoutSuggestion } from '@/core/dynamic/layout/engine'
 import { useAppStore } from '@/store/app-store'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
@@ -35,6 +37,7 @@ function themeOf(): 'light' | 'dark' {
 export function DynamicPanelApp() {
   const { t } = useTranslation()
   const [metas, setMetas] = useState<ContentCardMeta[]>([])
+  const [layoutSuggestion, setLayoutSuggestionState] = useState<LayoutSuggestion | null>(null)
   const [assemblyNonce, setAssemblyNonce] = useState(0)
 
   const runAssembly = useCallback(() => {
@@ -52,6 +55,17 @@ export function DynamicPanelApp() {
       installedAppIds: installed,
     })
     setMetas(result.cards)
+    // 布局建议（§5.1 域②）：仅在动态桌面开启时产出；AI 只建议，采纳靠用户。
+    let suggestion: LayoutSuggestion | null = null
+    if (dynamic.prefs.enabled) {
+      suggestion = buildLayoutSuggestion({ snapshot, installedAppIds: installed })
+      if (suggestion) {
+        systemBus.emit('desktop.layout.suggested', { layoutId: suggestion.layoutId })
+        systemBus.emit('ai.decision.performed', { domain: 'layout', source: 'local' })
+      }
+    }
+    setLayoutSuggestionState(suggestion)
+    useDynamicDesktopStore.getState().setLayoutSuggestion(suggestion)
     systemBus.emit('ai.content.ready', { panelId: PANEL_ID, itemCount: result.cards.length })
     systemBus.emit('ai.decision.performed', { domain: 'content', source: 'local' })
   }, [])
@@ -62,8 +76,13 @@ export function DynamicPanelApp() {
   }, [assemblyNonce, runAssembly])
 
   const apps = useAppStore((s) => s.apps)
+  const appliedLayout = useDynamicDesktopStore((s) => s.appliedLayout)
+  const applyLayout = useDynamicDesktopStore((s) => s.applyLayout)
+  const resetAppliedLayout = useDynamicDesktopStore((s) => s.resetAppliedLayout)
   const suggestAppTitle = (appId: string): string =>
     apps.find((app) => app.id === appId)?.name ?? appId
+
+  const appliedId = appliedLayout?.layoutId ?? null
 
   return (
     <div className="flex h-full flex-col bg-surface text-sm">
@@ -85,6 +104,54 @@ export function DynamicPanelApp() {
       </div>
 
       <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" data-testid="dynamic-panel-cards">
+        {layoutSuggestion && (
+          <li
+            className="rounded-lg border border-border bg-surface-raised/50 p-3"
+            data-testid="panel-card-layout"
+          >
+            <p className="font-medium text-text">{t('dynamic.layout.cardTitle')}</p>
+            <p className="mt-1 text-xs text-text-muted">
+              {t(`dynamic.layout.tier.${layoutSuggestion.tier}` as MessageKey)} ·{' '}
+              {layoutSuggestion.groups
+                .map((group) => t(`dynamic.layout.group.${group.nameKey}` as MessageKey))
+                .join(' / ')}
+            </p>
+            <p className="mt-1 text-[10px] text-text-muted">{t('dynamic.layout.hint')}</p>
+            <div className="mt-2 flex items-center gap-2">
+              {appliedId === layoutSuggestion.layoutId ? (
+                <>
+                  <span
+                    className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-text"
+                    data-testid="layout-applied-badge"
+                  >
+                    {t('dynamic.layout.applied')}
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="layout-reset"
+                    className="rounded-md border border-border px-2 py-1 text-[10px] text-text-muted hover:bg-surface-raised hover:text-text"
+                    onClick={() => resetAppliedLayout()}
+                  >
+                    {t('dynamic.layout.reset')}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  data-testid="layout-apply"
+                  className="rounded-md bg-primary px-2 py-1 text-[10px] font-medium text-primary-contrast hover:opacity-90"
+                  onClick={() => applyLayout(layoutSuggestion)}
+                >
+                  {t('dynamic.layout.apply')}
+                </button>
+              )}
+            </div>
+            <p className="mt-2 flex items-center gap-1 text-[10px] text-text-muted">
+              <Sparkle size={10} weight="fill" className="text-primary" />
+              {t('dynamicDesktop.badgeLabel')} · {t('dynamicDesktop.source.local')}
+            </p>
+          </li>
+        )}
         {metas.map((meta) => (
           <li
             key={meta.id}

@@ -18,6 +18,12 @@
 - 后端：`PATCH /api/users/me`（昵称/邮箱，缺省不变、显式 null 清除）、`POST /api/users/me/password`（校验当前密码，成功后自动吊销其他会话）、`POST /api/auth/sessions/revoke-others`（登出其他设备）；`UserRecord` 扩展 `displayName`/`email`，Postgres 迁移自动补列
 - 前端：Settings 新增「账户」区（资料保存 / 修改密码 / 会话安全），任务栏用户菜单显示昵称；`AuthProvider` 增加 `updateProfile` / `changePassword` / `revokeOtherSessions`，本地与远程模式同等可用
 
+### 桌面编排建议（DDS §5.1 域②，本地规则切片）
+
+- `src/core/dynamic/layout/engine.ts`：纯函数布局建议引擎——档位三选一（单列/双列/宫格）+ i18n 键分组（≤4 组 × ≤8 个），输出经 schema 自校验；永不随机清单应用（files/notes/settings）绝不进入建议成员
+- 动态面板新增「桌面编排建议」卡（开启动态桌面时），带「应用到开始菜单 / 恢复默认布局」；发 `desktop.layout.suggested` 与 `ai.decision.performed {domain:'layout'}`
+- 开始菜单采纳渲染：系统应用固定顶部，AI 分组带标识，档位决定菜单宽度；渲染前裁剪已卸载成员，采纳结果按用户持久化
+
 ## [0.1.0] - 2026-09-21
 
 AgehaOS 首个 MVP 版本（对应 PRD Phase 1 / §50 最小可运行范围）。

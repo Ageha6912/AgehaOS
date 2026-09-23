@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 import { resetAppStore } from '@/store/app-store'
+import { resetDynamicDesktopStore, useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
 import { Taskbar } from './Taskbar'
 
@@ -11,6 +12,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-09-21T10:30:00'))
   resetWindowStore()
   resetAppStore()
+  resetDynamicDesktopStore()
 })
 
 describe('Taskbar', () => {
@@ -56,5 +58,35 @@ describe('Taskbar', () => {
     const windows = useWindowStore.getState().windows
     expect(windows.find((win) => win.appId === 'com.ageha.notes')?.focused).toBe(true)
     expect(windows.find((win) => win.appId === 'com.ageha.files')?.focused).toBe(false)
+  })
+
+  it('renders adopted layout groups in the start menu and can launch from them', () => {
+    useDynamicDesktopStore.getState().applyLayout({
+      layoutId: 'layout-taskbar-test',
+      tier: 'double',
+      groups: [{ nameKey: 'tools', appIds: ['com.ageha.calculator', 'com.ageha.dynamic.panel'] }],
+    })
+    render(<Taskbar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+
+    // 采纳后的菜单：档位标识 + 分组标题 + 系统组（永不随机清单仍在顶部）。
+    expect(screen.getByTestId('launcher-layout-double')).toBeInTheDocument()
+    expect(screen.getByText('工具')).toBeInTheDocument()
+    expect(screen.getByText('系统')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /设置/ })).toBeInTheDocument()
+
+    // 从分组内启动应用照常工作。
+    fireEvent.click(screen.getByRole('button', { name: /计算器/ }))
+    expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.calculator')
+  })
+
+  it('keeps the flat start menu when no layout is adopted', () => {
+    render(<Taskbar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+
+    expect(screen.queryByText('工具')).not.toBeInTheDocument()
+    expect(screen.queryByText('系统')).not.toBeInTheDocument()
   })
 })
