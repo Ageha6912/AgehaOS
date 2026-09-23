@@ -145,8 +145,15 @@ describe('ai proxy route (DDS §5.3)', () => {
     expect(bad.json()).toEqual({ error: 'ai-invalid-response' })
     await app.close()
 
-    // Upstream unreachable → ai-upstream.
-    app = await makeApp({ apiKey: 'k', baseUrl: 'http://127.0.0.1:9/v1' })
+    // Upstream unreachable → ai-upstream. (A freshly-closed ephemeral port
+    // deterministically refuses connections, unlike well-known ports that
+    // Windows firewall may silently drop.)
+    const dead = createServer(() => {})
+    const deadPort = await new Promise<number>((resolve) => {
+      dead.listen(0, '127.0.0.1', () => resolve((dead.address() as AddressInfo).port))
+    })
+    await new Promise<void>((resolve) => dead.close(() => resolve()))
+    app = await makeApp({ apiKey: 'k', baseUrl: `http://127.0.0.1:${deadPort}/v1`, timeoutMs: 2000 })
     const unreachable = await app.inject({ method: 'POST', url: '/api/ai/proxy', payload: VALID_BODY })
     expect(unreachable.statusCode).toBe(502)
     expect(unreachable.json()).toEqual({ error: 'ai-upstream' })
