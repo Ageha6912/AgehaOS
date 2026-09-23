@@ -44,6 +44,18 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    proxy: {
+      // Local dev auth backend (npm run dev:server on :8787). Harmless when
+      // the backend is down: nothing calls /api in local-auth mode. xfwd
+      // sends X-Forwarded-Host so the backend's CSRF origin check (with
+      // trustProxy) sees the browser-facing origin, like a real reverse proxy.
+      '/api': {
+        target: 'http://localhost:8787',
+        xfwd: true,
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

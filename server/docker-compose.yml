@@ -1,0 +1,20 @@
+# Live-Postgres environment for the AgehaOS auth API (Milestone 5).
+# Requires Docker; this dev machine does not have it, so the live-PG
+# integration run is still pending (see docs/ARCHITECTURE.md).
+#
+#   docker compose -f server/docker-compose.yml up -d
+#   DATABASE_URL=postgres://ageha:ageha@localhost:5432/ageha npm run start:server
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ageha
+      POSTGRES_PASSWORD: ageha
+      POSTGRES_DB: ageha
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
