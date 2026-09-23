@@ -47,4 +47,12 @@ export const BUILTIN_APP_MANIFESTS: readonly unknown[] = [
     permissions: [],
     window: { width: 300, height: 440, resizable: false },
   },
+  {
+    id: 'com.ageha.dynamic.panel',
+    name: 'Dynamic Panel',
+    version: '0.2.0',
+    entry: '/apps/dynamic-panel/index.html',
+    permissions: [],
+    window: { width: 360, height: 520, resizable: true },
+  },
 ]

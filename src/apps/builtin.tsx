@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 
-import { Calculator, FolderOpen, GearSix, NotePencil, Storefront } from '@phosphor-icons/react'
+import { Calculator, FolderOpen, GearSix, Newspaper, NotePencil, Storefront } from '@phosphor-icons/react'
 
 import type { MessageKey } from '@/core/i18n'
 
+import { DynamicPanelApp } from './dynamic-panel/DynamicPanelApp'
 import { FileManagerApp } from './files/FileManagerApp'
 import { NotesApp } from './notes/NotesApp'
 import { SettingsApp } from './settings/SettingsApp'
@@ -47,6 +48,11 @@ export const APP_UI_META: Record<string, AppUiMeta> = {
     titleKey: 'app.calculator.title',
     icon: <Calculator size={16} weight="regular" />,
     Component: CalculatorApp,
+  },
+  'com.ageha.dynamic.panel': {
+    titleKey: 'app.dynamicPanel.title',
+    icon: <Newspaper size={16} weight="regular" />,
+    Component: DynamicPanelApp,
   },
 }
 

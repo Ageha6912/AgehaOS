@@ -154,6 +154,12 @@
 - **Type C SDK**（PRD §8.1）：`src/core/apps/sdk-bridge.ts` 纯 TS 桥——请求白名单 schema（`agehaos:sdk` 信封 + reqId/api/action/params 严格形状）、逐请求 Default Deny 门禁（`SDK_API_PERMISSIONS`：storage→`storage`、window→`window`、theme 免许可只读）、按 appId 命名空间隔离的 KV 存储（`agehaos.sdk.storage.<appId>`，键 1–64 字符、单值 ≤32KB、每应用 ≤64 键 / ≤256KB，坏命名空间回落空）。客户端库 `public/sdk/ageha-sdk.js`（Promise 封装 + 5s 超时，暴露 `AgehaOS.storage/window/theme`）。示例应用「便签」（商店可装，permissions: storage+window）演示三个 API。Window API 底座为 `WindowManager.setTitle`（标题 ≤120 字符）。
 - 缓办：远端应用目录（来源校验/签名/版本管理）、SDK 的 File/Notification/User API（分别依赖 VFS 按应用授权、通知中心、后端用户面）、应用内 set-title 之外的 postMessage 扩展协议。
 
+### 3.16 AI 内容面板（Phase B 本地切片，v0.2）
+
+- **决策引擎**：`src/core/dynamic/content/engine.ts` 纯函数——按时段组装卡片（问候恒有 / 壁纸状态卡随动态桌面开关 / 应用建议按 PHASE_SUGGESTIONS 池过滤已安装可行域 / 小贴士按季节轮换），`validateContentCard` 为本地 schema 过滤（§8.4；Phase C 起同样约束自由文本派生卡）。
+- **面板应用**：`com.ageha.dynamic.panel`（DDS §5.5：dynamic.* 前缀 + 零权限注册），`src/apps/dynamic-panel/`——打开时装配一次 + 手动刷新（无自动定时刷新，窗口内容不热替换）；每张卡带「AI 生成 · 本地规则」标识（§6.5 透明机制）；装配发 `ai.content.ready` 与 `ai.decision.performed {domain:'content', source:'local'}`（§3.3）。
+- 缓办：布局建议域（§5.1 域②）、LLM 异步增强与三级降级（§5.3，依赖同源后端）、30 分钟后台刷新与聚焦冻结、隐式反馈采集。
+
 ## 4. 后续模块技术要点
 
 ### 4.1 应用运行时完善（`src/core/runtime`，PRD §8/§25）
