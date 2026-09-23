@@ -33,6 +33,12 @@ export const dictionaries = {
     'notification.clear': '清空',
     'notification.toasts': '桌面通知',
 
+    'search.placeholder': '搜索应用与文件…',
+    'search.apps': '应用',
+    'search.files': '文件',
+    'search.empty': '无匹配结果',
+    'search.hint': '↑↓ 选择 · Enter 打开 · Esc 关闭 · Ctrl+K 呼出',
+
     'taskbar.start': '开始',
 
     'window.close': '关闭窗口',
@@ -275,6 +281,12 @@ export const dictionaries = {
     'notification.remove': 'Delete notification',
     'notification.clear': 'Clear all',
     'notification.toasts': 'Desktop notifications',
+
+    'search.placeholder': 'Search apps and files…',
+    'search.apps': 'Apps',
+    'search.files': 'Files',
+    'search.empty': 'No results',
+    'search.hint': '↑↓ navigate · Enter opens · Esc closes · Ctrl+K toggles',
 
     'taskbar.start': 'Start',
 

@@ -192,6 +192,12 @@
 - 缓办：Phase C 自由文本生成 + §8.4 完整过滤管线（违规/误导/不适三类）+ 举报通道；品味画像跨周修订；分类器服务端化。
 - 缓办：活 PostgreSQL 集成验证、Redis（多实例限流/会话缓存）、S3 对象存储（云文件面）、OAuth/2FA、`user` 资源其余端点（改昵称/头像/密码，PRD §12.1 P1 前置）。
 
+### 3.21 全局搜索与快捷键（PRD §15/§26，v0.2 基础集）
+
+- **快捷键**（`src/desktop/use-global-shortcuts.ts`，window capture 级）：Ctrl/⌘+K 呼出搜索、Esc 关闭、Alt+W 在可见窗口轮转焦点（Alt+Tab 属操作系统不可用；最小化窗口被跳过）。
+- **搜索面板**（`SearchPalette.tsx` + `search-store.ts`）：应用域（展示名/manifest 名/appId 三路 includes，前缀命中靠前，≤5 条，纯函数 `rankApps`）+ 文件域（`systemVfs.search('/')`，≤5 条，异步经 setTimeout(0) 落地规避 set-state-in-effect 规则）。键盘 ↑↓/Enter 导航；Enter 打开应用或落到 Files 应用。
+- 缓办：文件结果携参启动（PRD §24.3 应用带文件参数打开）、设置项搜索、命令域、最近项目、AI Search 与全文检索（PRD §15「后续」清单）。
+
 ## 4. 后续模块技术要点
 
 ### 4.1 应用运行时完善（`src/core/runtime`，PRD §8/§25）
