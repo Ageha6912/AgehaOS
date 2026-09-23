@@ -65,12 +65,12 @@ export interface AssembleResult {
   blocked: number
 }
 
-/** 各时段的建议池（DDS §5.3 何时本地：纯规则、离线可用）。 */
+/** 各时段的建议池（DDS §5.3 何时本地：纯规则、离线可用）。每池至少含一个默认安装的内置应用，夜间时段也有可用建议。 */
 const PHASE_SUGGESTIONS: Record<TimePhase, readonly string[]> = {
   morning: ['com.ageha.notes', 'com.ageha.samples.sticky', 'com.ageha.samples.clock'],
   day: ['com.ageha.files', 'com.ageha.notes', 'com.ageha.calculator'],
   evening: ['com.ageha.samples.sketch', 'com.ageha.samples.clock', 'com.ageha.notes'],
-  night: ['com.ageha.samples.clock', 'com.ageha.samples.sticky'],
+  night: ['com.ageha.samples.clock', 'com.ageha.notes', 'com.ageha.calculator'],
 }
 
 /** 提示卡轮换池（tipId = cards.tip.<tipId> 词典键后缀）。 */
