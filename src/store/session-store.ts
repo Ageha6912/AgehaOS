@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-import { systemAuthService } from '@/core/auth'
+import { isRemoteAuthActive, systemAuthService } from '@/core/auth'
 import type { AuthError, ProfileInput, User } from '@/core/auth'
 
 export type SessionStatus = 'authenticated' | 'anonymous'
@@ -63,7 +63,16 @@ export const useSessionStore = create<SessionState>()(() => ({
   register: async (username, password) => {
     try {
       const user = await systemAuthService.register(username, password)
-      // Auto sign-in right after registration (PRD §4.1 flow).
+      // 远程模式注册即登录（服务端已下发会话 Cookie，跳过二次 login 以免产生
+      // 重复会话）；本地模式注册不建会话，走一次 login 完成自动登录。
+      if (isRemoteAuthActive()) {
+        useSessionStore.setState({
+          user: systemAuthService.getUser() ?? user,
+          status: 'authenticated',
+          sessionExpired: false,
+        })
+        return { ok: true }
+      }
       await useSessionStore.getState().login(user.username, password)
       return { ok: true }
     } catch (cause) {

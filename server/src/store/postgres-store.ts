@@ -26,7 +26,14 @@ const SCHEMA_MIGRATIONS = [
      user_id TEXT NOT NULL REFERENCES ageha_users(id) ON DELETE CASCADE,
      expires_at TIMESTAMPTZ NOT NULL
    )`,
+  `ALTER TABLE ageha_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ`,
+  `ALTER TABLE ageha_sessions ADD COLUMN IF NOT EXISTS device TEXT`,
   `CREATE INDEX IF NOT EXISTS ageha_sessions_user_id_idx ON ageha_sessions (user_id)`,
+  `CREATE TABLE IF NOT EXISTS ageha_sync (
+     user_id TEXT PRIMARY KEY REFERENCES ageha_users(id) ON DELETE CASCADE,
+     data TEXT NOT NULL,
+     updated_at TIMESTAMPTZ NOT NULL
+   )`,
 ]
 
 const UNIQUE_VIOLATION = '23505'
@@ -93,14 +100,20 @@ export class PostgresDataStore implements DataStore {
 
   async createSession(session: SessionRecord): Promise<void> {
     await this.pool.query(
-      'INSERT INTO ageha_sessions (token, user_id, expires_at) VALUES ($1, $2, $3)',
-      [session.token, session.userId, new Date(session.expiresAt).toISOString()],
+      'INSERT INTO ageha_sessions (token, user_id, expires_at, created_at, device) VALUES ($1, $2, $3, $4, $5)',
+      [
+        session.token,
+        session.userId,
+        new Date(session.expiresAt).toISOString(),
+        session.createdAt ?? null,
+        session.device ?? null,
+      ],
     )
   }
 
   async findSession(token: string): Promise<SessionRecord | null> {
     const result = await this.pool.query(
-      'SELECT token, user_id, expires_at FROM ageha_sessions WHERE token = $1',
+      'SELECT token, user_id, expires_at, created_at, device FROM ageha_sessions WHERE token = $1',
       [token],
     )
     const row = result.rows[0]
@@ -126,6 +139,31 @@ export class PostgresDataStore implements DataStore {
     )
     return result.rowCount ?? 0
   }
+
+  async findSessionsForUser(userId: string): Promise<SessionRecord[]> {
+    const result = await this.pool.query(
+      'SELECT token, user_id, expires_at, created_at, device FROM ageha_sessions WHERE user_id = $1',
+      [userId],
+    )
+    return result.rows.map(rowToSession)
+  }
+
+  async getSyncData(userId: string): Promise<string | null> {
+    const result = await this.pool.query(
+      'SELECT data FROM ageha_sync WHERE user_id = $1',
+      [userId],
+    )
+    const row = result.rows[0]
+    return row ? String(row.data) : null
+  }
+
+  async putSyncData(userId: string, data: string): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO ageha_sync (user_id, data, updated_at) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) DO UPDATE SET data = $2, updated_at = $3`,
+      [userId, data, new Date().toISOString()],
+    )
+  }
 }
 
 function rowToUser(row: Record<string, unknown>): UserRecord {
@@ -149,11 +187,18 @@ function rowToUser(row: Record<string, unknown>): UserRecord {
 }
 
 function rowToSession(row: Record<string, unknown>): SessionRecord {
-  return {
+  const session: SessionRecord = {
     token: String(row.token),
     userId: String(row.user_id),
     expiresAt: new Date(row.expires_at as string).getTime(),
   }
+  if (row.created_at !== null && row.created_at !== undefined) {
+    session.createdAt = new Date(row.created_at as string).toISOString()
+  }
+  if (row.device !== null && row.device !== undefined) {
+    session.device = String(row.device)
+  }
+  return session
 }
 
 function isPgError(cause: unknown, code: string): cause is { code: string } {

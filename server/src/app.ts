@@ -9,6 +9,7 @@ import type { ServerConfig } from './config'
 import { originCheck } from './plugins/origin-check'
 import { aiRoutes } from './routes/ai'
 import { authRoutes } from './routes/auth'
+import { syncRoutes } from './routes/sync'
 import { createStore } from './store'
 import type { DataStore } from './store'
 
@@ -91,6 +92,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     ai: config.ai,
     rateLimitWindowMs: config.rateLimit.windowMs,
   })
+  await app.register(syncRoutes, { prefix: '/api', store })
 
   return app
 }

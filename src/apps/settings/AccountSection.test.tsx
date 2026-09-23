@@ -145,4 +145,13 @@ describe('AccountSection', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('头像处理失败'))
     expect(useSessionStore.getState().user?.avatar).toBeUndefined()
   })
+
+  it('hides device management and sync UI in local mode', async () => {
+    await seedUser()
+    render(<AccountSection />)
+
+    expect(screen.queryByTestId('session-list')).toBeNull()
+    expect(screen.queryByTestId('settings-sync-toggle')).toBeNull()
+    expect(screen.getByRole('button', { name: '登出其他设备' })).toBeInTheDocument()
+  })
 })

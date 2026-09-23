@@ -1,10 +1,12 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { AvatarError, fileToAvatarDataUrl } from '@/core/auth/avatar'
-import { AuthError } from '@/core/auth'
+import { AuthError, isRemoteAuthActive, systemAuthService } from '@/core/auth'
+import type { SessionInfo } from '@/core/auth'
 import { useSessionStore } from '@/store/session-store'
+import { isSyncEnabled, setSyncEnabled } from '@/services/settings-sync'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -42,6 +44,19 @@ export function AccountSection() {
 
   const [revokeNotice, setRevokeNotice] = useState<MessageKey | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [sessions, setSessions] = useState<SessionInfo[]>([])
+  const [syncOn, setSyncOn] = useState(isSyncEnabled())
+
+  useEffect(() => {
+    if (!isRemoteAuthActive()) return
+    const timer = window.setTimeout(() => {
+      void systemAuthService
+        .listSessions()
+        .then((rows) => setSessions(rows))
+        .catch(() => setSessions([]))
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   if (!user) return null
 
@@ -268,7 +283,48 @@ export function AccountSection() {
       </div>
 
       <div className="max-w-md border-t border-border pt-4">
-        <h3 className="mb-1 text-sm font-semibold text-text">{t('settings.account.securityTitle')}</h3>
+        <h3 className="mb-3 text-sm font-semibold text-text">{t('settings.account.securityTitle')}</h3>
+
+        {isRemoteAuthActive() && sessions.length > 0 && (
+          <ul className="mb-3 space-y-1.5" data-testid="session-list">
+            {sessions.map((session) => (
+              <li
+                key={session.id}
+                data-testid="session-row"
+                className="flex items-center justify-between rounded-md border border-border bg-surface-raised/50 px-2.5 py-2 text-xs"
+              >
+                <span className="min-w-0">
+                  <span className="block text-text">{session.device}</span>
+                  {session.createdAt && (
+                    <span className="block text-[10px] text-text-muted">
+                      {new Date(session.createdAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </span>
+                {session.current ? (
+                  <span className="shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-[10px] text-text">
+                    {t('settings.account.sessionCurrent')}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    data-testid="session-revoke"
+                    className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] text-text-muted hover:bg-surface-raised hover:text-text"
+                    onClick={() => {
+                      void systemAuthService
+                        .revokeSession(session.id)
+                        .then(() => setSessions((prev) => prev.filter((row) => row.id !== session.id)))
+                        .catch(() => setRevokeNotice('auth.error.generic'))
+                    }}
+                  >
+                    {t('settings.account.sessionRevoke')}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
         <p className="mb-3 text-xs text-text-muted">{t('settings.account.revokeOthersHint')}</p>
         <div className="flex items-center gap-3">
           <button
@@ -284,6 +340,30 @@ export function AccountSection() {
             </p>
           )}
         </div>
+
+        {isRemoteAuthActive() && (
+          <div className="mt-4 border-t border-border pt-3">
+            <h3 className="mb-1 text-sm font-semibold text-text">{t('settings.account.sync')}</h3>
+            <p className="mb-2 text-xs text-text-muted">{t('settings.account.syncHint')}</p>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={syncOn}
+              data-testid="settings-sync-toggle"
+              className={`rounded-md border px-3 py-1.5 text-xs ${
+                syncOn
+                  ? 'border-primary/60 bg-primary/10 text-text'
+                  : 'border-border text-text-muted hover:bg-surface-raised hover:text-text'
+              }`}
+              onClick={() => {
+                setSyncEnabled(!syncOn)
+                setSyncOn(!syncOn)
+              }}
+            >
+              {t('settings.account.syncToggle')}
+            </button>
+          </div>
+        )}
       </div>
     </section>
   )

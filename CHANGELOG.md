@@ -2,6 +2,15 @@
 
 本文件遵循 Keep a Changelog 风格，版本号遵循语义化版本。
 
+## [Unreleased]
+
+### 设备管理与配置同步（PRD §35，v0.5 前置切片）
+
+- 会话元数据：登录/注册记录 `createdAt` 与设备短标签（User-Agent 解析），旧数据缺省容忍
+- 设备管理：`GET /api/auth/sessions`（token 短哈希为 id，本体不出服务端）+ `DELETE /api/auth/sessions/:id`；Settings「账户」区列出登录设备并支持逐条撤下
+- 配置同步：`GET/PUT /api/sync/data`（按用户哑 KV，≤256KB）+ 前端 `settings-sync` 服务（boot 拉取应用、本地改动防抖上推、回声防护），Settings 开关默认关、仅远程模式显示
+- 修复：远程模式注册即登录，不再产生重复会话；客户端空 body 不再声明 json content-type（Fastify 会判 400）
+
 ## [0.2.0] - 2026-09-23
 
 v0.2 功能面（PRD §35 Phase 2 全清单）+ 应用生态 + AI 动态桌面三域 + Milestone 5 后端认证。

@@ -56,6 +56,14 @@ async function expectStoreBehavior(store: DataStore): Promise<void> {
   expect((await store.findUserByUsername('alice'))?.email).toBe('alice@example.com')
   expect((await store.findUserById('u1'))?.avatar).toBe('data:image/jpeg;base64,QUJD')
 
+  await store.createSession({ token: 'tok-3', userId: 'u1', expiresAt: 6000 })
+  await store.createSession({ token: 'tok-4', userId: 'u1', expiresAt: 7000 })
+  const own = await store.findSessionsForUser('u1')
+  expect(own.map((session) => session.token).sort()).toEqual(['tok-3', 'tok-4'])
+
+  await store.putSyncData('u1', '{"settings":{"theme":"dark"}}')
+  expect(await store.getSyncData('u1')).toBe('{"settings":{"theme":"dark"}}')
+
   await store.close()
 }
 
@@ -171,7 +179,7 @@ describe('PostgresDataStore', () => {
     const store = new PostgresDataStore(pool)
     await store.init()
     const initTexts = pool.queries.map((query) => query.text)
-    expect(initTexts).toHaveLength(6)
+    expect(initTexts).toHaveLength(9)
     expect(
       initTexts.every(
         (text) =>
@@ -207,9 +215,15 @@ describe('PostgresDataStore', () => {
     await store.findUserById('u1')
     expect(pool.queries[2]?.values).toEqual(['u1'])
 
-    await store.createSession({ token: 'tok', userId: 'u1', expiresAt: 1234567890123 })
+    await store.createSession({ token: 'tok', userId: 'u1', expiresAt: 1234567890123, createdAt: '2026-09-23T00:00:00.000Z', device: 'Chrome · Windows' })
     expect(pool.queries[3]?.text).toContain('INSERT INTO ageha_sessions')
-    expect(pool.queries[3]?.values).toEqual(['tok', 'u1', new Date(1234567890123).toISOString()])
+    expect(pool.queries[3]?.values).toEqual([
+      'tok',
+      'u1',
+      new Date(1234567890123).toISOString(),
+      '2026-09-23T00:00:00.000Z',
+      'Chrome · Windows',
+    ])
 
     await store.findSession('tok')
     expect(pool.queries[4]?.values).toEqual(['tok'])
@@ -238,6 +252,18 @@ describe('PostgresDataStore', () => {
       'a@example.com',
       'data:image/png;base64,QUJD',
     ])
+
+    await store.findSessionsForUser('u1')
+    expect(pool.queries[9]?.text).toContain('WHERE user_id = $1')
+    expect(pool.queries[9]?.values).toEqual(['u1'])
+
+    await store.getSyncData('u1')
+    expect(pool.queries[10]?.text).toContain('FROM ageha_sync')
+    expect(pool.queries[10]?.values).toEqual(['u1'])
+
+    await store.putSyncData('u1', '{"settings":{}}')
+    expect(pool.queries[11]?.text).toContain('INSERT INTO ageha_sync')
+    expect(pool.queries[11]?.text).toContain('ON CONFLICT')
   })
 
   it('maps pg rows to records', async () => {

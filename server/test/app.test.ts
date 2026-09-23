@@ -419,6 +419,107 @@ describe('auth API', () => {
     expect(anonymous.statusCode).toBe(401)
   })
 
+  it('lists own sessions with hashed ids and revokes one by id', async () => {
+    app = await makeApp()
+    const registered = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'devicemgmt', password: 'secret123' },
+    })
+    const currentCookie = { agehaos_session: sessionCookie(registered) ?? '' }
+    const other = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'devicemgmt', password: 'secret123' },
+      headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0) Firefox/128.0' },
+    })
+    const otherToken = sessionCookie(other) ?? ''
+
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/auth/sessions',
+      cookies: currentCookie,
+    })
+    expect(list.statusCode).toBe(200)
+    const rows = list.json().sessions as Array<{
+      id: string
+      device: string
+      current: boolean
+      createdAt: string | null
+    }>
+    expect(rows).toHaveLength(2)
+    const currentRow = rows.find((row) => row.current)
+    const otherRow = rows.find((row) => !row.current)
+    // inject 不带 UA → 引擎回落到通用标签；关键的 Other 行由 UA 解析而来。
+    expect(currentRow?.device.length ?? 0).toBeGreaterThan(0)
+    expect(otherRow?.device).toBe('Firefox · Windows')
+    expect(currentRow?.createdAt).not.toBeNull()
+    // 令牌本体绝不出现在列表里。
+    expect(JSON.stringify(rows)).not.toContain(otherToken)
+
+    const revoked = await app.inject({
+      method: 'DELETE',
+      url: `/api/auth/sessions/${otherRow?.id}`,
+      cookies: currentCookie,
+    })
+    expect(revoked.json()).toEqual({ revoked: true })
+    expect(
+      (
+        await app.inject({
+          method: 'GET',
+          url: '/api/auth/session',
+          cookies: { agehaos_session: otherToken },
+        })
+      ).statusCode,
+    ).toBe(401)
+
+    const missing = await app.inject({
+      method: 'DELETE',
+      url: '/api/auth/sessions/does-not-exist',
+      cookies: currentCookie,
+    })
+    expect(missing.statusCode).toBe(404)
+
+    const anonymous = await app.inject({ method: 'GET', url: '/api/auth/sessions' })
+    expect(anonymous.statusCode).toBe(401)
+  })
+
+  it('stores and returns per-user sync data', async () => {
+    app = await makeApp()
+    const anonymous = await app.inject({ method: 'GET', url: '/api/sync/data' })
+    expect(anonymous.statusCode).toBe(401)
+
+    const registered = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'syncuser', password: 'secret123' },
+    })
+    const cookies = { agehaos_session: sessionCookie(registered) ?? '' }
+
+    const empty = await app.inject({ method: 'GET', url: '/api/sync/data', cookies })
+    expect(empty.json()).toEqual({ data: null })
+
+    const put = await app.inject({
+      method: 'PUT',
+      url: '/api/sync/data',
+      cookies,
+      payload: { data: '{"settings":{"theme":"dark"}}' },
+    })
+    expect(put.json()).toEqual({ ok: true })
+
+    const roundtrip = await app.inject({ method: 'GET', url: '/api/sync/data', cookies })
+    expect(roundtrip.json()).toEqual({ data: '{"settings":{"theme":"dark"}}' })
+
+    const oversized = await app.inject({
+      method: 'PUT',
+      url: '/api/sync/data',
+      cookies,
+      payload: { data: 'x'.repeat(256 * 1024 + 1) },
+    })
+    expect(oversized.statusCode).toBe(400)
+    expect(oversized.json()).toEqual({ error: 'invalid-body' })
+  })
+
   it('answers unknown routes with JSON 404', async () => {
     app = await makeApp()
     const response = await app.inject({ method: 'GET', url: '/api/nope' })

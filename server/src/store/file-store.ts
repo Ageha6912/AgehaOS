@@ -4,9 +4,16 @@ import path from 'node:path'
 import type { DataStore, SessionRecord, UserRecord } from './types'
 import { UsernameTakenError } from './types'
 
+interface SyncEntry {
+  data: string
+  updatedAt: string
+}
+
 interface SerializedFile {
   users: UserRecord[]
   sessions: SessionRecord[]
+  /** Per-user settings-sync blobs (PRD §35 用户配置同步). */
+  sync: Record<string, SyncEntry>
 }
 
 /**
@@ -17,6 +24,7 @@ interface SerializedFile {
 export class FileDataStore implements DataStore {
   private users = new Map<string, UserRecord>()
   private sessions = new Map<string, SessionRecord>()
+  private syncData = new Map<string, SyncEntry>()
   private writing = Promise.resolve()
 
   constructor(private readonly filePath: string) {}
@@ -39,6 +47,11 @@ export class FileDataStore implements DataStore {
       if (Array.isArray(parsed.sessions)) {
         for (const session of parsed.sessions) {
           if (isSessionRecord(session)) this.sessions.set(session.token, session)
+        }
+      }
+      if (typeof parsed.sync === 'object' && parsed.sync !== null) {
+        for (const [userId, entry] of Object.entries(parsed.sync)) {
+          if (isSyncEntry(entry)) this.syncData.set(userId, entry)
         }
       }
     } catch {
@@ -112,6 +125,23 @@ export class FileDataStore implements DataStore {
     return revoked
   }
 
+  async findSessionsForUser(userId: string): Promise<SessionRecord[]> {
+    const sessions: SessionRecord[] = []
+    for (const session of this.sessions.values()) {
+      if (session.userId === userId) sessions.push(session)
+    }
+    return sessions
+  }
+
+  async getSyncData(userId: string): Promise<string | null> {
+    return this.syncData.get(userId)?.data ?? null
+  }
+
+  async putSyncData(userId: string, data: string): Promise<void> {
+    this.syncData.set(userId, { data, updatedAt: new Date().toISOString() })
+    await this.persist()
+  }
+
   /** Serializes writes so concurrent requests cannot clobber each other. */
   private persist(): Promise<void> {
     this.writing = this.writing.then(() => this.writeNow())
@@ -122,6 +152,7 @@ export class FileDataStore implements DataStore {
     const payload: SerializedFile = {
       users: [...this.users.values()],
       sessions: [...this.sessions.values()],
+      sync: Object.fromEntries(this.syncData),
     }
     const tmpPath = `${this.filePath}.tmp`
     await writeFile(tmpPath, JSON.stringify(payload, null, 2), 'utf8')
@@ -149,4 +180,10 @@ function isSessionRecord(value: unknown): value is SessionRecord {
     typeof record.userId === 'string' &&
     typeof record.expiresAt === 'number'
   )
+}
+
+function isSyncEntry(value: unknown): value is SyncEntry {
+  if (typeof value !== 'object' || value === null) return false
+  const entry = value as Record<string, unknown>
+  return typeof entry.data === 'string' && typeof entry.updatedAt === 'string'
 }

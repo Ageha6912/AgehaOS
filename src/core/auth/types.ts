@@ -31,6 +31,14 @@ export interface ProfileInput {
   avatar?: string | null
 }
 
+/** 设备管理里的一条登录会话（token 以短哈希 id 呈现，本体不出服务端）。 */
+export interface SessionInfo {
+  id: string
+  device: string
+  createdAt: string | null
+  current: boolean
+}
+
 export class AuthError extends Error {
   constructor(
     public code: AuthErrorCode,

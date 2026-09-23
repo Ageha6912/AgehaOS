@@ -1,7 +1,7 @@
 import type { KeyValueStorage } from './auth-service'
 import type { AuthProvider, ProfileInput } from './provider'
 import { AuthError } from './types'
-import type { AuthErrorCode, AuthResult, Session, User } from './types'
+import type { AuthErrorCode, AuthResult, Session, SessionInfo, User } from './types'
 
 /** Non-sensitive session metadata cached locally: user profile + expiry only.
  * The session token itself never reaches JavaScript — it lives in an
@@ -144,6 +144,19 @@ export class RemoteAuthClient implements AuthProvider {
     return body.revoked
   }
 
+  async listSessions(): Promise<SessionInfo[]> {
+    const body = await this.request<{ sessions: SessionInfo[] }>('/api/auth/sessions', {
+      method: 'GET',
+    })
+    return body.sessions
+  }
+
+  async revokeSession(id: string): Promise<void> {
+    await this.request<{ revoked: boolean }>(`/api/auth/sessions/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const fetchFn = this.options.fetchFn ?? fetch
     let response: Response
@@ -151,7 +164,9 @@ export class RemoteAuthClient implements AuthProvider {
       response = await fetchFn(`${this.options.baseUrl ?? ''}${path}`, {
         ...init,
         credentials: 'same-origin',
-        headers: { 'content-type': 'application/json', ...init.headers },
+        // 只在确有请求体时声明 content-type——空 body + json content-type
+        // 会被 Fastify 当成损坏的 JSON（FST_ERR_CTP_EMPTY_JSON_BODY）。
+        headers: init.body === undefined ? init.headers : { 'content-type': 'application/json', ...init.headers },
       })
     } catch {
       throw new Error('auth-network-error')

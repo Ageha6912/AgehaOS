@@ -175,6 +175,12 @@ export const dictionaries = {
     'settings.account.revokeOthers': '登出其他设备',
     'settings.account.revokeOthersHint': '保留当前设备的登录状态，登出该账户的全部其他会话。',
     'settings.account.revokeDone': '已登出其他设备的会话',
+    'settings.account.sessions': '登录的设备',
+    'settings.account.sessionCurrent': '本设备',
+    'settings.account.sessionRevoke': '撤下',
+    'settings.account.sync': '配置同步',
+    'settings.account.syncHint': '把主题、字体大小与语言同步到后端账户，登录时自动恢复；默认关闭。',
+    'settings.account.syncToggle': '开启同步',
 
     'notes.save': '保存',
     'notes.empty': '选择或新建一条笔记',
@@ -436,6 +442,13 @@ export const dictionaries = {
     'settings.account.revokeOthersHint':
       'Keeps this device signed in and revokes every other session of this account.',
     'settings.account.revokeDone': 'Other device sessions signed out',
+    'settings.account.sessions': 'Signed-in devices',
+    'settings.account.sessionCurrent': 'This device',
+    'settings.account.sessionRevoke': 'Sign out',
+    'settings.account.sync': 'Settings sync',
+    'settings.account.syncHint':
+      'Syncs theme, font size and language to your backend account and restores them on sign-in. Off by default.',
+    'settings.account.syncToggle': 'Enable sync',
 
     'notes.save': 'Save',
     'notes.empty': 'Select or create a note',

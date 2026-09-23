@@ -3,9 +3,18 @@ import { randomBytes } from 'node:crypto'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 
 import { hashPassword, verifyPassword } from '../password'
-import { generateSessionToken, generateUserId } from '../tokens'
+import { generateSessionToken, generateUserId, sessionIdOf } from '../tokens'
+import { describeUserAgent } from '../useragent'
 import { UsernameTakenError } from '../store/types'
 import type { DataStore, SessionRecord, UserRecord } from '../store/types'
+
+export interface PublicSession {
+  id: string
+  device: string
+  createdAt: string | null
+  expiresAt: number
+  current: boolean
+}
 
 export const SESSION_COOKIE = 'agehaos_session'
 
@@ -150,6 +159,8 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
         token: generateSessionToken(),
         userId: user.id,
         expiresAt,
+        createdAt: new Date().toISOString(),
+        device: describeUserAgent(request.headers['user-agent']),
       }
       await store.createSession(session)
       reply.setCookie(SESSION_COOKIE, session.token, {
@@ -187,6 +198,8 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
         token: generateSessionToken(),
         userId: user.id,
         expiresAt,
+        createdAt: new Date().toISOString(),
+        device: describeUserAgent(request.headers['user-agent']),
       }
       await store.createSession(session)
       reply.setCookie(SESSION_COOKIE, session.token, {
@@ -289,5 +302,43 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
       'other sessions revoked',
     )
     return reply.code(200).send({ revoked })
+  })
+
+  // Device management (PRD §12.1/§35): list own sessions; the token itself is
+  // never returned — each row carries a short hash id instead.
+  app.get('/auth/sessions', async (request, reply) => {
+    const resolved = await resolveSession(store, request, reply, cookieSecure)
+    if (!resolved) {
+      return reply.code(401).send({ error: 'not-authenticated' })
+    }
+    const sessions = await store.findSessionsForUser(resolved.user.id)
+    const live = sessions.filter((session) => session.expiresAt > Date.now())
+    const rows: PublicSession[] = live
+      .map((session) => ({
+        id: sessionIdOf(session.token),
+        device: session.device ?? 'Unknown device',
+        createdAt: session.createdAt ?? null,
+        expiresAt: session.expiresAt,
+        current: session.token === resolved.session.token,
+      }))
+      .sort((a, b) => Number(b.current) - Number(a.current) || (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+    return reply.code(200).send({ sessions: rows })
+  })
+
+  app.delete('/auth/sessions/:id', async (request, reply) => {
+    const resolved = await resolveSession(store, request, reply, cookieSecure)
+    if (!resolved) {
+      return reply.code(401).send({ error: 'not-authenticated' })
+    }
+    const { id } = request.params as { id: string }
+    const sessions = await store.findSessionsForUser(resolved.user.id)
+    const target = sessions.find((session) => sessionIdOf(session.token) === id)
+    if (!target) return reply.code(404).send({ error: 'not-found' })
+    await store.deleteSession(target.token)
+    app.log.info(
+      { audit: 'auth.session_revoked', userId: resolved.user.id },
+      'session revoked by device management',
+    )
+    return reply.code(200).send({ revoked: true })
   })
 }

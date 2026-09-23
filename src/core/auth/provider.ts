@@ -1,8 +1,7 @@
 import { AuthService } from './auth-service'
-import type { AuthResult, ProfileInput, Session, User } from './types'
+import type { AuthResult, ProfileInput, Session, SessionInfo, User } from './types'
 
-export type { ProfileInput } from './types'
-
+export type { ProfileInput, SessionInfo } from './types'
 /**
  * Storage + transport contract for the auth system. Two implementations:
  * the local AuthService (localStorage, v0.1 default) and RemoteAuthClient
@@ -22,6 +21,10 @@ export interface AuthProvider {
   changePassword(currentPassword: string, newPassword: string): Promise<void>
   /** Signs out every other session of this account; returns revoked count. */
   revokeOtherSessions(): Promise<number>
+  /** Lists live sessions of this account (device management, PRD §35). */
+  listSessions(): Promise<SessionInfo[]>
+  /** Revokes one session by its public id (the current one signs itself out). */
+  revokeSession(id: string): Promise<void>
 }
 
 const localAuthService = new AuthService()
@@ -43,6 +46,8 @@ export const systemAuthService: AuthProvider = {
   updateProfile: (input) => activeProvider.updateProfile(input),
   changePassword: (current, next) => activeProvider.changePassword(current, next),
   revokeOtherSessions: () => activeProvider.revokeOtherSessions(),
+  listSessions: () => activeProvider.listSessions(),
+  revokeSession: (id) => activeProvider.revokeSession(id),
 }
 
 /** Installs an alternative provider; `null` restores the local one (tests). */
@@ -52,4 +57,9 @@ export function setAuthProvider(provider: AuthProvider | null): void {
 
 export function getAuthProvider(): AuthProvider {
   return activeProvider
+}
+
+/** True when main.tsx installed the remote (backend) provider at boot. */
+export function isRemoteAuthActive(): boolean {
+  return activeProvider !== localAuthService
 }

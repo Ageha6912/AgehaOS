@@ -3,7 +3,7 @@ import type { EventBus, SystemEventMap } from '@/core/events'
 
 import { generateSalt, hashPassword, verifyPassword } from './password'
 import { AuthError } from './types'
-import type { AuthResult, ProfileInput, Session, StoredUser, User } from './types'
+import type { AuthResult, ProfileInput, Session, SessionInfo, StoredUser, User } from './types'
 
 export interface KeyValueStorage {
   getItem(key: string): string | null
@@ -166,6 +166,18 @@ export class AuthService {
   async revokeOtherSessions(): Promise<number> {
     this.currentUserOrThrow()
     return 0
+  }
+
+  /** Local mode: the only session is this device. */
+  async listSessions(): Promise<SessionInfo[]> {
+    const session = this.getSession()
+    if (!session) return []
+    return [{ id: 'local', device: 'local', createdAt: null, current: true }]
+  }
+
+  /** Revoking a non-local id in local mode is a no-op (nothing to revoke). */
+  async revokeSession(id: string): Promise<void> {
+    if (id !== 'local') throw new AuthError('not-authenticated', 'Unknown session')
   }
 
   // ---- internals ----------------------------------------------------------

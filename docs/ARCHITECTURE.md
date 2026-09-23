@@ -184,6 +184,14 @@
 - **呈现**：桌面 toast（`NotificationToasts.tsx`，只显示最新一条，critical 8s / normal 4.5s 自动消失，点击即读）+ 任务栏铃铛（`NotificationCenter.tsx`，未读徽标 + 历史面板：标记已读/全部已读/单条删除/清空）。
 - **文案**：通知一律存 i18n 键 + `bodyParams`，渲染经 `formatMessage` 占位插值（`{app}` 等）；`translate`/`formatMessage` 均为纯函数。
 
+### 3.19a 设备管理与配置同步（PRD §35，v0.5 前置切片）
+
+- **会话元数据**：`SessionRecord` 增 `createdAt`/`device`（登录时由 User-Agent 解析的短标签，绝不存整段 UA；旧数据缺省容忍，Postgres 迁移自动补列）。
+- **设备管理端点**：`GET /api/auth/sessions`（当前会话排首，`id` = token 的 SHA-256 短哈希，令牌本体不出服务端）+ `DELETE /api/auth/sessions/:id`（单会话撤下）；Settings「账户」区列出登录设备并支持逐条撤下。
+- **配置同步**：`GET/PUT /api/sync/data`（按 userId 分键的已认证哑 KV，≤256KB）；前端 `src/services/settings-sync.ts` —— boot 拉取并应用（服务端赢）+ 本地改动 1.5s 防抖上推（本地赢），`applying` 标志阻断回声循环，同步范围 = 主题/字体大小/语言；Settings「账户」区开关（`agehaos.sync.enabled.v1`，默认关，仅远程模式显示）。云级冲突合并/多设备仲裁归 Phase 3 完整交付。
+- **注册去重**：远程模式注册即登录（服务端已发 Cookie），session-store 跳过二次 login，不再产生重复会话；本地模式行为不变。
+- 客户端坑位记录：空 body + `content-type: application/json` 会被 Fastify 判为损坏 JSON（400）——客户端仅在确有请求体时声明 content-type。
+
 ### 3.20 LLM 同源代理与深度增强（DDS §5.3，Phase B 切片）
 
 - **服务端代理**（`server/src/routes/ai.ts`）：`POST /api/ai/proxy` —— 请求 schema 白名单（anonymId/locale/context/prefs/slots，未知字段拒绝）、`anonymId` 只作服务端审计分键**不上游转发**、OpenAI 兼容转发（`AGEHA_AI_API_KEY/BASE_URL/MODEL/TIMEOUT_MS`，默认 2s 超时）、响应 schema 过滤（未知槽位/超长文本/重复丢弃）、20/min/IP 限流；未配置 Key → `503`。测试以真 HTTP fake upstream 覆盖（含密钥不下发、超时 504、非 JSON 502）。

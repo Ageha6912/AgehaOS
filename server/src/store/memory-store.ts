@@ -5,6 +5,7 @@ import { UsernameTakenError } from './types'
 export class MemoryDataStore implements DataStore {
   private users = new Map<string, UserRecord>()
   private sessions = new Map<string, SessionRecord>()
+  private syncData = new Map<string, { data: string; updatedAt: string }>()
 
   async init(): Promise<void> {}
 
@@ -64,5 +65,21 @@ export class MemoryDataStore implements DataStore {
       }
     }
     return revoked
+  }
+
+  async findSessionsForUser(userId: string): Promise<SessionRecord[]> {
+    const sessions: SessionRecord[] = []
+    for (const session of this.sessions.values()) {
+      if (session.userId === userId) sessions.push(session)
+    }
+    return sessions
+  }
+
+  async getSyncData(userId: string): Promise<string | null> {
+    return this.syncData.get(userId)?.data ?? null
+  }
+
+  async putSyncData(userId: string, data: string): Promise<void> {
+    this.syncData.set(userId, { data, updatedAt: new Date().toISOString() })
   }
 }

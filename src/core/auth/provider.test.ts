@@ -22,6 +22,10 @@ function stubProvider(loginResult: AuthResult): AuthProvider {
     updateProfile: vi.fn(async () => USER),
     changePassword: vi.fn(async () => {}),
     revokeOtherSessions: vi.fn(async () => 2),
+    listSessions: vi.fn(async () => [
+      { id: 's1', device: 'Chrome · Windows', createdAt: null, current: true },
+    ]),
+    revokeSession: vi.fn(async () => {}),
   }
 }
 
@@ -48,6 +52,8 @@ describe('auth provider facade', () => {
       await expect(systemAuthService.updateProfile({ displayName: 'Alice' })).resolves.toEqual(USER)
       await expect(systemAuthService.changePassword('a', 'b')).resolves.toBeUndefined()
       await expect(systemAuthService.revokeOtherSessions()).resolves.toBe(2)
+      await expect(systemAuthService.listSessions()).resolves.toHaveLength(1)
+      await expect(systemAuthService.revokeSession('s1')).resolves.toBeUndefined()
     } finally {
       setAuthProvider(null)
     }

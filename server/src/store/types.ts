@@ -16,6 +16,10 @@ export interface SessionRecord {
   userId: string
   /** Epoch milliseconds. */
   expiresAt: number
+  /** ISO creation time; sessions predating device management omit it. */
+  createdAt?: string
+  /** Short human-readable device label captured at login. */
+  device?: string
 }
 
 export class UsernameTakenError extends Error {
@@ -46,4 +50,10 @@ export interface DataStore {
   pruneExpiredSessions(now: number): Promise<number>
   /** Revokes every session of the user except `keepToken`; returns count. */
   deleteSessionsForUserExcept(userId: string, keepToken: string): Promise<number>
+  /** All live sessions of the user (device management, PRD §12.1/§35). */
+  findSessionsForUser(userId: string): Promise<SessionRecord[]>
+  /** Per-user settings-sync blob (PRD §35 用户配置同步); null when unset. */
+  getSyncData(userId: string): Promise<string | null>
+  /** Upserts the user's sync blob; capacity is enforced by the route. */
+  putSyncData(userId: string, data: string): Promise<void>
 }

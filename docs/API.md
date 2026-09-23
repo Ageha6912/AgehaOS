@@ -81,6 +81,17 @@ docker compose -f server/docker-compose.yml up -d   # 可选：本地 PostgreSQL
 
 `200 { revoked: <count> }` —— 登出当前会话以外的全部会话（PRD §12.1 Session 管理）。无会话 → `401`。
 
+### GET /api/auth/sessions · DELETE /api/auth/sessions/:id（设备管理，PRD §35）
+
+- `GET` → `200 { sessions: [{ id, device, createdAt, expiresAt, current }] }`：当前会话排首；`id` 为 token 的 SHA-256 短哈希（**令牌本体绝不出服务端**）；`device` 为登录时 User-Agent 解析的短标签（浏览器 · 系统）。
+- `DELETE /:id` → `200 { revoked: true }` 撤下对应会话；未知 id → `404`。
+- 登录/注册创建会话时记录 `createdAt` 与 `device`（旧数据字段缺省容忍）。
+
+### GET /api/sync/data · PUT /api/sync/data（用户配置同步，PRD §35）
+
+- `GET` → `200 { data: string | null }`；`PUT` 请求 `{ data: string }`（≤256KB）→ `200 { ok: true }`。
+- 服务端是已认证的哑 KV（按 userId 分键）；合并策略归客户端（boot 拉取 + 防抖上推，整块 last-writer-wins）。
+
 ### POST /api/ai/proxy（DDS §5.3，Phase B）
 
 同源 LLM 代理：API Key 只存在服务端（`AGEHA_AI_API_KEY`，未配置 → `503 {"error":"ai-not-configured"}`，客户端走降级链）。

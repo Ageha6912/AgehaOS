@@ -9,6 +9,7 @@ import { useSessionStore } from '@/store/session-store'
 import { systemVfs } from '@/services/vfs'
 import { systemDynamicDesktop } from '@/services/dynamic-desktop'
 import { startNotificationBridge } from '@/services/notification-bridge'
+import { startSettingsSync } from '@/services/settings-sync'
 import '@/index.css'
 
 const rootElement = document.getElementById('root')
@@ -20,6 +21,7 @@ if (!rootElement) throw new Error('Root element #root not found')
 if (import.meta.env.VITE_AUTH_BACKEND) {
   setAuthProvider(new RemoteAuthClient())
   void useSessionStore.getState().reconcile()
+  startSettingsSync()
 }
 
 systemAppLifecycle.start()
