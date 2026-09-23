@@ -198,6 +198,13 @@
 - **搜索面板**（`SearchPalette.tsx` + `search-store.ts`）：应用域（展示名/manifest 名/appId 三路 includes，前缀命中靠前，≤5 条，纯函数 `rankApps`）+ 文件域（`systemVfs.search('/')`，≤5 条，异步经 setTimeout(0) 落地规避 set-state-in-effect 规则）。键盘 ↑↓/Enter 导航；Enter 打开应用或落到 Files 应用。
 - 缓办：文件结果携参启动（PRD §24.3 应用带文件参数打开）、设置项搜索、命令域、最近项目、AI Search 与全文检索（PRD §15「后续」清单）。
 
+### 3.22 终端应用（PRD §26，v0.2 收口）
+
+- **Shell 引擎**（`src/core/terminal/shell.ts`，纯 TS 零 React）：`TerminalShell` 以 `Vfs` 为文件系统——12 个命令（pwd/ls/cd/cat/echo/mkdir/touch/rm/date/whoami/clear/help），`resolvePath` 纯函数处理相对路径与 `..`；无引号/转义解析（参数按空白切分，v0.2 口径）。`rm` 沿用 VFS 回收站语义（与 Files 一致，输出提示避免「文件去哪了」）。输出行结构化（`text` 字面 / `message` i18n 键 + tone），错误不过异常通道全部转结构化行。
+- **UI**（`TerminalApp.tsx`）：等宽终端样式、输出区自动滚底、↑↓ 召回本会话命令历史、点击聚焦输入；clear 命令经 `result.clear` 标记驱动清屏。
+- **注册**：`com.ageha.terminal` 内置零权限 manifest（660×440 可调）。
+- 缓办：管道与重定向、引号解析、命令补全、环境变量、SDK `AgehaOS.terminal` 面。
+
 ## 4. 后续模块技术要点
 
 ### 4.1 应用运行时完善（`src/core/runtime`，PRD §8/§25）

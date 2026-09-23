@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { Calculator, FolderOpen, GearSix, Newspaper, NotePencil, Storefront } from '@phosphor-icons/react'
+import { Calculator, FolderOpen, GearSix, Newspaper, NotePencil, Storefront, TerminalWindow } from '@phosphor-icons/react'
 
 import type { MessageKey } from '@/core/i18n'
 
@@ -10,6 +10,7 @@ import { NotesApp } from './notes/NotesApp'
 import { SettingsApp } from './settings/SettingsApp'
 import { StoreApp } from './store/StoreApp'
 import { CalculatorApp } from './calculator/CalculatorApp'
+import { TerminalApp } from './terminal/TerminalApp'
 import type { AppHostProps } from './placeholder-app'
 
 export interface AppUiMeta {
@@ -53,6 +54,11 @@ export const APP_UI_META: Record<string, AppUiMeta> = {
     titleKey: 'app.dynamicPanel.title',
     icon: <Newspaper size={16} weight="regular" />,
     Component: DynamicPanelApp,
+  },
+  'com.ageha.terminal': {
+    titleKey: 'app.terminal.title',
+    icon: <TerminalWindow size={16} weight="regular" />,
+    Component: TerminalApp,
   },
 }
 

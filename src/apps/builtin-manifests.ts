@@ -55,4 +55,12 @@ export const BUILTIN_APP_MANIFESTS: readonly unknown[] = [
     permissions: [],
     window: { width: 360, height: 520, resizable: true },
   },
+  {
+    id: 'com.ageha.terminal',
+    name: 'Terminal',
+    version: '0.2.0',
+    entry: '/apps/terminal/index.html',
+    permissions: [],
+    window: { width: 660, height: 440, resizable: true },
+  },
 ]

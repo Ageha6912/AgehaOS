@@ -25,6 +25,11 @@
 - 动态面板新增「桌面编排建议」卡（开启动态桌面时），带「应用到开始菜单 / 恢复默认布局」；发 `desktop.layout.suggested` 与 `ai.decision.performed {domain:'layout'}`
 - 开始菜单采纳渲染：系统应用固定顶部，AI 分组带标识，档位决定菜单宽度；渲染前裁剪已卸载成员，采纳结果按用户持久化
 
+### 终端应用（PRD §26，v0.2 收口）
+
+- `src/core/terminal/shell.ts`：伪 Shell 引擎 over VFS——pwd/ls/cd/cat/echo/mkdir/touch/rm/date/whoami/clear/help 十二命令，相对路径与 `..` 解析，输出结构化（i18n 键 + tone），rm 走回收站语义
+- `com.ageha.terminal` 内置应用（零权限，660×440 可调）：等宽 UI、自动滚底、↑↓ 命令历史召回
+
 ### 全局搜索与快捷键（PRD §15/§26，v0.2 基础集）
 
 - Ctrl/⌘+K 呼出搜索面板：应用（展示名/名称/appId 三路匹配、前缀优先、≤5 条）+ 文件（VFS 根检索、≤5 条）双域，↑↓/Enter 键盘导航，Esc 关闭

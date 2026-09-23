@@ -36,6 +36,7 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 - ✅ **性能验证**（PRD §29）：E2E 断言刷新后 3 秒内可交互、20 窗口下桌面保持响应
 - 🎉 **v0.1.0 已发布**（PRD §51 第 15 步）——见 [CHANGELOG.md](CHANGELOG.md)
 - 🆕 **后端认证服务**（Milestone 5，PRD §20/§30.4，契约见 [docs/API.md](docs/API.md)）：`server/` 下 Node.js 24 + Fastify 5——注册/登录/登出/会话端点、256-bit opaque 令牌仅存 HttpOnly Cookie（SameSite=Lax，JS 不可见）、scrypt 口令哈希、CSRF Origin 校验、按 IP 路由限流、helmet 安全头、pino 审计；存储三驱动 memory/file/postgres（`DataStore` 可插拔，file 支持重启持久化，postgres 驱动就绪待活库验证）。前端 `systemAuthService` 升级为可切换 Provider：`VITE_AUTH_BACKEND=1` 即远程模式，UI 零改动，未设置保持本地行为
+- 🆕 **终端应用**（PRD §26 v0.2 收口）：伪 Shell over VFS——pwd/ls/cd/cat/echo/mkdir/touch/rm/date/whoami/clear/help 十二命令，↑↓ 历史召回
 - 🆕 **全局搜索与快捷键**（PRD §15/§26）：Ctrl/⌘+K 呼出搜索面板（应用 + 文件双域、键盘导航）、Alt+W 窗口焦点轮转
 - 🆕 **通知中心**（PRD §16）：桌面 toast + 任务栏铃铛（未读徽标、历史、标记已读、单删、清空）；应用崩溃与壁纸生成失败自动转通知
 - 🆕 **LLM 同源代理与深度增强**（DDS §5.3 Phase B）：后端 `/api/ai/proxy`（Key 不下发、匿名化、2s 超时、响应过滤），前端词表门控 + LLM→缓存→本地三级降级；Settings 可开关（默认关）

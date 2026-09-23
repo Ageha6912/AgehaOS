@@ -36,6 +36,7 @@ describe('app-store', () => {
       'com.ageha.store',
       'com.ageha.calculator',
       'com.ageha.dynamic.panel',
+      'com.ageha.terminal',
     ])
   })
 
@@ -53,7 +54,7 @@ describe('app-store', () => {
 
     expect(result.ok).toBe(true)
     expect(getAppManifest('com.ageha.thirdparty')?.name).toBe('Third Party')
-    expect(useAppStore.getState().apps).toHaveLength(7)
+    expect(useAppStore.getState().apps).toHaveLength(8)
   })
 
   it('rejects installing an app whose id is already registered', () => {
@@ -74,7 +75,7 @@ describe('app-store', () => {
     expect(uninstallApp('com.ageha.notes')).toBe(false)
 
     expect(getAppManifest('com.ageha.notes')).toBeNull()
-    expect(useAppStore.getState().apps).toHaveLength(5)
+    expect(useAppStore.getState().apps).toHaveLength(6)
   })
 
   it('auto-grants capabilities to trusted built-in apps at boot', () => {
@@ -106,7 +107,7 @@ describe('installed-app persistence (App Store 重装恢复)', () => {
     // 模拟重启：完全重建注册表并恢复。
     resetAppStore()
     expect(getAppManifest('com.ageha.thirdparty')?.name).toBe('Third Party')
-    expect(useAppStore.getState().apps).toHaveLength(7)
+    expect(useAppStore.getState().apps).toHaveLength(8)
   })
 
   it('does not persist built-in apps', () => {
@@ -129,6 +130,6 @@ describe('installed-app persistence (App Store 重装恢复)', () => {
 
     // 非法条目被逐项拒绝，不注册、不崩溃。
     expect(getAppManifest('broken')).toBeNull()
-    expect(useAppStore.getState().apps).toHaveLength(6)
+    expect(useAppStore.getState().apps).toHaveLength(7)
   })
 })
