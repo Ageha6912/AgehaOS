@@ -1,3 +1,4 @@
+import { filterContentText } from '../content/filter'
 import { TIP_IDS } from '../content/engine'
 
 /**
@@ -30,11 +31,28 @@ export interface AiEnhanceInput {
 }
 
 /**
- * Phase B 词表门控：slotId → 允许的取值集合。LLM 返回的 text 不在词表内
- * 即丢弃（等价于被过滤管线拦下），绝不渲染自由文本。
+ * Phase B/C 门控（DDS §5.3/§8.4）：结构化值（词表内变体号）直接接受；
+ * 自由文本（Phase C 起）必须过 `filterContentText` 三类过滤（违规/误导/不适）
+ * 才接受——被过滤或被用户举报过的文本进会话 banlist，绝不再接受。
  */
 export const PHASE_B_VOCABULARY: Readonly<Record<string, readonly string[]>> = {
   tip: TIP_IDS,
+}
+
+let bannedTexts: string[] = []
+
+/** 举报撤下（§8.6）：文本本会话内永不复现。 */
+export function banContent(text: string): void {
+  const key = text.trim()
+  if (key.length > 0 && !bannedTexts.includes(key)) bannedTexts.push(key)
+}
+
+export function isContentBanned(text: string): boolean {
+  return bannedTexts.includes(text.trim())
+}
+
+function isBanned(text: string): boolean {
+  return isContentBanned(text)
 }
 
 let aiAttemptsThisSession = 0
@@ -48,6 +66,7 @@ export function getCachedAiSlots(): AiSlot[] {
 export function resetAiSessionState(): void {
   aiAttemptsThisSession = 0
   cachedSlots = []
+  bannedTexts = []
 }
 
 export interface AiClientOptions {
@@ -98,8 +117,9 @@ export async function requestAiSlots(
 }
 
 /**
- * §8.4 渲染前过滤的客户端半场：schema 白名单（未知字段/未知槽位丢弃）+
- * Phase B 词表门控 + 同槽位去重（先到先得）+ 数量上限。
+ * §8.4 渲染前过滤：schema 白名单（未知字段/未知槽位丢弃）+ 同槽位去重
+ * （先到先得）+ 数量上限。取值分两路——词表内的结构化变体直接通过；
+ * 自由文本必须过三类过滤（违规/误导/不适）且不在会话 banlist 内。
  */
 export function filterAccepted(payload: unknown, slots: readonly string[]): AiSlot[] {
   if (typeof payload !== 'object' || payload === null) return []
@@ -113,8 +133,14 @@ export function filterAccepted(payload: unknown, slots: readonly string[]): AiSl
     const slotId = (candidate as { slotId?: unknown }).slotId
     const text = (candidate as { text?: unknown }).text
     if (typeof slotId !== 'string' || !requested.has(slotId) || seen.has(slotId)) continue
+    if (typeof text !== 'string' || text.length === 0) continue
+    // 槽位白名单：未知槽位直接丢弃；已知槽位接受词表变体或过滤后的自由文本。
     const vocabulary = PHASE_B_VOCABULARY[slotId]
-    if (typeof text !== 'string' || !vocabulary || !vocabulary.includes(text)) continue
+    if (vocabulary === undefined) continue
+    if (!vocabulary.includes(text)) {
+      if (isBanned(text)) continue
+      if (text.length > 200 || !filterContentText(text).ok) continue
+    }
     seen.add(slotId)
     items.push({ slotId, text })
     if (items.length >= 8) break

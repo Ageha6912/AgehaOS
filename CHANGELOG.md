@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 内容过滤管线与举报通道（DDS §8.4/§8.6，Phase C 切片）
+
+- `src/core/dynamic/content/filter.ts`：渲染前三类本地过滤——violation（违规词库）/ misleading（联系方式引流、裸链接无来源）/ discomfort（重复刷屏、喊话式全大写）
+- LLM 自由文本（Phase C）在通过过滤后可进入提示卡，词表变体（Phase B）路径保持不变；未知槽位仍一律丢弃
+- 提示卡自由文案带「举报」按钮：点击立即撤下回落词典模板 + `ai.content.blocked {reason:'reported'}` + 会话封禁该文本；样本上传通道待基础设施接入（不上传即不涉及同意）
+- 服务端分类器、样本上传、跨会话黑名单归 Phase C 完整交付
+
 ### 设备管理与配置同步（PRD §35，v0.5 前置切片）
 
 - 会话元数据：登录/注册记录 `createdAt` 与设备短标签（User-Agent 解析），旧数据缺省容忍

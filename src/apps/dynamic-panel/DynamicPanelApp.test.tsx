@@ -174,4 +174,35 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
     await waitFor(() => expect(screen.getByTestId('panel-tip-body').textContent).toContain('数据不会离开'))
     expect(screen.getByTestId('panel-decision-source').textContent).toContain('缓存重放')
   })
+
+  it('renders filter-passed free text with a report takedown (Phase C / §8.6)', async () => {
+    const client = await import('@/core/dynamic/llm/client')
+    client.resetAiSessionState()
+    const blockedSpy = vi.fn()
+    systemBus.on('ai.content.blocked', (payload) => blockedSpy(payload))
+    useDynamicDesktopStore.setState({
+      prefs: {
+        enabled: true,
+        randomness: 40,
+        hideBadge: false,
+        pinned: null,
+        blockedStyles: [],
+        llmEnhance: true,
+      },
+    })
+    requestAiSlots.mockResolvedValue([{ slotId: 'tip', text: '今天适合把窗口排成两列，效率更高。' }])
+    render(<DynamicPanelApp />)
+
+    await waitFor(() =>
+      expect(screen.getByTestId('panel-tip-body').textContent).toContain('两列'),
+    )
+    // 自由文本带举报按钮；点击立即撤下并发事件。
+    fireEvent.click(screen.getByTestId('panel-tip-report'))
+    await waitFor(() =>
+      expect(screen.getByTestId('panel-tip-body').textContent).not.toContain('两列'),
+    )
+    expect(blockedSpy).toHaveBeenCalledWith({ panelId: 'com.ageha.dynamic.panel', reason: 'reported' })
+    // 封禁后同一文本不再被接受。
+    expect(client.isContentBanned('今天适合把窗口排成两列，效率更高。')).toBe(true)
+  })
 })

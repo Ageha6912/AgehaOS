@@ -195,7 +195,8 @@
 ### 3.20 LLM 同源代理与深度增强（DDS §5.3，Phase B 切片）
 
 - **服务端代理**（`server/src/routes/ai.ts`）：`POST /api/ai/proxy` —— 请求 schema 白名单（anonymId/locale/context/prefs/slots，未知字段拒绝）、`anonymId` 只作服务端审计分键**不上游转发**、OpenAI 兼容转发（`AGEHA_AI_API_KEY/BASE_URL/MODEL/TIMEOUT_MS`，默认 2s 超时）、响应 schema 过滤（未知槽位/超长文本/重复丢弃）、20/min/IP 限流；未配置 Key → `503`。测试以真 HTTP fake upstream 覆盖（含密钥不下发、超时 504、非 JSON 502）。
-- **客户端降级链**（`src/core/dynamic/llm/client.ts`）：2s AbortController 超时、会话最多尝试 2 次（首试 + 重试 ≤1）、**Phase B 词表门控**（`PHASE_B_VOCABULARY`：LLM 只能从提示卡变体白名单里选，自由文本丢弃不渲染）+ 会话缓存（`getCachedAiSlots`）。降级链：LLM → 缓存 → 本地模板（装配永不被阻塞）。
+- **客户端降级链**（`src/core/dynamic/llm/client.ts`）：2s AbortController 超时、会话最多尝试 2 次（首试 + 重试 ≤1）、**槽位门控双层**——已知槽位接受词表变体（Phase B）或过 `filterContentText` 三类过滤后的自由文本（Phase C），未知槽位一律丢弃；被过滤/被举报文本进会话 banlist 永不复现 + 会话缓存（`getCachedAiSlots`）。降级链：LLM → 缓存 → 本地模板（装配永不被阻塞）。
+- **Phase C 本地切片（§8.4/§8.6）**：`src/core/dynamic/content/filter.ts` 三类过滤——violation（本地违规词库）/ misleading（联系方式引流、裸链接无来源标注）/ discomfort（超长重复字符、喊话式全大写），渲染前同步执行；面板对过滤后的自由文案带「举报」按钮——点击立即撤下回落词典 + 发 `ai.content.blocked {reason:'reported'}` + 会话封禁；样本上传通道待基础设施（不经用户确认不上传任何内容，铁律 4/10 天然满足）。服务端分类器归 Phase C 完整交付。
 - **面板接线**：`prefs.llmEnhance`（Settings 动态桌面区开关，默认关，总开关关时禁用）开启后，装配完成异步请求 `tip` 槽位；成功 → 提示卡渲染词表选中的模板变体 + 页脚来源「云端模型」；失败 → 缓存（「缓存重放」）→ 本地轮换（「本地规则」）。`ai.decision.performed {domain:'content', source: llm|cache|local}` 三值可查（DDS §11.2 验收 ③）。
 - 缓办：Phase C 自由文本生成 + §8.4 完整过滤管线（违规/误导/不适三类）+ 举报通道；品味画像跨周修订；分类器服务端化。
 - 缓办：活 PostgreSQL 集成验证、Redis（多实例限流/会话缓存）、S3 对象存储（云文件面）、OAuth/2FA、`user` 资源其余端点（改昵称/头像/密码，PRD §12.1 P1 前置）。

@@ -16,7 +16,7 @@ import {
 import type { ContentCardMeta } from '@/core/dynamic/content/engine'
 import { buildLayoutSuggestion } from '@/core/dynamic/layout/engine'
 import type { LayoutSuggestion } from '@/core/dynamic/layout/engine'
-import { getCachedAiSlots, requestAiSlots } from '@/core/dynamic/llm/client'
+import { banContent, getCachedAiSlots, requestAiSlots } from '@/core/dynamic/llm/client'
 import { useAppStore } from '@/store/app-store'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
@@ -47,8 +47,9 @@ export function DynamicPanelApp() {
   const [metas, setMetas] = useState<ContentCardMeta[]>([])
   const [layoutSuggestion, setLayoutSuggestionState] = useState<LayoutSuggestion | null>(null)
   const [assemblyNonce, setAssemblyNonce] = useState(0)
-  /** LLM 增强选中的提示卡变体（null = 本地轮换）；来源三态对应决策日志。 */
+  /** LLM 增强：词典变体号（null=本地轮换）或过滤后的自由文本（Phase C）。 */
   const [enhancedTipId, setEnhancedTipId] = useState<string | null>(null)
+  const [enhancedTipText, setEnhancedTipText] = useState<string | null>(null)
   const [enhanceSource, setEnhanceSource] = useState<'local' | 'llm' | 'cache'>('local')
   const aliveRef = useRef(true)
 
@@ -75,6 +76,7 @@ export function DynamicPanelApp() {
     })
     setMetas(result.cards)
     setEnhancedTipId(null)
+    setEnhancedTipText(null)
     setEnhanceSource('local')
     // 布局建议（§5.1 域②）：仅在动态桌面开启时产出；AI 只建议，采纳靠用户。
     let suggestion: LayoutSuggestion | null = null
@@ -93,6 +95,17 @@ export function DynamicPanelApp() {
     // LLM 深度增强（§5.3）：异步叠加、绝不阻塞本地装配；失败链 = 缓存 → 本地。
     if (dynamic.prefs.enabled && dynamic.prefs.llmEnhance) {
       void (async () => {
+        const applyTip = (text: string): boolean => {
+          if (!aliveRef.current) return false
+          if (TIP_IDS.includes(text as never)) {
+            setEnhancedTipId(text)
+            setEnhancedTipText(null)
+          } else {
+            setEnhancedTipId(null)
+            setEnhancedTipText(text)
+          }
+          return true
+        }
         try {
           const items = await requestAiSlots({
             locale: document.documentElement.lang === 'en' ? 'en' : 'zh-CN',
@@ -101,14 +114,12 @@ export function DynamicPanelApp() {
             slots: ['tip'],
           })
           const tip = items.find((item) => item.slotId === 'tip')
-          if (!aliveRef.current || !tip) return
-          setEnhancedTipId(tip.text)
+          if (!tip || !applyTip(tip.text)) return
           setEnhanceSource('llm')
           systemBus.emit('ai.decision.performed', { domain: 'content', source: 'llm' })
         } catch {
           const cached = getCachedAiSlots().find((item) => item.slotId === 'tip')
-          if (!aliveRef.current || !cached) return
-          setEnhancedTipId(cached.text)
+          if (!cached || !applyTip(cached.text)) return
           setEnhanceSource('cache')
           systemBus.emit('ai.decision.performed', { domain: 'content', source: 'cache' })
         }
@@ -228,16 +239,35 @@ export function DynamicPanelApp() {
               </>
             )}
             {meta.card.kind === 'tip' && (() => {
+              const isFreeText = enhancedTipText !== null
               const tipId =
                 enhancedTipId !== null && TIP_IDS.includes(enhancedTipId as never)
                   ? enhancedTipId
                   : meta.card.tipId
+              const bodyText = isFreeText ? (enhancedTipText ?? '') : t(tipBodyKey(tipId))
               return (
                 <>
                   <p className="font-medium text-text">{t('cards.tip.title')}</p>
                   <p className="mt-1 text-xs text-text-muted" data-testid="panel-tip-body">
-                    {t(tipBodyKey(tipId))}
+                    {bodyText}
                   </p>
+                  {isFreeText && (
+                    <button
+                      type="button"
+                      data-testid="panel-tip-report"
+                      className="mt-1 text-[10px] text-text-muted underline hover:text-text"
+                      onClick={() => {
+                        // §8.6：立即撤下 + 会话内封禁；样本上传待基础设施（不经确认不上传）。
+                        banContent(enhancedTipText ?? '')
+                        setEnhancedTipText(null)
+                        setEnhancedTipId(null)
+                        setEnhanceSource('local')
+                        systemBus.emit('ai.content.blocked', { panelId: PANEL_ID, reason: 'reported' })
+                      }}
+                    >
+                      {t('cards.tip.report')}
+                    </button>
+                  )}
                 </>
               )
             })()}

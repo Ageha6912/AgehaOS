@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   AI_PROXY_TIMEOUT_MS,
+  banContent,
   filterAccepted,
   getCachedAiSlots,
+  isContentBanned,
   MAX_AI_ATTEMPTS_PER_SESSION,
   requestAiSlots,
   resetAiSessionState,
@@ -40,19 +42,36 @@ describe('requestAiSlots (DDS §5.3 降级链客户端)', () => {
     expect(JSON.stringify(body)).not.toContain('userId')
   })
 
-  it('applies the Phase B vocabulary gate: free text is dropped, not rendered', async () => {
+  it('accepts clean free text (Phase C) next to structured variants', async () => {
     const fetchFn = okFetch({
       items: [
-        { slotId: 'tip', text: '今天记得多喝水哦！' }, // 自由文本 → 丢弃
-        { slotId: 'unknown-slot', text: 'pin' }, // 未知槽位 → 丢弃
-        { slotId: 'tip', text: 'shortcut' }, // 词表内 → 保留
+        { slotId: 'tip', text: '今天记得多喝水哦！' },
+        { slotId: 'unknown-slot', text: 'pin' },
       ],
     })
-    await expect(requestAiSlots(INPUT, { fetchFn })).resolves.toEqual([{ slotId: 'tip', text: 'shortcut' }])
+    await expect(requestAiSlots(INPUT, { fetchFn })).resolves.toEqual([
+      { slotId: 'tip', text: '今天记得多喝水哦！' },
+    ])
+  })
+
+  it('drops texts that fail the §8.4 filter (violation / discomfort)', async () => {
+    const fetchFn = okFetch({
+      items: [
+        { slotId: 'tip', text: '最佳在线赌场推荐' },
+        { slotId: 'tip', text: 'CONGRATULATIONS CLICK NOW FRIENDS' },
+      ],
+    })
+    await expect(requestAiSlots(INPUT, { fetchFn })).rejects.toThrow('ai-empty-after-filter')
+  })
+
+  it('never re-accepts a banned text after report (§8.6)', async () => {
+    banContent('今天记得多喝水哦！')
+    expect(isContentBanned('今天记得多喝水哦！')).toBe(true)
+    expect(filterAccepted({ items: [{ slotId: 'tip', text: '今天记得多喝水哦！' }] }, ['tip'])).toEqual([])
   })
 
   it('treats an empty filtered result as failure', async () => {
-    const fetchFn = okFetch({ items: [{ slotId: 'tip', text: '自由文案' }] })
+    const fetchFn = okFetch({ items: [{ slotId: 'tip', text: '最佳在线赌场推荐' }] })
     await expect(requestAiSlots(INPUT, { fetchFn })).rejects.toThrow('ai-empty-after-filter')
   })
 
