@@ -14,13 +14,14 @@ export type TimePhase = 'morning' | 'day' | 'evening' | 'night'
 /** 季节枚举（§2.1）。 */
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
 
-/** 五类程序化风格（§4.3）。 */
+/** 程序化风格（§4.3 + Phase A.5 山水引擎）：abstract 五类仅存于旧计划重放。 */
 export const WALLPAPER_STYLES = [
   'fluid-gradient',
   'geometric',
   'particle-nebula',
   'mountain-silhouette',
   'grid-wavefield',
+  'landscape',
 ] as const
 export type WallpaperStyle = (typeof WALLPAPER_STYLES)[number]
 
@@ -50,14 +51,25 @@ export interface PaletteFamily {
   saturation: 'high' | 'low'
 }
 
-/** 策展调色板（§4.3：24 组，全部人工审校）。 */
+/** 策展调色板（§4.3：24 组人工审校 + Phase A.5 山水 6 组）。 */
 export interface Palette {
   id: string
   family: PaletteFamily
-  /** 3–4 个渐变 stop，十六进制 #rrggbb，自上而下。 */
+  /** 3–4 个渐变 stop，十六进制 #rrggbb，自上而下（山水调色板 = 天空）。 */
   stops: string[]
   /** 主题色（hex），参与品牌主色 ±30° 锚点校验。 */
   accent: string
+  /** —— 山水调色板专属字段（Phase A.5），抽象调色板缺省 —— */
+  /** 日/月颜色。 */
+  sun?: string
+  /** 山峦由远及近色阶（4 层）。 */
+  ridge?: string[]
+  /** 水面色（有水场景）。 */
+  water?: string
+  /** 雾气色。 */
+  mist?: string
+  /** 星空场景标记。 */
+  night?: boolean
 }
 
 /** 构图参数（§4.3：8 种构图，焦点吸附三分点）。 */
@@ -69,14 +81,22 @@ export interface Composition {
   angle: number
 }
 
-/** 画布基本图元（单位坐标 [0,1)，渲染层负责缩放）。 */
-export interface PlanShape {
-  kind: 'circle' | 'rect'
-  x: number
-  y: number
-  w: number
-  h: number
-}
+/**
+ * 画布图元（单位坐标 [0,1)，渲染层负责缩放）。
+ *
+ * 两个世代：circle/rect 为 v1 抽象图元（旧计划重放仍支持）；Phase A.5 山水
+ * 场景引入结构化图层——颜色在生成期烘进图元，渲染层保持确定性无随机。
+ */
+export type PlanShape =
+  | { kind: 'circle'; x: number; y: number; w: number; h: number }
+  | { kind: 'rect'; x: number; y: number; w: number; h: number }
+  | { kind: 'sky' }
+  | { kind: 'celestial'; x: number; y: number; r: number; color: string; moon: boolean }
+  | { kind: 'stars'; seed: string; count: number }
+  | { kind: 'ridge'; points: number[]; baseY: number; height: number; color: string; alpha: number }
+  | { kind: 'mist'; y: number; h: number; color: string; alpha: number }
+  | { kind: 'water'; y: number; color: string }
+  | { kind: 'birds'; x: number; y: number; count: number; color: string }
 
 /** 生成理由摘要（§6.5 透明机制：不暴露原始信号，仅结构化维度）。 */
 export interface GenerationReason {

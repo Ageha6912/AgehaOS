@@ -31,28 +31,25 @@ export const STATIC_GRADIENT_STOPS: Record<'light' | 'dark', string[]> = {
 }
 
 const LIGHT_CURATED_PALETTES = new Set([
-  'morning-mist',
-  'porcelain',
-  'linen-sky',
-  'pale-sand',
-  'citrus-dawn',
-  'seaglass',
+  'shanshui-dawn',
+  'shanshui-day',
+  'shanshui-green',
 ])
 
-/** F2 精选组合（风格 × 主题匹配的调色板，全部为人工审校组合；前 6 张深色、后 6 张浅色）。 */
+/** F2 精选组合（Phase A.5 起全山水：6 组调色板 × 2 构图；前 3 张深色、后 3 张浅色各两遍）。 */
 const CURATED_COMBOS: Array<{ style: WallpaperPlan['style']; paletteId: string }> = [
-  { style: 'fluid-gradient', paletteId: 'midnight-ink' },
-  { style: 'geometric', paletteId: 'slate-night' },
-  { style: 'particle-nebula', paletteId: 'nebula-violet' },
-  { style: 'mountain-silhouette', paletteId: 'charcoal-mist' },
-  { style: 'grid-wavefield', paletteId: 'deep-ocean' },
-  { style: 'fluid-gradient', paletteId: 'aurora-borealis' },
-  { style: 'fluid-gradient', paletteId: 'morning-mist' },
-  { style: 'geometric', paletteId: 'porcelain' },
-  { style: 'grid-wavefield', paletteId: 'linen-sky' },
-  { style: 'mountain-silhouette', paletteId: 'pale-sand' },
-  { style: 'fluid-gradient', paletteId: 'citrus-dawn' },
-  { style: 'geometric', paletteId: 'seaglass' },
+  { style: 'landscape', paletteId: 'shanshui-ink' },
+  { style: 'landscape', paletteId: 'shanshui-dusk' },
+  { style: 'landscape', paletteId: 'shanshui-night' },
+  { style: 'landscape', paletteId: 'shanshui-ink' },
+  { style: 'landscape', paletteId: 'shanshui-dusk' },
+  { style: 'landscape', paletteId: 'shanshui-night' },
+  { style: 'landscape', paletteId: 'shanshui-dawn' },
+  { style: 'landscape', paletteId: 'shanshui-day' },
+  { style: 'landscape', paletteId: 'shanshui-green' },
+  { style: 'landscape', paletteId: 'shanshui-dawn' },
+  { style: 'landscape', paletteId: 'shanshui-day' },
+  { style: 'landscape', paletteId: 'shanshui-green' },
 ]
 
 /** 12 张精选计划：固定种子，逐项确定性（同一张恒定同一结果）。 */

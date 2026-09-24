@@ -1,8 +1,9 @@
 import { mulberry32 } from './seed'
+import { paletteById } from './palettes'
 import type { Composition, PlanShape, WallpaperPlan, WallpaperStyle } from '../types'
 
-/** 生成器版本（§4.3：升级递增，旧三元组结果仍可复现）。 */
-export const GENERATOR_VERSION = 1
+/** 生成器版本（§4.3：升级递增，旧三元组结果仍可复现）。v2 = 山水引擎进场。 */
+export const GENERATOR_VERSION = 2
 
 /** 8 种构图（§4.3：焦点吸附三分点）。 */
 export const COMPOSITIONS: Composition[] = [
@@ -31,8 +32,108 @@ function isWallpaperStyle(value: string): value is WallpaperStyle {
     value === 'geometric' ||
     value === 'particle-nebula' ||
     value === 'mountain-silhouette' ||
-    value === 'grid-wavefield'
+    value === 'grid-wavefield' ||
+    value === 'landscape'
   )
+}
+
+/**
+ * 中点位移法生成山脊线：返回扁平坐标数组 [x0,y0,x1,y1,…]（均归一化 0..1），
+ * x 均匀铺满，y 为峰谷起伏。种子化——同 rng 状态恒定同一条线。
+ */
+export function ridgeLine(rng: () => number, roughness: number, segments = 48): number[] {
+  let heights = [rng(), rng()]
+  let amplitude = roughness
+  while (heights.length - 1 < segments) {
+    const next: number[] = []
+    for (let i = 0; i < heights.length - 1; i++) {
+      const a = heights[i] as number
+      const b = heights[i + 1] as number
+      next.push(a, (a + b) / 2 + (rng() - 0.5) * amplitude)
+    }
+    next.push(heights[heights.length - 1] as number)
+    heights = next
+    amplitude *= 0.55
+  }
+  const min = Math.min(...heights)
+  const span = Math.max(Math.max(...heights) - min, 1e-6)
+  const points: number[] = []
+  for (let i = 0; i < heights.length; i++) {
+    points.push(i / (heights.length - 1), (heights[i] - min) / span)
+  }
+  return points
+}
+
+/**
+ * 山水场景组装（Phase A.5）：天空 → 星空（夜）→ 日月 → 层峦（远/中/近，
+ * 大气透视色阶）→ 雾带 → 水面 → 飞鸟。一切参数由种子驱动，渲染层零随机。
+ */
+export function buildLandscapeScene(
+  rng: () => number,
+  density: number,
+  paletteId: string,
+): PlanShape[] {
+  const palette = paletteById(paletteId)
+  const ridge = palette?.ridge ?? ['#9db8cf', '#6f94b3', '#4a7291', '#2f5570']
+  const shapes: PlanShape[] = [{ kind: 'sky' }]
+
+  const isNight = palette?.night === true
+  if (isNight) {
+    shapes.push({ kind: 'stars', seed: `${rng()}`, count: Math.round(60 + density * 140) })
+  }
+
+  // 日/月：挂在上方 1/3，避开正中。
+  const sun = palette?.sun ?? '#ffe9b0'
+  shapes.push({
+    kind: 'celestial',
+    x: 0.2 + rng() * 0.6,
+    y: 0.1 + rng() * 0.18,
+    r: isNight ? 0.035 : 0.045 + rng() * 0.025,
+    color: sun,
+    moon: isNight,
+  })
+
+  // 层峦三层：基线依次下移、起伏渐大、颜色渐深（大气透视）；层间偶插雾带。
+  const baselines = [0.52 + rng() * 0.06, 0.62 + rng() * 0.05, 0.74 + rng() * 0.05]
+  const roughness = [0.5 + density * 0.4, 0.7 + density * 0.5, 0.9 + density * 0.6]
+  const alphas = [0.85, 0.92, 1]
+  for (let layer = 0; layer < 3; layer++) {
+    if (palette?.mist !== undefined && layer > 0 && rng() < 0.6) {
+      shapes.push({
+        kind: 'mist',
+        y: (baselines[layer] as number) - 0.05,
+        h: 0.05 + rng() * 0.04,
+        color: palette.mist as string,
+        alpha: 0.25 + rng() * 0.2,
+      })
+    }
+    shapes.push({
+      kind: 'ridge',
+      points: ridgeLine(rng, roughness[layer] as number),
+      baseY: baselines[layer] as number,
+      height: 0.1 + density * 0.1 + layer * 0.03,
+      color: ridge[layer] ?? (ridge[ridge.length - 1] as string),
+      alpha: alphas[layer] ?? 1,
+    })
+  }
+
+  // 水面（调色板含水时 60% 概率成湖）。
+  if (palette?.water !== undefined && rng() < 0.6) {
+    shapes.push({ kind: 'water', y: 0.82 + rng() * 0.06, color: palette.water })
+  }
+
+  // 飞鸟（仅昼景、一半概率）。
+  if (!isNight && rng() < 0.45) {
+    shapes.push({
+      kind: 'birds',
+      x: 0.15 + rng() * 0.5,
+      y: 0.18 + rng() * 0.2,
+      count: 3 + Math.floor(rng() * 4),
+      color: '#2f3a42',
+    })
+  }
+
+  return shapes
 }
 
 /**
@@ -44,6 +145,8 @@ export function buildShapes(
   seed: string,
   composition: Composition,
   density: number,
+  /** 山水场景需要调色板配色（v2 参数；抽象风格忽略）。 */
+  paletteId?: string,
 ): PlanShape[] {
   const rng = mulberry32(`${seed}|${templateIdOf(style)}`)
   const shapes: PlanShape[] = []
@@ -51,6 +154,8 @@ export function buildShapes(
   const pick = (min: number, max: number) => min + rng() * (max - min)
 
   switch (style) {
+    case 'landscape':
+      return buildLandscapeScene(rng, density, paletteId ?? 'shanshui-day')
     case 'fluid-gradient': {
       const count = Math.round(3 + density * 2)
       for (let i = 0; i < count; i++) {
@@ -142,8 +247,12 @@ export function buildWallpaperPlan(params: {
     paletteId: params.paletteId,
     compositionId: composition.id,
     density: params.density,
-    shapes: buildShapes(params.style, params.seed, composition, params.density),
-    animation: { kind: 'slow-drift', flickerPerSec: 0 },
+    shapes: buildShapes(params.style, params.seed, composition, params.density, params.paletteId),
+    // 山水场景是完整构图，无图元级慢漂移（静态单帧，省电省性能）。
+    animation:
+      params.style === 'landscape'
+        ? { kind: 'none', flickerPerSec: 0 }
+        : { kind: 'slow-drift', flickerPerSec: 0 },
     reason: params.reason,
     zone: params.zone,
   }

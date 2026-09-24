@@ -136,7 +136,8 @@
 
 - **内核**（纯 TS 零 React，`src/core/dynamic/`）：
   - `generative/seed.ts`：同步 SHA-256 + mulberry32；`sessionSeed = SHA-256(userId|日期|会话计数)`，`domainSeed` 再混域名/序号/contextVersion（DDS §6.1，禁裸 `Math.random()`）。
-  - `generative/palettes.ts` + `templates.ts`：24 组策展调色板（明暗×饱和四象限各 6 组）× 5 风格 × 8 构图 × 5 密度；图元由种子确定性派生，三元组 `(seed, generatorVersion, templateId)` 可重放。
+  - `generative/palettes.ts` + `templates.ts`：**v2 山水引擎**——24 组抽象调色板（旧计划重放保留）+ 6 组山水调色板（晨雾/晴岚/青绿/水墨/暮色/星夜，各含天空渐变、日月色、4 层山峦色阶、水/雾色）；`buildLandscapeScene` 由种子组装山水场景（天空→星空→日月→三层峦中点位移山脊线→雾带→水面→飞鸟，颜色烘进图元、渲染层零随机）；决策域 `ACTIVE_STYLES = ['landscape']`（用户裁决：抽象色块图退出采样域，代码保留供旧计划重放）；三元组 `(seed, generatorVersion=2, templateId)` 可重放。
+  - **自动换新**：`services/dynamic-desktop.ts` 心跳（30s）按随机度档触发 timer 生成（固定=不自动/微调 15min/平衡 10min/探索 6min/狂野 3min），隐藏页与固定态跳过。
   - `decision/engine.ts`：五级滑杆（§DDS 6.3）→ 三区配比 + ε 上限，与个性化阶段 ε 阶梯（`feedback/epsilon.ts`）取更保守者；Top-3 权重 35% 截断、每 7 次强制探索位、Shannon 熵 <1.5 bits 强制全局采样。
   - `governance/`：WCAG 对比度纯函数、质量门（亮度窗口/正文与 UI 对比度/光敏闪烁/装饰重叠）、硬件三档判据与 §7.3 相对阈值降级判定。
   - `generative/pipeline.ts`：3 次可行域重采样 → F1 种子重放 → F2 内置精选 12 张（过质量门）→ F3 静态渐变；每步发 `desktop.*` 事件。

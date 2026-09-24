@@ -5,18 +5,20 @@ import { compatiblePalettes, isCompatible, PALETTES } from './palettes'
 import type { Palette } from '../types'
 
 describe('palette catalog (§4.3)', () => {
-  it('contains exactly 24 curated palettes with unique ids', () => {
-    expect(PALETTES).toHaveLength(24)
-    expect(new Set(PALETTES.map((p) => p.id)).size).toBe(24)
+  it('contains 24 abstract + 6 landscape curated palettes with unique ids', () => {
+    expect(PALETTES).toHaveLength(30)
+    expect(new Set(PALETTES.map((p) => p.id)).size).toBe(30)
   })
 
-  it('covers the 2×2 family grid with 6 palettes each (§10.2 prior)', () => {
+  it('covers the 2×2 family grid: 6 abstract palettes each + 1-2 landscape palettes (§10.2 prior)', () => {
     for (const lightness of ['dark', 'light'] as const) {
       for (const saturation of ['high', 'low'] as const) {
-        const count = PALETTES.filter(
+        const inFamily = PALETTES.filter(
           (p) => p.family.lightness === lightness && p.family.saturation === saturation,
-        ).length
-        expect(count).toBe(6)
+        )
+        // 6 组抽象 + 山水补充（每格至少 1 组山水，保证 landscape 全主题可行）。
+        expect(inFamily.length).toBeGreaterThanOrEqual(7)
+        expect(inFamily.filter((p) => p.ridge === undefined)).toHaveLength(6)
       }
     }
   })

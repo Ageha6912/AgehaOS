@@ -1,11 +1,12 @@
 import { systemBus } from '@/core/events'
 import { buildContextSnapshot, resetContextVersion } from '@/core/dynamic/context/snapshot'
+import { sliderBand } from '@/core/dynamic/decision/engine'
 import type { Emit } from '@/core/dynamic/generative/pipeline'
 import { generateWallpaper } from '@/core/dynamic/generative/pipeline'
 import { deriveSessionSeed } from '@/core/dynamic/generative/seed'
 import type { TierSignals } from '@/core/dynamic/governance/tier'
 import { lastGoodPlanOf, loadHistory, saveHistory } from '@/core/dynamic/history'
-import type { GenerationOutcome } from '@/core/dynamic/types'
+import type { GenerationOutcome, RandomnessBand } from '@/core/dynamic/types'
 import {
   MANUAL_REFRESH_THROTTLE_MS,
   useDynamicDesktopStore,
@@ -22,6 +23,18 @@ import { systemVfs } from './vfs'
 let sessionCounter = 0
 let started = false
 let unsubscribes: Array<() => void> = []
+let renewalTimer: number | null = null
+
+/** 随机度档 → 自动换新间隔（分钟；fixed=不自动，Phase A.5 接线 §12.3 缓办项）。 */
+export const RENEWAL_MINUTES: Record<RandomnessBand, number> = {
+  fixed: 0,
+  fine: 15,
+  balanced: 10,
+  explore: 6,
+  wild: 3,
+}
+
+const RENEWAL_TICK_MS = 30_000
 
 function resolvedTheme(): 'light' | 'dark' {
   if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
@@ -131,6 +144,18 @@ async function clearAllData(): Promise<void> {
   }
 }
 
+/** 自动换新心跳（§4.6 随机切换）：到间隔即触发 timer 生成；隐藏页/固定态跳过。 */
+function renewalTick(): void {
+  const state = useDynamicDesktopStore.getState()
+  if (!state.prefs.enabled || state.prefs.pinned || state.generating) return
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+  const band = sliderBand(state.prefs.randomness)
+  const minutes = RENEWAL_MINUTES[band.band]
+  if (minutes <= 0) return
+  if (Date.now() - state.lastGenerateAt < minutes * 60_000) return
+  void generate('timer')
+}
+
 export const systemDynamicDesktop = {
   /** 追加在既有装配链之后调用；幂等。 */
   start(): void {
@@ -145,11 +170,16 @@ export const systemDynamicDesktop = {
     // 冷启动恢复会话（不经 login()）时补一次登录联动。
     const restored = useSessionStore.getState().user
     if (restored) void handleLogin(restored.id)
+    renewalTimer = window.setInterval(() => renewalTick(), RENEWAL_TICK_MS)
   },
 
   stop(): void {
     for (const off of unsubscribes) off()
     unsubscribes = []
+    if (renewalTimer !== null) {
+      window.clearInterval(renewalTimer)
+      renewalTimer = null
+    }
     started = false
   },
 

@@ -1,8 +1,9 @@
 import { STATIC_GRADIENT_STOPS } from '@/core/dynamic/generative/fallbacks'
 import { paletteById } from '@/core/dynamic/generative/palettes'
 import { COMPOSITIONS } from '@/core/dynamic/generative/templates'
+import { mulberry32 } from '@/core/dynamic/generative/seed'
 import { evaluateDegrade, TIER_TARGET_FPS } from '@/core/dynamic/governance/tier'
-import type { HardwareTier, WallpaperPlan } from '@/core/dynamic/types'
+import type { HardwareTier, PlanShape, WallpaperPlan } from '@/core/dynamic/types'
 
 /**
  * 壁纸渲染（设计文档 §4.1 L2/L3、§4.5 平滑过渡、§7.3 降级阶梯）。
@@ -42,55 +43,170 @@ export function paintFrame(
   plan: WallpaperPlan,
   phase: number,
 ): void {
-  const stops = planStops(plan)
-  const angle = (planAngle(plan) * Math.PI) / 180
-  const dx = Math.cos(angle) * width
-  const dy = Math.sin(angle) * height
-  const gradient = ctx.createLinearGradient(
-    width / 2 - dx / 2,
-    height / 2 - dy / 2,
-    width / 2 + dx / 2,
-    height / 2 + dy / 2,
-  )
-  stops.forEach((stop, index) => {
-    gradient.addColorStop(stops.length === 1 ? 0 : index / (stops.length - 1), stop)
-  })
-  ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, width, height)
-
-  const drift = Math.sin((phase * Math.PI) / 180)
-  plan.shapes.forEach((shape, index) => {
-    // 山水全宽层（w≥0.98）按包络矩形叠出剪影；装饰图元带慢漂移。
-    const isRidge = shape.kind === 'rect' && shape.w >= 0.98
-    const x = (shape.x + (isRidge ? 0 : drift * 0.008 * ((index % 3) + 1))) * width
-    const y = shape.y * height
-    const w = shape.w * width
-    const h = shape.h * height
-    if (isRidge) {
-      const shade = stops[Math.min(index, stops.length - 1)]
-      ctx.globalAlpha = 0.55 + 0.1 * (index % 3)
-      ctx.fillStyle = shade
-      ctx.fillRect(x, y, w, h)
-      ctx.globalAlpha = 1
-      return
-    }
-    const color = stops[index % stops.length]
-    ctx.globalAlpha = 0.28
-    if (shape.kind === 'circle') {
-      const r = Math.max(w, 1.5)
-      const radial = ctx.createRadialGradient(x + r / 2, y + r / 2, 0, x + r / 2, y + r / 2, r)
-      radial.addColorStop(0, color)
-      radial.addColorStop(1, 'rgba(0,0,0,0)')
-      ctx.fillStyle = radial
-      ctx.beginPath()
-      ctx.arc(x + r / 2, y + r / 2, r, 0, Math.PI * 2)
-      ctx.fill()
-    } else {
-      ctx.fillStyle = color
-      ctx.fillRect(x, y, w, h)
-    }
+  const legacyRidge = (shape: Extract<PlanShape, { kind: 'rect' }>, index: number): void => {
+    const shade = planStops(plan)[Math.min(index, planStops(plan).length - 1)]
+    ctx.globalAlpha = 0.55 + 0.1 * (index % 3)
+    ctx.fillStyle = shade
+    ctx.fillRect(shape.x * width, shape.y * height, shape.w * width, shape.h * height)
     ctx.globalAlpha = 1
-  })
+  }
+
+  const stops = planStops(plan)
+
+  for (const shape of plan.shapes) {
+    switch (shape.kind) {
+      // —— 山水场景图层（v2）：确定性绘制，无漂移 ——
+      case 'sky': {
+        const gradient = ctx.createLinearGradient(0, 0, 0, height)
+        stops.forEach((stop, index) => {
+          gradient.addColorStop(stops.length === 1 ? 0 : index / (stops.length - 1), stop)
+        })
+        ctx.fillStyle = gradient
+        ctx.fillRect(0, 0, width, height)
+        break
+      }
+      case 'celestial': {
+        const cx = shape.x * width
+        const cy = shape.y * height
+        const r = shape.r * Math.min(width, height)
+        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 3.2)
+        glow.addColorStop(0, shape.color)
+        glow.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.globalAlpha = shape.moon ? 0.35 : 0.55
+        ctx.fillStyle = glow
+        ctx.beginPath()
+        ctx.arc(cx, cy, r * 3.2, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.globalAlpha = 1
+        ctx.fillStyle = shape.color
+        ctx.beginPath()
+        ctx.arc(cx, cy, r, 0, Math.PI * 2)
+        ctx.fill()
+        break
+      }
+      case 'stars': {
+        const starRng = mulberry32(shape.seed)
+        ctx.fillStyle = '#e8edf7'
+        for (let i = 0; i < shape.count; i++) {
+          const sx = starRng() * width
+          const sy = starRng() * height * 0.65
+          ctx.globalAlpha = 0.25 + starRng() * 0.65
+          const sr = 0.4 + starRng() * 1.2
+          ctx.beginPath()
+          ctx.arc(sx, sy, sr, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.globalAlpha = 1
+        break
+      }
+      case 'ridge': {
+        const pts = shape.points
+        ctx.globalAlpha = shape.alpha
+        ctx.fillStyle = shape.color
+        ctx.beginPath()
+        ctx.moveTo(0, height)
+        for (let i = 0; i < pts.length; i += 2) {
+          const px = (pts[i] as number) * width
+          const py = (shape.baseY - (pts[i + 1] as number) * shape.height) * height
+          ctx.lineTo(px, py)
+        }
+        ctx.lineTo(width, height)
+        ctx.closePath()
+        ctx.fill()
+        ctx.globalAlpha = 1
+        break
+      }
+      case 'mist': {
+        const top = shape.y * height
+        const bandH = shape.h * height
+        const band = ctx.createLinearGradient(0, top, 0, top + bandH)
+        band.addColorStop(0, 'rgba(0,0,0,0)')
+        band.addColorStop(0.5, shape.color)
+        band.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.globalAlpha = shape.alpha
+        ctx.fillStyle = band
+        ctx.fillRect(0, top, width, bandH)
+        ctx.globalAlpha = 1
+        break
+      }
+      case 'water': {
+        const top = shape.y * height
+        const waterGrad = ctx.createLinearGradient(0, top, 0, height)
+        waterGrad.addColorStop(0, shape.color)
+        waterGrad.addColorStop(1, 'rgba(0,0,0,0.35)')
+        ctx.fillStyle = waterGrad
+        ctx.fillRect(0, top, width, height - top)
+        // 涟漪：数条水平亮线。
+        ctx.strokeStyle = 'rgba(255,255,255,0.14)'
+        ctx.lineWidth = 1
+        const rippleRng = mulberry32(`ripple|${Math.round(top * 1000)}`)
+        for (let i = 0; i < 7; i++) {
+          const ry = top + (i + 0.3 + rippleRng() * 0.5) * ((height - top) / 7)
+          const rw = width * (0.12 + rippleRng() * 0.3)
+          const rx = rippleRng() * (width - rw)
+          ctx.beginPath()
+          ctx.moveTo(rx, ry)
+          ctx.lineTo(rx + rw, ry)
+          ctx.stroke()
+        }
+        break
+      }
+      case 'birds': {
+        ctx.strokeStyle = shape.color
+        ctx.lineWidth = Math.max(1, height * 0.0018)
+        const birdRng = mulberry32(`birds|${shape.x}|${shape.y}`)
+        for (let i = 0; i < shape.count; i++) {
+          const bx = (shape.x + (birdRng() - 0.5) * 0.14) * width
+          const by = (shape.y + (birdRng() - 0.5) * 0.1) * height
+          const s = height * 0.006
+          ctx.beginPath()
+          ctx.moveTo(bx - s, by)
+          ctx.quadraticCurveTo(bx - s / 2, by - s, bx, by)
+          ctx.quadraticCurveTo(bx + s / 2, by - s, bx + s, by)
+          ctx.stroke()
+        }
+        break
+      }
+      // —— v1 抽象图元（旧计划重放）——
+      case 'circle': {
+        const drift = Math.sin((phase * Math.PI) / 180)
+        const x = (shape.x + drift * 0.008) * width
+        const y = shape.y * height
+        const r = Math.max(shape.w * width, 1.5)
+        const color = stops[plan.shapes.indexOf(shape) % stops.length]
+        ctx.globalAlpha = 0.28
+        const radial = ctx.createRadialGradient(x + r / 2, y + r / 2, 0, x + r / 2, y + r / 2, r)
+        radial.addColorStop(0, color)
+        radial.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.fillStyle = radial
+        ctx.beginPath()
+        ctx.arc(x + r / 2, y + r / 2, r, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.globalAlpha = 1
+        break
+      }
+      case 'rect': {
+        // 山水剪影（旧版）的全宽矩形按包络矩形叠出剪影；其余装饰带慢漂移。
+        if (shape.w >= 0.98) {
+          legacyRidge(shape, plan.shapes.indexOf(shape))
+          break
+        }
+        const drift = Math.sin((phase * Math.PI) / 180)
+        const index = plan.shapes.indexOf(shape)
+        const color = stops[index % stops.length]
+        ctx.globalAlpha = 0.28
+        ctx.fillStyle = color
+        ctx.fillRect(
+          (shape.x + drift * 0.008 * ((index % 3) + 1)) * width,
+          shape.y * height,
+          shape.w * width,
+          shape.h * height,
+        )
+        ctx.globalAlpha = 1
+        break
+      }
+    }
+  }
 }
 
 /**

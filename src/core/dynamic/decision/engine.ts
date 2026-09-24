@@ -12,6 +12,12 @@ import { DENSITY_LEVELS, WALLPAPER_STYLES } from '../types'
 import { EPSILON_BY_STAGE, stageForProfile } from '../feedback/epsilon'
 
 /**
+ * 当前启用风格域（Phase A.5 裁决）：用户裁决「只要山水风景」——抽象色块图
+ * 退出采样域（代码保留，旧计划重放仍可渲染）。新风格进域只需在此登记。
+ */
+export const ACTIVE_STYLES: readonly WallpaperStyle[] = ['landscape']
+
+/**
  * 规则引擎（设计文档 §4.2、§6.3、§6.4）：纯函数，P95 ≤10ms 预算（§7.2）。
  * 固定权重融合：时间相位 0.4 / 主题 0.25 / 偏好 0.25 / 季节 0.1（写死为常量，保证可测）。
  */
@@ -181,12 +187,12 @@ export function decideWallpaper(input: DecideInput): DecideResult {
     // 固定档不生成新结果；由调用方短路，此处给确定性兜底（理论不可达）。
     const plan = buildWallpaperPlan({
       seed: domainSeed,
-      style: 'fluid-gradient',
-      paletteId: 'midnight-ink',
+      style: 'landscape',
+      paletteId: 'shanshui-dawn',
       compositionId: COMPOSITIONS[0].id,
       density: DENSITY_LEVELS[0],
       zone: 'fallback',
-      reason: { signals: ['band:fixed'], palette: 'midnight-ink', motif: 'fluid-gradient' },
+      reason: { signals: ['band:fixed'], palette: 'shanshui-dawn', motif: 'landscape' },
     })
     return { plan, zone: 'fallback' }
   }
@@ -194,9 +200,9 @@ export function decideWallpaper(input: DecideInput): DecideResult {
   const stage = stageForProfile({ profile, now: new Date(), stageOverride: input.stageOverride })
   const epsilon = Math.min(EPSILON_BY_STAGE[stage], band.epsilonCap)
 
-  // 可行域：风格库减屏蔽名单，且风格在当前主题下至少有一个可行调色板（§2.1 主题过滤）。
+  // 可行域：启用风格域减屏蔽名单，且风格在当前主题下至少有一个可行调色板（§2.1 主题过滤）。
   const themeLightness = snapshot.theme === 'dark' ? 'dark' : 'light'
-  const allowed = WALLPAPER_STYLES.filter(
+  const allowed = ACTIVE_STYLES.filter(
     (s) =>
       !input.blockedStyles.includes(s) &&
       compatiblePalettes(s).some((p) => p.family.lightness === themeLightness),

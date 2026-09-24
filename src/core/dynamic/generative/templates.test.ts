@@ -19,8 +19,8 @@ describe('wallpaper plan builder (§4.3 确定性，验收 ③)', () => {
     const first = buildWallpaperPlan(params)
     const second = buildWallpaperPlan(params)
     expect(second).toEqual(first)
-    expect(second.templateId).toBe('fluid-gradient@1')
-    expect(second.generatorVersion).toBe(1)
+    expect(second.templateId).toBe('fluid-gradient@2')
+    expect(second.generatorVersion).toBe(2)
   })
 
   it('stamps the triple (seed, generatorVersion, templateId) used for replay', () => {
@@ -49,12 +49,15 @@ describe('shape generation', () => {
 
   it('keeps shapes inside the unit square', () => {
     for (const style of WALLPAPER_STYLES) {
-      for (const shape of buildShapes(style, 'bounds', composition, 0.9)) {
-        expect(shape.x).toBeGreaterThanOrEqual(0)
-        expect(shape.y).toBeGreaterThanOrEqual(0)
-        expect(shape.y).toBeLessThan(1)
-        expect(shape.w).toBeGreaterThan(0)
-        expect(shape.h).toBeGreaterThan(0)
+      for (const shape of buildShapes(style, 'bounds', composition, 0.9, 'shanshui-day')) {
+        // v2 山水图层带自有字段（points/color 等），坐标合法性由山水专项测试覆盖。
+        if (shape.kind === 'circle' || shape.kind === 'rect') {
+          expect(shape.x).toBeGreaterThanOrEqual(0)
+          expect(shape.y).toBeGreaterThanOrEqual(0)
+          expect(shape.y).toBeLessThan(1)
+          expect(shape.w).toBeGreaterThan(0)
+          expect(shape.h).toBeGreaterThan(0)
+        }
       }
     }
   })

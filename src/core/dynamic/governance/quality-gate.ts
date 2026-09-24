@@ -138,10 +138,12 @@ export function evaluateQuality(input: QualityInput): QualityResult {
  * 口径：只约束矩形装饰（几何构成、网格瓦片）——流体色块与粒子（圆形）本就是相互融合的
  * 渐变层，山水全宽层为分层剪影，三者重叠属设计意图，不适用「装饰重叠」门。
  */
+type RectShape = Extract<WallpaperPlan['shapes'][number], { kind: 'rect' }>
+
 export function decorativeOverlapRatio(shapes: WallpaperPlan['shapes']): number {
-  const decor = shapes.filter((s) => s.kind === 'rect' && s.w < 0.98)
+  const decor = shapes.filter((s): s is RectShape => s.kind === 'rect' && s.w < 0.98)
   if (decor.length <= 1) return 0
-  const area = (s: (typeof decor)[number]) => s.w * s.h
+  const area = (s: RectShape) => s.w * s.h
   let total = 0
   let overlapSum = 0
   for (let i = 0; i < decor.length; i++) {
@@ -154,10 +156,7 @@ export function decorativeOverlapRatio(shapes: WallpaperPlan['shapes']): number 
   return overlapSum / total
 }
 
-function intersectionArea(
-  a: WallpaperPlan['shapes'][number],
-  b: WallpaperPlan['shapes'][number],
-): number {
+function intersectionArea(a: RectShape, b: RectShape): number {
   const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
   const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
   return w > 0 && h > 0 ? w * h : 0
