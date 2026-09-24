@@ -40,10 +40,10 @@ describe('Taskbar', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     render(<Taskbar />)
 
-    fireEvent.click(screen.getByTitle('记事'))
+    fireEvent.click(screen.getByRole('button', { name: '记事' }))
     expect(useWindowStore.getState().windows[0]?.state).toBe('minimized')
 
-    fireEvent.click(screen.getByTitle('记事'))
+    fireEvent.click(screen.getByRole('button', { name: '记事' }))
     expect(useWindowStore.getState().windows[0]?.state).toBe('normal')
     expect(useWindowStore.getState().windows[0]?.focused).toBe(true)
   })
@@ -53,11 +53,65 @@ describe('Taskbar', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
     render(<Taskbar />)
 
-    fireEvent.click(screen.getByTitle('记事'))
+    fireEvent.click(screen.getByRole('button', { name: '记事' }))
 
     const windows = useWindowStore.getState().windows
     expect(windows.find((win) => win.appId === 'com.ageha.notes')?.focused).toBe(true)
     expect(windows.find((win) => win.appId === 'com.ageha.files')?.focused).toBe(false)
+  })
+
+  it('shows running windows as icons without their titles', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<Taskbar />)
+
+    const item = screen.getByRole('button', { name: '记事' })
+    expect(item.querySelector('svg')).not.toBeNull()
+    expect(item.textContent).not.toContain('记事')
+    // 聚焦窗口带指示条。
+    expect(item.querySelector('.bg-primary')).not.toBeNull()
+  })
+
+  it('shows a hover preview with title, close and minimized state', async () => {
+    const { act } = await import('@testing-library/react')
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<Taskbar />)
+
+    const item = screen.getByRole('button', { name: '记事' })
+    fireEvent.mouseEnter(item.parentElement as HTMLElement)
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(screen.getByTestId('window-preview')).toBeInTheDocument()
+    expect(screen.getByTestId('window-preview').textContent).toContain('记事')
+
+    // 点击预览体切回窗口；再次悬停后用关闭按钮关窗。
+    fireEvent.click(screen.getByTestId('window-preview'))
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+
+    fireEvent.mouseEnter(item.parentElement as HTMLElement)
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    fireEvent.click(screen.getByTestId('preview-close'))
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+    expect(screen.queryByTestId('window-preview')).toBeNull()
+  })
+
+  it('shows the minimized state in the preview and hides it on mouse leave', async () => {
+    const { act } = await import('@testing-library/react')
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().minimize(useWindowStore.getState().windows[0]?.id ?? '')
+    render(<Taskbar />)
+
+    const item = screen.getByRole('button', { name: '记事' })
+    fireEvent.mouseEnter(item.parentElement as HTMLElement)
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(screen.getByTestId('window-preview').textContent).toContain('窗口已最小化')
+
+    fireEvent.mouseLeave(item.parentElement as HTMLElement)
+    expect(screen.queryByTestId('window-preview')).toBeNull()
   })
 
   it('renders adopted layout groups in the start menu and can launch from them', () => {

@@ -40,6 +40,7 @@ export const dictionaries = {
     'search.hint': '↑↓ 选择 · Enter 打开 · Esc 关闭 · Ctrl+K 呼出',
 
     'taskbar.start': '开始',
+    'taskbar.preview.minimized': '窗口已最小化',
 
     'window.close': '关闭窗口',
     'window.minimize': '最小化窗口',
@@ -307,6 +308,7 @@ export const dictionaries = {
     'search.hint': '↑↓ navigate · Enter opens · Esc closes · Ctrl+K toggles',
 
     'taskbar.start': 'Start',
+    'taskbar.preview.minimized': 'Window minimized',
 
     'window.close': 'Close window',
     'window.minimize': 'Minimize window',

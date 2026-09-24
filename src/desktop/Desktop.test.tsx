@@ -36,7 +36,8 @@ describe('Desktop', () => {
     launchFromStartMenu(/记事/)
 
     expect(useWindowStore.getState().windows).toHaveLength(1)
-    expect(screen.getAllByText('记事').length).toBeGreaterThanOrEqual(2)
+    // 任务栏项现在只显示图标（悬停预览里才有标题），标题仅出现在窗口标题栏。
+    expect(screen.getAllByText('记事').length).toBe(1)
 
     fireEvent.click(screen.getByRole('button', { name: '关闭窗口' }))
 
