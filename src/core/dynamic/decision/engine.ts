@@ -1,6 +1,7 @@
-import { buildWallpaperPlan, COMPOSITIONS } from '../generative/templates'
+import { buildPhotoPlan, buildWallpaperPlan, COMPOSITIONS } from '../generative/templates'
 import { compatiblePalettes } from '../generative/palettes'
 import { deriveDomainSeed, mulberry32 } from '../generative/seed'
+import { PHOTO_CATALOG, photosForTheme } from '../photos/catalog'
 import type {
   ContextSnapshot,
   PreferenceProfile,
@@ -12,10 +13,10 @@ import { DENSITY_LEVELS, WALLPAPER_STYLES } from '../types'
 import { EPSILON_BY_STAGE, stageForProfile } from '../feedback/epsilon'
 
 /**
- * 当前启用风格域（Phase A.5 裁决）：用户裁决「只要山水风景」——抽象色块图
- * 退出采样域（代码保留，旧计划重放仍可渲染）。新风格进域只需在此登记。
+ * 当前启用风格域（Phase A.6 裁决）：用户裁决「要真实风景照片」——程序化山水退出
+ * 采样域（代码保留，旧计划重放仍可渲染，与 abstract 退出时同规）。新风格进域只需在此登记。
  */
-export const ACTIVE_STYLES: readonly WallpaperStyle[] = ['landscape']
+export const ACTIVE_STYLES: readonly WallpaperStyle[] = ['photo']
 
 /**
  * 规则引擎（设计文档 §4.2、§6.3、§6.4）：纯函数，P95 ≤10ms 预算（§7.2）。
@@ -139,6 +140,21 @@ function pickPalette(
   return palette.id
 }
 
+/**
+ * 照片采样（Phase A.6）：按主题取 mood 匹配池，优先排除最近用过的照片
+ * （finite 池防短期重复；排除后为空则放开）。种子驱动均匀采样。
+ */
+export function pickPhotoId(
+  theme: ContextSnapshot['theme'],
+  recentPhotoIds: readonly string[],
+  rng: () => number,
+): string {
+  const themePool = photosForTheme(theme)
+  const fresh = themePool.filter((photo) => !recentPhotoIds.includes(photo.id))
+  const pool = fresh.length > 0 ? fresh : themePool.length > 0 ? themePool : PHOTO_CATALOG
+  return (pool[Math.floor(rng() * pool.length)] as { id: string }).id
+}
+
 /** §6.4 ③：最近 10 次风格 Shannon 熵（bits）。 */
 export function styleEntropy(recentStyles: readonly WallpaperStyle[]): number {
   if (recentStyles.length === 0) return Number.POSITIVE_INFINITY
@@ -169,6 +185,8 @@ export interface DecideInput {
   /** 会话内生成序号（从 1 起）。 */
   generationOrdinal: number
   recentStyles: readonly WallpaperStyle[]
+  /** 最近应用的照片 id（照片域防短期重复；finite 池下优先排除）。 */
+  recentPhotoIds?: readonly string[]
   /** 个性化阶段覆盖（测试注入）；缺省由画像推导。 */
   stageOverride?: Parameters<typeof stageForProfile>[0]['stageOverride']
 }
@@ -200,12 +218,14 @@ export function decideWallpaper(input: DecideInput): DecideResult {
   const stage = stageForProfile({ profile, now: new Date(), stageOverride: input.stageOverride })
   const epsilon = Math.min(EPSILON_BY_STAGE[stage], band.epsilonCap)
 
-  // 可行域：启用风格域减屏蔽名单，且风格在当前主题下至少有一个可行调色板（§2.1 主题过滤）。
+  // 可行域：启用风格域减屏蔽名单，且风格在当前主题下有可行素材
+  // （程序风格 = 主题家族调色板 §2.1；照片风格 = mood 匹配目录池）。
   const themeLightness = snapshot.theme === 'dark' ? 'dark' : 'light'
-  const allowed = ACTIVE_STYLES.filter(
-    (s) =>
-      !input.blockedStyles.includes(s) &&
-      compatiblePalettes(s).some((p) => p.family.lightness === themeLightness),
+  const allowed = ACTIVE_STYLES.filter((s) =>
+    s === 'photo'
+      ? !input.blockedStyles.includes(s) && photosForTheme(snapshot.theme).length > 0
+      : !input.blockedStyles.includes(s) &&
+        compatiblePalettes(s).some((p) => p.family.lightness === themeLightness),
   )
 
   // 三区配比。
@@ -221,28 +241,35 @@ export function decideWallpaper(input: DecideInput): DecideResult {
   if (styleEntropy(input.recentStyles.slice(-10)) < MIN_STYLE_ENTROPY_BITS) zone = 'far'
 
   const style = pickStyle(zone, profile, allowed, rng)
-  const paletteId = pickPalette(style, snapshot, profile, rng)
-  const composition = COMPOSITIONS[Math.floor(rng() * COMPOSITIONS.length)]
-  const density = DENSITY_LEVELS[Math.floor(rng() * DENSITY_LEVELS.length)]
+  const reason = {
+    signals: [
+      `time:${snapshot.timePhase}`,
+      `theme:${snapshot.theme}`,
+      `season:${snapshot.season}`,
+      `stage:${stage}`,
+      `band:${band.band}`,
+    ],
+    palette: '',
+    motif: style,
+  }
 
-  const plan = buildWallpaperPlan({
-    seed: domainSeed,
-    style,
-    paletteId,
-    compositionId: composition.id,
-    density,
-    zone,
-    reason: {
-      signals: [
-        `time:${snapshot.timePhase}`,
-        `theme:${snapshot.theme}`,
-        `season:${snapshot.season}`,
-        `stage:${stage}`,
-        `band:${band.band}`,
-      ],
-      palette: paletteId,
-      motif: style,
-    },
-  })
+  let plan: WallpaperPlan
+  if (style === 'photo') {
+    const photoId = pickPhotoId(snapshot.theme, input.recentPhotoIds ?? [], rng)
+    plan = buildPhotoPlan({ seed: domainSeed, photoId, zone, reason: { ...reason, palette: photoId } })
+  } else {
+    const paletteId = pickPalette(style, snapshot, profile, rng)
+    const composition = COMPOSITIONS[Math.floor(rng() * COMPOSITIONS.length)]
+    const density = DENSITY_LEVELS[Math.floor(rng() * DENSITY_LEVELS.length)]
+    plan = buildWallpaperPlan({
+      seed: domainSeed,
+      style,
+      paletteId,
+      compositionId: composition.id,
+      density,
+      zone,
+      reason: { ...reason, palette: paletteId },
+    })
+  }
   return { plan, zone }
 }

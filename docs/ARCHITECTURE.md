@@ -249,3 +249,4 @@
 11. **认证走 provider facade 而非改 AuthService**：`systemAuthService` 变为可切换 `AuthProvider` facade（默认本地实现，行为与 v0.1 完全一致），远程模式由 `RemoteAuthClient` 实现同一契约——UI 与 store 只多一个 boot 期 `reconcile()` 动作；会话令牌从此不出服务端（HttpOnly Cookie）。
 12. **后端存储默认 file 而非强制 Postgres**：本机开发环境无 Docker/PG，`DataStore` 接口下以 file 驱动保证「注册→重启→登录」真实可用；postgres 驱动（幂等建表 + 参数化 SQL）就绪并以 fake Pool 测 SQL 形状，活库集成验证列为显式缓办（`server/docker-compose.yml` 一键补环境）。
 13. **scrypt 成本参数显式放宽 maxmem**：N=2¹⁵/r=8 所需 128·N·r 恰为 32 MiB，触发 Node 默认 maxmem 上限直接抛错；显式 `maxmem: 64 MiB` 并把参数写进哈希串以便未来平滑升级。
+14. **照片壁纸走打包资产 + 自由许可署名（Phase A.6 裁决）**：用户裁决壁纸采用真实风景照片后，未引入运行时图库 API（网络依赖与授权边界），而是将 16 张经人工目检的 Wikimedia Commons 自由许可照片（CC0/CC BY/CC BY-SA）打包进 `public/wallpapers/landscapes/`，目录元数据（作者/许可证/来源）随 `src/core/dynamic/photos/catalog.ts` 进 core 并被测试固化，`CREDITS.md` 随目录分发以履行 CC BY(-SA) 署名条款；照片计划以 `photoId` 寻址、`<img>` 渲染，「AI 生成」徽标对照片隐藏（对人类作品作 AI 生成声明不成立）。

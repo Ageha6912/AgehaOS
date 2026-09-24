@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { cappedStyleWeights, decideWallpaper, sliderBand, styleEntropy } from './engine'
-import { paletteById } from '../generative/palettes'
+import { cappedStyleWeights, ACTIVE_STYLES, decideWallpaper, pickPhotoId, sliderBand, styleEntropy } from './engine'
+import { photoById, photosForTheme } from '../photos/catalog'
 import type { ContextSnapshot, PreferenceProfile, WallpaperStyle } from '../types'
 import { emptyProfile } from '../feedback/weights'
 import { resetContextVersion } from '../context/snapshot'
@@ -72,12 +72,48 @@ describe('decideWallpaper determinism (验收 ③)', () => {
     }
   })
 
-  it('filters palettes by theme (§2.1 权重 0.25 的硬性部分)', () => {
+  it('filters photos by theme mood (§2.1 权重 0.25 的硬性部分，Phase A.6 照片域)', () => {
     for (let attempt = 1; attempt <= 8; attempt++) {
       const dark = decideWallpaper({ ...BASE_INPUT, attempt }).plan
-      expect(paletteById(dark.paletteId)?.family.lightness).toBe('dark')
+      expect(dark.style).toBe('photo')
+      expect(photoById(dark.photoId ?? '')?.mood).toBe('dark')
       const light = decideWallpaper({ ...BASE_INPUT, attempt, snapshot: snapshotOf('light') }).plan
-      expect(paletteById(light.paletteId)?.family.lightness).toBe('light')
+      expect(photoById(light.photoId ?? '')?.mood).toBe('light')
+    }
+  })
+
+  it('samples only the active style domain (Phase A.6 裁决：照片为主动样域)', () => {
+    expect(ACTIVE_STYLES).toEqual(['photo'])
+    for (let attempt = 1; attempt <= 8; attempt++) {
+      expect(decideWallpaper({ ...BASE_INPUT, attempt }).plan.style).toBe('photo')
+    }
+  })
+
+  it('avoids recently used photos when the theme pool allows (防短期重复)', () => {
+    const recent = photosForTheme('dark').slice(0, 5).map((photo) => photo.id)
+    for (let attempt = 1; attempt <= 12; attempt++) {
+      const plan = decideWallpaper({ ...BASE_INPUT, attempt, recentPhotoIds: recent }).plan
+      expect(recent).not.toContain(plan.photoId)
+    }
+  })
+
+  it('reopens the pool when every theme member is recent (finite 池放开)', () => {
+    const all = photosForTheme('dark').map((photo) => photo.id)
+    for (let attempt = 1; attempt <= 8; attempt++) {
+      const plan = decideWallpaper({ ...BASE_INPUT, attempt, recentPhotoIds: all }).plan
+      expect(all).toContain(plan.photoId)
+    }
+  })
+
+  it('pickPhotoId stays inside the catalog for both themes (含种子确定性)', () => {
+    const darkFirst = pickPhotoId('dark', [], () => 0.1)
+    const darkAgain = pickPhotoId('dark', [], () => 0.1)
+    expect(darkAgain).toBe(darkFirst)
+    for (const theme of ['dark', 'light'] as const) {
+      for (const roll of [0, 0.5, 0.999]) {
+        const id = pickPhotoId(theme, [], () => roll)
+        expect(photoById(id)?.mood).toBe(theme)
+      }
     }
   })
 

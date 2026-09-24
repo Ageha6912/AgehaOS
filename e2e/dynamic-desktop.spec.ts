@@ -30,13 +30,16 @@ test('dynamic desktop: enable in settings, wallpaper appears, disable restores t
   await expect(toggle).toHaveAttribute('aria-checked', 'false')
   await expect(page.getByTestId('wallpaper-layer')).toHaveCount(0)
 
-  // 开启：生成流程完成后壁纸层与「AI 生成」徽标出现。
+  // 开启：生成流程完成后壁纸层出现。Phase A.6：主动样域为真实照片——
+  // <img> 照片表面 + 「AI 生成」徽标隐藏（照片非 AI 生成，徽标声明不成立）。
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-checked', 'true')
   const layer = page.getByTestId('wallpaper-layer')
   await expect(layer).toBeVisible()
-  await expect(page.getByTestId('ai-badge')).toBeVisible()
-  await expect(page.getByTestId('wallpaper-surface-canvas')).toBeVisible()
+  const photo = page.getByTestId('wallpaper-surface-photo')
+  await expect(photo).toBeVisible()
+  await expect(photo).toHaveAttribute('src', /\/wallpapers\/landscapes\/.+\.jpg$/)
+  await expect(page.getByTestId('ai-badge')).toHaveCount(0)
 
   // 关闭：回到 v0.1 默认桌面外观。
   await toggle.click()

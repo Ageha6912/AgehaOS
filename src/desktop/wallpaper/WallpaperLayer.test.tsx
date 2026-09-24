@@ -1,8 +1,9 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { buildWallpaperPlan, COMPOSITIONS } from '@/core/dynamic/generative/templates'
+import { buildPhotoPlan, buildWallpaperPlan, COMPOSITIONS } from '@/core/dynamic/generative/templates'
 import type { WallpaperPlan } from '@/core/dynamic/types'
+import { systemBus } from '@/core/events'
 import { resetDynamicDesktopStore, useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
 import { WallpaperLayer } from './WallpaperLayer'
@@ -106,6 +107,68 @@ describe('WallpaperLayer (§4.5，验收 ⑧)', () => {
     useDynamicDesktopStore.setState({
       currentPlan: PLAN_A,
       prefs: { enabled: true, randomness: 40, hideBadge: true, pinned: null, blockedStyles: [], llmEnhance: false },
+    })
+    render(<WallpaperLayer />)
+    expect(screen.queryByTestId('ai-badge')).toBeNull()
+  })
+})
+
+describe('WallpaperLayer photo surfaces (Phase A.6 照片域)', () => {
+  function photoPlan(seed: string, photoId: string): WallpaperPlan {
+    return buildPhotoPlan({
+      seed,
+      photoId,
+      zone: 'converge',
+      reason: { signals: ['theme:light'], palette: photoId, motif: 'photo' },
+    })
+  }
+
+  it('renders a photo plan as an <img> surface with the catalog src (never canvas)', () => {
+    useDynamicDesktopStore.setState({ currentPlan: photoPlan('p1', 'yamzho-yumco') })
+    render(<WallpaperLayer />)
+
+    const img = screen.getByTestId('wallpaper-surface-photo')
+    expect(img.getAttribute('src')).toBe('/wallpapers/landscapes/yamzho-yumco.jpg')
+    expect(screen.queryByTestId('wallpaper-surface-canvas')).toBeNull()
+  })
+
+  it('falls back to a gradient and reports the failure when the photo errors', () => {
+    const reasons: string[] = []
+    const off = systemBus.on('desktop.generation.failed', (payload) => reasons.push(payload.reason))
+    useDynamicDesktopStore.setState({ currentPlan: photoPlan('p1', 'yamzho-yumco') })
+    render(<WallpaperLayer />)
+
+    fireEvent.error(screen.getByTestId('wallpaper-surface-photo'))
+
+    expect(screen.getByTestId('wallpaper-surface-photo-fallback')).toBeTruthy()
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toContain('yamzho-yumco')
+    off()
+  })
+
+  it('recovers with the next photo plan after a failure', () => {
+    useDynamicDesktopStore.setState({ currentPlan: photoPlan('p1', 'yamzho-yumco') })
+    render(<WallpaperLayer />)
+    fireEvent.error(screen.getByTestId('wallpaper-surface-photo'))
+    expect(screen.queryByTestId('wallpaper-surface-photo')).toBeNull()
+
+    act(() => useDynamicDesktopStore.setState({ currentPlan: photoPlan('p2', 'braies-dock') }))
+    act(() => vi.advanceTimersByTime(700))
+
+    const img = screen.getByTestId('wallpaper-surface-photo')
+    expect(img.getAttribute('src')).toBe('/wallpapers/landscapes/braies-dock.jpg')
+  })
+})
+
+describe('WallpaperLayer photo badge semantics (Phase A.6)', () => {
+  it('hides the AI badge on photo plans (照片非 AI 生成，声明不成立)', () => {
+    useDynamicDesktopStore.setState({
+      currentPlan: buildPhotoPlan({
+        seed: 'p1',
+        photoId: 'yamzho-yumco',
+        zone: 'converge',
+        reason: { signals: [], palette: 'yamzho-yumco', motif: 'photo' },
+      }),
     })
     render(<WallpaperLayer />)
     expect(screen.queryByTestId('ai-badge')).toBeNull()

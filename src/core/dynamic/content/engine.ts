@@ -21,11 +21,12 @@ export interface GreetingCard {
   phase: TimePhase
 }
 
-/** 壁纸状态卡：动态桌面开启时展示当前生成结果（style 为词典键后缀）。 */
+/** 壁纸状态卡：动态桌面开启时展示当前生成结果（style 为词典键后缀；照片计划带 photoId）。 */
 export interface WallpaperCard {
   kind: 'wallpaper'
   style: string
   level: string
+  photoId?: string
 }
 
 /** 应用建议卡：按时间段推荐已安装应用（零权限，仅启动入口建议）。 */
@@ -53,8 +54,8 @@ export interface AssembleInput {
   snapshot: Pick<ContextSnapshot, 'timePhase' | 'season' | 'theme'>
   /** 动态桌面是否开启（决定壁纸卡是否出现）。 */
   dynamicEnabled: boolean
-  /** 当前壁纸风格词典键后缀与来源层级（动态桌面关闭时忽略）。 */
-  wallpaper: { style: string; level: string } | null
+  /** 当前壁纸风格词典键后缀与来源层级（动态桌面关闭时忽略）；photoId 仅照片计划携带。 */
+  wallpaper: { style: string; level: string; photoId?: string } | null
   /** 已安装应用 id（建议卡的可行域）。 */
   installedAppIds: readonly string[]
 }
@@ -86,6 +87,9 @@ export function validateContentCard(card: ContentCard): string | null {
     case 'wallpaper':
       if (typeof card.style !== 'string' || card.style.length > 64) return 'invalid-style'
       if (typeof card.level !== 'string' || card.level.length > 8) return 'invalid-level'
+      if (card.photoId !== undefined && (typeof card.photoId !== 'string' || card.photoId.length > 64)) {
+        return 'invalid-style'
+      }
       return null
     case 'suggest':
       if (!Array.isArray(card.appIds) || card.appIds.length === 0 || card.appIds.length > 4) {
@@ -134,7 +138,12 @@ export function assembleContentCards(input: AssembleInput): AssembleResult {
   push({ kind: 'greeting', phase: snapshot.timePhase })
 
   if (input.dynamicEnabled && input.wallpaper) {
-    push({ kind: 'wallpaper', style: input.wallpaper.style, level: input.wallpaper.level })
+    push({
+      kind: 'wallpaper',
+      style: input.wallpaper.style,
+      level: input.wallpaper.level,
+      photoId: input.wallpaper.photoId,
+    })
   }
 
   const suggestions = suggestionsForPhase(snapshot.timePhase, input.installedAppIds)

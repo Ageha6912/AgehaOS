@@ -14,7 +14,7 @@ export type TimePhase = 'morning' | 'day' | 'evening' | 'night'
 /** 季节枚举（§2.1）。 */
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
 
-/** 程序化风格（§4.3 + Phase A.5 山水引擎）：abstract 五类仅存于旧计划重放。 */
+/** 壁纸风格（§4.3 + Phase A.5 山水引擎 + Phase A.6 照片）：abstract/landscape 仅存于旧计划重放。 */
 export const WALLPAPER_STYLES = [
   'fluid-gradient',
   'geometric',
@@ -22,6 +22,7 @@ export const WALLPAPER_STYLES = [
   'mountain-silhouette',
   'grid-wavefield',
   'landscape',
+  'photo',
 ] as const
 export type WallpaperStyle = (typeof WALLPAPER_STYLES)[number]
 
@@ -116,8 +117,10 @@ export interface WallpaperPlan {
   compositionId: string
   /** 密度采样值（DENSITY_LEVELS 之一）。 */
   density: number
-  /** 渲染图元（确定性，由种子驱动）。 */
+  /** 渲染图元（确定性，由种子驱动）。照片计划为空数组（位图不进图元空间）。 */
   shapes: PlanShape[]
+  /** 照片计划专属（style = 'photo'）：目录条目 id（src/core/dynamic/photos/catalog.ts）。 */
+  photoId?: string
   /** 动画参数（§4.4 光敏安全：flickerPerSec ≤3；Phase A 仅 slowDrift）。 */
   animation: { kind: 'none' | 'slow-drift'; flickerPerSec: number }
   reason: GenerationReason

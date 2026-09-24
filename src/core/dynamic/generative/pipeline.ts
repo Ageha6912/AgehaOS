@@ -32,6 +32,8 @@ export interface GenerateInput {
   profile: PreferenceProfile
   generationOrdinal: number
   recentStyles: readonly WallpaperStyle[]
+  /** 照片域防短期重复（可选；直通决策引擎）。 */
+  recentPhotoIds?: readonly string[]
 }
 
 export interface GenerateDeps {
@@ -68,6 +70,7 @@ export function generateWallpaper(input: GenerateInput, deps: GenerateDeps): Gen
           profile: input.profile,
           generationOrdinal: input.generationOrdinal,
           recentStyles: input.recentStyles,
+          recentPhotoIds: input.recentPhotoIds,
         }).plan
     if (!plan) {
       deps.emit('desktop.generation.failed', { seed: input.sessionSeed, stage: 'generate', reason: 'sampling failed' })

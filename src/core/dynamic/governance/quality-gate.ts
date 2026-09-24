@@ -1,4 +1,5 @@
 import { paletteById } from '../generative/palettes'
+import { photoById } from '../photos/catalog'
 import type { ContextSnapshot, WallpaperPlan } from '../types'
 import { blendHex, contrastRatio, hexToRgb } from './contrast'
 
@@ -60,6 +61,28 @@ export function evaluateQuality(input: QualityInput): QualityResult {
   const violations: QualityViolation[] = []
   const { plan } = input
   const palette = paletteById(plan.paletteId)
+
+  // 照片计划（Phase A.6）：位图无调色板/对比度口径，校验目录成员 + 主题 mood 匹配。
+  if (plan.style === 'photo') {
+    const photo = plan.photoId !== undefined ? photoById(plan.photoId) : undefined
+    if (!photo) {
+      return {
+        passed: false,
+        violations: [{ item: 'schema', detail: `unknown photo ${plan.photoId ?? '(none)'}` }],
+      }
+    }
+    if (photo.mood !== input.snapshot.theme) {
+      violations.push({
+        item: 'schema',
+        detail: `photo mood ${photo.mood} does not match theme ${input.snapshot.theme}`,
+      })
+    }
+    if (plan.animation.flickerPerSec > MAX_FLICKER_PER_SEC) {
+      violations.push({ item: 'flicker', detail: `flickerPerSec=${plan.animation.flickerPerSec}` })
+    }
+    return { passed: violations.length === 0, violations }
+  }
+
   if (!palette) {
     return {
       passed: false,

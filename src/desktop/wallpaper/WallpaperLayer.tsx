@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from '@/core/i18n'
 import { systemBus } from '@/core/events'
 import type { WallpaperPlan } from '@/core/dynamic/types'
+import { photoById } from '@/core/dynamic/photos/catalog'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { cssGradient, drawPlan } from './render'
 
@@ -66,7 +67,10 @@ export function WallpaperLayer() {
     }
   }, [fading, back])
 
-  const showBadge = plan !== null && !pinned && !hideBadge
+  // 照片计划不显示「AI 生成」徽标：照片是人类摄影师的作品，AI 只参与自动选片，
+  // 「由 AI 生成」的声明对真实照片不成立（DDS 透明性徽标仅针对 AI 生成内容）。
+  const showBadge =
+    plan !== null && !pinned && !hideBadge && plan.style !== 'photo'
   const badgePlan = pinned ? null : plan
 
   return (
@@ -118,10 +122,19 @@ function WallpaperSurface({
     }
   })
   const reduced = useRef(prefersReducedMotion())
+  // 照片加载失败 → 本会话内回落渐变（失败事件转「壁纸失败」通知），换照片时重置。
+  const [photoFailed, setPhotoFailed] = useState(false)
+  const [renderedPhotoId, setRenderedPhotoId] = useState(plan.photoId)
+  if (plan.photoId !== renderedPhotoId) {
+    setRenderedPhotoId(plan.photoId)
+    setPhotoFailed(false)
+  }
+
+  const photo = plan.style === 'photo' && plan.photoId !== undefined ? photoById(plan.photoId) : undefined
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !supportsCanvas || !active) return
+    if (!canvas || !supportsCanvas || !active || photo) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     const stop = drawPlan(canvas, ctx, plan, {
@@ -132,7 +145,37 @@ function WallpaperSurface({
       },
     })
     return stop
-  }, [plan, tier, active, supportsCanvas])
+  }, [plan, tier, active, supportsCanvas, photo])
+
+  if (plan.style === 'photo') {
+    if (photo && !photoFailed) {
+      return (
+        <img
+          src={photo.src}
+          alt=""
+          draggable={false}
+          data-testid="wallpaper-surface-photo"
+          className="absolute inset-0 h-full w-full select-none object-cover"
+          onError={() => {
+            setPhotoFailed(true)
+            systemBus.emit('desktop.generation.failed', {
+              seed: plan.seed,
+              stage: 'gate',
+              reason: `photo image unavailable: ${plan.photoId}`,
+            })
+          }}
+        />
+      )
+    }
+    // 目录条目缺失/加载失败：回落静态渐变（paletteId 'photo' 无调色板 → 主题中性渐变）。
+    return (
+      <div
+        className="absolute inset-0"
+        style={{ background: cssGradient(plan) }}
+        data-testid="wallpaper-surface-photo-fallback"
+      />
+    )
+  }
 
   if (!supportsCanvas) {
     return (

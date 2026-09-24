@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildWallpaperPlan, COMPOSITIONS } from '../generative/templates'
+import { buildPhotoPlan, buildWallpaperPlan, COMPOSITIONS } from '../generative/templates'
 import type { ContextSnapshot, WallpaperPlan } from '../types'
 import {
   brightnessRangeFor,
@@ -110,5 +110,42 @@ describe('quality gate (§4.4，铁律 2)', () => {
     })
     const result = evaluateQuality({ plan: generated, snapshot: snapshotOf('dark') })
     expect(result.passed, result.violations.map((v) => v.detail).join('; ')).toBe(true)
+  })
+})
+
+describe('quality gate: photo plans (Phase A.6)', () => {
+  it('passes when the photo mood matches the theme', () => {
+    const plan = buildPhotoPlan({
+      seed: 's',
+      photoId: 'yamzho-yumco',
+      zone: 'converge',
+      reason: { signals: [], palette: 'yamzho-yumco', motif: 'photo' },
+    })
+    const result = evaluateQuality({ plan, snapshot: snapshotOf('light') })
+    expect(result.passed, result.violations.map((v) => v.detail).join('; ')).toBe(true)
+  })
+
+  it('fails the schema gate when the photo mood mismatches the theme', () => {
+    const plan = buildPhotoPlan({
+      seed: 's',
+      photoId: 'matterhorn-dawn',
+      zone: 'converge',
+      reason: { signals: [], palette: 'matterhorn-dawn', motif: 'photo' },
+    })
+    const result = evaluateQuality({ plan, snapshot: snapshotOf('light') })
+    expect(result.passed).toBe(false)
+    expect(result.violations[0]?.item).toBe('schema')
+  })
+
+  it('fails the schema gate on an unknown photoId', () => {
+    const plan = buildPhotoPlan({
+      seed: 's',
+      photoId: 'ghost',
+      zone: 'converge',
+      reason: { signals: [], palette: 'ghost', motif: 'photo' },
+    })
+    const result = evaluateQuality({ plan, snapshot: snapshotOf('light') })
+    expect(result.passed).toBe(false)
+    expect(result.violations[0]?.detail).toContain('unknown photo')
   })
 })

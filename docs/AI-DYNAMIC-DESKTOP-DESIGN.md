@@ -183,6 +183,13 @@ flowchart TB
 
 **无缝切换**：登录时先以 L2 出图保证首帧；L2 在 boot `loading` 阶段并行预生成，若登录时仍未就绪先上 L3 渐变，L2/L1 就绪并通过质量门后交叉淡化替换，全程不打断焦点输入。层级由调度器按「设置偏好 ∧ 权限 ∧ 硬件档位 ∧ 网络」每会话决策一次。
 
+**Phase A.6 裁决：真实照片壁纸（bundled photo wallpapers）**。用户裁决「程序山水大同小异，要真实风景照片」——新增 `photo` 风格并使其成为唯一主动采样域（`ACTIVE_STYLES=['photo']`）；L2 程序化山水与抽象风格同样退出采样域、代码保留供旧计划重放。落位：
+
+- 照片目录 `src/core/dynamic/photos/catalog.ts`（16 张，mood 亮/暗各一池，全部人工目检），图片打包于 `public/wallpapers/landscapes/`（1920px JPEG，同源加载、零运行时网络请求）；全部来自 Wikimedia Commons 自由许可（CC0 / CC BY / CC BY-SA），署名与来源见目录元数据与 `CREDITS.md`——CC BY(-SA) 条款要求再分发时随附署名。
+- 计划仍走种子三元组寻址：照片计划 `shapes=[]`、`photoId` 指向目录；决策引擎按主题取 mood 匹配池均匀采样，并以 `recentPhotoIds`（会话级）优先排除近期用过的照片；安全过滤与质量门对照片计划校验「目录成员 + mood 匹配主题」，调色板/对比度口径不适用。
+- 渲染层照片计划以 `<img>` cover 呈现（不经 canvas），加载失败回落静态渐变并发射 `desktop.generation.failed`（接既有「壁纸失败」通知）；自动换新沿用 §4.6 随机度档间隔。
+- **徽标语义**：§6.5 的「AI 生成」徽标对照片计划隐藏——照片是人类摄影师的作品，AI 仅参与自动选片，「由 AI 生成」的声明对真实照片不成立；AI 参与度由内容面板与设置页呈现。
+
 ### 4.2 生成决策逻辑
 
 ```mermaid

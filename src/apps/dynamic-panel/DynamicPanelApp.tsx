@@ -16,6 +16,7 @@ import {
 import type { ContentCardMeta } from '@/core/dynamic/content/engine'
 import { buildLayoutSuggestion } from '@/core/dynamic/layout/engine'
 import type { LayoutSuggestion } from '@/core/dynamic/layout/engine'
+import { photoById } from '@/core/dynamic/photos/catalog'
 import { banContent, getCachedAiSlots, requestAiSlots } from '@/core/dynamic/llm/client'
 import { useAppStore } from '@/store/app-store'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
@@ -70,7 +71,11 @@ export function DynamicPanelApp() {
       dynamicEnabled: dynamic.prefs.enabled,
       wallpaper:
         dynamic.prefs.enabled && dynamic.currentPlan
-          ? { style: dynamic.currentPlan.style, level: dynamic.currentLevel }
+          ? {
+              style: dynamic.currentPlan.style,
+              level: dynamic.currentLevel,
+              photoId: dynamic.currentPlan.photoId,
+            }
           : null,
       installedAppIds: installed,
     })
@@ -225,6 +230,13 @@ export function DynamicPanelApp() {
               <>
                 <p className="font-medium text-text">{t('cards.wallpaper.title')}</p>
                 <p className="mt-1 text-xs text-text-muted">
+                  {(() => {
+                    const photo =
+                      meta.card.photoId !== undefined ? photoById(meta.card.photoId) : undefined
+                    return photo === null || photo === undefined ? null : (
+                      <span data-testid="panel-wallpaper-photo">{t(photo.nameKey)} · </span>
+                    )
+                  })()}
                   {t(`dynamicDesktop.style.${meta.card.style}` as MessageKey)} ·{' '}
                   {t('dynamicDesktop.level')} {meta.card.level}
                 </p>

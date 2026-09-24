@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { buildWallpaperPlan, COMPOSITIONS } from '@/core/dynamic/generative/templates'
+import { buildPhotoPlan, buildWallpaperPlan, COMPOSITIONS } from '@/core/dynamic/generative/templates'
 import type { GenerationOutcome } from '@/core/dynamic/types'
 
 import {
@@ -264,5 +264,30 @@ describe('layout suggestion adoption (DDS §5.1 域②)', () => {
     useDynamicDesktopStore.getState().handleLogout()
     expect(useDynamicDesktopStore.getState().appliedLayout).toBeNull()
     expect(useDynamicDesktopStore.getState().layoutSuggestion).toBeNull()
+  })
+})
+
+describe('photo plan recents (Phase A.6 照片域防重复)', () => {
+  it('tracks recentPhotoIds from applied photo plans and clears on logout', () => {
+    seedDynamicDesktopForTests('u1')
+    const photoOutcome = (seed: string, photoId: string): GenerationOutcome => ({
+      plan: buildPhotoPlan({
+        seed,
+        photoId,
+        zone: 'converge',
+        reason: { signals: [], palette: photoId, motif: 'photo' },
+      }),
+      level: 'L0',
+      durationMs: 5,
+      decisionSource: 'local',
+    })
+    const store = useDynamicDesktopStore.getState()
+    store.applyOutcome({ outcome: photoOutcome('a', 'yamzho-yumco'), trigger: 'login', atMs: 1, tier: 'mid' })
+    store.applyOutcome({ outcome: photoOutcome('b', 'braies-dock'), trigger: 'timer', atMs: 2, tier: 'mid' })
+    // 非照片计划不影响照片近迹。
+    store.applyOutcome({ outcome: outcomeOf('plain'), trigger: 'timer', atMs: 3, tier: 'mid' })
+    expect(useDynamicDesktopStore.getState().recentPhotoIds).toEqual(['yamzho-yumco', 'braies-dock'])
+    useDynamicDesktopStore.getState().handleLogout()
+    expect(useDynamicDesktopStore.getState().recentPhotoIds).toEqual([])
   })
 })

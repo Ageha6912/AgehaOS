@@ -1,6 +1,7 @@
 import { mulberry32 } from './seed'
 import { paletteById } from './palettes'
-import type { Composition, PlanShape, WallpaperPlan, WallpaperStyle } from '../types'
+import { DENSITY_LEVELS, type Composition, type PlanShape, type WallpaperPlan, type WallpaperStyle } from '../types'
+import { PHOTO_CATALOG_VERSION } from '../photos/catalog'
 
 /** 生成器版本（§4.3：升级递增，旧三元组结果仍可复现）。v2 = 山水引擎进场。 */
 export const GENERATOR_VERSION = 2
@@ -33,7 +34,8 @@ function isWallpaperStyle(value: string): value is WallpaperStyle {
     value === 'particle-nebula' ||
     value === 'mountain-silhouette' ||
     value === 'grid-wavefield' ||
-    value === 'landscape'
+    value === 'landscape' ||
+    value === 'photo'
   )
 }
 
@@ -255,5 +257,31 @@ export function buildWallpaperPlan(params: {
         : { kind: 'slow-drift', flickerPerSec: 0 },
     reason: params.reason,
     zone: params.zone,
+  }
+}
+
+/**
+ * 照片壁纸计划（Phase A.6）：位图不进图元空间（shapes 恒空），渲染层以
+ * `<img>` cover 呈现目录条目；种子仍参与采样决策的确定性寻址。
+ */
+export function buildPhotoPlan(params: {
+  seed: string
+  photoId: string
+  zone: WallpaperPlan['zone']
+  reason: WallpaperPlan['reason']
+}): WallpaperPlan {
+  return {
+    seed: params.seed,
+    generatorVersion: PHOTO_CATALOG_VERSION,
+    templateId: 'photo',
+    style: 'photo',
+    paletteId: 'photo',
+    compositionId: COMPOSITIONS[0].id,
+    density: DENSITY_LEVELS[0],
+    shapes: [],
+    animation: { kind: 'none', flickerPerSec: 0 },
+    reason: params.reason,
+    zone: params.zone,
+    photoId: params.photoId,
   }
 }
