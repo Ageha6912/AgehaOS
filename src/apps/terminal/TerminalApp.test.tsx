@@ -17,6 +17,14 @@ async function runCommand(command: string): Promise<void> {
 }
 
 describe('TerminalApp (PRD §26)', () => {
+  it('exposes the terminal-input hook the stylesheet uses to drop the focus ring', () => {
+    render(<TerminalApp />)
+
+    // index.css 以 [data-testid='terminal-input']:focus-visible 关闭全局焦点环
+    // （终端本身就是焦点所在）；此断言固定该选择器契约，防止改名导致焦点环回归。
+    expect(screen.getByTestId('terminal-input')).toBeInTheDocument()
+  })
+
   it('echoes the prompt and command output', async () => {
     render(<TerminalApp />)
 

@@ -110,6 +110,12 @@ body {
   outline-offset: 2px;
 }
 
+/* 终端输入：终端本身就是焦点所在，全局焦点环在此是视觉噪音（属性选择器
+   优先级必胜 :where 规则）。teal 光标 caret-primary 已足够指示输入位置。 */
+[data-testid='terminal-input']:focus-visible {
+  outline: none;
+}
+
 /* Interactive chrome shares one motion baseline (transform/opacity only). */
 :where(button, [role='switch'], input[type='range'], input[type='checkbox']) {
   transition-property:
