@@ -15,6 +15,8 @@ import type { FontSize, ThemePreference } from '@/store/settings-store'
 const TOGGLE_KEY = 'agehaos.sync.enabled.v1'
 const PUSH_DEBOUNCE_MS = 1500
 const SYNC_BUDGET = 256 * 1024
+/** 同步开关变化事件（同域消费方如 file-sync 监听）。 */
+export const SYNC_TOGGLE_EVENT = 'agehaos:sync-toggled'
 
 const THEMES: readonly ThemePreference[] = ['light', 'dark', 'system']
 const FONT_SIZES: readonly FontSize[] = ['small', 'medium', 'large']
@@ -43,6 +45,11 @@ export function setSyncEnabled(enabled: boolean): void {
     else localStorage.removeItem(TOGGLE_KEY)
   } catch {
     /* storage unavailable */
+  }
+  // 解耦广播：file-sync 等同域消费方据此刻烟会话内的立即拉取/上推，
+  // 不引入 settings-sync → file-sync 的反向依赖。
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SYNC_TOGGLE_EVENT))
   }
   if (enabled) schedulePush()
 }

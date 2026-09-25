@@ -180,9 +180,12 @@ export const dictionaries = {
     'settings.account.sessions': '登录的设备',
     'settings.account.sessionCurrent': '本设备',
     'settings.account.sessionRevoke': '撤下',
-    'settings.account.sync': '配置同步',
-    'settings.account.syncHint': '把主题、字体大小与语言同步到后端账户，登录时自动恢复；默认关闭。',
+    'settings.account.sync': '云同步',
+    'settings.account.syncHint':
+      '把主题、字体大小、语言与文本文件同步到后端账户，登录时自动恢复；默认关闭。',
     'settings.account.syncToggle': '开启同步',
+    'notification.title.fileSyncOversized': '文件同步暂停',
+    'notification.body.fileSyncOversized': '文件快照超过 256KB 上限，本轮改动未上传；请清理大文件后重试。',
 
     'notes.save': '保存',
     'notes.empty': '选择或新建一条笔记',
@@ -467,10 +470,13 @@ export const dictionaries = {
     'settings.account.sessions': 'Signed-in devices',
     'settings.account.sessionCurrent': 'This device',
     'settings.account.sessionRevoke': 'Sign out',
-    'settings.account.sync': 'Settings sync',
+    'settings.account.sync': 'Cloud sync',
     'settings.account.syncHint':
-      'Syncs theme, font size and language to your backend account and restores them on sign-in. Off by default.',
+      'Syncs theme, font size, language and text files to your backend account and restores them on sign-in. Off by default.',
     'settings.account.syncToggle': 'Enable sync',
+    'notification.title.fileSyncOversized': 'File sync paused',
+    'notification.body.fileSyncOversized':
+      'The file snapshot exceeds the 256KB limit; this round of changes was not uploaded. Clean up large files and retry.',
 
     'notes.save': 'Save',
     'notes.empty': 'Select or create a note',

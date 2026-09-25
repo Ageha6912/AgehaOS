@@ -10,6 +10,7 @@ import { systemVfs } from '@/services/vfs'
 import { systemDynamicDesktop } from '@/services/dynamic-desktop'
 import { startNotificationBridge } from '@/services/notification-bridge'
 import { startSettingsSync } from '@/services/settings-sync'
+import { startFileSync } from '@/services/file-sync'
 import '@/index.css'
 
 const rootElement = document.getElementById('root')
@@ -22,6 +23,8 @@ if (import.meta.env.VITE_AUTH_BACKEND) {
   setAuthProvider(new RemoteAuthClient())
   void useSessionStore.getState().reconcile()
   startSettingsSync()
+  // 云文件同步（PRD §35 Phase 3 文本切片）：与配置同步共用账户开关。
+  startFileSync()
 }
 
 systemAppLifecycle.start()

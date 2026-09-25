@@ -52,8 +52,8 @@ export interface DataStore {
   deleteSessionsForUserExcept(userId: string, keepToken: string): Promise<number>
   /** All live sessions of the user (device management, PRD §12.1/§35). */
   findSessionsForUser(userId: string): Promise<SessionRecord[]>
-  /** Per-user settings-sync blob (PRD §35 用户配置同步); null when unset. */
-  getSyncData(userId: string): Promise<string | null>
-  /** Upserts the user's sync blob; capacity is enforced by the route. */
-  putSyncData(userId: string, data: string): Promise<void>
+  /** Per-user sync-blob domain (PRD §35 用户配置同步 + 云文件快照); null when unset. */
+  getSyncData(userId: string, domain: string): Promise<string | null>
+  /** Upserts one sync domain; domain names and capacity are enforced by the route. */
+  putSyncData(userId: string, domain: string, data: string): Promise<void>
 }

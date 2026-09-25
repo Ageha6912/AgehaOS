@@ -87,10 +87,12 @@ docker compose -f server/docker-compose.yml up -d   # 可选：本地 PostgreSQL
 - `DELETE /:id` → `200 { revoked: true }` 撤下对应会话；未知 id → `404`。
 - 登录/注册创建会话时记录 `createdAt` 与 `device`（旧数据字段缺省容忍）。
 
-### GET /api/sync/data · PUT /api/sync/data（用户配置同步，PRD §35）
+### GET /api/sync/data/:domain · PUT /api/sync/data/:domain（用户同步 KV，PRD §35 + Phase 3 云文件切片）
 
-- `GET` → `200 { data: string | null }`；`PUT` 请求 `{ data: string }`（≤256KB）→ `200 { ok: true }`。
-- 服务端是已认证的哑 KV（按 userId 分键）；合并策略归客户端（boot 拉取 + 防抖上推，整块 last-writer-wins）。
+- `domain` 为小写标识（`^[a-z][a-z0-9-]{0,63}$`，非法 → `400 {"error":"invalid-sync-domain"}`）。已用域：`settings`（用户配置）与 `files`（文本 VFS 快照，Phase 3 切片）。
+- `GET` → `200 { data: string | null }`；`PUT` 请求 `{ data: string }`（≤256KB，超限 → `400 invalid-body`）→ `200 { ok: true }`。
+- 无键的 `GET/PUT /api/sync/data` 保留为 `domain=settings` 的别名（存量客户端兼容）。
+- 服务端是已认证的按（userId, domain）分键的哑 KV；合并策略归客户端（boot 拉取 + 防抖上推，整块 last-writer-wins）。存储层：memory / file（嵌套 `sync: { userId: { domain: entry } }`，旧扁平形状读取时自动迁移进 `settings` 域）/ postgres（`ageha_sync` 按 `(user_id, domain)` 唯一，迁移自动补 `domain` 列并重建唯一索引）。
 
 ### POST /api/ai/proxy（DDS §5.3，Phase B）
 

@@ -5,7 +5,7 @@ import { UsernameTakenError } from './types'
 export class MemoryDataStore implements DataStore {
   private users = new Map<string, UserRecord>()
   private sessions = new Map<string, SessionRecord>()
-  private syncData = new Map<string, { data: string; updatedAt: string }>()
+  private syncData = new Map<string, Map<string, { data: string; updatedAt: string }>>()
 
   async init(): Promise<void> {}
 
@@ -75,11 +75,16 @@ export class MemoryDataStore implements DataStore {
     return sessions
   }
 
-  async getSyncData(userId: string): Promise<string | null> {
-    return this.syncData.get(userId)?.data ?? null
+  async getSyncData(userId: string, domain: string): Promise<string | null> {
+    return this.syncData.get(userId)?.get(domain)?.data ?? null
   }
 
-  async putSyncData(userId: string, data: string): Promise<void> {
-    this.syncData.set(userId, { data, updatedAt: new Date().toISOString() })
+  async putSyncData(userId: string, domain: string, data: string): Promise<void> {
+    let domains = this.syncData.get(userId)
+    if (!domains) {
+      domains = new Map()
+      this.syncData.set(userId, domains)
+    }
+    domains.set(domain, { data, updatedAt: new Date().toISOString() })
   }
 }

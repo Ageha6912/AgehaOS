@@ -30,10 +30,18 @@ const SCHEMA_MIGRATIONS = [
   `ALTER TABLE ageha_sessions ADD COLUMN IF NOT EXISTS device TEXT`,
   `CREATE INDEX IF NOT EXISTS ageha_sessions_user_id_idx ON ageha_sessions (user_id)`,
   `CREATE TABLE IF NOT EXISTS ageha_sync (
-     user_id TEXT PRIMARY KEY REFERENCES ageha_users(id) ON DELETE CASCADE,
+     user_id TEXT NOT NULL REFERENCES ageha_users(id) ON DELETE CASCADE,
+     domain TEXT NOT NULL DEFAULT 'settings',
      data TEXT NOT NULL,
      updated_at TIMESTAMPTZ NOT NULL
    )`,
+  // 2026-09 (云文件切片): sync storage holds one row per (user, domain) —
+  // settings + files. Legacy tables carried a single-row-per-user PK; drop it
+  // so extra domains fit, backfill the domain column, and enforce uniqueness
+  // with an index the upsert can target.
+  `ALTER TABLE ageha_sync DROP CONSTRAINT IF EXISTS ageha_sync_pkey`,
+  `ALTER TABLE ageha_sync ADD COLUMN IF NOT EXISTS domain TEXT NOT NULL DEFAULT 'settings'`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS ageha_sync_user_domain_idx ON ageha_sync (user_id, domain)`,
 ]
 
 const UNIQUE_VIOLATION = '23505'
@@ -148,20 +156,20 @@ export class PostgresDataStore implements DataStore {
     return result.rows.map(rowToSession)
   }
 
-  async getSyncData(userId: string): Promise<string | null> {
+  async getSyncData(userId: string, domain: string): Promise<string | null> {
     const result = await this.pool.query(
-      'SELECT data FROM ageha_sync WHERE user_id = $1',
-      [userId],
+      'SELECT data FROM ageha_sync WHERE user_id = $1 AND domain = $2',
+      [userId, domain],
     )
     const row = result.rows[0]
     return row ? String(row.data) : null
   }
 
-  async putSyncData(userId: string, data: string): Promise<void> {
+  async putSyncData(userId: string, domain: string, data: string): Promise<void> {
     await this.pool.query(
-      `INSERT INTO ageha_sync (user_id, data, updated_at) VALUES ($1, $2, $3)
-       ON CONFLICT (user_id) DO UPDATE SET data = $2, updated_at = $3`,
-      [userId, data, new Date().toISOString()],
+      `INSERT INTO ageha_sync (user_id, domain, data, updated_at) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, domain) DO UPDATE SET data = $3, updated_at = $4`,
+      [userId, domain, data, new Date().toISOString()],
     )
   }
 }

@@ -12,8 +12,14 @@ interface SyncEntry {
 interface SerializedFile {
   users: UserRecord[]
   sessions: SessionRecord[]
-  /** Per-user settings-sync blobs (PRD §35 用户配置同步). */
-  sync: Record<string, SyncEntry>
+  /** Per-user sync domains (PRD §35 用户配置同步 + 云文件快照). Legacy shape
+   *  (flat `userId → SyncEntry`) is migrated to `userId → 'settings'` on load. */
+  sync: Record<string, Record<string, SyncEntry>>
+}
+
+/** Distinguishes the legacy flat entry from the nested per-domain record. */
+function isLegacySyncEntry(value: unknown): value is SyncEntry {
+  return typeof value === 'object' && value !== null && typeof (value as SyncEntry).data === 'string'
 }
 
 /**
@@ -24,7 +30,7 @@ interface SerializedFile {
 export class FileDataStore implements DataStore {
   private users = new Map<string, UserRecord>()
   private sessions = new Map<string, SessionRecord>()
-  private syncData = new Map<string, SyncEntry>()
+  private syncData = new Map<string, Map<string, SyncEntry>>()
   private writing = Promise.resolve()
 
   constructor(private readonly filePath: string) {}
@@ -51,7 +57,17 @@ export class FileDataStore implements DataStore {
       }
       if (typeof parsed.sync === 'object' && parsed.sync !== null) {
         for (const [userId, entry] of Object.entries(parsed.sync)) {
-          if (isSyncEntry(entry)) this.syncData.set(userId, entry)
+          // Legacy flat shape (userId → entry) migrates to the settings domain.
+          if (isLegacySyncEntry(entry)) {
+            this.syncData.set(userId, new Map([['settings', entry]]))
+            continue
+          }
+          if (typeof entry !== 'object' || entry === null) continue
+          const domains = new Map<string, SyncEntry>()
+          for (const [domain, domainEntry] of Object.entries(entry)) {
+            if (isSyncEntry(domainEntry)) domains.set(domain, domainEntry)
+          }
+          if (domains.size > 0) this.syncData.set(userId, domains)
         }
       }
     } catch {
@@ -133,12 +149,17 @@ export class FileDataStore implements DataStore {
     return sessions
   }
 
-  async getSyncData(userId: string): Promise<string | null> {
-    return this.syncData.get(userId)?.data ?? null
+  async getSyncData(userId: string, domain: string): Promise<string | null> {
+    return this.syncData.get(userId)?.get(domain)?.data ?? null
   }
 
-  async putSyncData(userId: string, data: string): Promise<void> {
-    this.syncData.set(userId, { data, updatedAt: new Date().toISOString() })
+  async putSyncData(userId: string, domain: string, data: string): Promise<void> {
+    let domains = this.syncData.get(userId)
+    if (!domains) {
+      domains = new Map()
+      this.syncData.set(userId, domains)
+    }
+    domains.set(domain, { data, updatedAt: new Date().toISOString() })
     await this.persist()
   }
 
@@ -149,10 +170,14 @@ export class FileDataStore implements DataStore {
   }
 
   private async writeNow(): Promise<void> {
+    const sync: Record<string, Record<string, SyncEntry>> = {}
+    for (const [userId, domains] of this.syncData) {
+      sync[userId] = Object.fromEntries(domains)
+    }
     const payload: SerializedFile = {
       users: [...this.users.values()],
       sessions: [...this.sessions.values()],
-      sync: Object.fromEntries(this.syncData),
+      sync,
     }
     const tmpPath = `${this.filePath}.tmp`
     await writeFile(tmpPath, JSON.stringify(payload, null, 2), 'utf8')

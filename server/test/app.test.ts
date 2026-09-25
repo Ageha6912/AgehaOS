@@ -520,6 +520,49 @@ describe('auth API', () => {
     expect(oversized.json()).toEqual({ error: 'invalid-body' })
   })
 
+  it('stores sync domains under separate keys with the settings alias (云文件切片)', async () => {
+    app = await makeApp()
+    const registered = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'syncdomain', password: 'secret123' },
+    })
+    const cookies = { agehaos_session: sessionCookie(registered) ?? '' }
+
+    const putFiles = await app.inject({
+      method: 'PUT',
+      url: '/api/sync/data/files',
+      cookies,
+      payload: { data: '{"version":1,"savedAt":10,"tree":{"dirs":[],"files":[]}}' },
+    })
+    expect(putFiles.json()).toEqual({ ok: true })
+
+    // 无键别名读写 settings 域，与 files 互不可见。
+    const putSettings = await app.inject({
+      method: 'PUT',
+      url: '/api/sync/data',
+      cookies,
+      payload: { data: '{"settings":{"theme":"dark"}}' },
+    })
+    expect(putSettings.json()).toEqual({ ok: true })
+
+    const files = await app.inject({ method: 'GET', url: '/api/sync/data/files', cookies })
+    expect(files.json()).toEqual({ data: '{"version":1,"savedAt":10,"tree":{"dirs":[],"files":[]}}' })
+    const settings = await app.inject({ method: 'GET', url: '/api/sync/data/settings', cookies })
+    expect(settings.json()).toEqual({ data: '{"settings":{"theme":"dark"}}' })
+    const alias = await app.inject({ method: 'GET', url: '/api/sync/data', cookies })
+    expect(alias.json()).toEqual({ data: '{"settings":{"theme":"dark"}}' })
+    const untouched = await app.inject({ method: 'GET', url: '/api/sync/data/other', cookies })
+    expect(untouched.json()).toEqual({ data: null })
+
+    // 域名格式守门 + 匿名访问守门。
+    const badDomain = await app.inject({ method: 'GET', url: '/api/sync/data/Bad_Domain', cookies })
+    expect(badDomain.statusCode).toBe(400)
+    expect(badDomain.json()).toEqual({ error: 'invalid-sync-domain' })
+    const anonymousFiles = await app.inject({ method: 'PUT', url: '/api/sync/data/files', payload: { data: 'x' } })
+    expect(anonymousFiles.statusCode).toBe(401)
+  })
+
   it('answers unknown routes with JSON 404', async () => {
     app = await makeApp()
     const response = await app.inject({ method: 'GET', url: '/api/nope' })

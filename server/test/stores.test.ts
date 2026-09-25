@@ -61,8 +61,15 @@ async function expectStoreBehavior(store: DataStore): Promise<void> {
   const own = await store.findSessionsForUser('u1')
   expect(own.map((session) => session.token).sort()).toEqual(['tok-3', 'tok-4'])
 
-  await store.putSyncData('u1', '{"settings":{"theme":"dark"}}')
-  expect(await store.getSyncData('u1')).toBe('{"settings":{"theme":"dark"}}')
+  await store.putSyncData('u1', 'settings', '{"settings":{"theme":"dark"}}')
+  expect(await store.getSyncData('u1', 'settings')).toBe('{"settings":{"theme":"dark"}}')
+  // 云文件切片：多域互不覆盖。
+  await store.putSyncData('u1', 'files', '{"version":1,"savedAt":1,"tree":{"dirs":[],"files":[]}}')
+  expect(await store.getSyncData('u1', 'settings')).toBe('{"settings":{"theme":"dark"}}')
+  expect(await store.getSyncData('u1', 'files')).toBe('{"version":1,"savedAt":1,"tree":{"dirs":[],"files":[]}}')
+  expect(await store.getSyncData('u1', 'missing')).toBeNull()
+  await store.putSyncData('u1', 'settings', '{"settings":{"theme":"light"}}')
+  expect(await store.getSyncData('u1', 'files')).toBe('{"version":1,"savedAt":1,"tree":{"dirs":[],"files":[]}}')
 
   await store.close()
 }
@@ -128,6 +135,39 @@ describe('FileDataStore', () => {
     expect(await store.findSession('bad')).toBeNull()
     await store.close()
   })
+
+  it('migrates the legacy flat sync blob into the settings domain (云文件切片)', async () => {
+    const filePath = path.join(dir, 'auth.json')
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        users: [],
+        sessions: [],
+        sync: { u1: { data: '{"settings":{"theme":"dark"}}', updatedAt: '2026-09-23T00:00:00.000Z' } },
+      }),
+      'utf8',
+    )
+    const store = new FileDataStore(filePath)
+    await store.init()
+    expect(await store.getSyncData('u1', 'settings')).toBe('{"settings":{"theme":"dark"}}')
+    expect(await store.getSyncData('u1', 'files')).toBeNull()
+
+    // 写入 files 域后落盘为新嵌套形状，旧 settings 数据保留。
+    await store.putSyncData('u1', 'files', '{"version":1,"savedAt":1,"tree":{"dirs":[],"files":[]}}')
+    await store.close()
+
+    const raw = JSON.parse(await readFile(filePath, 'utf8')) as {
+      sync: Record<string, Record<string, { data: string }>>
+    }
+    expect(raw.sync.u1?.settings?.data).toBe('{"settings":{"theme":"dark"}}')
+    expect(raw.sync.u1?.files?.data).toContain('"savedAt":1')
+
+    const reopened = new FileDataStore(filePath)
+    await reopened.init()
+    expect(await reopened.getSyncData('u1', 'settings')).toBe('{"settings":{"theme":"dark"}}')
+    expect(await reopened.getSyncData('u1', 'files')).toContain('"savedAt":1')
+    await reopened.close()
+  })
 })
 
 interface RecordedQuery {
@@ -179,15 +219,19 @@ describe('PostgresDataStore', () => {
     const store = new PostgresDataStore(pool)
     await store.init()
     const initTexts = pool.queries.map((query) => query.text)
-    expect(initTexts).toHaveLength(9)
+    expect(initTexts).toHaveLength(12)
     expect(
       initTexts.every(
         (text) =>
           text.includes('CREATE TABLE IF NOT EXISTS') ||
           text.includes('CREATE INDEX IF NOT EXISTS') ||
-          text.includes('ADD COLUMN IF NOT EXISTS'),
+          text.includes('CREATE UNIQUE INDEX IF NOT EXISTS') ||
+          text.includes('ADD COLUMN IF NOT EXISTS') ||
+          text.includes('DROP CONSTRAINT IF EXISTS'),
       ),
     ).toBe(true)
+    // 云文件切片：sync 表按 (user_id, domain) 分域。
+    expect(initTexts.some((text) => text.includes('ageha_sync_user_domain_idx'))).toBe(true)
     await store.close()
     expect(pool.ended).toBe(true)
   })
@@ -257,13 +301,14 @@ describe('PostgresDataStore', () => {
     expect(pool.queries[9]?.text).toContain('WHERE user_id = $1')
     expect(pool.queries[9]?.values).toEqual(['u1'])
 
-    await store.getSyncData('u1')
+    await store.getSyncData('u1', 'files')
     expect(pool.queries[10]?.text).toContain('FROM ageha_sync')
-    expect(pool.queries[10]?.values).toEqual(['u1'])
+    expect(pool.queries[10]?.text).toContain('domain = $2')
+    expect(pool.queries[10]?.values).toEqual(['u1', 'files'])
 
-    await store.putSyncData('u1', '{"settings":{}}')
+    await store.putSyncData('u1', 'settings', '{"settings":{}}')
     expect(pool.queries[11]?.text).toContain('INSERT INTO ageha_sync')
-    expect(pool.queries[11]?.text).toContain('ON CONFLICT')
+    expect(pool.queries[11]?.text).toContain('ON CONFLICT (user_id, domain)')
   })
 
   it('maps pg rows to records', async () => {
