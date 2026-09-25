@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { isRemoteAuthActive, setAuthProvider } from '@/core/auth'
 import { createVfs, MemoryAdapter } from '@/core/filesystem'
 import type { Vfs } from '@/core/filesystem'
+import { hashContent as hashContentOf } from '@/core/sync/file-merge'
 import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 
@@ -10,7 +11,8 @@ import {
   applySnapshot,
   pullFilesOnce,
   resetFileSyncStateForTests,
-  serializeSnapshot,
+  syncNow,
+  serializeTree,
   startFileSync,
 } from './file-sync'
 import { setSyncEnabled } from './settings-sync'
@@ -64,16 +66,15 @@ afterEach(() => {
 })
 
 describe('file-sync snapshot helpers (PRD §35 Phase 3 文本切片)', () => {
-  it('serializes the local tree as flat dirs + files with absolute paths', async () => {
+  it('serializes the local tree as a v2 tree with per-file hashes', async () => {
     const vfs = await makeVfs()
     await vfs.writeFile('/Documents/notes.txt', 'hello')
 
-    const snapshot = await serializeSnapshot(vfs, 1000)
+    const tree = await serializeTree(vfs)
 
-    expect(snapshot).toMatchObject({ version: 1, savedAt: 1000 })
-    expect(snapshot.tree.dirs).toContain('/Documents')
-    const notes = snapshot.tree.files.find((file) => file.path === '/Documents/notes.txt')
-    expect(notes?.content).toBe('hello')
+    expect(tree.dirs).toContain('/Documents')
+    expect(tree.files['/Documents/notes.txt']?.content).toBe('hello')
+    expect(tree.files['/Documents/notes.txt']?.hash).toBeTruthy()
   })
 
   it('applies a snapshot: creates dirs/files, updates changed, culls extraneous', async () => {
@@ -249,5 +250,86 @@ describe('file-sync toggle reaction (会话中途开启)', () => {
     await vi.advanceTimersByTimeAsync(50)
     await expect(vfs.readFile('/Documents/late.txt')).resolves.toBe('late')
     expect(fetchMock).toHaveBeenCalledWith('/api/sync/data/files', expect.anything())
+  })
+})
+
+describe('file-sync three-way merge (PRD §35 Phase 3，ADR 17)', () => {
+  const hashContent = (content: string): string => hashContentOf(content)
+
+  async function seedBase(): Promise<Vfs> {
+    const vfs = await makeVfs()
+    await vfs.writeFile('/Documents/a.txt', 'a-base')
+    await vfs.writeFile('/Documents/b.txt', 'b-base')
+    startFileSync({ vfs })
+    setSyncEnabled(true)
+    // 首次同步：服务端为空 → 上传初始树并记录 v2 基线。
+    fetchMock.mockResolvedValue(jsonResponse({ data: null }))
+    await pullFilesOnce()
+    await vi.advanceTimersByTimeAsync(1600)
+    return vfs
+  }
+
+  const serverBlob = (files: Record<string, string>, savedAt = 5000): Response =>
+    jsonResponse({
+      data: JSON.stringify({
+        version: 2,
+        savedAt,
+        dirs: ['/Documents'],
+        files: Object.fromEntries(
+          Object.entries(files).map(([path, content]) => [path, { hash: hashContent(content), content }]),
+        ),
+      }),
+    })
+
+  const lastPut = (): { data: string } => {
+    const put = fetchMock.mock.calls.filter((call) => call[1]?.method === 'PUT').pop()
+    return JSON.parse((put?.[1]?.body as string) ?? '{}') as { data: string }
+  }
+
+  it('applies the server change locally while uploading the local change (双向不冲突)', async () => {
+    const vfs = await seedBase()
+    await vfs.writeFile('/Documents/a.txt', 'a-local')
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValue(serverBlob({ '/Documents/a.txt': 'a-base', '/Documents/b.txt': 'b-server' }))
+
+    await syncNow()
+
+    await expect(vfs.readFile('/Documents/b.txt')).resolves.toBe('b-server')
+    const merged = JSON.parse(lastPut().data) as { files: Record<string, { content: string }> }
+    expect(merged.files['/Documents/a.txt']?.content).toBe('a-local')
+    expect(merged.files['/Documents/b.txt']?.content).toBe('b-server')
+  })
+
+  it('creates a conflict copy on concurrent edits of the same file (不丢数据)', async () => {
+    const vfs = await seedBase()
+    await vfs.writeFile('/Documents/a.txt', 'local edit')
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValue(serverBlob({ '/Documents/a.txt': 'server edit' }))
+
+    await syncNow()
+
+    // 本地版本原地保留。
+    await expect(vfs.readFile('/Documents/a.txt')).resolves.toBe('local edit')
+    // 服务端版本另存冲突副本。
+    const entries = await vfs.list('/Documents')
+    const conflict = entries.find((entry) => entry.name.includes('.conflict-'))
+    expect(conflict, 'conflict copy should exist').toBeTruthy()
+    await expect(vfs.readFile(`/Documents/${conflict?.name}`)).resolves.toBe('server edit')
+    // 合并树上两者都上传。
+    const merged = JSON.parse(lastPut().data) as { files: Record<string, { content: string }> }
+    expect(merged.files['/Documents/a.txt']?.content).toBe('local edit')
+    expect(Object.keys(merged.files).some((path) => path.includes('.conflict-'))).toBe(true)
+  })
+
+  it('propagates a server deletion of an untouched local file', async () => {
+    const vfs = await seedBase()
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValue(serverBlob({ '/Documents/a.txt': 'a-base' }))
+
+    await syncNow()
+
+    await expect(vfs.get('/Documents/b.txt')).resolves.toBeNull()
+    const merged = JSON.parse(lastPut().data) as { files: Record<string, unknown> }
+    expect(merged.files['/Documents/b.txt']).toBeUndefined()
   })
 })

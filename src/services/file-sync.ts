@@ -1,22 +1,25 @@
 import { isRemoteAuthActive } from '@/core/auth'
 import { systemBus } from '@/core/events'
 import type { Vfs } from '@/core/filesystem'
+import { hashContent, mergeTrees } from '@/core/sync/file-merge'
+import type { SyncTreeV2 } from '@/core/sync/file-merge'
 import { useNotificationStore } from '@/store/notification-store'
 import { useSessionStore } from '@/store/session-store'
 import { isSyncEnabled, SYNC_TOGGLE_EVENT } from './settings-sync'
 import { systemVfs } from './vfs'
 
 /**
- * 云文件同步·文本切片（PRD §35 Phase 3「云端文件」+ §42 Local First）：
- * 把本机 VFS 文本树作为整体快照与后端 `/api/sync/data/files` 同步。
+ * 云文件同步（PRD §35 Phase 3「云端文件」+ §42 Local First，ADR 17）：
+ * 文本 VFS 与后端 `/api/sync/data/files` 按**文件级三方合并**同步。
  *
- * 语义（整快照 LWW）：登录时拉取——仅当服务端 savedAt 新于本机上次同步标记时
- * 应用（服务端赢；本机离线改动标记未推进，照常上推，即更晚的写者赢）；此后
- * 订阅 `file.*` 事件防抖上推（本地赢）。`applying` 标志阻断回声循环；快照
- * 超过 256KB 时跳过上推并发一次性通知。回收站与已删节点不参与同步；应用
- * 服务端快照时多出的本地条目走 remove+purge（彻底删除，回收站保持设备本地
- * 语义）。本地认证模式或同步开关关闭时服务静默自禁用。按文件粒度的合并/
- * 仲裁属 Phase 3 完整交付。
+ * 语义（ADR 17）：本地维护逐文件「上次同步基线哈希」（per-user localStorage）；
+ * 每次同步 = GET 服务端树 → `mergeTrees(base, local, server)` → 应用下载/删除/
+ * 冲突副本 → PUT 合并树 → 推进基线。一方改动另一方未动时改动方赢；双方都改且
+ * 不同 → 本地保留原地 + 服务端版本存为 `<name>.conflict-<savedAt><ext>` 副本，
+ * 不丢数据。`applying` 标志阻断回声循环；合并结果超 256KB 时跳过本轮并发一次
+ * 性通知。v1 整快照 blob 兼容：首次/旧数据走「服务端赢整体应用」后即转 v2 基线。
+ * 回收站与已删节点不参与同步；本地认证模式或同步开关关闭时服务静默自禁用。
+ * 二进制文件与对象存储属 Phase 3 完整交付。
  */
 
 const MARKER_KEY_PREFIX = 'agehaos.file-sync.v1.'
@@ -24,14 +27,32 @@ const PUSH_DEBOUNCE_MS = 1500
 /** 与服务端 schema 上限一致（客户端按 UTF-8 字节从严校验）。 */
 const SYNC_BUDGET_BYTES = 256 * 1024
 
-/** 快照树（扁平、父目录先于子条目）。路径为绝对形式（'/' 根不入表）。 */
-export interface SyncSnapshot {
+/** 服务端 blob v1（Phase 3 文本切片首版，整快照 LWW）。 */
+interface SyncBlobV1 {
   version: 1
   savedAt: number
   tree: { dirs: string[]; files: Array<{ path: string; content: string }> }
 }
 
-interface SyncMarker {
+/** 服务端 blob v2（文件级合并）。 */
+interface SyncBlobV2 {
+  version: 2
+  savedAt: number
+  dirs: string[]
+  files: Record<string, { hash: string; content: string }>
+}
+
+type SyncBlob = SyncBlobV1 | SyncBlobV2
+
+/** 本地基线标记（per-user）：v2 起携带逐文件哈希。 */
+interface SyncMarkerV2 {
+  version: 2
+  lastSyncedAt: number
+  base: Record<string, string>
+}
+
+interface SyncMarkerLegacy {
+  version?: 1
   lastSyncedAt: number
 }
 
@@ -47,20 +68,23 @@ function markerKey(userId: string): string {
   return `${MARKER_KEY_PREFIX}${userId}`
 }
 
-function loadMarker(userId: string): SyncMarker {
+function loadMarker(userId: string): SyncMarkerV2 | SyncMarkerLegacy {
   try {
     const raw = localStorage.getItem(markerKey(userId))
     if (!raw) return { lastSyncedAt: 0 }
-    const parsed = JSON.parse(raw) as Partial<SyncMarker>
+    const parsed = JSON.parse(raw) as Partial<SyncMarkerV2> & Partial<SyncMarkerLegacy>
+    if (parsed.version === 2 && typeof parsed.lastSyncedAt === 'number' && typeof parsed.base === 'object' && parsed.base !== null) {
+      return { version: 2, lastSyncedAt: parsed.lastSyncedAt, base: parsed.base }
+    }
     return { lastSyncedAt: typeof parsed.lastSyncedAt === 'number' ? parsed.lastSyncedAt : 0 }
   } catch {
     return { lastSyncedAt: 0 }
   }
 }
 
-function saveMarker(userId: string, marker: SyncMarker): void {
+function saveMarkerV2(userId: string, base: Record<string, string>, lastSyncedAt: number): void {
   try {
-    localStorage.setItem(markerKey(userId), JSON.stringify(marker))
+    localStorage.setItem(markerKey(userId), JSON.stringify({ version: 2, lastSyncedAt, base } satisfies SyncMarkerV2))
   } catch {
     /* storage unavailable: stay in memory */
   }
@@ -76,10 +100,10 @@ function syncActive(): boolean {
 
 const joinPath = (dir: string, name: string): string => (dir === '/' ? `/${name}` : `${dir}/${name}`)
 
-/** 序列化本机树（跳过回收站/已删节点——list 递归天然不可见）。 */
-export async function serializeSnapshot(vfs: Vfs, savedAt: number): Promise<SyncSnapshot> {
+/** 序列化本机树为 v2（跳过回收站/已删节点——list 递归天然不可见）。 */
+export async function serializeTree(vfs: Vfs): Promise<SyncTreeV2> {
   const dirs: string[] = []
-  const files: Array<{ path: string; content: string }> = []
+  const files: SyncTreeV2['files'] = {}
   const walk = async (dirPath: string): Promise<void> => {
     for (const node of await vfs.list(dirPath)) {
       const path = joinPath(dirPath, node.name)
@@ -87,16 +111,31 @@ export async function serializeSnapshot(vfs: Vfs, savedAt: number): Promise<Sync
         dirs.push(path)
         await walk(path)
       } else {
-        files.push({ path, content: node.content })
+        files[path] = { hash: hashContent(node.content), content: node.content }
       }
     }
   }
   await walk('/')
-  return { version: 1, savedAt, tree: { dirs, files } }
+  return { dirs, files }
 }
 
-/** 应用服务端快照：建目录 → 清除本机多出条目 → 写差异文件。 */
-export async function applySnapshot(vfs: Vfs, snapshot: SyncSnapshot): Promise<void> {
+/** 服务端 blob（v1/v2）→ v2 树。 */
+function toTreeV2(blob: SyncBlob): SyncTreeV2 {
+  if (blob.version === 2) {
+    return { dirs: blob.dirs, files: blob.files }
+  }
+  const files: SyncTreeV2['files'] = {}
+  for (const file of blob.tree.files) {
+    files[file.path] = { hash: hashContent(file.content), content: file.content }
+  }
+  return { dirs: blob.tree.dirs, files }
+}
+
+/**
+ * 应用服务端 v1 整快照（旧数据/首次兼容路径，服务端赢）：建目录 → 清除本机
+ * 多出条目 → 写差异文件。根级受保护目录不可整删——保留外壳、清空内容。
+ */
+export async function applySnapshot(vfs: Vfs, snapshot: SyncBlobV1): Promise<void> {
   const serverDirs = new Set(snapshot.tree.dirs)
   const serverFiles = new Map(snapshot.tree.files.map((file) => [file.path, file.content]))
 
@@ -108,11 +147,7 @@ export async function applySnapshot(vfs: Vfs, snapshot: SyncSnapshot): Promise<v
     }
   }
 
-  /**
-   * 快照里没有的本机条目：移入回收站后立即彻底清除（回收站保持设备本地语义）。
-   * 根级系统目录（PRD §11.1，v0.1 全部受保护不可删）无法整枝清除——保留外壳，
-   * 由调用方退化为清空其内容。
-   */
+  /** 快照里没有的本机条目：移入回收站后立即彻底清除；受保护目录退化为清空内容。 */
   const tryCull = async (path: string): Promise<boolean> => {
     try {
       const trashed = await vfs.remove(path)
@@ -131,7 +166,6 @@ export async function applySnapshot(vfs: Vfs, snapshot: SyncSnapshot): Promise<v
           await walk(path)
           continue
         }
-        // 不在快照中的目录：受保护目录清空内容，其余整枝清除。
         if (!(await tryCull(path))) await walk(path)
         continue
       }
@@ -153,16 +187,24 @@ function schedulePush(): void {
   if (pushTimer !== null) window.clearTimeout(pushTimer)
   pushTimer = window.setTimeout(() => {
     pushTimer = null
-    void pushNow()
+    void syncNow()
   }, PUSH_DEBOUNCE_MS)
 }
 
-async function pushNow(): Promise<void> {
-  const userId = currentUserId()
-  if (!userId) return
-  const snapshot = await serializeSnapshot(activeVfs, Date.now())
-  const data = JSON.stringify(snapshot)
-  if (data === lastPushedJson) return
+async function fetchServerBlob(): Promise<SyncBlob | null> {
+  const response = await fetch('/api/sync/data/files', { credentials: 'same-origin' })
+  if (!response.ok) return null
+  const body = (await response.json()) as { data: string | null }
+  if (!body.data) return null
+  const parsed = JSON.parse(body.data) as SyncBlob
+  if ((parsed.version !== 1 && parsed.version !== 2) || typeof parsed.savedAt !== 'number') {
+    throw Object.assign(new Error('bad-blob'), { code: 'bad-blob' })
+  }
+  return parsed
+}
+
+async function putServerTree(tree: SyncTreeV2, savedAt: number): Promise<boolean> {
+  const data = JSON.stringify({ version: 2, savedAt, dirs: tree.dirs, files: tree.files } satisfies SyncBlobV2)
   if (new TextEncoder().encode(data).length > SYNC_BUDGET_BYTES) {
     if (!oversizeNotified) {
       oversizeNotified = true
@@ -173,7 +215,7 @@ async function pushNow(): Promise<void> {
         priority: 'normal',
       })
     }
-    return
+    return false
   }
   try {
     const response = await fetch('/api/sync/data/files', {
@@ -182,16 +224,105 @@ async function pushNow(): Promise<void> {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ data }),
     })
-    if (response.ok) {
-      lastPushedJson = data
-      saveMarker(userId, { lastSyncedAt: snapshot.savedAt })
-    }
+    return response.ok
   } catch {
-    /* offline: next change retries */
+    return false
   }
 }
 
-/** 登录/启动拉取：服务端快照较新则应用（服务端赢），为空则首推本机树。 */
+/** 在 applying 保护下把合并结果落盘（下载/冲突副本写入 + 本地跟随删除）。 */
+async function applyMergeLocally(vfs: Vfs, result: ReturnType<typeof mergeTrees>): Promise<void> {
+  applying = true
+  try {
+    for (const dir of result.merged.dirs) {
+      try {
+        await vfs.createDirectory(dir)
+      } catch (error) {
+        if ((error as { code?: string }).code !== 'already-exists') break
+      }
+    }
+    for (const download of result.downloads) {
+      await vfs.writeFile(download.path, download.content)
+    }
+    for (const conflict of result.conflicts) {
+      await vfs.writeFile(conflict.conflictPath, conflict.content)
+    }
+    for (const path of result.localDeletions) {
+      try {
+        const trashed = await vfs.remove(path)
+        await vfs.purge(trashed.id)
+      } catch {
+        /* already gone */
+      }
+    }
+  } finally {
+    applying = false
+  }
+}
+
+/**
+ * 同步主流程：GET 服务端树 → 三方合并 → 应用本地侧 → PUT 合并树 → 推进基线。
+ * 登录拉取与会话内防抖上推共用；服务端为空时上推本机树作为初始版本。
+ */
+export async function syncNow(): Promise<void> {
+  const userId = currentUserId()
+  if (!userId || !syncActive()) return
+  try {
+    await activeVfs.ready()
+  } catch {
+    return
+  }
+
+  let serverBlob: SyncBlob | null
+  try {
+    serverBlob = await fetchServerBlob()
+  } catch {
+    return
+  }
+
+  const localTree = await serializeTree(activeVfs)
+  const savedAt = Date.now()
+
+  if (!serverBlob) {
+    // 服务端还没有文件快照：本机树即初始版本。
+    if (await putServerTree(localTree, savedAt)) {
+      const base: Record<string, string> = {}
+      for (const [path, entry] of Object.entries(localTree.files)) base[path] = entry.hash
+      saveMarkerV2(userId, base, savedAt)
+    }
+    return
+  }
+
+  const marker = loadMarker(userId)
+  const serverTree = toTreeV2(serverBlob)
+  // 基线：v2 标记携带；v1/无标记（升级或旧版首拉后）以服务端树为基线——此后
+  // 本机相对服务端的差异全部视为本地改动上推，不会产生虚假冲突。
+  const base =
+    marker.version === 2
+      ? marker.base
+      : Object.fromEntries(Object.entries(serverTree.files).map(([path, entry]) => [path, entry.hash]))
+
+  const result = mergeTrees({ base, local: localTree, server: serverTree, savedAt })
+
+  await applyMergeLocally(activeVfs, result)
+
+  const mergedJson = JSON.stringify(result.merged)
+  if (mergedJson === lastPushedJson) {
+    saveMarkerV2(userId, baseOf(result.merged), savedAt)
+    return
+  }
+  if (!(await putServerTree(result.merged, savedAt))) return
+  lastPushedJson = mergedJson
+  saveMarkerV2(userId, baseOf(result.merged), savedAt)
+}
+
+function baseOf(tree: SyncTreeV2): Record<string, string> {
+  const base: Record<string, string> = {}
+  for (const [path, entry] of Object.entries(tree.files)) base[path] = entry.hash
+  return base
+}
+
+/** 登录/启动拉取：v2 基线直接走三方合并；无基线先整体采纳服务端（服务端赢）。 */
 export async function pullFilesOnce(): Promise<void> {
   const userId = currentUserId()
   if (!userId || !syncActive()) return
@@ -200,6 +331,13 @@ export async function pullFilesOnce(): Promise<void> {
   } catch {
     return
   }
+
+  if (loadMarker(userId).version === 2) {
+    await syncNow()
+    return
+  }
+
+  // 旧标记/首次：沿用 v1 语义——服务端较新则整体应用（服务端赢），为空则首推。
   let body: { data: string | null }
   try {
     const response = await fetch('/api/sync/data/files', { credentials: 'same-origin' })
@@ -209,23 +347,33 @@ export async function pullFilesOnce(): Promise<void> {
     return
   }
   if (!body.data) {
-    // 服务端还没有文件快照：把本机树作为初始版本推上去。
     schedulePush()
     return
   }
-  let snapshot: SyncSnapshot
+  let blob: SyncBlob
   try {
-    snapshot = JSON.parse(body.data) as SyncSnapshot
+    blob = JSON.parse(body.data) as SyncBlob
   } catch {
     return
   }
-  if (snapshot.version !== 1 || typeof snapshot.savedAt !== 'number') return
-  if (snapshot.savedAt <= loadMarker(userId).lastSyncedAt) return
+  if ((blob.version !== 1 && blob.version !== 2) || typeof blob.savedAt !== 'number') return
+  // v1 语义：服务端不比本机标记新 → 什么都不做（本地保留，改动随后上推）。
+  if (blob.savedAt <= loadMarker(userId).lastSyncedAt) return
   applying = true
   try {
-    await applySnapshot(activeVfs, snapshot)
+    if (blob.version === 1) {
+      await applySnapshot(activeVfs, blob)
+    } else {
+      await applyMergeLocally(activeVfs, {
+        merged: { dirs: blob.dirs, files: blob.files },
+        downloads: Object.entries(blob.files).map(([path, entry]) => ({ path, content: entry.content })),
+        localDeletions: [],
+        conflicts: [],
+      })
+    }
     lastPushedJson = body.data
-    saveMarker(userId, { lastSyncedAt: snapshot.savedAt })
+    const tree = toTreeV2(blob)
+    saveMarkerV2(userId, baseOf(tree), blob.savedAt)
   } catch (error) {
     console.error('[AgehaOS:FileSync] failed to apply server snapshot', error)
   } finally {

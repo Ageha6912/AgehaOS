@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 云文件同步·文件级三方合并与冲突副本（PRD §35 Phase 3，ADR 17）
+
+- 快照格式 v2（逐文件 cyrb53+长度哈希）：每次同步 = GET 服务端树 → 纯函数三方合并（`core/sync/file-merge.ts`，base/本地/服务端逐文件）→ 应用下载/删除/冲突副本 → PUT 合并树 → 推进本地基线
+- 冲突不丢数据：编辑/编辑相撞 → 本地保留原地 + 服务端版本另存 `<name>.conflict-<savedAt><ext>`；编辑与删除相撞 → 编辑赢；基线未知时以服务端为基线，避免升级/首拉产生虚假冲突
+- v1 整快照 blob 兼容（旧标记/旧数据走「服务端赢整体应用」后即转 v2）；空目录删除不参与同步
+- 真实后端双上下文验证：A 建笔记 → B 并发修改 → A 再改 → 服务端同时保有三方（A2 原文 + B 版冲突副本），无数据丢失
+
 ### SDK 全 API 面（PRD §17 收口）与 APP_SDK.md 开发者文档
 
 - 新增免许可只读三 API：`AgehaOS.user.get()`（最小身份：username/displayName，无邮箱/头像/会话）、`AgehaOS.permissions.all()`（本应用授权清单）、`AgehaOS.system.info()`（version/locale/tier 环境事实）
