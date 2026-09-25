@@ -71,6 +71,8 @@ export const dictionaries = {
     'app.crash.reload': '重新加载',
 
     'store.hint': '安装经过沙箱隔离的 Web 应用；安装前请确认其申请的权限。',
+    'store.remoteBadge': '远程',
+    'store.remoteInvalid': '远程目录签名校验失败，本次已忽略。',
     'store.webApp': 'Web 应用',
     'store.installed': '已安装',
     'store.install': '安装',
@@ -360,6 +362,8 @@ export const dictionaries = {
     'app.crash.reload': 'Reload',
 
     'store.hint': 'Install sandboxed web apps. Review the requested permissions before installing.',
+    'store.remoteBadge': 'Remote',
+    'store.remoteInvalid': 'The remote catalog failed signature verification and was ignored.',
     'store.webApp': 'Web app',
     'store.installed': 'Installed',
     'store.install': 'Install',

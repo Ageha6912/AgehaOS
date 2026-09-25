@@ -9,7 +9,9 @@ import type { ServerConfig } from './config'
 import { originCheck } from './plugins/origin-check'
 import { aiRoutes } from './routes/ai'
 import { authRoutes } from './routes/auth'
+import { storeRoutes } from './routes/store'
 import { syncRoutes } from './routes/sync'
+import { loadOrCreateSigningKey } from './store-keys'
 import { createStore } from './store'
 import type { DataStore } from './store'
 
@@ -18,6 +20,8 @@ export interface BuildAppOptions {
   config?: Partial<ServerConfig>
   /** Pre-built store (tests); built from config.store otherwise. */
   store?: DataStore
+  /** Pre-built catalog signing key (tests); loaded from dataDir otherwise. */
+  signingKey?: Awaited<ReturnType<typeof loadOrCreateSigningKey>>
   /** Fastify logger option; `false` quiets tests, a pino config for prod. */
   logger?: boolean | Record<string, unknown>
 }
@@ -93,6 +97,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     rateLimitWindowMs: config.rateLimit.windowMs,
   })
   await app.register(syncRoutes, { prefix: '/api', store })
+
+  // 远端应用目录（PRD §47 前置切片）：Ed25519 签名密钥落在数据目录，重启不变。
+  const signingKey =
+    options.signingKey ?? (await loadOrCreateSigningKey(config.dataDir))
+  await app.register(storeRoutes, { prefix: '/api', signingKey })
 
   return app
 }

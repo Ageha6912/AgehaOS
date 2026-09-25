@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 远端应用目录·签名目录（PRD §47 前置切片，ADR 18）
+
+- 服务端 `GET /api/store/catalog`：Ed25519 签名目录（密钥持久化于数据目录、keyId 为公钥短哈希），载荷经稳定键序规范化 JSON 签名
+- 客户端 `core/apps/remote-catalog.ts`：WebCrypto 验签 → parseManifest + 同源 allowlist 过滤 → 合并进 App Store 并带「远程」徽标；任何一步失败整包拒绝，商店显示签名校验失败提示
+- 公钥钉扎：生产以 `VITE_STORE_CATALOG_PUBLIC_KEY` 把发布方公钥钉进构建（本地开发未钉扎时信任服务端下发键）
+- 新增远程样例「计数器」（仅经远程目录发布）；服务端签名/篡改/持久化与客户端验签/allowlist/钉扎均有测试；真实后端烟雾完成安装
+
 ### 云文件同步·文件级三方合并与冲突副本（PRD §35 Phase 3，ADR 17）
 
 - 快照格式 v2（逐文件 cyrb53+长度哈希）：每次同步 = GET 服务端树 → 纯函数三方合并（`core/sync/file-merge.ts`，base/本地/服务端逐文件）→ 应用下载/删除/冲突副本 → PUT 合并树 → 推进本地基线
