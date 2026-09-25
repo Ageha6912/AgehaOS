@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { useTranslation } from '@/core/i18n'
+import { useTranslation, getLocale } from '@/core/i18n'
 import { systemBus } from '@/core/events'
 import {
   hostHelloMessage,
@@ -10,9 +10,12 @@ import {
 } from '@/core/apps/web-app'
 import { handleSdkRequest, parseSdkRequest, SDK_RESULT_TYPE } from '@/core/apps/sdk-bridge'
 import { permissionManager } from '@/core/permissions'
+import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { useNotificationStore } from '@/store/notification-store'
+import { useSessionStore } from '@/store/session-store'
 import { useWindowStore } from '@/store/window-store'
 import { sdkFilePort } from '@/services/sdk-file-port'
+import { version as appVersion } from '../../package.json'
 
 export interface WebAppFrameProps {
   /** Manifest entry; must pass the same-origin allowlist (defense in depth). */
@@ -77,6 +80,16 @@ export function WebAppFrame({ entry, appId, windowId, title }: WebAppFrameProps)
             })
           },
           fs: sdkFilePort,
+          getUser: () => {
+            const user = useSessionStore.getState().user
+            return user ? { username: user.username, displayName: user.displayName ?? null } : null
+          },
+          getGrantedPermissions: () => permissionManager.grantedPermissions(appId),
+          getSystemInfo: () => ({
+            version: appVersion,
+            locale: getLocale(),
+            tier: useDynamicDesktopStore.getState().tier,
+          }),
         }).then((response) => {
           source?.postMessage({ type: SDK_RESULT_TYPE, ...response }, '*')
         })

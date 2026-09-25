@@ -15,7 +15,15 @@ import type { Permission } from '../permissions'
  *   应用主目录内的读/写/列/建/删——按动作校验对应权限
  */
 
-export type SdkApi = 'storage' | 'window' | 'theme' | 'notification' | 'files'
+export type SdkApi =
+  | 'storage'
+  | 'window'
+  | 'theme'
+  | 'notification'
+  | 'files'
+  | 'user'
+  | 'permissions'
+  | 'system'
 
 export interface SdkRequest {
   reqId: string
@@ -35,7 +43,7 @@ export interface SdkResponse {
 export const SDK_REQUEST_TYPE = 'agehaos:sdk'
 export const SDK_RESULT_TYPE = 'agehaos:sdk-result'
 
-const APIS: readonly SdkApi[] = ['storage', 'window', 'theme', 'notification', 'files']
+const APIS: readonly SdkApi[] = ['storage', 'window', 'theme', 'notification', 'files', 'user', 'permissions', 'system']
 
 /** 静态权限映射；`files` 按动作分权限（见 requiredPermission）。 */
 const STATIC_API_PERMISSIONS: Record<Exclude<SdkApi, 'files'>, Permission | null> = {
@@ -43,6 +51,12 @@ const STATIC_API_PERMISSIONS: Record<Exclude<SdkApi, 'files'>, Permission | null
   window: 'window',
   theme: null,
   notification: 'notification',
+  // user/permissions/system 为免许可只读面（见 ADR 16 与 docs/APP_SDK.md）：
+  // user 只回任务栏已展示的最小身份；permissions 是应用对自身授权的自知；
+  // system 是版本/语言/硬件档等环境事实，不含敏感数据。
+  user: null,
+  permissions: null,
+  system: null,
 }
 
 /** files 的只读动作集合；其余已知动作需要 filesystem.write。 */
@@ -109,6 +123,19 @@ export interface SdkNotification {
   body: string
 }
 
+/** 最小用户身份（只含任务栏已展示的信息；无邮箱/头像/会话）。 */
+export interface SdkUserInfo {
+  username: string
+  displayName: string | null
+}
+
+/** 系统环境事实（版本/语言/硬件档）。 */
+export interface SdkSystemInfo {
+  version: string
+  locale: string
+  tier: 'high' | 'mid' | 'low'
+}
+
 export interface SdkContext {
   appId: string
   hasPermission: (permission: Permission) => boolean
@@ -120,6 +147,12 @@ export interface SdkContext {
   notify?: (notification: SdkNotification) => void
   /** files API 端口；缺省时该 API 回 unavailable。 */
   fs?: SdkFilePort
+  /** user API 出口；缺省时该 API 回 unavailable。 */
+  getUser?: () => SdkUserInfo | null
+  /** permissions API 出口（本应用的授权清单）。 */
+  getGrantedPermissions?: () => string[]
+  /** system API 出口。 */
+  getSystemInfo?: () => SdkSystemInfo
 }
 
 export function sdkStorageNamespace(appId: string): string {
@@ -233,6 +266,22 @@ export async function handleSdkRequest(request: SdkRequest, ctx: SdkContext): Pr
       return handleNotification(request, ctx)
     case 'files':
       return handleFiles(request, ctx)
+    case 'user': {
+      if (request.action !== 'get' || !ctx.getUser) return fail(request.reqId, ctx.getUser ? 'unknown-action' : 'unavailable')
+      return ok(request.reqId, { user: ctx.getUser() })
+    }
+    case 'permissions': {
+      if (request.action !== 'all' || !ctx.getGrantedPermissions) {
+        return fail(request.reqId, ctx.getGrantedPermissions ? 'unknown-action' : 'unavailable')
+      }
+      return ok(request.reqId, { permissions: ctx.getGrantedPermissions() })
+    }
+    case 'system': {
+      if (request.action !== 'info' || !ctx.getSystemInfo) {
+        return fail(request.reqId, ctx.getSystemInfo ? 'unknown-action' : 'unavailable')
+      }
+      return ok(request.reqId, { info: ctx.getSystemInfo() })
+    }
   }
 }
 

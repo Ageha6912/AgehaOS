@@ -339,3 +339,65 @@ describe('files API (PRD §17，按应用授权)', () => {
     ).toBe('unavailable')
   })
 })
+
+describe('user / permissions / system APIs (PRD §17，免许可只读面)', () => {
+  it('serves the minimal user identity without any permission', async () => {
+    const ctx = makeContext({ getUser: () => ({ username: 'alice', displayName: null }) })
+    expect(requiredPermission('user', 'get')).toBeNull()
+    expect(await handleSdkRequest(request({ api: 'user', action: 'get' }), ctx)).toEqual({
+      reqId: 'r1',
+      ok: true,
+      data: { user: { username: 'alice', displayName: null } },
+    })
+  })
+
+  it('reports the app own granted permissions without any permission', async () => {
+    const ctx = makeContext({ getGrantedPermissions: () => ['storage', 'window'] })
+    expect(requiredPermission('permissions', 'all')).toBeNull()
+    expect(await handleSdkRequest(request({ api: 'permissions', action: 'all' }), ctx)).toEqual({
+      reqId: 'r1',
+      ok: true,
+      data: { permissions: ['storage', 'window'] },
+    })
+  })
+
+  it('serves system facts without any permission', async () => {
+    const ctx = makeContext({ getSystemInfo: () => ({ version: '0.2.0', locale: 'zh-CN', tier: 'mid' }) })
+    expect(requiredPermission('system', 'info')).toBeNull()
+    expect(await handleSdkRequest(request({ api: 'system', action: 'info' }), ctx)).toEqual({
+      reqId: 'r1',
+      ok: true,
+      data: { info: { version: '0.2.0', locale: 'zh-CN', tier: 'mid' } },
+    })
+  })
+
+  it('fails with unavailable when ports are missing and unknown-action otherwise', async () => {
+    const ctx = makeContext()
+    expect((await handleSdkRequest(request({ api: 'user', action: 'get' }), ctx)).error).toBe('unavailable')
+    expect((await handleSdkRequest(request({ api: 'permissions', action: 'all' }), ctx)).error).toBe('unavailable')
+    expect((await handleSdkRequest(request({ api: 'system', action: 'info' }), ctx)).error).toBe('unavailable')
+
+    const wired = makeContext({ getUser: () => null, getGrantedPermissions: () => [], getSystemInfo: () => ({ version: '1', locale: 'zh-CN', tier: 'low' }) })
+    expect((await handleSdkRequest(request({ api: 'user', action: 'set' }), wired)).error).toBe('unknown-action')
+    expect((await handleSdkRequest(request({ api: 'permissions', action: 'grant' }), wired)).error).toBe('unknown-action')
+    expect((await handleSdkRequest(request({ api: 'system', action: 'shutdown' }), wired)).error).toBe('unknown-action')
+    // 未登录（user 为 null）是合法状态，不是错误。
+    expect((await handleSdkRequest(request({ api: 'user', action: 'get' }), wired)).data).toEqual({ user: null })
+  })
+})
+
+describe('envelope coverage (回归：类型面与运行时白名单同步)', () => {
+  it('accepts every SdkApi in parseSdkRequest', async () => {
+    const ctx = makeContext({
+      getUser: () => null,
+      getGrantedPermissions: () => [],
+      getSystemInfo: () => ({ version: '1', locale: 'zh-CN', tier: 'low' }),
+    })
+    for (const api of ['storage', 'window', 'theme', 'notification', 'files', 'user', 'permissions', 'system']) {
+      const parsed = parseSdkRequest({ type: 'agehaos:sdk', reqId: 'r1', api, action: 'x', params: {} })
+      if (!parsed) throw new Error(`api ${api} must parse`)
+      // 白名单齐备时，未接线的处理分支回 unknown-action / unavailable 而非静默超时。
+      await handleSdkRequest(parsed, ctx)
+    }
+  })
+})

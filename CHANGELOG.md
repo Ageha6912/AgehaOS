@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### SDK 全 API 面（PRD §17 收口）与 APP_SDK.md 开发者文档
+
+- 新增免许可只读三 API：`AgehaOS.user.get()`（最小身份：username/displayName，无邮箱/头像/会话）、`AgehaOS.permissions.all()`（本应用授权清单）、`AgehaOS.system.info()`（version/locale/tier 环境事实）
+- 新增 `docs/APP_SDK.md`：运行模型、权限表、8 个 API 契约与配额、错误码表、示例应用指引（PRD §42 仓库结构项）
+- 修复面：`parseSdkRequest` 运行时 API 白名单与 `SdkApi` 类型面的同步由回归测试固化（类型加了、白名单漏了会导致静默超时——真实浏览器烟雾抓到后已修）
+
 ### SDK Notification/File API（PRD §17）
 
 - 沙箱桥能力面扩至 5 个 API（window/storage/theme/notification/files），`handleSdkRequest` 改为异步以承载文件操作；权限解析改为按（api, action）——`files` 读/列需 `filesystem.read`，写/建/删需 `filesystem.write`（§10.1）

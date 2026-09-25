@@ -128,6 +128,30 @@
         })
       },
     },
+    /** 免许可：当前登录用户的最小身份（username / displayName；无邮箱、头像、会话）。 */
+    user: {
+      get: function () {
+        return request('user', 'get', {}).then(function (data) {
+          return data.user
+        })
+      },
+    },
+    /** 免许可：本应用被授予的权限名清单。 */
+    permissions: {
+      all: function () {
+        return request('permissions', 'all', {}).then(function (data) {
+          return data.permissions
+        })
+      },
+    },
+    /** 免许可：系统环境事实（version / locale / tier）。 */
+    system: {
+      info: function () {
+        return request('system', 'info', {}).then(function (data) {
+          return data.info
+        })
+      },
+    },
   }
 
   // 就绪握手：告诉宿主 SDK 已加载（配合宿主的 hello 消息亦可）。
