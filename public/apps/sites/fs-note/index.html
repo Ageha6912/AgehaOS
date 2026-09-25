@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>云笔记</title>
+    <link rel="stylesheet" href="./fs-note.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <textarea id="editor" placeholder="写点什么，自动保存到本应用的空间…" spellcheck="false"></textarea>
+      <div class="bar">
+        <button id="notify" type="button">发送通知</button>
+        <span id="status" class="status">正在连接…</span>
+      </div>
+    </main>
+    <script src="/sdk/ageha-sdk.js"></script>
+    <script src="./fs-note.js"></script>
+  </body>
+</html>

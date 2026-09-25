@@ -10,7 +10,9 @@ import {
 } from '@/core/apps/web-app'
 import { handleSdkRequest, parseSdkRequest, SDK_RESULT_TYPE } from '@/core/apps/sdk-bridge'
 import { permissionManager } from '@/core/permissions'
+import { useNotificationStore } from '@/store/notification-store'
 import { useWindowStore } from '@/store/window-store'
+import { sdkFilePort } from '@/services/sdk-file-port'
 
 export interface WebAppFrameProps {
   /** Manifest entry; must pass the same-origin allowlist (defense in depth). */
@@ -53,7 +55,8 @@ export function WebAppFrame({ entry, appId, windowId, title }: WebAppFrameProps)
 
       const request = parseSdkRequest(event.data)
       if (request) {
-        const response = handleSdkRequest(request, {
+        const source = event.source
+        void handleSdkRequest(request, {
           appId,
           hasPermission: (permission) => permissionManager.has(appId, permission),
           onPermissionDenied: (permission) => {
@@ -65,8 +68,18 @@ export function WebAppFrame({ entry, appId, windowId, title }: WebAppFrameProps)
               : localStorage,
           getTheme: themeOf,
           onTitle: (next) => useWindowStore.getState().setTitle(windowId, next),
+          notify: (notification) => {
+            // SDK 应用通知（PRD §17）：字面文本经桥清洗后进通知中心（toast + 历史）。
+            useNotificationStore.getState().push({
+              appId,
+              title: notification.title,
+              body: notification.body,
+            })
+          },
+          fs: sdkFilePort,
+        }).then((response) => {
+          source?.postMessage({ type: SDK_RESULT_TYPE, ...response }, '*')
         })
-        event.source?.postMessage({ type: SDK_RESULT_TYPE, ...response }, '*')
       }
     },
     [appId, windowId],

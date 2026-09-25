@@ -1,0 +1,78 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  background: #1c1917;
+  color: #e7e5e4;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  transition: background 200ms ease, color 200ms ease;
+}
+
+body.theme-light {
+  background: #fafaf9;
+  color: #1c1917;
+}
+
+.shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  gap: 10px;
+}
+
+textarea {
+  flex: 1;
+  resize: none;
+  padding: 10px 12px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 8%);
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+}
+
+body.theme-light textarea {
+  border-color: rgb(0 0 0 / 12%);
+  background: rgb(0 0 0 / 4%);
+}
+
+textarea:focus {
+  border-color: #2dd4bf;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bar button {
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: #0f766e;
+  color: #f0fdfa;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bar button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.status {
+  font-size: 11px;
+  opacity: 0.7;
+}

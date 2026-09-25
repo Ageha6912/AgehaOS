@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 
 import { Sparkle, Warning } from '@phosphor-icons/react'
 
-import { formatMessage, useTranslation } from '@/core/i18n'
-import { useNotificationStore } from '@/store/notification-store'
+import { useTranslation } from '@/core/i18n'
+import { notificationBodyText, notificationTitleText, useNotificationStore } from '@/store/notification-store'
 
 /**
  * 桌面 toast（PRD §16.1 的呈现层）：新通知右上角弹出、critical 常驻更久，
@@ -38,7 +38,7 @@ export function NotificationToasts() {
   }, [latest])
 
   if (!latest || latest.id === dismissedId) return null
-  const body = latest.bodyKey ? formatMessage(t(latest.bodyKey), latest.bodyParams ?? {}) : null
+  const body = notificationBodyText(latest, t) || null
   const critical = latest.priority === 'critical'
 
   return (
@@ -60,7 +60,7 @@ export function NotificationToasts() {
           {critical ? <Warning size={16} weight="fill" /> : <Sparkle size={16} weight="fill" />}
         </span>
         <span className="min-w-0">
-          <span className="block text-xs font-medium text-text">{t(latest.titleKey)}</span>
+          <span className="block text-xs font-medium text-text">{notificationTitleText(latest, t)}</span>
           {body && <span className="mt-0.5 block text-xs text-text-muted">{body}</span>}
         </span>
       </button>

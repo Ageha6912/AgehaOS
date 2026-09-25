@@ -2,8 +2,13 @@ import { useState } from 'react'
 
 import { Bell, Check, X } from '@phosphor-icons/react'
 
-import { formatMessage, useLocaleStore, useTranslation } from '@/core/i18n'
-import { unreadCount, useNotificationStore } from '@/store/notification-store'
+import { useLocaleStore, useTranslation } from '@/core/i18n'
+import {
+  notificationBodyText,
+  notificationTitleText,
+  unreadCount,
+  useNotificationStore,
+} from '@/store/notification-store'
 import type { NotificationItem } from '@/store/notification-store'
 
 /**
@@ -20,9 +25,7 @@ function NotificationRow({ item }: { item: NotificationItem }) {
   const locale = useLocaleStore((s) => s.locale)
   const markRead = useNotificationStore((s) => s.markRead)
   const remove = useNotificationStore((s) => s.remove)
-  const body = item.bodyKey
-    ? formatMessage(t(item.bodyKey), item.bodyParams ?? {})
-    : null
+  const body = notificationBodyText(item, t) || null
 
   return (
     <li
@@ -33,7 +36,7 @@ function NotificationRow({ item }: { item: NotificationItem }) {
         <div className="min-w-0">
           <p className="text-xs font-medium text-text">
             {!item.read && <span aria-hidden="true" className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />}
-            {t(item.titleKey)}
+            {notificationTitleText(item, t)}
           </p>
           {body && <p className="mt-0.5 text-xs text-text-muted">{body}</p>}
           <p className="mt-1 text-[10px] text-text-muted">{timeOf(item.createdAt, locale)}</p>

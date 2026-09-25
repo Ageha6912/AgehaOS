@@ -57,4 +57,16 @@ export const STORE_CATALOG: StoreCatalogEntry[] = [
       description: 'SDK 示例应用：便签经沙箱桥持久化，标题随数量更新。',
     },
   },
+  {
+    manifest: {
+      id: 'com.ageha.samples.fs-note',
+      name: '云笔记',
+      version: '1.0.0',
+      entry: '/apps/sites/fs-note/index.html',
+      permissions: ['filesystem.read', 'filesystem.write', 'notification'],
+      window: { width: 460, height: 420, resizable: true },
+      author: 'AgehaOS Samples',
+      description: 'SDK 示例应用：笔记写入本应用专属目录，并可发送系统通知。',
+    },
+  },
 ]

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 
+import { formatMessage } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 
 /**
@@ -15,11 +16,30 @@ export type NotificationPriority = 'normal' | 'critical'
 
 export interface NotificationInput {
   appId: string
-  titleKey: MessageKey
+  /** 系统通知走词典键（铁律 15）；SDK 应用通知（PRD §17）携带清洗后的字面文本。 */
+  titleKey?: MessageKey
+  title?: string
   bodyKey?: MessageKey
+  body?: string
   /** 渲染时经 formatMessage 填充的占位参数（如 {app}）。 */
   bodyParams?: Record<string, string>
   priority?: NotificationPriority
+}
+
+/** 展示文本：字面文本优先（SDK），否则词典键。 */
+export function notificationTitleText(
+  item: NotificationItem,
+  t: (key: MessageKey) => string,
+): string {
+  return item.title ?? (item.titleKey ? t(item.titleKey) : '')
+}
+
+export function notificationBodyText(
+  item: NotificationItem,
+  t: (key: MessageKey) => string,
+): string {
+  if (item.body !== undefined) return item.body
+  return item.bodyKey ? formatMessage(t(item.bodyKey), item.bodyParams ?? {}) : ''
 }
 
 export interface NotificationItem extends NotificationInput {

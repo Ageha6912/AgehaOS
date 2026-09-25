@@ -86,6 +86,48 @@
         })
       },
     },
+    /** notification 权限：发送应用通知（进入宿主通知中心：toast + 历史）。 */
+    notification: {
+      show: function (options) {
+        return request('notification', 'show', {
+          title: (options && options.title) || '',
+          body: (options && options.body) || '',
+        }).then(function () {
+          return true
+        })
+      },
+    },
+    /**
+     * filesystem.read / filesystem.write 权限：应用主目录内的文件访问
+     * （/Apps/<appId>/，路径一律相对主目录解析，越界一律 invalid-path）。
+     */
+    files: {
+      read: function (path) {
+        return request('files', 'read', { path: path }).then(function (data) {
+          return data.content
+        })
+      },
+      write: function (path, content) {
+        return request('files', 'write', { path: path, content: content === undefined ? '' : content }).then(function () {
+          return true
+        })
+      },
+      list: function (path) {
+        return request('files', 'list', { path: path }).then(function (data) {
+          return data.entries
+        })
+      },
+      mkdir: function (path) {
+        return request('files', 'mkdir', { path: path }).then(function () {
+          return true
+        })
+      },
+      remove: function (path) {
+        return request('files', 'remove', { path: path }).then(function () {
+          return true
+        })
+      },
+    },
   }
 
   // 就绪握手：告诉宿主 SDK 已加载（配合宿主的 hello 消息亦可）。

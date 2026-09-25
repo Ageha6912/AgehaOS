@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### SDK Notification/File API（PRD §17）
+
+- 沙箱桥能力面扩至 5 个 API（window/storage/theme/notification/files），`handleSdkRequest` 改为异步以承载文件操作；权限解析改为按（api, action）——`files` 读/列需 `filesystem.read`，写/建/删需 `filesystem.write`（§10.1）
+- File API 按应用授权：路径一律钳制在应用专属目录 `/Apps/<appId>/` 内（拒绝 `..` 上跳/控制字符/越界），单文件 ≤256KB；删除沿用回收站语义；VFS 端口以注入式 `SdkFilePort` 适配（`src/services/sdk-file-port.ts`）
+- Notification API：应用发送字面文本通知（去控制字符、标题 ≤64/正文 ≤200），进宿主通知中心（toast + 历史）；通知 store 支持字面 `title/body`（SDK 应用内容）与词典键（系统文案）双轨渲染
+- 客户端库 `AgehaOS.notification.show` / `AgehaOS.files.{read,write,list,mkdir,remove}`；新增 App Store 样例「云笔记」（fs-note）与 E2E 全链路验收（安装→授权→写笔记→重开恢复→发通知）
+
 ### 云文件同步引擎·文本切片（PRD §35 Phase 3「云端文件」+ §42 Local First）
 
 - 后端同步 KV 按域分键：`GET/PUT /api/sync/data/:domain`（`settings` / `files`），无键路由保留为 settings 别名；三驱动跟进——file 存储旧扁平形状读取时自动迁移进 settings 域，postgres 以 `(user_id, domain)` 唯一索引迁移（自动补 `domain` 列、重建主键为唯一索引）
