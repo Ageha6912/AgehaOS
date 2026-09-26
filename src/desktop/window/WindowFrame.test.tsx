@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
@@ -97,5 +97,183 @@ describe('WindowFrame (via WindowLayer)', () => {
     render(<WindowLayer />)
 
     expect(screen.getByText('未找到该应用，窗口即将关闭。')).toBeInTheDocument()
+  })
+})
+
+/**
+ * WAAPI 路径（DESIGN.md §12）：替换 Element.prototype.animate 为可控替身，
+ * 验证飞行编排——jsdom 默认无 animate（上方用例即降级直落定路径）。
+ */
+describe('WindowFrame 窗口动效（WAAPI 就绪）', () => {
+  interface FakeFlight {
+    resolve: () => void
+    reverse: ReturnType<typeof vi.fn>
+    cancel: ReturnType<typeof vi.fn>
+  }
+  const flights: FakeFlight[] = []
+  let animateMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    flights.length = 0
+    animateMock = vi.fn(() => {
+      let resolve!: () => void
+      const finished = new Promise<void>((r) => {
+        resolve = r
+      })
+      const flight = {
+        finished,
+        reverse: vi.fn(),
+        cancel: vi.fn(),
+      }
+      flights.push({ resolve, reverse: flight.reverse, cancel: flight.cancel })
+      return flight
+    })
+    ;(Element.prototype as unknown as { animate?: unknown }).animate = animateMock
+  })
+
+  afterEach(() => {
+    delete (Element.prototype as unknown as { animate?: unknown }).animate
+  })
+
+  const getRegion = (title: string) => screen.getByRole('region', { name: title })
+
+  it('plays the open flight on mount from the taskbar direction', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+
+    render(<WindowLayer />)
+
+    expect(animateMock).toHaveBeenCalledTimes(1)
+    const [frames, options] = animateMock.mock.calls[0] as unknown as [
+      { transform: string; opacity: number }[],
+      { duration: number; easing: string; fill: string },
+    ]
+    expect(frames[0]).toEqual({ transform: 'scale(0.9)', opacity: 0 })
+    expect(options.duration).toBe(200)
+    expect(options.easing).toBe('cubic-bezier(0.32, 0.72, 0, 1)')
+  })
+
+  it('defers close until the exit flight finishes', async () => {
+    const id = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+
+    // 先让打开飞行落定，关闭才走独立的退场飞行
+    await act(async () => {
+      flights[0].resolve()
+    })
+    expect(animateMock).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭窗口' }))
+    expect(animateMock).toHaveBeenCalledTimes(2) // 退场飞行已启动
+    expect(useWindowStore.getState().windows).toHaveLength(1) // 飞行中仍在 store
+    expect(getRegion('记事')).toBeInTheDocument()
+
+    await act(async () => {
+      flights[1].resolve()
+    })
+
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+    expect(useWindowStore.getState().windows.find((win) => win.id === id)).toBeUndefined()
+  })
+
+  it('commits minimize immediately but holds the window visible through the genie flight', async () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+    await act(async () => {
+      flights[0].resolve() // 打开飞行落定
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '最小化窗口' }))
+
+    // store 先行提交（任务栏即刻反馈），表现层反压 hidden 类保持飞行可见
+    expect(useWindowStore.getState().windows[0]?.state).toBe('minimized')
+    const region = getRegion('记事')
+    expect(region).toBeInTheDocument()
+    expect(region.className).toContain('hidden')
+    expect((region as HTMLElement).style.display).toBe('flex')
+    expect(animateMock).toHaveBeenCalledTimes(2) // 打开 + genie
+    const genieFrames = animateMock.mock.calls[1] as unknown as [
+      { transform: string; opacity: number }[],
+    ]
+    expect(genieFrames[0]).toHaveLength(3) // 三关键帧位移飞行
+
+    await act(async () => {
+      flights[1].resolve()
+    })
+
+    expect((region as HTMLElement).style.display).toBe('') // 交还 hidden 类接管
+  })
+
+  it('grabs a mid-flight minimize back to the desktop on restore (anim.reverse)', async () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+    await act(async () => {
+      flights[0].resolve() // 打开飞行先落定，genie 才是独立的最小化飞行
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '最小化窗口' }))
+    act(() => {
+      const current = useWindowStore.getState().windows[0]
+      if (current) useWindowStore.getState().restore(current.id)
+    })
+
+    // 半途抓回：同一动画反向播放，而不是新建飞行
+    expect(flights[1].reverse).toHaveBeenCalledTimes(1)
+    expect(animateMock).toHaveBeenCalledTimes(2) // 打开 + genie（抓回不新建）
+    expect((getRegion('记事') as HTMLElement).classList.contains('hidden')).toBe(false)
+
+    await act(async () => {
+      flights[1].resolve()
+    })
+
+    expect(useWindowStore.getState().windows[0]?.state).toBe('normal')
+    expect((getRegion('记事') as HTMLElement).style.transform).toBe('') // 内联位姿已清
+  })
+
+  it('grabs a mid-flight restore back into the taskbar on minimize', async () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+
+    // 第一段：完整最小化飞行落定
+    fireEvent.click(screen.getByRole('button', { name: '最小化窗口' }))
+    await act(async () => {
+      flights[0].resolve()
+    })
+    expect((getRegion('记事') as HTMLElement).className).toContain('hidden')
+
+    // 第二段：还原飞行中途再次最小化 → 反向抓回
+    act(() => {
+      const current = useWindowStore.getState().windows[0]
+      if (current) useWindowStore.getState().restore(current.id)
+    })
+    const restoreFlightCount = animateMock.mock.calls.length
+    act(() => {
+      const current = useWindowStore.getState().windows[0]
+      if (current) useWindowStore.getState().minimize(current.id)
+    })
+    expect(useWindowStore.getState().windows[0]?.state).toBe('minimized')
+    expect(flights[restoreFlightCount - 1].reverse).toHaveBeenCalledTimes(2) // 启动反向一次 + 抓回一次
+
+    await act(async () => {
+      flights[restoreFlightCount - 1].resolve()
+    })
+    expect((getRegion('记事') as HTMLElement).className).toContain('hidden')
+  })
+
+  it('skips all animation under prefers-reduced-motion (instant terminal states)', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }))
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+
+    render(<WindowLayer />)
+    expect(animateMock).not.toHaveBeenCalled() // 打开直达终态
+
+    fireEvent.click(screen.getByRole('button', { name: '最小化窗口' }))
+    expect(useWindowStore.getState().windows[0]?.state).toBe('minimized')
+    expect((getRegion('记事') as HTMLElement).className).toContain('hidden')
+    expect(animateMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭窗口' }))
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+    expect(animateMock).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
   })
 })

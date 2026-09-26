@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### motion-lab 窗口动效接入 AgehaOS 本体（docs/DESIGN.md §12）
+
+- 窗口打开从任务栏按钮方向弹性长出（scale 0.9→1 + fade，200ms 弹簧曲线）；关闭沿同一路径反向收拢（120ms，恒短于打开，**飞完才提交卸载**）；genie 最小化/还原沿「窗口中心 → 任务栏按钮」位移三关键帧飞行（300ms，横缩纵压 + 先坠后收弧线），还原 = 同一组关键帧 `anim.reverse()` 时间镜像
+- 架构：纯数学 `src/core/window/motion.ts`（锚定投影限幅/三关键帧/常量，零 DOM）+ DOM 层 `src/desktop/window/window-motion.ts`（任务栏锚点钳制、WAAPI/reduced-motion 降级返回 null 直落定）+ 编排 `use-window-motion.ts`（track/reverseTo/settleActive）
+- 中断语义移植：最小化↔还原（及打开↔关闭）飞行中点反操作走 `anim.reverse()` 半途抓回；交叉中断先落定再继续；任何时刻不锁 store——窗口状态由 store 先行提交，最小化飞行可见性用 inline display 反压 React `hidden` 类（落定交还）
+- 测试：新增 motion 9 项 + window-motion 8 项 + WindowFrame WAAPI 路径 6 项（可控替身驱动 finished/reverse），既有降级路径用例全保留；710 前端（86 文件）+ 58 后端 + E2E 12/12 全绿；浏览器烟雾 10/10（getAnimations 证据 + genie 中途矩阵 + 截图）
+
 ### motion-lab 开机动画接入 AgehaOS 本体（docs/DESIGN.md §11）
 
 - `BootScreen` 由 motion-lab/boot 引擎驱动（用户验收的演示 1:1 落地）：rAF 四段变速进度（分段缓动纯曲线入 `src/core/boot/boot-curve.ts`）、深色揭示画布（`--ag-boot-*` 主题无关 token）+ 全尺寸含字标 logo（96px，v2-full-512，`BrandLogo` 新增 full 变体）+ 细长进度条（scaleX 合成层推进，整数百分比同步 aria）

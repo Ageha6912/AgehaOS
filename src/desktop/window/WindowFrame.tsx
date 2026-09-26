@@ -14,6 +14,7 @@ import { getAppManifest } from '@/store/app-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { getWorkspaceViewport } from './viewport'
+import { useWindowMotion } from './use-window-motion'
 
 interface DragOrigin {
   pointerX: number
@@ -52,11 +53,15 @@ function TypeBOrMissing({ appId, title, windowId }: { appId: string; title: stri
 export function WindowFrame({ win }: { win: WindowInstance }) {
   const { t } = useTranslation()
   const focus = useWindowStore((s) => s.focus)
-  const close = useWindowStore((s) => s.close)
   const minimize = useWindowStore((s) => s.minimize)
   const toggleMaximize = useWindowStore((s) => s.toggleMaximize)
   const move = useWindowStore((s) => s.move)
   const resize = useWindowStore((s) => s.resize)
+
+  const sectionRef = useRef<HTMLElement | null>(null)
+  // 窗口动效（DESIGN.md §12）：打开/关闭/genie 飞行 + 半途抓回；关闭走
+  // requestClose（退场飞完才提交），最小化/还原由 store 状态迁移驱动。
+  const { requestClose } = useWindowMotion(win, sectionRef)
 
   const dragOrigin = useRef<DragOrigin | null>(null)
   const resizeOrigin = useRef<ResizeOrigin | null>(null)
@@ -138,6 +143,7 @@ export function WindowFrame({ win }: { win: WindowInstance }) {
 
   return (
     <section
+      ref={sectionRef}
       aria-label={win.title}
       className={`surface-glass animate-os-pop-in pointer-events-auto absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
         maximized ? 'rounded-none' : 'rounded-lg'
@@ -189,9 +195,9 @@ export function WindowFrame({ win }: { win: WindowInstance }) {
             <button
               type="button"
               aria-label={t('window.close')}
-              className="flex h-6 w-6 items-center justify-center rounded-sm text-text-muted hover:bg-danger hover:text-white"
+              className="flex h-6 w-6 items-center justify-center rounded-sm text-text-muted hover:bg-surface-raised hover:text-white"
               onPointerDown={swallowPointerDown}
-              onClick={() => close(win.id)}
+              onClick={requestClose}
             >
               <X size={12} weight="bold" />
             </button>

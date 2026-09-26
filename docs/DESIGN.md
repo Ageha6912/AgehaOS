@@ -251,3 +251,50 @@ favicon 在明暗标签栏下均无底色方块。
 - **联调覆写**：`window.AgehaBootConfig`（`BOOT_DURATION_MS` / 
   `exitDurationMs`）保留，钳制 1000~10000 / 150~5000。
 - **i18n**：`boot.progress`（进度条可访问名）/ `boot.skipHint`（跳过提示）。
+
+## 12. 窗口生命周期动效（motion-lab window → 产品集成）
+
+2026-09-26 起窗口开合与 genie 最小化/还原由 motion-lab/window 引擎驱动：
+打开从任务栏按钮方向弹性长出（scale 0.9→1 + fade）、关闭沿同一路径反向
+收拢（恒短于打开）、genie 沿「窗口中心 → 任务栏按钮」位移路径飞行
+（横缩纵压挤扁感），还原 = 同一组关键帧 `anim.reverse()` 时间镜像。
+
+### 架构
+
+- **纯数学** `src/core/window/motion.ts`：flightDelta（中心→锚点位移）、
+  originToward（来源锚定投影 + 限幅 [-50,150]/[100,140]，零尺寸矩形安全收敛）、
+  flightKeyframes（三关键帧：中段偏移 0.55 制造「先坠后收」弧线）、时长/曲线
+  常量；零 DOM 零 React。
+- **DOM/WAAPI 层** `src/desktop/window/window-motion.ts`：WAAPI 探测与
+  prefers-reduced-motion 检测（不可用一律返回 null → 调用方直接落定终态）、
+  任务栏锚点（`taskbar-item-<id>` 按钮中心；自动隐藏任务栏藏于底缘外时钳制
+  到底缘上方 12px）、四个播放函数、clearInlinePose。
+- **编排** `use-window-motion.ts`：flight 控制器（track / reverseTo /
+  settleActive），打开挂 mount、最小化/还原挂 store 状态迁移、关闭挂
+  requestClose 拦截。
+
+### 状态语义（与 motion-lab 演示的差异）
+
+- **store 先行**：窗口状态由 store 如实先行提交（任务栏切换/窗口按钮/引擎
+  路径共用一条来源），动效是纯表现层——最小化飞行期间 React 类名已是
+  `hidden`，用 inline `display:flex` 反压保持可见，落定后 `clearInlinePose`
+  交还类名接管。
+- **唯一例外是关闭**：退场飞完（120ms）才提交 `store.close`（窗口在退场期间
+  仍在 store 中）；任务栏悬停预览/引擎路径的关闭仍即时卸载。
+- **半途抓回**：最小化↔还原互为反向，飞行中点反操作走 `anim.reverse()` 从
+  当前呈现值续动（时间镜像、路径严格对称）；打开途中点关闭同样反向收回收回；
+  交叉中断先落定当前目标终态再继续；任何时刻不锁 store、不锁输入。
+- **时长归档**（motion-lab README §8 约定：以产品档为准）：open 200ms =
+  `--ag-motion-base` 同值；close 120ms = `--ag-motion-fast` 同值；飞行 300ms =
+  motion-lab `--ml-dur-slow` 同值。弹簧曲线 `[0.32,0.72,0,1]` 与
+  `--ml-ease-spring` 同值声明（WAAPI 侧无法引用 CSS 变量，注释互指）。
+- **降级**：jsdom/老浏览器（无 `el.animate`）与 `prefers-reduced-motion` 下，
+  一切状态变化瞬时直达终态（单元测试默认即降级路径，真实浏览器走 WAAPI）。
+
+### 测试钩子
+
+- 单测以「可控替身」替换 `Element.prototype.animate`（finished 手动 resolve、
+  reverse/cancel 可断言），驱动飞行编排与半途抓回路径。
+- 断言窗口类名单一类用 `classList.contains`（className 子串会撞上
+  `overflow-hidden`）；飞行中的位姿在动画效果里，读 `getComputedStyle`
+  的 transform/opacity 而非 `el.style`。

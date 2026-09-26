@@ -583,6 +583,13 @@ CSS 侧令牌塌缩 + `menu-toast.css` 显式 `transition: none` + 位移归零�
 
 ### 8.2 window · 窗口生命周期动效
 
+> **落地状态（2026-09-26）**：本节已实施——纯数学提炼为 `src/core/window/motion.ts`，
+> DOM/WAAPI 层 `src/desktop/window/window-motion.ts`，编排 hook
+> `src/desktop/window/use-window-motion.ts`。与演示的关键差异：窗口状态由产品
+> store **先行提交**（动效纯表现层；最小化可见性用 inline display 反压 React 的
+> `hidden` 类；唯一例外是关闭飞完才提交卸载）；时长归档 open 200 / close 120 /
+> 飞行 300。权威契约见产品 `docs/DESIGN.md` §12。以下原文保留作设计依据。
+
 **现有实现**：`src/desktop/window/WindowFrame.tsx`（窗口壳 + 标题栏 + 红绿灯，
 `swallowPointerDown` 防指针穿透）、`src/desktop/window/WindowLayer.tsx`（窗口层，
 独立层叠上下文 z-30）、`src/store/window-store.ts`（`open/minimize/restore/close`
