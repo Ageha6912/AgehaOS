@@ -81,7 +81,12 @@ export function TerminalApp() {
       data-testid="terminal-root"
       onClick={() => inputRef.current?.focus()}
     >
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-3" data-testid="terminal-output">
+      {/* 输出井：内嵌凹槽（DESIGN.md §2.1），终端内容都在井内滚动。 */}
+      <div
+        ref={scrollRef}
+        className="m-2 min-h-0 flex-1 overflow-y-auto rounded-md bg-surface-raised/60 p-3 leading-relaxed"
+        data-testid="terminal-output"
+      >
         {entries.map((line, index) => (
           <pre key={index} className={`whitespace-pre-wrap break-all ${toneClass(line)}`}>
             {renderLine(line)}
