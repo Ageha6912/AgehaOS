@@ -15,9 +15,9 @@ beforeEach(() => {
 })
 
 describe('settings-store theme', () => {
-  it('defaults to dark', () => {
-    expect(useSettingsStore.getState().theme).toBe('dark')
-    expect(htmlClasses().contains('dark')).toBe(true)
+  it('defaults to light (2026-09 设计基线，docs/DESIGN.md)', () => {
+    expect(useSettingsStore.getState().theme).toBe('light')
+    expect(htmlClasses().contains('dark')).toBe(false)
   })
 
   it('applies and removes the dark class on light/dark switches', () => {

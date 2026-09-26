@@ -13,7 +13,8 @@ export const FONT_SIZE_PX: Record<FontSize, string> = {
 }
 
 const STORAGE_KEY = 'agehaos.settings.v1'
-const DEFAULT_THEME: ThemePreference = 'dark'
+// 设计基线 2026-09 起为浅色（docs/DESIGN.md）；存量用户已保存偏好不受影响。
+const DEFAULT_THEME: ThemePreference = 'light'
 const DEFAULT_FONT_SIZE: FontSize = 'medium'
 
 interface PersistedSettings {

@@ -1,59 +1,69 @@
 @import 'tailwindcss';
 
 /* Theme strategy (PRD §27): raw tokens flip on `.dark`, utilities stay stable.
-   Palette (v0.2 design refresh): warm stone neutrals, single low-saturation teal
-   accent used only for focus/selection/primary actions; semantic colors for
-   danger/success/warning. No purple in the UI shell (wallpaper palettes keep
-   purple as content variety, see docs/AI-DYNAMIC-DESKTOP-DESIGN.md). */
+   Direction (2026-09, docs/DESIGN.md): 「精密仪表」revised to a blue-white
+   gradient palette (user verdict 2026-09-26) — white→light-blue gradient
+   surfaces in the baseline theme, navy-ink gradients in the adapted dark
+   theme, one cobalt accent for focus/selection/primary actions, mono
+   metadata tier for paths/counts/timestamps. Gradients live on large
+   surfaces only (canvas + app panels); controls stay solid. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --ag-bg: #fafaf9; /* stone-50 */
-  --ag-surface: #ffffff;
-  --ag-surface-raised: #f5f5f4; /* stone-100 */
-  --ag-text: #1c1917; /* stone-900 */
-  --ag-text-muted: #78716c; /* stone-500 */
-  --ag-primary: #0f766e; /* teal-700 */
-  --ag-primary-contrast: #ffffff;
-  --ag-border: #e7e5e4; /* stone-200 */
-  --ag-danger: #dc2626; /* red-600 */
-  --ag-success: #059669; /* emerald-600 */
-  --ag-warning: #d97706; /* amber-600 */
+  --ag-bg: #eef4fd;
+  --ag-surface: #fbfdff;
+  --ag-surface-raised: #edf3fc;
+  --ag-text: #18202c;
+  --ag-text-muted: #5a6b82;
+  --ag-primary: #2f5fe8; /* cobalt */
+  --ag-primary-contrast: #f7f9ff;
+  --ag-border: #d9e3f4;
+  --ag-danger: #dc2626;
+  --ag-success: #059669;
+  --ag-warning: #b45309;
   --ag-shadow-window:
-    0 16px 48px rgb(28 25 23 / 16%), 0 2px 8px rgb(28 25 23 / 8%);
-  --ag-shadow-window-flat: 0 8px 24px rgb(28 25 23 / 10%);
+    0 16px 48px rgb(18 32 62 / 16%), 0 2px 8px rgb(18 32 62 / 8%);
+  --ag-shadow-window-flat: 0 8px 24px rgb(18 32 62 / 10%);
+
+  /* Blue-white gradient surfaces (large areas only; controls stay solid). */
+  --ag-canvas: linear-gradient(168deg, #ffffff 0%, #ecf3fd 55%, #ddebfb 100%);
+  --ag-panel: linear-gradient(180deg, #fdfeff 0%, #f3f8ff 100%);
 
   /* Glass material (web glassmorphism approximation; solid fallback below). */
-  --ag-glass-bg: rgb(255 255 255 / 86%);
-  --ag-glass-border: rgb(28 25 23 / 10%);
-  --ag-glass-highlight: rgb(255 255 255 / 55%);
+  --ag-glass-bg: rgb(248 251 255 / 84%);
+  --ag-glass-border: rgb(18 32 62 / 10%);
+  --ag-glass-highlight: rgb(255 255 255 / 60%);
   --ag-glass-blur: 24px;
 
-  /* Motion baseline (MOTION 4: fluid CSS, transform/opacity only). */
+  /* Motion baseline (MOTION 2: restrained, transform/opacity only). */
   --ag-motion-fast: 120ms;
   --ag-motion-base: 200ms;
   --ag-motion-ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
 .dark {
-  --ag-bg: #0c0a09; /* stone-950 */
-  --ag-surface: #1c1917; /* stone-900 */
-  --ag-surface-raised: #292524; /* stone-800 */
-  --ag-text: #e7e5e4; /* stone-200 */
-  --ag-text-muted: #a8a29e; /* stone-400 */
-  --ag-primary: #2dd4bf; /* teal-400 */
-  --ag-primary-contrast: #0c0a09;
-  --ag-border: #44403c; /* stone-700 */
-  --ag-danger: #f87171; /* red-400 */
-  --ag-success: #34d399; /* emerald-400 */
-  --ag-warning: #fbbf24; /* amber-400 */
+  --ag-bg: #0c1220;
+  --ag-surface: #141b2b;
+  --ag-surface-raised: #1b2438;
+  --ag-text: #e6ecf7;
+  --ag-text-muted: #94a3bf;
+  --ag-primary: #82a3ff;
+  --ag-primary-contrast: #0d1220;
+  --ag-border: #263149;
+  --ag-danger: #f87171;
+  --ag-success: #34d399;
+  --ag-warning: #fbbf24;
   --ag-shadow-window:
     0 16px 48px rgb(0 0 0 / 45%), 0 2px 8px rgb(0 0 0 / 30%);
   --ag-shadow-window-flat: 0 8px 24px rgb(0 0 0 / 28%);
 
-  --ag-glass-bg: rgb(28 25 23 / 80%);
-  --ag-glass-border: rgb(255 255 255 / 10%);
-  --ag-glass-highlight: rgb(255 255 255 / 8%);
+  /* Navy-ink gradient (the dark reading of the blue-white gradient). */
+  --ag-canvas: linear-gradient(168deg, #131e36 0%, #0d1526 60%, #0a0f1c 100%);
+  --ag-panel: linear-gradient(180deg, #172130 0%, #121828 100%);
+
+  --ag-glass-bg: rgb(20 27 43 / 78%);
+  --ag-glass-border: rgb(255 255 255 / 9%);
+  --ag-glass-highlight: rgb(255 255 255 / 7%);
 }
 
 @theme inline {
@@ -69,9 +79,9 @@
   --color-warning: var(--ag-warning);
   --color-border: var(--ag-border);
 
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 
   --shadow-window: var(--ag-shadow-window);
   --shadow-window-flat: var(--ag-shadow-window-flat);
@@ -88,6 +98,8 @@ body,
 body {
   margin: 0;
   background-color: var(--ag-bg);
+  background-image: var(--ag-canvas);
+  background-attachment: fixed;
   color: var(--ag-text);
   font-family:
     system-ui,
@@ -125,6 +137,22 @@ body {
 }
 :where(button):active {
   transform: scale(0.98);
+}
+
+/*
+ * Surface panel: blue-white gradient for large app surfaces (DESIGN.md §2.1);
+ * falls back to the solid surface token if gradients are unavailable.
+ * Controls inside panels stay solid — gradients belong to big areas only.
+ */
+.surface-panel {
+  background-color: var(--ag-surface);
+  background-image: var(--ag-panel);
+}
+
+/** Full-bleed canvas gradient (login/boot/desktop when wallpaper is off). */
+.surface-canvas {
+  background-color: var(--ag-bg);
+  background-image: var(--ag-canvas);
 }
 
 /*
