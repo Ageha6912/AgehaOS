@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 应用套件设计翻新 · 蓝白渐变「精密仪表」（docs/DESIGN.md，ADR 19）
+
+- grilling 共识（taste-skill 自由方向、浅色基线、全局 Token 跟随、CSS-only 动效）+ 试点裁决修订（蓝白渐变）；方向唯一权威定义见 `docs/DESIGN.md`
+- Token 全局换装：浅色基线 = 白→淡蓝渐变大面（`.surface-panel`/`.surface-canvas`，实色兜底）、深色适配 = 藏蓝墨渐变；单一钴蓝强调、蓝墨文字、圆角收紧 4/8/12、玻璃材质转蓝白调（chrome 专用，应用内部不透明渐变面板）
+- 浅色成为新用户默认主题（存量偏好不动）；壁纸质量门 INK 常量同步；Playwright 钉住 `colorScheme: 'light'`；桌面回落画布与登录屏改 Token 渐变（v0.1 暖色硬编码退场）
+- 七应用全部落位：Files（试点：Phosphor 侧栏/等宽面包屑/构图空态/mono 状态栏）、Terminal（内嵌输出井 + 修复硬编码黑底对比缺陷）、Notes（图标化 + 编辑井 + 空态）、Settings（共享药丸 ToggleSwitch 替换按钮伪装开关、侧栏统一 w-44、分段控件规范化、版本入等宽层）、Store/Calculator/动态面板（渐变根面 + 11px 等宽徽标层、计算器等宽表数）
+- emoji 全面退出系统 UI（品牌 🦋 除外）；跨应用不一致清单（页头三分/按钮三档/图标割裂/字号碎片）全部归案；每片双主题截图过视觉审查（试点 4/4、铺开 12/12）
+
 ### 远端应用目录·签名目录（PRD §47 前置切片，ADR 18）
 
 - 服务端 `GET /api/store/catalog`：Ed25519 签名目录（密钥持久化于数据目录、keyId 为公钥短哈希），载荷经稳定键序规范化 JSON 签名
