@@ -50,10 +50,10 @@
     // Logo 图片地址（需求 §1 指定的默认值；支持 URL 查询参数 ?logo=<地址> 运行时覆盖）。
     // 注意：该路径自 motion-lab/boot/ 解析为 motion-lab/public/brand/...；
     // 仓库现有文件实际在根目录 public/brand/，故由下方 logoFallbacks 提供真实路径回退。
-    logoSrc: '../public/brand/agehaos-logo-transparent-256.png',
+    logoSrc: '../public/brand/agehaos-logo-v2-full-512.png',
 
     // Logo 加载失败时的依次回退候选（末项为内联 SVG data URI，双击预览永不破图）。
-    logoFallbacks: ['../../public/brand/agehaos-logo-256.png', '../public/brand/agehaos-logo-256.png', FALLBACK_LOGO_DATA_URI],
+    logoFallbacks: ['../../public/brand/agehaos-logo-v2-full-512.png', FALLBACK_LOGO_DATA_URI],
 
     // 开机总时长 ms（需求 §4：默认约 3.8s，允许 3000~5000，越界自动收敛）。
     // 豁免理由：进度推进是「内容本身的进度感」（SPEC §2 开机行），不受 300ms 铁律约束。

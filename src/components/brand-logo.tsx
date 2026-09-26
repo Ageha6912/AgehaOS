@@ -1,10 +1,10 @@
 /**
  * AgehaOS 品牌 logo（docs/DESIGN.md §10）：用户提供的玻璃质感揚羽蝶主视觉。
- * 资产链：master 原图（`agehaos-logo-master.png`，1254²，永不动）→ 裁切
- * 方块本体（100,100,1054,1059）→ 各尺寸缩放稿。组件只做展示层贴合：
+ * 资产链：v2 母版（`agehaos-logo-v2-master.png`，1254²，黑底揚羽蝶+字标，永不动）
+ * → 黑底转透明（边界泛洪）→ 纯图形方形稿（mark，无字标，小尺寸清晰）。组件只做展示层贴合：
  * CSS 24% 圆角裁掉源图残余黑角，object-cover 保证任何比例下不变形。
  */
-export const BRAND_LOGO_SRC = '/brand/agehaos-logo-256.png'
+export const BRAND_LOGO_SRC = '/brand/agehaos-logo-v2-mark-256.png'
 
 export function BrandLogo({
   size = 24,

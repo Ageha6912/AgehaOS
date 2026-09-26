@@ -58,7 +58,7 @@ describe('PARAMS 默认值与约束', () => {
   const boot = bootDom().window.AgehaBoot;
 
   it('logoSrc 默认值精确等于需求指定的相对路径（支持 ?logo= 覆盖的基础）', () => {
-    expect(boot.PARAMS.logoSrc).toBe('../public/brand/agehaos-logo-256.png');
+    expect(boot.PARAMS.logoSrc).toBe('../public/brand/agehaos-logo-v2-full-512.png');
   });
 
   it('BOOT_DURATION_MS 默认 3800，并收敛到需求允许的 3000~5000 区间（含非法值防御）', () => {
@@ -272,10 +272,10 @@ describe('Logo 解析与回退链', () => {
     const dom = bootDom();
     const img = dom.window.document.getElementById('bootLogo');
     // 需求默认值：../public/brand/... 自 motion-lab/boot/ 解析
-    expect(img.src.endsWith('/motion-lab/public/brand/agehaos-logo-256.png')).toBe(true);
+    expect(img.src.endsWith('/motion-lab/public/brand/agehaos-logo-v2-full-512.png')).toBe(true);
     img.dispatchEvent(new dom.window.Event('error'));
     // 回退 1：仓库根 public/brand/（motion-lab/boot/ 出发的真实相对路径）
-    expect(img.src).toBe('file:///E:/AgehaOS/public/brand/agehaos-logo-256.png');
+    expect(img.src).toBe('file:///E:/AgehaOS/public/brand/agehaos-logo-v2-full-512.png');
     img.dispatchEvent(new dom.window.Event('error'));
     // 回退 2：内联 SVG data URI（零网络依赖）
     expect(img.src.startsWith('data:image/svg+xml')).toBe(true);
@@ -290,6 +290,6 @@ describe('Logo 解析与回退链', () => {
     const img = dom.window.document.getElementById('bootLogo');
     expect(img.src).toBe('https://example.com/custom.png');
     img.dispatchEvent(new dom.window.Event('error'));
-    expect(img.src.endsWith('/motion-lab/public/brand/agehaos-logo-256.png')).toBe(true);
+    expect(img.src.endsWith('/motion-lab/public/brand/agehaos-logo-v2-full-512.png')).toBe(true);
   });
 });

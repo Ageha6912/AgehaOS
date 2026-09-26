@@ -104,8 +104,8 @@ transform/opacity、`ml-dark` 一键深色、`prefers-reduced-motion` 全量降�
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `logoSrc` | `'../public/brand/agehaos-logo-256.png'` | Logo 图片地址（支持 URL 查询参数 `?logo=<地址>` 运行时覆盖）；自 `motion-lab/boot/` 解析为 `motion-lab/public/brand/…` |
-| `logoFallbacks` | `['../../public/brand/agehaos-logo-256.png', FALLBACK_LOGO_DATA_URI]` | Logo 加载失败时的依次回退候选（末项为内联 SVG data URI，永不破图） |
+| `logoSrc` | `'../public/brand/agehaos-logo-v2-full-512.png'` | Logo 图片地址（v2 透明底、含字标；支持 URL 查询参数 `?logo=<地址>` 运行时覆盖）；自 `motion-lab/boot/` 解析为 `motion-lab/public/brand/…` |
+| `logoFallbacks` | `['../../public/brand/agehaos-logo-v2-full-512.png', '../public/brand/agehaos-logo-v2-mark-256.png', FALLBACK_LOGO_DATA_URI]` | Logo 加载失败时的依次回退候选（末项为内联 SVG data URI，永不破图） |
 | `BOOT_DURATION_MS` | `3800` | 开机总时长 ms（允许 3000~5000，越界自动收敛）。豁免理由：进度推进是「内容本身的进度感」（SPEC §2 开机行），不受 300ms 铁律约束 |
 | `exitDurationMs` | `400` | 退场（淡出 + 放大）时长 ms；开机豁免档，对应共享令牌 `--ml-dur-boot`（400ms） |
 | `maxScale` | `1.05` | 退场放大上限（scale 1 → 1.05，macOS 开机同款轻微放大） |
