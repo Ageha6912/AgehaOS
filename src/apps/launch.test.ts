@@ -30,6 +30,16 @@ describe('launchApp', () => {
     expect(windows[0]?.height).toBe(480)
   })
 
+  it('pins the window position when geometry is provided (auto-open panel)', () => {
+    launchApp('com.ageha.notes', { x: 912, y: 24 })
+
+    const windows = useWindowStore.getState().windows
+    expect(windows[0]?.x).toBe(912)
+    expect(windows[0]?.y).toBe(24)
+    // 尺寸仍来自 manifest。
+    expect(windows[0]?.width).toBe(720)
+  })
+
   it('refuses to launch when a requested permission is not granted', () => {
     permissionManager.revoke('com.ageha.notes', 'storage')
     const denied = vi.fn()

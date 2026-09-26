@@ -1,12 +1,13 @@
 import { expect, test } from '@playwright/test'
 
-import { revealTaskbar } from './helpers'
-
 /**
- * AI 内容面板（DDS §5.1 域③，Phase B 本地切片）：启动面板 → 卡片渲染且带
- * 「AI 生成」标识 → 决策来源为本地规则。
+ * AI 内容面板（DDS §5.1 域③）+ 默认开启裁决（2026-09-26）：
+ * 进入桌面即自动打开（停靠右上、避开图标列），卡片渲染且带
+ * 「AI 生成」标识，决策来源为本地规则；不再需要从菜单手动启动。
  */
-test('dynamic panel: local cards render with AI attribution', async ({ page }) => {
+test('dynamic panel: auto-opens on the desktop with local cards and AI attribution', async ({
+  page,
+}) => {
   await page.goto('/')
 
   const loginForm = page.getByRole('form', { name: '登录 AgehaOS' })
@@ -16,14 +17,12 @@ test('dynamic panel: local cards render with AI attribution', async ({ page }) =
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
 
-  const startButton = page.getByRole('button', { name: /开始/ })
-  await expect(startButton).toBeVisible()
-
-  await revealTaskbar(page)
-  await startButton.click()
-  await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /动态面板/ }).click()
+  // 自动打开：桌面就绪后面板窗口直接出现，且停靠屏幕右半侧。
   const panel = page.getByRole('region', { name: '动态面板' })
-  await expect(panel).toBeVisible()
+  await expect(panel).toBeVisible({ timeout: 20_000 })
+  const size = page.viewportSize() ?? { width: 1280, height: 720 }
+  const box = (await panel.boundingBox()) ?? { x: 0, width: 0 }
+  expect(box.x + box.width / 2).toBeGreaterThan(size.width / 2)
 
   // 问候卡恒在；AI 生成标识逐卡存在；决策来源 = 本地规则。
   await expect(panel.getByTestId('panel-card-greeting')).toBeVisible()

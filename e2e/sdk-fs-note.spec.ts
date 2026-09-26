@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { revealTaskbar } from './helpers'
+import { revealTaskbar, taskbarStartButton } from './helpers'
 
 /**
  * SDK Notification/File API（PRD §17）：安装云笔记（filesystem.read/write +
@@ -20,7 +20,7 @@ test('sdk fs-note: install, persist a note through the file bridge, raise a host
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
 
-  const startButton = page.getByRole('button', { name: /开始/ })
+  const startButton = taskbarStartButton(page)
   await expect(startButton).toBeVisible()
 
   // 安装云笔记（申请读/写文件 + 发送通知权限，对话框默认全选）。

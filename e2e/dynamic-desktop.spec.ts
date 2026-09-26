@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { revealTaskbar } from './helpers'
+import { revealTaskbar, taskbarStartButton } from './helpers'
 
 /**
  * AI 动态桌面验收（设计文档 §11.2-A ⑨⑩ + 2026-09-26 默认开启裁决）：
@@ -30,7 +30,7 @@ test('dynamic desktop: photo wallpaper on by default, opt-out restores the plain
   await expect(page.getByTestId('ai-badge')).toHaveCount(0)
 
   // 设置 → 动态桌面：开关处于开启位。
-  const startButton = page.getByRole('button', { name: /开始/ })
+  const startButton = taskbarStartButton(page)
   await revealTaskbar(page)
   await startButton.click()
   await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /设置/ }).click()

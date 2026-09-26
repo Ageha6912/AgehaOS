@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { revealTaskbar } from './helpers'
+import { revealTaskbar, taskbarStartButton } from './helpers'
 
 /**
  * The PRD §34.3 core path, exercised end to end:
@@ -20,7 +20,7 @@ test('core path: register, work with a note, restore session, sign out', async (
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
 
-  const startButton = page.getByRole('button', { name: /开始/ })
+  const startButton = taskbarStartButton(page)
   await expect(startButton).toBeVisible()
   await expect(page.getByRole('button', { name: /e2euser/ })).toBeVisible()
 
@@ -59,7 +59,10 @@ test('core path: register, work with a note, restore session, sign out', async (
   await expect(page.getByRole('textbox', { name: '笔记编辑器' })).toHaveValue('hello from e2e')
 
   // Close the window and sign out.
-  await page.getByRole('button', { name: '关闭窗口' }).click()
+  await page
+    .getByRole('region', { name: '记事' })
+    .getByRole('button', { name: '关闭窗口' })
+    .click()
   await expect(page.getByRole('region', { name: '记事' })).toBeHidden()
 
   await revealTaskbar(page)

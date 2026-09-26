@@ -11,8 +11,12 @@ import { componentFor } from './builtin'
  * every requested capability was granted (default deny, PRD §10.3), then
  * open a window with the manifest's default geometry. Refusals are audited
  * as `permission.denied` events (PRD §30.5).
+ *
+ * `geometry` lets callers pin the window position (e.g. the auto-opened
+ * Dynamic Panel docks to the desktop's right edge); size still comes from
+ * the manifest unless overridden here.
  */
-export function launchApp(appId: string): string | null {
+export function launchApp(appId: string, geometry?: { x?: number; y?: number }): string | null {
   const manifest = getAppManifest(appId)
   if (!manifest) return null
 
@@ -34,5 +38,6 @@ export function launchApp(appId: string): string | null {
     title,
     width: manifest.window?.width,
     height: manifest.window?.height,
+    ...geometry,
   })
 }

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { revealTaskbar } from './helpers'
+import { revealTaskbar, taskbarStartButton } from './helpers'
 
 /**
  * 任务栏自动隐藏（docs/DESIGN.md §9）：默认藏于屏幕底缘之外、背景为透明
@@ -40,7 +40,7 @@ test('taskbar auto-hides and slides in from the bottom edge', async ({ page }) =
 
   // 唤出后从开始菜单启动应用照常工作。
   await revealTaskbar(page)
-  await page.getByRole('button', { name: /开始/ }).click()
+  await taskbarStartButton(page).click()
   await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /记事/ }).click()
   await expect(page.getByRole('region', { name: '记事' })).toBeVisible()
 })

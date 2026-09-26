@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { revealTaskbar } from './helpers'
+import { revealTaskbar, taskbarStartButton } from './helpers'
 
 /**
  * App Store + Type B 沙箱应用（PRD §26、§30.3）：
@@ -16,7 +16,7 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
 
-  const startButton = page.getByRole('button', { name: /开始/ })
+  const startButton = taskbarStartButton(page)
   await expect(startButton).toBeVisible()
 
   // 内置应用里现在有计算器（P1 系统应用）。
@@ -30,7 +30,7 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
   await page.getByTestId('calculator-key-8').click()
   await page.getByTestId('calculator-key-=').click()
   await expect(page.getByTestId('calculator-display')).toHaveText(/56/)
-  await page.getByRole('button', { name: '关闭窗口' }).click()
+  await calculator.getByRole('button', { name: '关闭窗口' }).click()
 
   // 打开应用商店，安装「时钟」（零权限 Web 应用）。
   await revealTaskbar(page)
@@ -78,7 +78,7 @@ test('store list keeps a visible scrollbar and a bottom fade while content overf
   await page.getByRole('button', { name: '注册' }).click()
 
   await revealTaskbar(page)
-  await page.getByRole('button', { name: /开始/ }).click()
+  await taskbarStartButton(page).click()
   await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /应用商店/ }).click()
   const store = page.getByRole('region', { name: '应用商店' })
   await expect(store).toBeVisible()

@@ -30,20 +30,40 @@ function launchFromStartMenu(appName: RegExp) {
 }
 
 describe('Desktop', () => {
+  it('auto-opens the dynamic panel once per desktop session, docked to the right', () => {
+    const { rerender } = render(<Desktop />)
+
+    const windows = useWindowStore.getState().windows
+    expect(windows).toHaveLength(1)
+    expect(windows[0]?.appId).toBe('com.ageha.dynamic.panel')
+    // 面板停靠桌面右侧（避开左侧图标列），fallback 最小 8px。
+    expect(windows[0]?.x).toBeGreaterThanOrEqual(8)
+
+    // StrictMode/重渲染不重复开窗。
+    rerender(<Desktop />)
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+  })
+
   it('opens an app window from the launcher and closes it again', () => {
     render(<Desktop />)
 
     launchFromStartMenu(/记事/)
 
-    expect(useWindowStore.getState().windows).toHaveLength(1)
+    // 自动打开的动态面板 + 记事，共两个窗口。
+    expect(useWindowStore.getState().windows).toHaveLength(2)
     // 任务栏项只显示图标（悬停预览里才有标题）；标题出现在桌面图标标签
     // 和窗口标题栏，共两处。
     expect(screen.getAllByText('记事').length).toBe(2)
 
-    fireEvent.click(screen.getByRole('button', { name: '关闭窗口' }))
+    // 关闭记事窗口（按区域限定，避开动态面板的关闭按钮）。
+    fireEvent.click(
+      within(screen.getByRole('region', { name: '记事' })).getByRole('button', {
+        name: '关闭窗口',
+      }),
+    )
 
-    expect(useWindowStore.getState().windows).toHaveLength(0)
-    // 桌面图标标签仍在，窗口标题栏文本随窗口消失。
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+    // 桌面图标标签仍在，记事窗口文本随窗口消失。
     expect(screen.getAllByText('记事').length).toBe(1)
   })
 
@@ -53,8 +73,9 @@ describe('Desktop', () => {
     launchFromStartMenu(/记事/)
     launchFromStartMenu(/文件/)
 
+    // 自动面板 + 记事 + 文件。
     let windows = useWindowStore.getState().windows
-    expect(windows).toHaveLength(2)
+    expect(windows).toHaveLength(3)
     expect(windows.find((win) => win.appId === 'com.ageha.notes')?.focused).toBe(false)
     expect(windows.find((win) => win.appId === 'com.ageha.files')?.focused).toBe(true)
 
@@ -88,9 +109,9 @@ describe('Desktop × dynamic wallpaper (验收 ⑨)', () => {
     render(<Desktop />)
 
     expect(screen.queryByTestId('wallpaper-layer')).toBeNull()
-    // v0.1 行为不变：启动器照常工作
+    // v0.1 行为不变：启动器照常工作（自动面板之外多出一个窗口）。
     launchFromStartMenu(/记事/)
-    expect(useWindowStore.getState().windows).toHaveLength(1)
+    expect(useWindowStore.getState().windows).toHaveLength(2)
   })
 
   it('mounts the wallpaper layer when enabled with a generated plan', () => {

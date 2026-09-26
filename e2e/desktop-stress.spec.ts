@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { revealTaskbar } from './helpers'
+import { revealTaskbar, taskbarStartButton } from './helpers'
 
 /**
  * Performance and robustness checks (PRD §29): interactive desktop within
@@ -18,7 +18,7 @@ test('restores the interactive desktop within 3 seconds after reload (PRD §29.1
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
 
-  const startButton = page.getByRole('button', { name: /开始/ })
+  const startButton = taskbarStartButton(page)
   await expect(startButton).toBeVisible()
 
   const startedAt = Date.now()
@@ -40,7 +40,7 @@ test('keeps the desktop responsive with 20 open windows (PRD §29.2)', async ({ 
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
 
-  const startButton = page.getByRole('button', { name: /开始/ })
+  const startButton = taskbarStartButton(page)
   await expect(startButton).toBeVisible()
 
   const notesItem = page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /记事/ })

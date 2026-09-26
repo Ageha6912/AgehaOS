@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { revealTaskbar } from './helpers'
+import { revealTaskbar, taskbarStartButton } from './helpers'
 
 /**
  * Type C SDK（PRD §8.1、§30.1）：安装便签（storage + window 权限）→ 在沙箱
@@ -19,7 +19,7 @@ test('sdk sticky notes: install, write through the sandbox bridge, persist acros
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
 
-  const startButton = page.getByRole('button', { name: /开始/ })
+  const startButton = taskbarStartButton(page)
   await expect(startButton).toBeVisible()
 
   // 安装便签（申请 storage + window 权限，对话框默认全选）。
