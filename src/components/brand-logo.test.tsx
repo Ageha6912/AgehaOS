@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { BRAND_LOGO_SRC, BrandLogo } from './brand-logo'
+import { BRAND_LOGO_FULL_SRC, BRAND_LOGO_SRC, BrandLogo } from './brand-logo'
 
 describe('BrandLogo (品牌 logo，DESIGN.md §10)', () => {
   it('renders the master-cropped logo at the requested size with tile clipping', () => {
@@ -14,6 +14,16 @@ describe('BrandLogo (品牌 logo，DESIGN.md §10)', () => {
     expect(img).toHaveAttribute('height', '48')
     // 展示层贴合：CSS 圆角裁掉源图四角的残余黑边，object-cover 防变形。
     expect(img?.className).toContain('rounded-[24%]')
+    expect(img?.className).toContain('object-cover')
+  })
+
+  it('serves the full wordmark variant without tile clipping for large slots (§10 双资产分工)', () => {
+    const { container } = render(<BrandLogo size={96} variant="full" />)
+
+    const img = container.querySelector('img')
+    expect(img).toHaveAttribute('src', BRAND_LOGO_FULL_SRC)
+    // 字标不可被圆角裁切：full 变体不做圆角，object-cover 保持防变形。
+    expect(img?.className).not.toContain('rounded-[24%]')
     expect(img?.className).toContain('object-cover')
   })
 

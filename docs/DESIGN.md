@@ -171,8 +171,8 @@ Files（试点）→ Terminal（含主题修复）→ Notes → Settings → Sto
 
 | 文件 | 内容 | 用途 |
 |---|---|---|
-| `agehaos-logo-v2-full-512.png` | 图形+字标，透明底 | 开机动画（motion-lab boot） |
-| `agehaos-logo-v2-mark-256.png` | 纯图形（字标上沿以上），透明底 | **界面内唯一引用**（`BrandLogo`） |
+| `agehaos-logo-v2-full-512.png` | 图形+字标，透明底 | 开机动画（产品 BootScreen 96px，DESIGN.md §11；`BrandLogo` full 变体） |
+| `agehaos-logo-v2-mark-256.png` | 纯图形（字标上沿以上），透明底 | **界面内唯一引用**（`BrandLogo` 默认） |
 | `agehaos-logo-v2-mark-192/180.png` | 纯图形 | favicon 回退 / apple-touch-icon |
 | `agehaos-logo-v2-mark-64.png` | 纯图形 | 浏览器标签页 favicon |
 
@@ -180,7 +180,8 @@ Files（试点）→ Terminal（含主题修复）→ Notes → Settings → Sto
 （避免 18px 小尺寸下字标糊成一团；开机屏等大尺寸位才展示字标）。
 
 界面适配点（`BrandLogo`，透明底自适应明暗背景，无需圆角裁黑角）：
-开机屏 72 / 登录屏 56 / 开始按钮 18 / 设置关于 40·侧栏 14；
+mark 稿——登录屏 56 / 开始按钮 18 / 设置关于 40·侧栏 14；
+开机屏 96 用 **full 稿**（含字标，圆角裁切关闭，见 §11）；
 favicon 在明暗标签栏下均无底色方块。
 
 尺寸约定：搜索 16 / 窗口标题栏 16 / 任务栏 20 / 悬停预览 20（体 48）/
@@ -207,3 +208,46 @@ favicon 在明暗标签栏下均无底色方块。
 - **工作区**：窗口层/视口约束/桌面图标高度均不再为任务栏预留
   （`getWorkspaceViewport` = 整个视口）。
 - E2E 交互前须先唤出：`e2e/helpers.ts` 的 `revealTaskbar(page)`。
+
+## 11. 开机动画（motion-lab boot → 产品集成）
+
+2026-09-26 起 `BootScreen` 由 motion-lab/boot 引擎驱动（用户已验收的演示
+1:1 落地）：深色揭示画布 + 含字标全尺寸 logo + 细长进度条四段变速推进 +
+退场露出下层界面。
+
+### 架构
+
+- **纯曲线** `src/core/boot/boot-curve.ts`：四段变速（进度 36/62/80/100，
+  时间占比 16/36/26/22），逐段独立缓动、全程单调不减；零 React、可独立单测。
+- **DOM 引擎** `src/desktop/boot/boot-motion.ts`：rAF 推进 + 完成编排 + 退场。
+  每帧只写 `fill.style.transform = scaleX()`（合成层，禁 width）；整数百分比
+  变化才同步 `aria-valuenow` 与 onProgress 回调；后台标签页单帧封顶 100ms
+  （回前台不跳变）；`transitionend` 为主、setTimeout 兜底收尾退场。
+- **React 侧绕过渲染路径**：60fps 进度不进 setState；状态文案切换（进度越过
+  第一段 →「加载系统资源」）与完成判定（会话状态 → ready/login）经
+  `store.getState()` 取最新值，无陈旧闭包。
+- **覆盖层生命周期**：`finishBoot` 后目的界面挂载在下层，BootScreen 留场播
+  退场（淡出 + scale 1.05），收尾置 `boot-store.layerExitDone`，App 据此卸载。
+
+### 归档口径
+
+- **总时长 2.2s**：实验室演示 3.8s → 产品压缩（实验室建议 2.5~3s，但
+  PRD §29.1「重载后 3s 内恢复可交互桌面」的预算含应用加载——需求优先；
+  `boot-motion.test` 对该值钉扎）。
+- **退场 400ms**（`--ag-motion-boot`）：全系统唯一 >300ms 豁免档；
+  `prefers-reduced-motion` 下引擎直接切换（进度条照常推进，属功能性反馈），
+  全局令牌塌缩作双保险。
+- **深色揭示画布为主题无关常量**（`--ag-boot-*` token，不随 `.dark` 翻转）：
+  开机亮相是 macOS 同款的深色时刻，浅色基线从登录页/桌面开始。
+
+### 交互与测试钩子
+
+- **跳过**：点击任意处或按任意键（幂等 skip）；进度尚未越过状态切换点时
+  skip 也能完成（`finishBoot` 接受从 booting 直达）。
+- **E2E 钩子**：`[data-boot="complete"]`（完成瞬间挂 root）与
+  `[data-testid="boot-screen"]`（覆盖层本体，卸载 = 退场收尾）——断言
+  完成态/卸载用这两个钩子，勿断言 transform 中间值；`revealTaskbar` 已内置
+  等待覆盖层卸载（退场中的覆盖层会吞指针，静止指针此后不再触发 hover 链）。
+- **联调覆写**：`window.AgehaBootConfig`（`BOOT_DURATION_MS` / 
+  `exitDurationMs`）保留，钳制 1000~10000 / 150~5000。
+- **i18n**：`boot.progress`（进度条可访问名）/ `boot.skipHint`（跳过提示）。

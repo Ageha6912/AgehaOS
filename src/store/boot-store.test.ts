@@ -27,6 +27,18 @@ describe('useBootStore', () => {
     expect(useBootStore.getState().phase).toBe('login')
   })
 
+  it('finishes boot directly from booting (engine skip can fire before the advance point)', () => {
+    useBootStore.getState().finishBoot('login')
+    expect(useBootStore.getState().phase).toBe('login')
+  })
+
+  it('tracks the boot layer exit for the App overlay lifecycle', () => {
+    expect(useBootStore.getState().layerExitDone).toBe(false)
+
+    useBootStore.getState().markLayerExitDone()
+    expect(useBootStore.getState().layerExitDone).toBe(true)
+  })
+
   it('stays ready once boot completed', () => {
     useBootStore.getState().setPhase('ready')
 

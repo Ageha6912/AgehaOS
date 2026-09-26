@@ -38,7 +38,16 @@
   /* Motion baseline (MOTION 2: restrained, transform/opacity only). */
   --ag-motion-fast: 120ms;
   --ag-motion-base: 200ms;
+  /* 开机退场豁免档（唯一 >300ms；motion-lab --ml-dur-boot 归档，DESIGN.md §11）。 */
+  --ag-motion-boot: 400ms;
   --ag-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Boot screen (theme-independent dark reveal canvas; does not flip on .dark). */
+  --ag-boot-canvas: radial-gradient(130% 100% at 50% 42%, #131e36 0%, #0a0f1c 52%, #000 100%);
+  --ag-boot-track: rgb(255 255 255 / 14%);
+  --ag-boot-fill: #82a3ff;
+  --ag-boot-text: #e4ecfa;
+  --ag-boot-text-dim: rgb(228 236 250 / 56%);
 }
 
 .dark {
@@ -228,6 +237,66 @@ body {
 }
 .animate-os-fade-in {
   animation: os-fade-in var(--ag-motion-base) var(--ag-motion-ease);
+}
+
+/*
+ * Boot screen (motion-lab boot → product integration, DESIGN.md §11):
+ * dark reveal canvas + thin progress bar, engine-driven via transform only.
+ * The 400ms exit (fade + scale 1.05) is the single >300ms exemption slot;
+ * reduced motion collapses the transition globally (rule below) and the
+ * engine additionally skips the exit animation entirely.
+ */
+.boot-motion-screen {
+  position: fixed;
+  inset: 0;
+  /* 开机层盖一切：窗口层 z-30、任务栏 z-40、toast/搜索 z-50 之上。 */
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #000;
+  background-image: var(--ag-boot-canvas);
+  transition:
+    opacity var(--ag-motion-boot) var(--ag-motion-ease),
+    transform var(--ag-motion-boot) var(--ag-motion-ease);
+}
+.boot-motion-screen.is-exiting {
+  opacity: 0;
+  transform: scale(1.05);
+  /* 仅退场期间挂载；hidden 后随元素移出渲染树。 */
+  will-change: opacity, transform;
+}
+.boot-motion-screen[hidden] {
+  display: none;
+}
+.boot-motion-status {
+  margin-top: 24px;
+  font-size: 0.875rem;
+  color: var(--ag-boot-text);
+}
+.boot-motion-hint {
+  margin-top: 40px;
+  font-size: 0.75rem;
+  color: var(--ag-boot-text-dim);
+}
+.boot-motion-bar {
+  width: 240px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ag-boot-track);
+  overflow: hidden;
+}
+.boot-motion-bar-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ag-boot-fill);
+  /* 进度推进用 scaleX（transform，合成层）而非 width（布局属性，铁律禁止）；
+     引擎每帧写入一次，整个开机期属预期内的常驻 will-change。 */
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {

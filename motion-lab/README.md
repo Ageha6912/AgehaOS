@@ -543,6 +543,13 @@ CSS 侧令牌塌缩 + `menu-toast.css` 显式 `transition: none` + 位移归零�
 
 ### 8.1 boot · `window.AgehaBoot` 对接现有 BootScreen
 
+> **落地状态（2026-09-26）**：本节方案 A 已实施——引擎提炼为
+> `src/desktop/boot/boot-motion.ts`（曲线在 `src/core/boot/boot-curve.ts`），
+> `BootScreen.tsx` 改为引擎驱动，`data-boot="complete"` E2E 钩子与 skip
+> 交互已就位；时长归档 **2.2s**（PRD §29.1 三秒恢复预算含应用加载，
+> 实验室建议的 2.5~3s 顶穿预算，需求优先）。权威契约见产品
+> `docs/DESIGN.md` §11。以下原文保留作设计依据。
+
 **现有实现**（`src/desktop/boot/BootScreen.tsx`）：`useBootStore` 的 `phase`
 （booting → loading）驱动 `BOOT_STEP_MS = 800` 定时器逐步 `advance()`，随后
 `finishBoot(sessionStatus === 'authenticated' ? 'ready' : 'login')`（BootScreen.tsx:8-28）。

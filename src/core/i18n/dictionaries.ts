@@ -4,6 +4,8 @@ export const dictionaries = {
     'boot.loading': '正在加载系统资源…',
     'boot.ready': '启动完成',
     'boot.login': '请登录以继续',
+    'boot.progress': '启动进度',
+    'boot.skipHint': '点击任意处或按任意键跳过',
 
     'auth.loginTitle': '登录 AgehaOS',
     'auth.registerTitle': '创建新用户',
@@ -314,6 +316,8 @@ export const dictionaries = {
     'boot.loading': 'Loading system resources…',
     'boot.ready': 'Ready',
     'boot.login': 'Sign in to continue',
+    'boot.progress': 'Boot progress',
+    'boot.skipHint': 'Click anywhere or press any key to skip',
 
     'auth.loginTitle': 'Sign in to AgehaOS',
     'auth.registerTitle': 'Create a new account',

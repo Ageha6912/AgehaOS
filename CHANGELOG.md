@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### motion-lab 开机动画接入 AgehaOS 本体（docs/DESIGN.md §11）
+
+- `BootScreen` 由 motion-lab/boot 引擎驱动（用户验收的演示 1:1 落地）：rAF 四段变速进度（分段缓动纯曲线入 `src/core/boot/boot-curve.ts`）、深色揭示画布（`--ag-boot-*` 主题无关 token）+ 全尺寸含字标 logo（96px，v2-full-512，`BrandLogo` 新增 full 变体）+ 细长进度条（scaleX 合成层推进，整数百分比同步 aria）
+- 完成即按会话状态落桌面/登录：目的界面先挂载下层，开机层退场（淡出+放大 400ms 豁免档 `--ag-motion-boot`）后由 App 卸载（`boot-store.layerExitDone`）；进度直写 transform 绕过 React 渲染路径，状态文案/完成判定经 `store.getState()` 免陈旧闭包
+- 新增交互与钩子：点击/任意键跳过（幂等，i18n `boot.progress`/`boot.skipHint` 双词典）；E2E 完成钩子 `data-boot="complete"`；`window.AgehaBootConfig` 联调覆写保留（钳制 1000~10000/150~5000）；reduced-motion 下进度照常、退场直接切换
+- 时长归档 2.2s（实验室 3.8s → 产品压缩；PRD §29.1「3s 内恢复可交互桌面」含加载时间，需求优先，测试钉扎）；`revealTaskbar` 先等开机覆盖层卸载（退场中覆盖层吞指针，静止指针不再触发 hover 链）
+- 测试：新增 `boot-curve` 9 项 + `boot-motion` 14 项（手动帧驱动注入 rAF）+ BootScreen 重写 8 项 + App 3 项重写 + brand-logo/boot-store 增补；685 前端 + 58 后端 + E2E 12/12 全绿；浏览器烟雾 8/8（开机层视觉/进度推进/完成钩子/退场露出/skip）
+
 ### 品牌 logo v2：全系统换装透明底揚羽蝶主视觉（用户裁决）
 
 - 用户提供 v2 成品插画（同主视觉重构图：纯黑底 + 渐变字标）；黑底经边界泛洪转为透明（延续白底透明化的用户裁决，图片仅缩放裁切）

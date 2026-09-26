@@ -1,52 +1,86 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { BrandLogo } from '@/components/brand-logo'
 import { useTranslation } from '@/core/i18n'
 import { useBootStore } from '@/store/boot-store'
 import { useSessionStore } from '@/store/session-store'
 
-const BOOT_STEP_MS = 800
+import { createBootMotion } from './boot-motion'
 
+/** 状态文案切换点：进度越过第一段（固件自检）后改报「加载系统资源」。 */
+const ADVANCE_AT_PERCENT = 36
+
+/**
+ * Boot screen driven by the motion-lab boot engine (docs/DESIGN.md §11)：
+ * rAF 四段变速进度 → 完成时按会话状态 finishBoot → 退场（淡出+放大）露出
+ * 已挂载在下层的目的界面，收尾后由 App 按层退场标记卸载本层。
+ * 进度直写 transform 绕过 React 渲染路径；回调经 store.getState() 取最新值，
+ * 会话状态在开机期间才就绪也不会读到陈旧闭包。
+ */
 export function BootScreen() {
   const phase = useBootStore((state) => state.phase)
-  const advance = useBootStore((state) => state.advance)
-  const finishBoot = useBootStore((state) => state.finishBoot)
-  const sessionStatus = useSessionStore((state) => state.status)
   const { t } = useTranslation()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const fillRef = useRef<HTMLDivElement>(null)
+  const barRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (phase !== 'booting' && phase !== 'loading') return
-    const timer = window.setTimeout(() => {
-      if (phase === 'booting') {
-        advance()
-        return
-      }
-      // Session check decides desktop vs login (PRD §24.1).
-      finishBoot(sessionStatus === 'authenticated' ? 'ready' : 'login')
-    }, BOOT_STEP_MS)
-    return () => window.clearTimeout(timer)
-  }, [phase, advance, finishBoot, sessionStatus])
+    const root = rootRef.current
+    const fill = fillRef.current
+    if (!root || !fill) return
+    // 目的界面已就位（App 在退场期间挂载本层作覆盖层）：不再重跑开机引擎。
+    const initialPhase = useBootStore.getState().phase
+    if (initialPhase === 'ready' || initialPhase === 'login') return
+
+    const motion = createBootMotion(
+      { root, fill, bar: barRef.current },
+      {
+        onProgress: (percent) => {
+          if (percent >= ADVANCE_AT_PERCENT && useBootStore.getState().phase === 'booting') {
+            useBootStore.getState().advance()
+          }
+        },
+        onComplete: () => {
+          // Session check decides desktop vs login (PRD §24.1).
+          const target =
+            useSessionStore.getState().status === 'authenticated' ? 'ready' : 'login'
+          useBootStore.getState().finishBoot(target)
+        },
+        onExitDone: () => useBootStore.getState().markLayerExitDone(),
+      },
+    )
+    // 点击/按任意键跳过：立即完成并播退场（引擎幂等）。
+    const skip = () => motion.skip()
+    window.addEventListener('keydown', skip)
+    root.addEventListener('pointerdown', skip)
+    motion.start()
+    return () => {
+      window.removeEventListener('keydown', skip)
+      root.removeEventListener('pointerdown', skip)
+      motion.destroy()
+    }
+  }, [])
 
   return (
-    <div className="relative flex h-full flex-col items-center justify-center gap-6 overflow-hidden bg-bg">
-      {/* 主题感知的品牌氛围：顶部一抹极淡的强调色辉光（双主题安全）。 */}
+    <div ref={rootRef} data-testid="boot-screen" className="boot-motion-screen">
+      {/* 含字标全尺寸位（DESIGN.md §10 双资产分工），开机层深色底之上展示。 */}
+      <BrandLogo size={96} variant="full" />
       <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,color-mix(in_srgb,var(--ag-primary)_10%,transparent),transparent)]"
-      />
-      <div className="relative select-none" aria-hidden="true">
-        <BrandLogo size={72} />
+        ref={barRef}
+        className="boot-motion-bar"
+        role="progressbar"
+        aria-label={t('boot.progress')}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div ref={fillRef} className="boot-motion-bar-fill" />
       </div>
-      <h1 className="relative text-3xl font-semibold tracking-wide text-text">AgehaOS</h1>
-      <p className="relative text-sm text-text-muted" role="status">
+      <p className="boot-motion-status" role="status">
         {t(`boot.${phase}`)}
       </p>
-      <div
-        aria-hidden="true"
-        className="relative h-0.5 w-24 overflow-hidden rounded-full bg-surface-raised"
-      >
-        <div className="animate-os-fade-in h-full w-1/2 rounded-full bg-primary/70" />
-      </div>
+      <p className="boot-motion-hint" aria-hidden="true">
+        {t('boot.skipHint')}
+      </p>
     </div>
   )
 }
