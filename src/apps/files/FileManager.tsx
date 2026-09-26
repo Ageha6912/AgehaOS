@@ -1,8 +1,25 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import {
+  DownloadSimple,
+  FilePlus,
+  FileText,
+  FolderOpen,
+  FolderPlus,
+  Gear,
+  Image as ImageIcon,
+  MagnifyingGlass,
+  Monitor,
+  MusicNote,
+  SquaresFour,
+  Trash,
+  VideoCamera,
+} from '@phosphor-icons/react'
+import type { Icon } from '@phosphor-icons/react'
+
 import { PromptDialog } from '@/components/prompt-dialog'
 import { systemBus } from '@/core/events'
-import { useTranslation } from '@/core/i18n'
+import { formatMessage, useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { joinPath, splitPath, Vfs } from '@/core/filesystem'
 import type { VfsNode } from '@/core/filesystem'
@@ -23,15 +40,15 @@ interface PreviewState {
 }
 
 /** Top-level system directories exposed in the sidebar (PRD §11.1, minus Trash). */
-const QUICK_ACCESS_ROOTS = [
-  'Desktop',
-  'Documents',
-  'Downloads',
-  'Pictures',
-  'Videos',
-  'Music',
-  'Apps',
-  'System',
+const QUICK_ACCESS_ROOTS: Array<{ name: string; icon: Icon }> = [
+  { name: 'Desktop', icon: Monitor },
+  { name: 'Documents', icon: FileText },
+  { name: 'Downloads', icon: DownloadSimple },
+  { name: 'Pictures', icon: ImageIcon },
+  { name: 'Videos', icon: VideoCamera },
+  { name: 'Music', icon: MusicNote },
+  { name: 'Apps', icon: SquaresFour },
+  { name: 'System', icon: Gear },
 ]
 
 export interface FileManagerProps {
@@ -86,8 +103,9 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
     return () => offs.forEach((off) => off())
   }, [refresh])
 
-  const quickAccess = QUICK_ACCESS_ROOTS.map((name) => ({
+  const quickAccess = QUICK_ACCESS_ROOTS.map(({ name, icon }) => ({
     name,
+    icon,
     path: `/${name}`,
   }))
 
@@ -174,36 +192,50 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
   const loading = entries === null
   const selected = entries?.find((entry) => entry.node.id === selectedId) ?? null
   const breadcrumbSegments = splitPath(path)
+  const searching = query.trim() !== '' && !trashMode
+  const statusCount = entries
+    ? formatMessage(searching ? t('files.searchCount') : t('files.itemCount'), {
+        count: String(entries.length),
+      })
+    : ''
 
   return (
-    <div className="flex h-full bg-surface text-sm">
-      <aside className="w-40 shrink-0 overflow-y-auto border-r border-border bg-surface p-2">
+    <div className="surface-panel flex h-full text-sm">
+      <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface/60 p-2">
         <p className="px-2 py-1 text-xs text-text-muted">{t('files.quickAccess')}</p>
         <ul>
-          {quickAccess.map((item) => (
-            <li key={item.path}>
-              <button
-                type="button"
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-text hover:bg-surface-raised ${
-                  !trashMode && path === item.path ? 'bg-surface-raised' : ''
-                }`}
-                onClick={() => navigate(item.path)}
-              >
-                <span aria-hidden="true">📁</span>
-                {item.name}
-              </button>
-            </li>
-          ))}
-          <li>
+          {quickAccess.map((item) => {
+            const active = !trashMode && path === item.path
+            return (
+              <li key={item.path}>
+                <button
+                  type="button"
+                  aria-current={active ? 'true' : undefined}
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
+                    active
+                      ? 'bg-primary/10 font-medium text-primary'
+                      : 'text-text hover:bg-surface-raised'
+                  }`}
+                  onClick={() => navigate(item.path)}
+                >
+                  <item.icon aria-hidden="true" size={14} className={active ? 'text-primary' : 'text-text-muted'} />
+                  {item.name}
+                </button>
+              </li>
+            )
+          })}
+          <li className="mt-1 border-t border-border pt-1">
             <button
               type="button"
               aria-current={trashMode ? 'true' : undefined}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-text hover:bg-surface-raised ${
-                trashMode ? 'bg-surface-raised' : ''
+              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
+                trashMode
+                  ? 'bg-primary/10 font-medium text-primary'
+                  : 'text-text hover:bg-surface-raised'
               }`}
               onClick={openTrash}
             >
-              <span aria-hidden="true">🗑️</span>
+              <Trash aria-hidden="true" size={14} className={trashMode ? 'text-primary' : 'text-text-muted'} />
               {t('files.trash.title')}
             </button>
           </li>
@@ -211,26 +243,39 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
           {trashMode ? (
-            <span className="font-medium text-text">{t('files.trash.title')}</span>
+            <span className="flex items-center gap-2 font-medium text-text">
+              <Trash aria-hidden="true" size={14} className="text-text-muted" />
+              {t('files.trash.title')}
+            </span>
           ) : (
-            <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1">
+            <nav
+              aria-label="breadcrumb"
+              className="flex min-w-0 items-center gap-0.5 font-mono text-xs"
+            >
               <button
                 type="button"
-                className="rounded px-1 text-text hover:bg-surface-raised"
+                className="rounded px-1.5 py-0.5 text-text-muted hover:bg-surface-raised hover:text-text"
                 onClick={() => navigate('/')}
+                title="/"
               >
                 /
               </button>
               {breadcrumbSegments.map((segment, index) => {
                 const target = `/${breadcrumbSegments.slice(0, index + 1).join('/')}`
+                const last = index === breadcrumbSegments.length - 1
                 return (
                   <button
                     key={target}
                     type="button"
-                    className="truncate rounded px-1 text-text hover:bg-surface-raised"
+                    className={`max-w-40 truncate rounded px-1.5 py-0.5 ${
+                      last
+                        ? 'font-medium text-text'
+                        : 'text-text-muted hover:bg-surface-raised hover:text-text'
+                    }`}
                     onClick={() => navigate(target)}
+                    title={target}
                   >
                     {segment}
                   </button>
@@ -239,34 +284,29 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
             </nav>
           )}
 
-          <div className="ml-auto flex shrink-0 items-center gap-1">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             {trashMode ? (
               <>
-                <ToolbarButton
-                  label={t('files.restore')}
-                  disabled={!selected}
-                  onClick={restoreSelected}
-                />
-                <ToolbarButton
-                  label={t('files.purge')}
-                  disabled={!selected}
-                  onClick={purgeSelected}
-                />
+                <ToolbarButton label={t('files.restore')} disabled={!selected} onClick={restoreSelected} />
+                <ToolbarButton label={t('files.purge')} disabled={!selected} onClick={purgeSelected} danger />
               </>
             ) : (
               <>
                 <ToolbarButton
-                  label={t('files.newFolder')}
-                  onClick={() => {
-                    setDialogError(null)
-                    setDialog({ kind: 'newFolder' })
-                  }}
-                />
-                <ToolbarButton
                   label={t('files.newFile')}
+                  icon={<FilePlus aria-hidden="true" size={14} />}
+                  primary
                   onClick={() => {
                     setDialogError(null)
                     setDialog({ kind: 'newFile' })
+                  }}
+                />
+                <ToolbarButton
+                  label={t('files.newFolder')}
+                  icon={<FolderPlus aria-hidden="true" size={14} />}
+                  onClick={() => {
+                    setDialogError(null)
+                    setDialog({ kind: 'newFolder' })
                   }}
                 />
                 <ToolbarButton
@@ -281,33 +321,50 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
                   label={t('files.delete')}
                   disabled={!selected || selected.node.parentId === null}
                   onClick={deleteSelected}
+                  danger
                 />
               </>
             )}
-            <input
-              type="search"
-              aria-label={t('files.search.placeholder')}
-              placeholder={t('files.search.placeholder')}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="w-36 rounded-md border border-border bg-surface-raised px-2 py-1 text-xs text-text placeholder:text-text-muted focus:border-primary"
-            />
+            <div className="relative">
+              <MagnifyingGlass
+                aria-hidden="true"
+                size={12}
+                className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-text-muted"
+              />
+              <input
+                type="search"
+                aria-label={t('files.search.placeholder')}
+                placeholder={t('files.search.placeholder')}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="h-7 w-40 rounded-md border border-border bg-surface-raised pr-2 pl-6 text-xs text-text placeholder:text-text-muted focus:border-primary"
+              />
+            </div>
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3" data-window-id={windowId}>
           {loading ? (
-            <p className="p-4 text-text-muted" role="status">
+            <p className="flex items-center gap-2 p-4 text-xs text-text-muted" role="status">
+              <span aria-hidden="true" className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
               {t('files.loading')}
             </p>
           ) : error ? (
-            <p className="p-4 text-danger" role="alert">
+            <p className="p-4 text-sm text-danger" role="alert">
               {t(error)}
             </p>
           ) : entries.length === 0 ? (
-            <p className="p-4 text-text-muted">
-              {trashMode ? t('files.trash.empty') : t('files.empty')}
-            </p>
+            <div className="flex h-full flex-col items-center justify-center gap-2 py-16 text-center">
+              {trashMode ? (
+                <Trash aria-hidden="true" size={36} className="text-text-muted/40" />
+              ) : (
+                <FolderOpen aria-hidden="true" size={36} className="text-text-muted/40" />
+              )}
+              <p className="text-sm text-text">{trashMode ? t('files.trash.empty') : t('files.empty')}</p>
+              <p className="max-w-60 text-xs text-text-muted">
+                {trashMode ? t('files.trash.emptyHint') : t('files.emptyHint')}
+              </p>
+            </div>
           ) : (
             <ul role="list" className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2">
               {entries.map((entry) => (
@@ -315,22 +372,22 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
                   <button
                     type="button"
                     aria-pressed={selectedId === entry.node.id}
-                    className={`flex w-full flex-col items-center gap-1 rounded-md border p-2 text-center ${
+                    className={`flex w-full flex-col items-center gap-1.5 rounded-md border p-2.5 text-center ${
                       selectedId === entry.node.id
-                        ? 'border-primary/60 bg-primary/10'
+                        ? 'border-primary bg-primary/10'
                         : 'border-transparent hover:border-border hover:bg-surface-raised'
                     }`}
                     onClick={() => select(entry)}
                     onDoubleClick={() => void openEntry(entry)}
                   >
-                    <span aria-hidden="true" className="text-2xl">
-                      {entry.node.type === 'directory' ? '📁' : '📄'}
-                    </span>
-                    <span className="line-clamp-2 break-all text-xs text-text">
-                      {entry.node.name}
-                    </span>
-                    {query.trim() !== '' && !trashMode && (
-                      <span className="break-all text-[10px] text-text-muted">{entry.path}</span>
+                    {entry.node.type === 'directory' ? (
+                      <FolderOpen aria-hidden="true" size={28} weight="fill" className="text-primary/80" />
+                    ) : (
+                      <FileText aria-hidden="true" size={28} weight="fill" className="text-text-muted/70" />
+                    )}
+                    <span className="line-clamp-2 break-all text-xs text-text">{entry.node.name}</span>
+                    {searching && (
+                      <span className="break-all font-mono text-[11px] text-text-muted">{entry.path}</span>
                     )}
                   </button>
                 </li>
@@ -338,6 +395,11 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
             </ul>
           )}
         </div>
+
+        <footer className="flex h-7 shrink-0 items-center justify-between border-t border-border px-3 font-mono text-[11px] text-text-muted">
+          <span className="truncate">{trashMode ? t('files.trash.title') : path}</span>
+          {statusCount !== '' && <span className="shrink-0 tabular-nums">{statusCount}</span>}
+        </footer>
       </div>
 
       {dialog && (
@@ -360,20 +422,20 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
         <div
           role="dialog"
           aria-label={t('files.preview.title')}
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-6"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-6"
         >
-          <div className="flex max-h-[80%] w-full max-w-lg flex-col rounded-lg border border-border bg-surface p-4 shadow-window">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="truncate text-sm font-semibold text-text">{preview.path}</h2>
+          <div className="flex max-h-[80%] w-full max-w-lg flex-col rounded-lg border border-border bg-surface shadow-window">
+            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+              <h2 className="truncate font-mono text-xs text-text">{preview.path}</h2>
               <button
                 type="button"
-                className="rounded-md border border-border px-2 py-1 text-xs text-text-muted hover:bg-surface-raised hover:text-text"
+                className="rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:bg-surface-raised hover:text-text"
                 onClick={() => setPreview(null)}
               >
                 {t('files.preview.close')}
               </button>
             </div>
-            <pre className="mt-3 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all rounded-md bg-surface-raised p-3 text-xs text-text">
+            <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all bg-surface-raised p-4 font-mono text-xs text-text">
               {preview.content === '' ? t('files.empty') : preview.content}
             </pre>
           </div>
@@ -386,10 +448,16 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
 function ToolbarButton({
   label,
   disabled = false,
+  primary = false,
+  danger = false,
+  icon = null,
   onClick,
 }: {
   label: string
   disabled?: boolean
+  primary?: boolean
+  danger?: boolean
+  icon?: React.ReactNode
   onClick: () => void
 }) {
   return (
@@ -397,8 +465,15 @@ function ToolbarButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="rounded-md border border-border px-2 py-1 text-xs text-text hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-40"
+      className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs ${
+        primary
+          ? 'border border-transparent bg-primary text-primary-contrast hover:opacity-90'
+          : danger
+            ? 'border border-transparent text-danger hover:bg-danger/10'
+            : 'border border-border text-text hover:bg-surface-raised'
+      } disabled:cursor-not-allowed disabled:opacity-40`}
     >
+      {icon}
       {label}
     </button>
   )

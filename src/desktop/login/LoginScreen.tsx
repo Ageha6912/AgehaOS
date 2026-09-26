@@ -53,7 +53,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
   }
 
   return (
-    <div className="relative flex h-full flex-col items-center justify-center gap-4 overflow-hidden bg-bg">
+    <div className="relative flex h-full flex-col items-center justify-center gap-4 overflow-hidden surface-canvas">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,color-mix(in_srgb,var(--ag-primary)_10%,transparent),transparent)]"

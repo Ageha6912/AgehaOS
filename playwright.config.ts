@@ -15,6 +15,9 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5180',
     trace: 'retain-on-failure',
+    // 新用户默认主题为浅色（docs/DESIGN.md）；钉住色彩仿真保证 'system' 解析
+    // 与视觉断言的确定性。
+    colorScheme: 'light',
   },
   projects: [
     {

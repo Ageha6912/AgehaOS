@@ -77,7 +77,7 @@ export function TerminalApp() {
 
   return (
     <div
-      className="flex h-full flex-col bg-[#0c0a09] font-mono text-xs"
+      className="surface-panel flex h-full flex-col font-mono text-xs"
       data-testid="terminal-root"
       onClick={() => inputRef.current?.focus()}
     >

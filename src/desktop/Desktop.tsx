@@ -7,12 +7,13 @@ import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
 export function Desktop() {
-  // 动态桌面关闭（或尚无生成结果）时保持 v0.1 的桌面外观与行为完全一致（设计文档 §1.3 原则 4）。
+  // 动态桌面关闭（或尚无生成结果）时回落到系统画布渐变（docs/DESIGN.md §2.1，
+  // 蓝白/藏蓝随主题；v0.1 的暖色硬编码渐变已随 2026-09 方向翻新退场）。
   const showWallpaper = useDynamicDesktopStore((s) => s.prefs.enabled && s.currentPlan !== null)
   useGlobalShortcuts()
 
   return (
-    <div className="relative h-full overflow-hidden bg-gradient-to-b from-[#292524] via-[#1c1917] to-[#0c0a09]">
+    <div className="surface-canvas relative h-full overflow-hidden">
       {showWallpaper && <WallpaperLayer />}
       <WindowLayer />
       <NotificationToasts />
