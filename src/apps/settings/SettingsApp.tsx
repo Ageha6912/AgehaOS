@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 
+import { AgehaMark } from '@/components/ageha-mark'
 import { GlobeHemisphereWest, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
 
 import { useTranslation, useLocaleStore } from '@/core/i18n'
@@ -47,7 +48,7 @@ export function SettingsApp() {
       : []),
     { id: 'language', labelKey: 'settings.language', icon: <GlobeHemisphereWest size={14} weight="regular" /> },
     { id: 'permissions', labelKey: 'settings.permissions', icon: <LockSimple size={14} weight="regular" /> },
-    { id: 'about', labelKey: 'settings.about', icon: '🦋' },
+    { id: 'about', labelKey: 'settings.about', icon: <AgehaMark size={14} /> },
   ]
 
   return (
@@ -211,9 +212,7 @@ function AboutSection() {
     <section aria-label={t('settings.about')}>
       <h2 className="mb-4 text-base font-semibold text-text">{t('settings.about')}</h2>
       <div className="flex items-center gap-3">
-        <span aria-hidden="true" className="text-3xl">
-          🦋
-        </span>
+        <AgehaMark size={40} />
         <div>
           <p className="font-medium text-text">AgehaOS</p>
           <p className="font-mono text-[11px] text-text-muted">

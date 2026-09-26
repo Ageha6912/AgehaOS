@@ -5,6 +5,7 @@ import { Sparkle } from '@phosphor-icons/react'
 import { AppIcon } from '@/apps/app-icon'
 import { componentFor } from '@/apps/builtin'
 import { launchApp } from '@/apps/launch'
+import { AgehaMark } from '@/components/ageha-mark'
 import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { LAYOUT_PROTECTED_APP_IDS, pruneLayoutSuggestion } from '@/core/dynamic/layout/engine'
@@ -49,7 +50,7 @@ export function AppLauncher() {
         className="flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium text-text hover:bg-surface-raised"
         onClick={() => setOpen((value) => !value)}
       >
-        <span aria-hidden="true">🦋</span>
+        <AgehaMark size={18} />
         {t('taskbar.start')}
       </button>
 

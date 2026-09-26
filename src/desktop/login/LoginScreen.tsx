@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 
+import { AgehaMark } from '@/components/ageha-mark'
 import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import type { AuthErrorCode } from '@/core/auth'
@@ -59,8 +60,8 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,color-mix(in_srgb,var(--ag-primary)_10%,transparent),transparent)]"
       />
       <div className="relative flex flex-col items-center gap-1">
-        <div className="text-5xl select-none" aria-hidden="true">
-          🦋
+        <div className="select-none" aria-hidden="true">
+          <AgehaMark size={56} />
         </div>
         <h1 className="text-2xl font-semibold tracking-wide text-text">AgehaOS</h1>
         <p className="text-xs text-text-muted">{t('boot.login')}</p>
