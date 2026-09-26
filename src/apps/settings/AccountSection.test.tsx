@@ -155,3 +155,19 @@ describe('AccountSection', () => {
     expect(screen.getByRole('button', { name: '登出其他设备' })).toBeInTheDocument()
   })
 })
+
+describe('AccountSection admin badge (ADR 20)', () => {
+  it('shows the admin badge only for admin-role users', async () => {
+    await seedUser()
+    // 普通用户：无徽标。
+    const { unmount } = render(<AccountSection />)
+    expect(screen.queryByTestId('admin-badge')).toBeNull()
+    unmount()
+
+    // admin 用户：徽标出现。
+    const user = useSessionStore.getState().user
+    seedSessionForTests({ ...user!, role: 'admin' })
+    render(<AccountSection />)
+    expect(screen.getByTestId('admin-badge')).toHaveTextContent('管理员')
+  })
+})

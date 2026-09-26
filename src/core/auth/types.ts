@@ -6,6 +6,9 @@ export interface User {
   email?: string
   /** Client-resized avatar data URL (png/jpeg/webp, ≤64KB chars). */
   avatar?: string
+  /** ADR 20: remote-mode admin (AGEHA_ADMIN_USERNAME bootstrap); local users
+   *  never carry a role. Admins publish the signed remote store catalog. */
+  role?: 'user' | 'admin'
   createdAt: string
   updatedAt: string
 }

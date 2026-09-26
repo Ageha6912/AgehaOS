@@ -15,6 +15,8 @@ interface SerializedFile {
   /** Per-user sync domains (PRD §35 用户配置同步 + 云文件快照). Legacy shape
    *  (flat `userId → SyncEntry`) is migrated to `userId → 'settings'` on load. */
   sync: Record<string, Record<string, SyncEntry>>
+  /** Admin-published remote store catalog (ADR 20); absent = built-in. */
+  catalog?: string
 }
 
 /** Distinguishes the legacy flat entry from the nested per-domain record. */
@@ -31,6 +33,7 @@ export class FileDataStore implements DataStore {
   private users = new Map<string, UserRecord>()
   private sessions = new Map<string, SessionRecord>()
   private syncData = new Map<string, Map<string, SyncEntry>>()
+  private appCatalog: string | null = null
   private writing = Promise.resolve()
 
   constructor(private readonly filePath: string) {}
@@ -69,6 +72,9 @@ export class FileDataStore implements DataStore {
           }
           if (domains.size > 0) this.syncData.set(userId, domains)
         }
+      }
+      if (typeof parsed.catalog === 'string' && parsed.catalog.length > 0) {
+        this.appCatalog = parsed.catalog
       }
     } catch {
       // Corrupted file: start empty rather than crash-looping; the next
@@ -163,6 +169,15 @@ export class FileDataStore implements DataStore {
     await this.persist()
   }
 
+  async getAppCatalog(): Promise<string | null> {
+    return this.appCatalog
+  }
+
+  async putAppCatalog(catalogJson: string): Promise<void> {
+    this.appCatalog = catalogJson
+    await this.persist()
+  }
+
   /** Serializes writes so concurrent requests cannot clobber each other. */
   private persist(): Promise<void> {
     this.writing = this.writing.then(() => this.writeNow())
@@ -178,6 +193,7 @@ export class FileDataStore implements DataStore {
       users: [...this.users.values()],
       sessions: [...this.sessions.values()],
       sync,
+      ...(this.appCatalog !== null ? { catalog: this.appCatalog } : {}),
     }
     const tmpPath = `${this.filePath}.tmp`
     await writeFile(tmpPath, JSON.stringify(payload, null, 2), 'utf8')

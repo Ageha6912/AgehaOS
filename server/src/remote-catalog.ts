@@ -47,3 +47,66 @@ export function canonicalJson(value: unknown): string {
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`
 }
+
+/** PRD §10.1 的 MVP 权限名（与服务端注册面共用这一份清单）。 */
+export const MVP_PERMISSION_NAMES: readonly string[] = [
+  'filesystem.read',
+  'filesystem.write',
+  'storage',
+  'notification',
+  'clipboard',
+  'window',
+  'network',
+]
+
+const ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{2,63}$/
+const ENTRY_PATTERN = /^\/apps\/sites\/[a-zA-Z0-9][a-zA-Z0-9._-]*\/index\.html$/
+const SEMVERISH = /^[0-9]+(\.[0-9]+){0,3}$/
+
+/**
+ * 管理员发布目录的深度校验（ADR 20）：白名单字段、逐项形状与边界——entry
+ * 必须落在同源 /apps/sites/ allowlist 内（签名解决来源，allowlist 限制范围）。
+ * 全量通过才返回清洗后的数组；任何一项非法返回 null（路由回 400）。
+ */
+export function validateCatalogApps(input: unknown): RemoteCatalogApp[] | null {
+  if (!Array.isArray(input) || input.length > 50) return null
+  const apps: RemoteCatalogApp[] = []
+  const seen = new Set<string>()
+  for (const raw of input) {
+    if (typeof raw !== 'object' || raw === null) return null
+    const v = raw as Record<string, unknown>
+    if (Object.keys(v).length !== 8) return null
+    if (
+      typeof v.id !== 'string' || !ID_PATTERN.test(v.id) || seen.has(v.id) ||
+      typeof v.name !== 'string' || v.name.length < 1 || v.name.length > 64 ||
+      typeof v.version !== 'string' || !SEMVERISH.test(v.version) ||
+      typeof v.entry !== 'string' || !ENTRY_PATTERN.test(v.entry) ||
+      !Array.isArray(v.permissions) ||
+      v.permissions.some((p) => typeof p !== 'string' || !MVP_PERMISSION_NAMES.includes(p)) ||
+      typeof v.window !== 'object' || v.window === null ||
+      typeof (v.window as Record<string, unknown>).width !== 'number' ||
+      typeof (v.window as Record<string, unknown>).height !== 'number' ||
+      typeof (v.window as Record<string, unknown>).resizable !== 'boolean' ||
+      !Number.isInteger((v.window as { width: number }).width) ||
+      !Number.isInteger((v.window as { height: number }).height) ||
+      (v.window as { width: number }).width < 200 || (v.window as { width: number }).width > 2000 ||
+      (v.window as { height: number }).height < 200 || (v.window as { height: number }).height > 2000 ||
+      typeof v.author !== 'string' || v.author.length < 1 || v.author.length > 64 ||
+      typeof v.description !== 'string' || v.description.length > 200
+    ) {
+      return null
+    }
+    seen.add(v.id)
+    apps.push({
+      id: v.id,
+      name: v.name,
+      version: v.version,
+      entry: v.entry,
+      permissions: v.permissions as string[],
+      window: v.window as RemoteCatalogApp['window'],
+      author: v.author,
+      description: v.description,
+    })
+  }
+  return apps
+}

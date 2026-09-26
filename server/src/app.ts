@@ -90,6 +90,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     sessionTtlMs: config.sessionTtlMs,
     cookieSecure: config.cookieSecure,
     rateLimit: config.rateLimit,
+    adminUsername: config.adminUsername,
   })
   await app.register(aiRoutes, {
     prefix: '/api',
@@ -101,7 +102,17 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // 远端应用目录（PRD §47 前置切片）：Ed25519 签名密钥落在数据目录，重启不变。
   const signingKey =
     options.signingKey ?? (await loadOrCreateSigningKey(config.dataDir))
-  await app.register(storeRoutes, { prefix: '/api', signingKey })
+  await app.register(storeRoutes, { prefix: '/api', signingKey, store })
+
+  // ADR 20：管理员引导提升（幂等）——已存在同名用户时每次启动补授角色，
+  // 使 AGEHA_ADMIN_USERNAME 在既有库上也可追溯生效。
+  if (config.adminUsername) {
+    const admin = await store.findUserByUsername(config.adminUsername)
+    if (admin && admin.role !== 'admin') {
+      await store.updateUser({ ...admin, role: 'admin' })
+      app.log.info({ audit: 'admin.promote', userId: admin.id }, 'admin role granted at boot')
+    }
+  }
 
   return app
 }

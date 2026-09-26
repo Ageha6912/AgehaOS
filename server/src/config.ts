@@ -22,6 +22,12 @@ export interface ServerConfig {
   sessionTtlMs: number
   cookieSecure: boolean
   logLevel: string
+  /**
+   * Admin bootstrap (ADR 20): the user registered under this username is
+   * promoted to role=admin at register time and on every boot (idempotent,
+   * works retroactively on existing databases). Null = no admin exists.
+   */
+  adminUsername: string | null
   rateLimit: {
     loginMax: number
     registerMax: number
@@ -74,6 +80,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     sessionTtlMs: intEnv('AGEHA_SESSION_TTL_MS', 7 * 24 * 60 * 60 * 1000),
     cookieSecure: nodeEnv === 'production',
     logLevel: env.AGEHA_LOG_LEVEL ?? 'info',
+    adminUsername: env.AGEHA_ADMIN_USERNAME?.trim() || null,
     rateLimit: {
       loginMax: intEnv('AGEHA_RATE_LIMIT_LOGIN_MAX', 10),
       registerMax: intEnv('AGEHA_RATE_LIMIT_REGISTER_MAX', 20),

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 
-import { GlobeHemisphereWest, LockSimple, Palette, Sparkle, UserCircle } from '@phosphor-icons/react'
+import { GlobeHemisphereWest, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
 
 import { useTranslation, useLocaleStore } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
@@ -8,19 +8,12 @@ import { PERMISSION_LABEL_KEYS, permissionManager } from '@/core/permissions'
 import type { ThemePreference, FontSize } from '@/store/settings-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useAppStore } from '@/store/app-store'
+import { useSessionStore } from '@/store/session-store'
 import { DynamicDesktopSection } from './DynamicDesktopSection'
 import { AccountSection } from './AccountSection'
+import { CatalogSection } from './CatalogSection'
 
-type SectionId = 'account' | 'appearance' | 'dynamic' | 'language' | 'permissions' | 'about'
-
-const SECTIONS: Array<{ id: SectionId; labelKey: MessageKey; icon: ReactNode }> = [
-  { id: 'account', labelKey: 'settings.account', icon: <UserCircle size={14} weight="regular" /> },
-  { id: 'appearance', labelKey: 'settings.appearance', icon: <Palette size={14} weight="regular" /> },
-  { id: 'dynamic', labelKey: 'dynamicDesktop.section', icon: <Sparkle size={14} weight="regular" /> },
-  { id: 'language', labelKey: 'settings.language', icon: <GlobeHemisphereWest size={14} weight="regular" /> },
-  { id: 'permissions', labelKey: 'settings.permissions', icon: <LockSimple size={14} weight="regular" /> },
-  { id: 'about', labelKey: 'settings.about', icon: '🦋' },
-]
+type SectionId = 'account' | 'appearance' | 'dynamic' | 'catalog' | 'language' | 'permissions' | 'about'
 
 const THEME_OPTIONS: Array<{ value: ThemePreference; labelKey: MessageKey }> = [
   { value: 'light', labelKey: 'theme.light' },
@@ -42,12 +35,26 @@ const LOCALE_OPTIONS: Array<{ value: 'zh-CN' | 'en'; label: string }> = [
 export function SettingsApp() {
   const { t } = useTranslation()
   const [section, setSection] = useState<SectionId>('appearance')
+  // ADR 20：目录管理仅对 admin 角色可见（远程模式才有 admin）。
+  const isAdmin = useSessionStore((s) => s.user?.role === 'admin')
+
+  const sections: Array<{ id: SectionId; labelKey: MessageKey; icon: ReactNode }> = [
+    { id: 'account', labelKey: 'settings.account', icon: <UserCircle size={14} weight="regular" /> },
+    { id: 'appearance', labelKey: 'settings.appearance', icon: <Palette size={14} weight="regular" /> },
+    { id: 'dynamic', labelKey: 'dynamicDesktop.section', icon: <Sparkle size={14} weight="regular" /> },
+    ...(isAdmin
+      ? [{ id: 'catalog' as const, labelKey: 'settings.catalog' as MessageKey, icon: <ShieldCheck size={14} weight="regular" /> }]
+      : []),
+    { id: 'language', labelKey: 'settings.language', icon: <GlobeHemisphereWest size={14} weight="regular" /> },
+    { id: 'permissions', labelKey: 'settings.permissions', icon: <LockSimple size={14} weight="regular" /> },
+    { id: 'about', labelKey: 'settings.about', icon: '🦋' },
+  ]
 
   return (
     <div className="surface-panel flex h-full text-sm">
       <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface/60 p-2">
         <ul>
-          {SECTIONS.map((item) => {
+          {sections.map((item) => {
             const active = section === item.id
             return (
               <li key={item.id}>
@@ -76,6 +83,7 @@ export function SettingsApp() {
         {section === 'account' && <AccountSection />}
         {section === 'appearance' && <AppearanceSection />}
         {section === 'dynamic' && <DynamicDesktopSection />}
+        {section === 'catalog' && isAdmin && <CatalogSection />}
         {section === 'language' && <LanguageSection />}
         {section === 'permissions' && <PermissionsSection />}
         {section === 'about' && <AboutSection />}

@@ -58,7 +58,10 @@ export function StoreApp() {
 
   const entries: StoreEntry[] = [
     ...BUILTIN_ENTRIES,
-    ...remote.apps.map((manifest) => ({ manifest, remote: true as const })),
+    // 管理员发布的目录可能与内置清单撞 id（如把内置样例重新发布）——内置优先。
+    ...remote.apps
+      .filter((manifest) => !BUILTIN_ENTRIES.some((entry) => entry.manifest.id === manifest.id))
+      .map((manifest) => ({ manifest, remote: true as const })),
   ]
   const installedIds = new Set(apps.map((app) => app.id))
 

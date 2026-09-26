@@ -29,6 +29,8 @@ export interface AuthRoutesOptions {
   sessionTtlMs: number
   cookieSecure: boolean
   rateLimit: RateLimitOptions
+  /** ADR 20：与该用户名匹配的注册者获得 admin 角色；null = 不引导。 */
+  adminUsername: string | null
 }
 
 interface CredentialsBody {
@@ -71,7 +73,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const AVATAR_PATTERN = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/
 
 type PublicUser = Pick<UserRecord, 'id' | 'username' | 'createdAt' | 'updatedAt'> &
-  Partial<Pick<UserRecord, 'displayName' | 'email' | 'avatar'>>
+  Partial<Pick<UserRecord, 'displayName' | 'email' | 'avatar' | 'role'>>
 
 function publicUser(user: UserRecord): PublicUser {
   const result: PublicUser = {
@@ -83,6 +85,7 @@ function publicUser(user: UserRecord): PublicUser {
   if (user.displayName !== undefined) result.displayName = user.displayName
   if (user.email !== undefined) result.email = user.email
   if (user.avatar !== undefined) result.avatar = user.avatar
+  if (user.role !== undefined) result.role = user.role
   return result
 }
 
@@ -145,6 +148,10 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
         createdAt: now,
         updatedAt: now,
         passwordHash: await hashPassword(password),
+        // ADR 20：管理员引导——匹配 AGEHA_ADMIN_USERNAME 的注册者即管理员。
+        ...(options.adminUsername !== null && username === options.adminUsername
+          ? { role: 'admin' as const }
+          : {}),
       }
       try {
         await store.createUser(user)

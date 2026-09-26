@@ -71,6 +71,13 @@ async function expectStoreBehavior(store: DataStore): Promise<void> {
   await store.putSyncData('u1', 'settings', '{"settings":{"theme":"light"}}')
   expect(await store.getSyncData('u1', 'files')).toBe('{"version":1,"savedAt":1,"tree":{"dirs":[],"files":[]}}')
 
+  // ADR 20：管理员发布目录的存储往返（缺省为空）。
+  expect(await store.getAppCatalog()).toBeNull()
+  await store.putAppCatalog('[{"id":"com.example.app"}]')
+  expect(await store.getAppCatalog()).toBe('[{"id":"com.example.app"}]')
+  await store.putAppCatalog('[]')
+  expect(await store.getAppCatalog()).toBe('[]')
+
   await store.close()
 }
 
@@ -219,7 +226,7 @@ describe('PostgresDataStore', () => {
     const store = new PostgresDataStore(pool)
     await store.init()
     const initTexts = pool.queries.map((query) => query.text)
-    expect(initTexts).toHaveLength(12)
+    expect(initTexts).toHaveLength(14)
     expect(
       initTexts.every(
         (text) =>
@@ -232,6 +239,9 @@ describe('PostgresDataStore', () => {
     ).toBe(true)
     // 云文件切片：sync 表按 (user_id, domain) 分域。
     expect(initTexts.some((text) => text.includes('ageha_sync_user_domain_idx'))).toBe(true)
+    // ADR 20：用户角色列 + 管理员发布目录表。
+    expect(initTexts.some((text) => text.includes("ADD COLUMN IF NOT EXISTS role"))).toBe(true)
+    expect(initTexts.some((text) => text.includes('ageha_app_catalog'))).toBe(true)
     await store.close()
     expect(pool.ended).toBe(true)
   })
@@ -251,6 +261,7 @@ describe('PostgresDataStore', () => {
       null,
       null,
       null,
+      'user',
     ])
 
     await store.findUserByUsername('alice')
@@ -287,6 +298,7 @@ describe('PostgresDataStore', () => {
       makeUser({ displayName: 'Alice', email: 'a@example.com', avatar: 'data:image/png;base64,QUJD' }),
     )
     expect(pool.queries[8]?.text).toContain('UPDATE ageha_users')
+    expect(pool.queries[8]?.text).toContain('role = $8')
     expect(pool.queries[8]?.values).toEqual([
       'u1',
       'alice',
@@ -295,6 +307,7 @@ describe('PostgresDataStore', () => {
       'Alice',
       'a@example.com',
       'data:image/png;base64,QUJD',
+      'user',
     ])
 
     await store.findSessionsForUser('u1')

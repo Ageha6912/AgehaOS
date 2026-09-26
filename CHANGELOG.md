@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 管理员角色与远程目录发布（ADR 20，PRD §47 应用审核前置）
+
+- 角色：`UserRecord.role`（'user' | 'admin'）；`AGEHA_ADMIN_USERNAME` 引导——该用户名注册即 admin，既有同名用户每次启动幂等提升（可追溯生效于存量库）；三驱动存储跟进（pg 补 `role` 列）
+- 首个管理能力：`GET/PUT /api/store/admin/catalog`（仅 admin）——发布远程目录，服务端白名单深度校验（entry 钳制 `/apps/sites/<name>/index.html`、权限 ⊆ MVP 名单、字段恰 8 项、≤50 条）；公共 `GET /api/store/catalog` 优先返回已发布目录并照常 Ed25519 签名分发
+- 前端：远程模式下 admin 可见设置「远程目录」面板（列表/移除/JSON 追加发布，双语文案与结构化错误提示）；账户区「管理员」徽标；商店合并时内置清单优先于同 id 远程条目；本地模式不存在 admin
+- 真实后端双角色烟雾通过：boss 注册即 admin → 面板发布计数器 → 服务端落盘 → 普通用户商店见「远程」徽标条目，且无管理面板与徽标
+
 ### 应用套件设计翻新 · 蓝白渐变「精密仪表」（docs/DESIGN.md，ADR 19）
 
 - grilling 共识（taste-skill 自由方向、浅色基线、全局 Token 跟随、CSS-only 动效）+ 试点裁决修订（蓝白渐变）；方向唯一权威定义见 `docs/DESIGN.md`

@@ -123,7 +123,17 @@ export function AccountSection() {
 
   return (
     <section aria-label={t('settings.account')}>
-      <h2 className="mb-4 text-base font-semibold text-text">{t('settings.account')}</h2>
+      <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-text">
+        {t('settings.account')}
+        {user?.role === 'admin' && (
+          <span
+            data-testid="admin-badge"
+            className="rounded border border-primary/50 px-1 font-mono text-[11px] font-normal text-primary"
+          >
+            {t('settings.account.adminBadge')}
+          </span>
+        )}
+      </h2>
 
       <div className="mb-6 max-w-md space-y-3">
         <div className="flex items-center gap-4">

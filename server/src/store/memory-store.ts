@@ -6,6 +6,7 @@ export class MemoryDataStore implements DataStore {
   private users = new Map<string, UserRecord>()
   private sessions = new Map<string, SessionRecord>()
   private syncData = new Map<string, Map<string, { data: string; updatedAt: string }>>()
+  private appCatalog: string | null = null
 
   async init(): Promise<void> {}
 
@@ -86,5 +87,13 @@ export class MemoryDataStore implements DataStore {
       this.syncData.set(userId, domains)
     }
     domains.set(domain, { data, updatedAt: new Date().toISOString() })
+  }
+
+  async getAppCatalog(): Promise<string | null> {
+    return this.appCatalog
+  }
+
+  async putAppCatalog(catalogJson: string): Promise<void> {
+    this.appCatalog = catalogJson
   }
 }

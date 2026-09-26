@@ -4,6 +4,9 @@ export interface UserRecord {
   createdAt: string
   updatedAt: string
   passwordHash: string
+  /** Role (ADR 20): 'admin' manages the remote catalog (§47 应用审核前置);
+   *  absent = 'user'. Bootstrapped via AGEHA_ADMIN_USERNAME. */
+  role?: 'user' | 'admin'
   /** Optional profile fields (PRD §12.1 修改昵称/资料); absent = unset. */
   displayName?: string
   email?: string
@@ -56,4 +59,8 @@ export interface DataStore {
   getSyncData(userId: string, domain: string): Promise<string | null>
   /** Upserts one sync domain; domain names and capacity are enforced by the route. */
   putSyncData(userId: string, domain: string, data: string): Promise<void>
+  /** Admin-published remote store catalog (ADR 20); null = fall back to built-in. */
+  getAppCatalog(): Promise<string | null>
+  /** Replaces the published catalog (single JSON blob, validated by the route). */
+  putAppCatalog(catalogJson: string): Promise<void>
 }

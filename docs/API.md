@@ -94,6 +94,20 @@ docker compose -f server/docker-compose.yml up -d   # 可选：本地 PostgreSQL
 - 无键的 `GET/PUT /api/sync/data` 保留为 `domain=settings` 的别名（存量客户端兼容）。
 - 服务端是已认证的按（userId, domain）分键的哑 KV；合并策略归客户端（boot 拉取 + 防抖上推，整块 last-writer-wins）。存储层：memory / file（嵌套 `sync: { userId: { domain: entry } }`，旧扁平形状读取时自动迁移进 `settings` 域）/ postgres（`ageha_sync` 按 `(user_id, domain)` 唯一，迁移自动补 `domain` 列并重建唯一索引）。
 
+### GET /api/store/catalog（远端应用目录，公开）
+
+签名目录（ADR 18/20）：`{ keyId, algorithm:'ed25519', publicKey, payload:{version,generatedAt,apps}, signature }`。载荷为管理员发布过的目录（见下），未发布时回落内置样例；签名对规范化 JSON 计算，客户端验签 + `/apps/sites/` allowlist 过滤。
+
+### GET/PUT /api/store/admin/catalog（目录管理，仅 admin，ADR 20）
+
+- `GET` → `200 { apps: [...] }`；`PUT` 请求 `{ apps: [...] }`（≤50 条，整包替换）→ `200 { ok: true, apps }`。
+- 深度校验（`validateCatalogApps`）：字段白名单（恰 8 字段）；`id` 唯一 `^[a-zA-Z0-9][a-zA-Z0-9._-]{2,63}$`；`entry` 必须匹配 `/apps/sites/<name>/index.html` 且无上跳；`permissions` ⊆ MVP 权限名；窗口 200–2000 整数；非法 → `400 {"error":"invalid-catalog"}`。
+- 认证：会话 Cookie + `role=admin`；匿名 `401 not-authenticated`，普通用户 `403 not-admin`。
+
+### 管理员引导（ADR 20）
+
+`AGEHA_ADMIN_USERNAME` 环境变量：该用户名的注册者即时获得 `role=admin`；已存在同名用户在每次服务端启动时幂等提升（可追溯生效于既有库）。`/api/auth/*` 与 `/api/users/me` 的用户载荷携带 `role`（普通用户缺省不返回）。
+
 ### POST /api/ai/proxy（DDS §5.3，Phase B）
 
 同源 LLM 代理：API Key 只存在服务端（`AGEHA_AI_API_KEY`，未配置 → `503 {"error":"ai-not-configured"}`，客户端走降级链）。
