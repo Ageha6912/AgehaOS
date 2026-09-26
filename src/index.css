@@ -179,6 +179,31 @@ body {
   }
 }
 
+/*
+ * Scroll thin: always-visible slim scrollbar for list chrome (DESIGN.md §3).
+ * Windows「自动隐藏滚动条」让悬浮条在悬停前不可见——末行被截断时用户无从
+ * 判断列表可滚。样式化经典滚动条常驻可见（宽 6px、主题色、透明轨道）；
+ * Firefox 走 scrollbar-width: thin 同语义。
+ */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ag-text-muted) 45%, transparent) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ag-text-muted) 40%, transparent);
+  border-radius: 9999px;
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ag-text-muted) 60%, transparent);
+}
+
 /* Enter animations (feedback/state-transition); reduced motion collapses them. */
 @keyframes os-pop-in {
   from {

@@ -64,3 +64,46 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
     page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /时钟/ }),
   ).toHaveCount(0)
 })
+
+test('store list keeps a visible scrollbar and a bottom fade while content overflows', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const loginForm = page.getByRole('form', { name: '登录 AgehaOS' })
+  await expect(loginForm).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: '没有账户？创建一个' }).click()
+  await page.getByLabel('用户名').fill('e2e-store-scroll')
+  await page.getByLabel('密码').fill('secret123')
+  await page.getByRole('button', { name: '注册' }).click()
+
+  await revealTaskbar(page)
+  await page.getByRole('button', { name: /开始/ }).click()
+  await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /应用商店/ }).click()
+  const store = page.getByRole('region', { name: '应用商店' })
+  await expect(store).toBeVisible()
+
+  // 常驻细滚动条（Windows 悬浮滚动条问题的修复载体）。
+  const list = store.getByTestId('store-list')
+  await expect(list).toHaveClass(/scroll-thin/)
+
+  // 最大化（视口全高）→ 无溢出 → 无遮罩。
+  await store.locator('header').dblclick()
+  await expect(store.getByTestId('scroll-fade')).toHaveCount(0)
+  await store.locator('header').dblclick()
+
+  // 拖拽右下角手柄把窗口压到最小高度附近 → 列表溢出 → 底部渐隐出现。
+  const handle = store.locator('.cursor-nwse-resize')
+  const handleBox = (await handle.boundingBox()) ?? { x: 0, y: 0, width: 0, height: 0 }
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handleBox.x, handleBox.y - 280, { steps: 6 })
+  await page.mouse.up()
+  await expect(store.getByTestId('scroll-fade')).toBeVisible()
+
+  // 滚到底 → 渐隐退场（用户能判断「已到末尾」）。
+  const listBox = (await list.boundingBox()) ?? { x: 0, y: 0, width: 0, height: 0 }
+  await page.mouse.move(listBox.x + listBox.width / 2, listBox.y + listBox.height / 2)
+  await page.mouse.wheel(0, 4000)
+  await expect(store.getByTestId('scroll-fade')).toHaveCount(0)
+})

@@ -41,6 +41,27 @@ describe('NotificationCenter (PRD §16.2)', () => {
     expect(screen.getByText('「记事」已停止响应，系统其余部分不受影响。')).toBeInTheDocument()
   })
 
+  it('fades the list bottom only while content extends below the fold', () => {
+    pushSample()
+    render(<NotificationCenter />)
+
+    fireEvent.click(screen.getByTestId('notification-bell'))
+    const list = screen.getByTestId('notification-list')
+    expect(list.className).toContain('scroll-thin')
+    expect(screen.queryByTestId('scroll-fade')).not.toBeInTheDocument()
+
+    // jsdom 无布局：伪造溢出后派发 scroll。
+    Object.defineProperty(list, 'scrollTop', { value: 0, configurable: true })
+    Object.defineProperty(list, 'scrollHeight', { value: 800, configurable: true })
+    Object.defineProperty(list, 'clientHeight', { value: 300, configurable: true })
+    fireEvent.scroll(list)
+    expect(screen.getByTestId('scroll-fade')).toBeInTheDocument()
+
+    Object.defineProperty(list, 'scrollTop', { value: 500, configurable: true })
+    fireEvent.scroll(list)
+    expect(screen.queryByTestId('scroll-fade')).not.toBeInTheDocument()
+  })
+
   it('marks read (badge clears), deletes single items and clears all', () => {
     pushSample()
     pushSample({ titleKey: 'notification.title.wallpaperFailed' })

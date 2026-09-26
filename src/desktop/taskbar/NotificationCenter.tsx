@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Bell, Check, X } from '@phosphor-icons/react'
 
 import { useLocaleStore, useTranslation } from '@/core/i18n'
+import { ScrollFadeList } from '@/components/scroll-fade-list'
 import {
   notificationBodyText,
   notificationTitleText,
@@ -133,11 +134,11 @@ export function NotificationCenter() {
           {items.length === 0 ? (
             <p className="px-2 py-6 text-center text-xs text-text-muted">{t('notification.empty')}</p>
           ) : (
-            <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto" data-testid="notification-list">
+            <ScrollFadeList className="space-y-1.5" testId="notification-list">
               {items.map((item) => (
                 <NotificationRow key={item.id} item={item} />
               ))}
-            </ul>
+            </ScrollFadeList>
           )}
         </div>
       )}

@@ -4,6 +4,7 @@ import { CheckCircle, Clock, PaintBrush, Trash, Download } from '@phosphor-icons
 
 import { useTranslation } from '@/core/i18n'
 import { PermissionConsentDialog } from '@/components/permission-consent-dialog'
+import { ScrollFadeList } from '@/components/scroll-fade-list'
 import { fetchSignedCatalog } from '@/core/apps/remote-catalog'
 import { permissionManager } from '@/core/permissions'
 import type { AppManifest } from '@/core/runtime/manifest'
@@ -88,7 +89,7 @@ export function StoreApp() {
         )}
       </div>
 
-      <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+      <ScrollFadeList className="space-y-2 p-3" testId="store-list">
         {entries.map((entry, index) => {
           const installed = installedIds.has(entry.manifest.id)
           const installedApp = apps.find((app) => app.id === entry.manifest.id)
@@ -161,7 +162,7 @@ export function StoreApp() {
             </li>
           )
         })}
-      </ul>
+      </ScrollFadeList>
 
       {consenting !== null && entries[consenting] && (
         <PermissionConsentDialog

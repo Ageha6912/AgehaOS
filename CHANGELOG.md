@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 列表滚动可见性打磨（docs/DESIGN.md §3 增补，HANDOFF §6.3 销项）
+
+- 新增 `.scroll-thin` 工具类：常驻 6px 主题色细滚动条（透明轨道、圆角 thumb、Firefox `scrollbar-width: thin`）——Windows「自动隐藏滚动条」下悬浮条悬停前不可见，末行截断时无从判断可滚（视觉审查两次提出）
+- 新增 `ScrollFadeList` 组件 + `useScrollZone` 钩子（`useSyncExternalStore` 订阅 scroll/子树变更/元素尺寸，快照为原始字符串引用稳定）：「有溢出且未到底」时在可视底缘渲染 28px `from-surface` 渐隐遮罩，滚到底退场；纯谓词 `scrollZoneKey`（±1px 容差）独立单测
+- 接入商店列表（默认窗口尺寸本就轻微溢出——即当初视觉审查看到的末行截断）与通知中心历史；E2E 覆盖「最大化无遮罩 → 拖小出现 → 滚到底消失」全链
+- 测试：use-scroll-edge 5 项 + StoreApp 新测试文件 3 项 + NotificationCenter 1 项；套件 635+58、E2E 12/12 绿
+
 ### 自动隐藏任务栏（docs/DESIGN.md §9，用户裁决）
 
 - 任务栏默认整体藏于屏幕底缘之外：指针触底（6px 唤出区，压在窗口层之上）或键盘焦点进入任务栏控件时 300ms ease-out 缓滑入场；离开任务栏子树（含菜单/悬停预览等浮层）400ms 缓冲后滑出
