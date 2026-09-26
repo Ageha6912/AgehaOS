@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>记忆翻牌</title>
+    <link rel="stylesheet" href="./memory.css" />
+  </head>
+  <body>
+    <header>
+      <h1>记忆翻牌</h1>
+      <span class="mono">步数 <b id="moves">0</b> · 配对 <b id="pairs">0</b>/8</span>
+    </header>
+    <div id="grid" class="grid" aria-label="翻牌棋盘"></div>
+    <div class="bar">
+      <button id="new" type="button" class="primary">新游戏</button>
+    </div>
+    <p class="hint">翻开幕对相同数字的卡牌 · 全部配对即获胜</p>
+    <script src="./memory.js"></script>
+  </body>
+</html>

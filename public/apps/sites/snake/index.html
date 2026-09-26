@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>贪吃蛇</title>
+    <link rel="stylesheet" href="./snake.css" />
+  </head>
+  <body>
+    <header>
+      <h1>贪吃蛇</h1>
+      <span class="mono">得分 <b id="score">0</b> · 最高 <b id="best">0</b></span>
+    </header>
+    <canvas id="board" width="340" height="340" aria-label="贪吃蛇棋盘"></canvas>
+    <div class="bar">
+      <button id="start" type="button" class="primary">开始游戏</button>
+    </div>
+    <p class="hint">方向键 / WASD 控制 · 撞墙或咬到自己即结束</p>
+    <script src="./snake.js"></script>
+  </body>
+</html>

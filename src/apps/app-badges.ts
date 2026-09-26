@@ -2,6 +2,8 @@ import type { ComponentType } from 'react'
 import {
   AppWindow,
   BookOpen,
+  Bomb,
+  Brain,
   Calculator,
   Camera,
   ChatCircleText,
@@ -10,7 +12,9 @@ import {
   FolderOpen,
   GameController,
   GearSix,
+  GridFour,
   Hash,
+  Joystick,
   MusicNote,
   Newspaper,
   NotePencil,
@@ -86,6 +90,10 @@ export const APP_BADGES: Record<string, AppBadge> = {
   'com.ageha.samples.sticky': { from: '#818cf8', to: '#3730a3', glyph: NotePencil },
   'com.ageha.samples.fs-note': { from: '#38bdf8', to: '#1d4ed8', glyph: CloudArrowUp },
   'com.ageha.samples.counter': { from: '#60a5fa', to: '#2563eb', glyph: Hash },
+  'com.ageha.games.snake': { from: '#34d399', to: '#047857', glyph: Joystick },
+  'com.ageha.games.2048': { from: '#67e8f9', to: '#155e75', glyph: GridFour },
+  'com.ageha.games.memory': { from: '#d8b4fe', to: '#9333ea', glyph: Brain },
+  'com.ageha.games.mines': { from: '#94a3b8', to: '#475569', glyph: Bomb },
 }
 
 /** djb2 变体：同一 appId 永远得到同一散列（跨会话/跨设备稳定）。 */

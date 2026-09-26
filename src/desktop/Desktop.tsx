@@ -7,6 +7,7 @@ import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
 import { NotificationToasts } from '@/desktop/NotificationToasts'
 import { SearchPalette } from '@/desktop/search/SearchPalette'
 import { DesktopIcons } from '@/desktop/DesktopIcons'
+import { openRandomGame } from '@/desktop/game-rotation'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { getAppManifest } from '@/store/app-store'
@@ -34,6 +35,15 @@ export function Desktop() {
       x: Math.max(8, window.innerWidth - width - 24),
       y: 24,
     })
+  }, [])
+
+  // 小游戏轮换（2026-09-26 用户裁决「每次进入桌面都是不一样的小游戏」）：
+  // 在已安装的游戏里随机开一个（与上次不同）；没装游戏则静默跳过。
+  const gameOpened = useRef(false)
+  useEffect(() => {
+    if (gameOpened.current) return
+    gameOpened.current = true
+    openRandomGame()
   }, [])
 
   return (

@@ -22,15 +22,16 @@ describe('StoreApp', () => {
   it('renders every bundled catalog entry with install actions', () => {
     render(<StoreApp />)
 
-    for (const name of ['时钟', '画板', '便签', '云笔记']) {
+    // 4 样例 + 4 小游戏。
+    const names = ['时钟', '画板', '便签', '云笔记', '贪吃蛇', '2048', '记忆翻牌', '扫雷']
+    for (const name of names) {
       expect(screen.getByText(name)).toBeInTheDocument()
     }
-    // 内置四条样例，全部可安装。
-    expect(screen.getAllByRole('button', { name: '安装' })).toHaveLength(4)
+    expect(screen.getAllByRole('button', { name: '安装' })).toHaveLength(names.length)
 
     // 列表图标 = 应用徽章系统（DESIGN.md §8），逐条渲染白色字形。
     const badgeCount = screen.getByTestId('store-list').querySelectorAll('li svg').length
-    expect(badgeCount).toBe(4)
+    expect(badgeCount).toBe(names.length)
   })
 
   it('shows the bottom scroll fade only while content extends below the fold', () => {

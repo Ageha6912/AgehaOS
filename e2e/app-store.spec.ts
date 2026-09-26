@@ -90,18 +90,7 @@ test('store list keeps a visible scrollbar and a bottom fade while content overf
   const list = store.getByTestId('store-list')
   await expect(list).toHaveClass(/scroll-thin/)
 
-  // 最大化（视口全高）→ 无溢出 → 无遮罩。
-  await store.locator('header').dblclick()
-  await expect(store.getByTestId('scroll-fade')).toHaveCount(0)
-  await store.locator('header').dblclick()
-
-  // 拖拽右下角手柄把窗口压到最小高度附近 → 列表溢出 → 底部渐隐出现。
-  const handle = store.locator('.cursor-nwse-resize')
-  const handleBox = (await handle.boundingBox()) ?? { x: 0, y: 0, width: 0, height: 0 }
-  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(handleBox.x, handleBox.y - 280, { steps: 6 })
-  await page.mouse.up()
+  // 目录已有 8 条（4 样例 + 4 小游戏），默认窗口尺寸即溢出 → 底部渐隐直接可见。
   await expect(store.getByTestId('scroll-fade')).toBeVisible()
 
   // 滚到底 → 渐隐退场（用户能判断「已到末尾」）。

@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { buildWallpaperPlan, COMPOSITIONS } from '@/core/dynamic/generative/templates'
 import { useBootStore } from '@/store/boot-store'
-import { resetAppStore } from '@/store/app-store'
+import { installApp, resetAppStore } from '@/store/app-store'
+import { STORE_CATALOG } from '@/apps/store/catalog'
 import {
   resetDynamicDesktopStore,
   useDynamicDesktopStore,
@@ -15,6 +16,8 @@ import { Desktop } from './Desktop'
 beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-09-21T10:30:00'))
+  // 清掉安装持久化/轮换记录等跨用例泄漏（resetAppStore 会从 localStorage 恢复）。
+  localStorage.clear()
   useBootStore.setState(useBootStore.getInitialState())
   resetWindowStore()
   resetAppStore()
@@ -42,6 +45,24 @@ describe('Desktop', () => {
     // StrictMode/重渲染不重复开窗。
     rerender(<Desktop />)
     expect(useWindowStore.getState().windows).toHaveLength(1)
+  })
+
+  it('auto-opens a random installed game next to the panel on entry', () => {
+    const gameEntry = STORE_CATALOG.find(
+      (entry) => entry.manifest.id === 'com.ageha.games.snake',
+    )
+    expect(gameEntry).toBeDefined()
+    const installed = installApp(gameEntry!.manifest)
+    expect(installed.ok).toBe(true)
+
+    render(<Desktop />)
+
+    // 动态面板 + 轮换小游戏。
+    const windows = useWindowStore.getState().windows
+    expect(windows).toHaveLength(2)
+    expect(windows[1]?.appId).toBe('com.ageha.games.snake')
+    // 游戏窗口水平居中。
+    expect(windows[1]?.x).toBeGreaterThan(0)
   })
 
   it('opens an app window from the launcher and closes it again', () => {
