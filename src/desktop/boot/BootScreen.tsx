@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { AgehaMark } from '@/components/ageha-mark'
+import { BrandLogo } from '@/components/brand-logo'
 import { useTranslation } from '@/core/i18n'
 import { useBootStore } from '@/store/boot-store'
 import { useSessionStore } from '@/store/session-store'
@@ -35,7 +35,7 @@ export function BootScreen() {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,color-mix(in_srgb,var(--ag-primary)_10%,transparent),transparent)]"
       />
       <div className="relative select-none" aria-hidden="true">
-        <AgehaMark size={72} />
+        <BrandLogo size={72} />
       </div>
       <h1 className="relative text-3xl font-semibold tracking-wide text-text">AgehaOS</h1>
       <p className="relative text-sm text-text-muted" role="status">

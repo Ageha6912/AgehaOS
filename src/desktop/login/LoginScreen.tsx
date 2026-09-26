@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 
-import { AgehaMark } from '@/components/ageha-mark'
+import { BrandLogo } from '@/components/brand-logo'
 import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import type { AuthErrorCode } from '@/core/auth'
@@ -61,7 +61,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
       />
       <div className="relative flex flex-col items-center gap-1">
         <div className="select-none" aria-hidden="true">
-          <AgehaMark size={56} />
+          <BrandLogo size={56} />
         </div>
         <h1 className="text-2xl font-semibold tracking-wide text-text">AgehaOS</h1>
         <p className="text-xs text-text-muted">{t('boot.login')}</p>
