@@ -181,20 +181,20 @@ export function CalculatorApp() {
   }, [press])
 
   return (
-    <div className="flex h-full flex-col bg-surface" aria-label={t('app.calculator.title')}>
+    <div className="surface-panel flex h-full flex-col" aria-label={t('app.calculator.title')}>
       <output
         data-testid="calculator-display"
-        className="select-none border-b border-border px-4 py-4 text-right text-2xl font-semibold tabular-nums text-text"
+        className="select-none border-b border-border px-4 py-4 text-right font-mono text-2xl font-semibold tabular-nums text-text"
       >
         {state.display}
       </output>
-      <div className="grid min-h-0 flex-1 grid-cols-4 gap-1 p-2">
+      <div className="grid min-h-0 flex-1 grid-cols-4 gap-1.5 p-2.5">
         {BUTTONS.map((button) => (
           <button
             key={button.key}
             type="button"
             data-testid={`calculator-key-${button.key}`}
-            className={`rounded-md text-sm font-medium ${
+            className={`rounded-md text-sm font-medium tabular-nums ${
               button.kind === 'eq'
                 ? 'bg-primary text-primary-contrast hover:opacity-90'
                 : button.kind === 'op'

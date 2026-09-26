@@ -147,7 +147,7 @@ export function DynamicPanelApp() {
   const appliedId = appliedLayout?.layoutId ?? null
 
   return (
-    <div className="flex h-full flex-col bg-surface text-sm">
+    <div className="surface-panel flex h-full flex-col text-sm">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h2 className="flex items-center gap-2 text-base font-semibold text-text">
           <Sparkle size={16} weight="regular" />
@@ -178,12 +178,12 @@ export function DynamicPanelApp() {
                 .map((group) => t(`dynamic.layout.group.${group.nameKey}` as MessageKey))
                 .join(' / ')}
             </p>
-            <p className="mt-1 text-[10px] text-text-muted">{t('dynamic.layout.hint')}</p>
+            <p className="mt-1 text-[11px] text-text-muted">{t('dynamic.layout.hint')}</p>
             <div className="mt-2 flex items-center gap-2">
               {appliedId === layoutSuggestion.layoutId ? (
                 <>
                   <span
-                    className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-text"
+                    className="rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-text"
                     data-testid="layout-applied-badge"
                   >
                     {t('dynamic.layout.applied')}
@@ -191,7 +191,7 @@ export function DynamicPanelApp() {
                   <button
                     type="button"
                     data-testid="layout-reset"
-                    className="rounded-md border border-border px-2 py-1 text-[10px] text-text-muted hover:bg-surface-raised hover:text-text"
+                    className="rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:bg-surface-raised hover:text-text"
                     onClick={() => resetAppliedLayout()}
                   >
                     {t('dynamic.layout.reset')}
@@ -201,14 +201,14 @@ export function DynamicPanelApp() {
                 <button
                   type="button"
                   data-testid="layout-apply"
-                  className="rounded-md bg-primary px-2 py-1 text-[10px] font-medium text-primary-contrast hover:opacity-90"
+                  className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-contrast hover:opacity-90"
                   onClick={() => applyLayout(layoutSuggestion)}
                 >
                   {t('dynamic.layout.apply')}
                 </button>
               )}
             </div>
-            <p className="mt-2 flex items-center gap-1 text-[10px] text-text-muted">
+            <p className="mt-2 flex items-center gap-1 text-[11px] text-text-muted">
               <Sparkle size={10} weight="fill" className="text-primary" />
               {t('dynamicDesktop.badgeLabel')} · {t('dynamicDesktop.source.local')}
             </p>
@@ -267,7 +267,7 @@ export function DynamicPanelApp() {
                     <button
                       type="button"
                       data-testid="panel-tip-report"
-                      className="mt-1 text-[10px] text-text-muted underline hover:text-text"
+                      className="mt-1 text-[11px] text-text-muted underline hover:text-text"
                       onClick={() => {
                         // §8.6：立即撤下 + 会话内封禁；样本上传待基础设施（不经确认不上传）。
                         banContent(enhancedTipText ?? '')
@@ -283,7 +283,7 @@ export function DynamicPanelApp() {
                 </>
               )
             })()}
-            <p className="mt-2 flex items-center gap-1 text-[10px] text-text-muted">
+            <p className="mt-2 flex items-center gap-1 text-[11px] text-text-muted">
               <Sparkle size={10} weight="fill" className="text-primary" />
               {t('dynamicDesktop.badgeLabel')} · {t('dynamicDesktop.source.local')}
             </p>
@@ -291,7 +291,7 @@ export function DynamicPanelApp() {
         ))}
       </ul>
 
-      <p className="border-t border-border px-4 py-2 text-[10px] text-text-muted" data-testid="panel-decision-source">
+      <p className="border-t border-border px-4 py-2 font-mono text-[11px] text-text-muted" data-testid="panel-decision-source">
         {t('cards.panel.decisionBy')} {t(SOURCE_KEYS[enhanceSource])}
       </p>
     </div>

@@ -74,7 +74,7 @@ export function StoreApp() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-surface text-sm">
+    <div className="surface-panel flex h-full flex-col text-sm">
       <div className="border-b border-border px-4 py-3">
         <h2 className="text-base font-semibold text-text">{t('app.store.title')}</h2>
         <p className="mt-0.5 text-xs text-text-muted">{t('store.hint')}</p>
@@ -101,12 +101,12 @@ export function StoreApp() {
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 font-medium text-text">
                     {entry.manifest.name}
-                    <span className="rounded border border-border px-1 text-[10px] text-text-muted">
+                    <span className="rounded border border-border px-1 font-mono text-[11px] text-text-muted">
                       {t('store.webApp')}
                     </span>
                     {entry.remote && (
                       <span
-                        className="rounded border border-primary/50 px-1 text-[10px] text-primary"
+                        className="rounded border border-primary/50 px-1 font-mono text-[11px] text-primary"
                         data-testid="store-remote-badge"
                       >
                         {t('store.remoteBadge')}
