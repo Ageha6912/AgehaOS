@@ -149,8 +149,16 @@ Files（试点）→ Terminal（含主题修复）→ Notes → Settings → Sto
 | 便签 samples.sticky | `#818cf8 → #3730a3` 靛蓝 | NotePencil |
 | 云笔记 samples.fs-note | `#38bdf8 → #1d4ed8` 湖蓝 | CloudArrowUp |
 | 计数器 samples.counter | `#60a5fa → #2563eb` 蓝 | Hash |
+| 贪吃蛇 games.snake | `#34d399 → #047857` 翡翠 | Joystick |
+| 2048 games.2048 | `#67e8f9 → #155e75` 深青 | GridFour |
+| 记忆翻牌 games.memory | `#d8b4fe → #9333ea` 紫丁香 | Brain |
+| 扫雷 games.mines | `#94a3b8 → #475569` 板岩 | Bomb |
 
 新增精选徽章 = 在 `APP_BADGES` 加一行（覆盖生成器）。
+
+**小游戏轮换**：`desktop/game-rotation.ts`——进入桌面在已安装游戏
+（snake/2048/memory/mines）中随机打开一个且与上次不同（上次记录持久化），
+窗口居中弹出；未安装任何游戏则静默跳过。
 
 尺寸约定：搜索 16 / 窗口标题栏 16 / 任务栏 20 / 悬停预览 20（体 48）/
 开始菜单 24 / 桌面 40 / 商店列表 36。字形占徽章边长 58%。
