@@ -160,6 +160,17 @@ Files（试点）→ Terminal（含主题修复）→ Notes → Settings → Sto
 （snake/2048/memory/mines）中随机打开一个且与上次不同（上次记录持久化），
 窗口居中弹出；未安装任何游戏则静默跳过。
 
+## 10. 品牌标（AgehaMark）
+
+**Ageha（揚羽）即凤蝶**——系统标就是一只白色几何燕尾蝶：钴蓝渐变
+（`#4f7cf9 → #1d43b8`，150°）圆角底 + 棱角蝶形（前翅后掠、后翅带外
+伸尾突 85% 透明度），与应用徽章同族几何（24% 圆角）。master SVG 在
+`public/brand/agehaos-mark.svg`（Chromium 渲染的 512/192/180 PNG 同
+目录，favicon/apple-touch-icon/theme-color 已接 `index.html`）；
+界面内用 `AgehaMark` 组件（boot/登录屏 72·56、开始按钮 18、设置
+关于 40·侧栏 14）。2026-09-26 起 🦋 emoji 在系统 UI 中全面退位——
+品牌豁免条款由真实品牌标接替。
+
 尺寸约定：搜索 16 / 窗口标题栏 16 / 任务栏 20 / 悬停预览 20（体 48）/
 开始菜单 24 / 桌面 40 / 商店列表 36。字形占徽章边长 58%。
 
