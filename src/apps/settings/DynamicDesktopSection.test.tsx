@@ -40,15 +40,17 @@ function openDynamicSection() {
 }
 
 describe('SettingsApp 动态桌面 section', () => {
-  it('starts with the master switch off (总开关默认关闭)', () => {
+  it('starts with the master switch on (照片壁纸出厂即开)', () => {
     render(<SettingsApp />)
     openDynamicSection()
 
-    expect(screen.getByTestId('dynamic-desktop-toggle')).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByTestId('dynamic-desktop-toggle')).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByText('尚未生成')).toBeInTheDocument()
   })
 
   it('enabling the switch generates a wallpaper through the real pipeline', async () => {
+    // 默认已开：先显式关掉，再验证「开启 → 走真实生成管线」。
+    useDynamicDesktopStore.getState().setEnabled(false)
     render(<SettingsApp />)
     openDynamicSection()
 
@@ -122,7 +124,8 @@ describe('SettingsApp 动态桌面 section', () => {
 
     fireEvent.click(screen.getByTestId('dynamic-desktop-clear'))
     const state = useDynamicDesktopStore.getState()
-    expect(state.prefs.enabled).toBe(false)
+    // §6.5 恢复默认 = 出厂偏好（照片壁纸出厂即开）。
+    expect(state.prefs.enabled).toBe(true)
     expect(state.currentPlan).toBeNull()
     expect(localStorage.getItem(`${DYNAMIC_DESKTOP_KEY_PREFIX}u1`)).toBeNull()
   })

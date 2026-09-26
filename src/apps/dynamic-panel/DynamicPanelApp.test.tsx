@@ -90,6 +90,9 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
   })
 
   it('offers no layout card while the dynamic desktop is off', async () => {
+    useDynamicDesktopStore.setState({
+      prefs: { enabled: false, randomness: 40, hideBadge: false, pinned: null, blockedStyles: [], llmEnhance: false },
+    })
     render(<DynamicPanelApp />)
     await waitFor(() => expect(screen.getByTestId('panel-card-greeting')).toBeInTheDocument())
     expect(screen.queryByTestId('panel-card-layout')).toBeNull()

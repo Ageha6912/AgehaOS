@@ -36,7 +36,10 @@ export const DYNAMIC_DESKTOP_KEY_PREFIX = 'agehaos.dynamic-desktop.v1.'
 export const DEFAULT_RANDOMNESS = 40
 
 const DEFAULT_PREFS: DynamicDesktopPrefs = {
-  enabled: false,
+  // 照片引擎（Phase A.6）是系统唯一主动壁纸域——出厂即开启，主开关退化为
+  // 「想要纯色渐变桌面」的退出项（2026-09-26 用户裁决：新账号默认有壁纸）。
+  // 显式保存过偏好的用户不受影响（hydrate 只补缺失字段）。
+  enabled: true,
   randomness: DEFAULT_RANDOMNESS,
   hideBadge: false,
   pinned: null,
