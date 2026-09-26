@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<!-- ============================================================================
+  motion-lab/dock/index.html — Dock 放大波浪演示模块
+
+  打开方式：双击本文件即可（零外部网络依赖，无字体/CDN/图标库）。
+  文件构成：index.html + dock.css + dock.js。
+  ※ 规范 SPEC §4 约定模块三文件名为 style.css / script.js，本模块按任务需求
+    命名为 dock.css / dock.js，语义不变（以需求为准）。
+
+  波浪实现要点（详见 dock.js 顶部注释）：
+  · 高斯距离衰减 scale = 1 + (maxScale-1)·exp(-d²/2σ²)，rAF 逐帧只写
+    transform（translateY + scale），帧内零布局读取（SPEC §1.3 / §3）。
+  · 激活应用图标下方发光小圆点带轻微 pulse 循环：规范 §0/DESIGN §2.5
+    要求不新增循环动画，本处按任务需求保留极轻微呼吸感，并在
+    prefers-reduced-motion 下关闭（以需求为准，见 dock.css 注释）。
+
+  ======================== 降级与可访问性说明（需求 #5） ========================
+  · 触屏：设备没有悬停态，纯点按不会出现名称 tooltip；波浪会跟随触摸拖动
+    短暂出现、抬手后按 settleMs 收敛，单击图标仍可切换激活指示点——
+    触屏路径不依赖波浪即可完成全部状态操作。
+  · 键盘：图标是原生 <button>，Tab 依次聚焦（:focus-visible 蓝色焦点环，
+    见 dock.css），Enter/Space 激活/取消激活；聚焦时 tooltip 以
+    opacity + 4px 上浮显现。波浪是指针专属增强，键盘路径零依赖。
+  · prefers-reduced-motion: reduce：dock.js 用 matchMedia 检测后整体关闭
+    波浪 / 按压 / 上浮（rAF 不启动，且实时响应系统开关变化），只保留
+    悬停 / 聚焦变色与即时 tooltip；激活点 pulse 由 CSS 一并关闭。
+    令牌层（shared/tokens.css §9）同时把 --ml-dur-* 塌缩到 0.01ms。
+  · prefers-reduced-transparency: reduce：tokens.css 已把玻璃退化为实色、
+    blur 归零，本模块无需额外处理（对比度永不依赖 blur）。
+============================================================================ -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgehaOS 动效实验室 · Dock 放大波浪</title>
+  <link rel="stylesheet" href="dock.css" />
+</head>
+<body>
+  <main class="stage">
+    <!-- 页眉：标题 + 说明 + 深浅色切换（验证 ml-dark 一键切换不破相，SPEC §6） -->
+    <header class="stage__header">
+      <div class="stage__heading">
+        <h1>Dock 放大波浪</h1>
+        <p>macOS Big Sur 式距离衰减放大：指针是扰动源，图标按距离依次参与，形成连续波浪。</p>
+      </div>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false">深色</button>
+    </header>
+
+    <!-- 桌面语境：一块静态玻璃窗口 mock，演示 Dock 与 chrome 层级的关系 -->
+    <section class="mock-window" aria-hidden="true">
+      <div class="mock-window__bar">
+        <i></i><i></i><i></i>
+        <span>AgehaOS · 动效实验室</span>
+      </div>
+      <div class="mock-window__body">
+        把鼠标移到底部 Dock 上感受波浪；点击图标切换激活点；Tab 聚焦后可用 Enter / Space 操作。
+      </div>
+    </section>
+
+    <!--
+      Dock：玻璃归 chrome（tokens --ml-glass-*）。
+      · .dock-icon 是原生 button（键盘可达）；内层 .dock-icon__tile 是 rAF
+        唯一写入 transform 的元素——tooltip 与激活点不随之缩放。
+      · 回收站与应用之间用 .dock__divider 分隔，与 macOS 惯例一致。
+    -->
+    <nav id="dock" class="dock" aria-label="Dock 演示">
+      <button class="dock-icon" type="button" aria-label="访达" aria-pressed="false">
+        <span class="dock-icon__tile" aria-hidden="true">🗂️</span>
+        <span class="dock-icon__dot" aria-hidden="true"></span>
+        <span class="dock-icon__tip" aria-hidden="true">访达</span>
+      </button>
+      <button class="dock-icon" type="button" aria-label="启动台" aria-pressed="false">
+        <span class="dock-icon__tile" aria-hidden="true">🚀</span>
+        <span class="dock-icon__dot" aria-hidden="true"></span>
+        <span class="dock-icon__tip" aria-hidden="true">启动台</span>
+      </button>
+      <button class="dock-icon" type="button" aria-label="邮件" aria-pressed="false">
+        <span class="dock-icon__tile" aria-hidden="true">✉️</span>
+        <span class="dock-icon__dot" aria-hidden="true"></span>
+        <span class="dock-icon__tip" aria-hidden="true">邮件</span>
+      </button>
+      <button class="dock-icon" type="button" aria-label="日历" aria-pressed="false">
+        <span class="dock-icon__tile" aria-hidden="true">📅</span>
+        <span class="dock-icon__dot" aria-hidden="true"></span>
+        <span class="dock-icon__tip" aria-hidden="true">日历</span>
+      </button>
+      <button class="dock-icon" type="button" aria-label="备忘录" aria-pressed="false">
+        <span class="dock-icon__tile" aria-hidden="true">📝</span>
+        <span class="dock-icon__dot" aria-hidden="true"></span>
+        <span class="dock-icon__tip" aria-hidden="true">备忘录</span>
+      </button>
+      <button class="dock-icon" type="button" aria-label="音乐" aria-pressed="false">
+        <span class="dock-icon__tile" aria-hidden="true">🎵</span>
+        <span class="dock-icon__dot" aria-hidden="true"></span>
+        <span class="dock-icon__tip" aria-hidden="true">音乐</span>
+      </button>
+      <button class="dock-icon" type="button" aria-label="照片" aria-pressed="false">
+        <span class="dock-icon__tile" aria-hidden="true">🌄</span>
+        <span class="dock-icon__dot" aria-hidden="true"></span>
+        <span class="dock-icon__tip" aria-hidden="true">照片</span>
+      </button>
+      <button class="dock-icon" type="button" aria-label="终端" aria-pressed="false">
+        <span class="dock-icon__tile" aria-hidden="true">⌨️</span>
+        <span class="dock-icon__dot" aria-hidden="true"></span>
+        <span class="dock-icon__tip" aria-hidden="true">终端</span>
+      </button>
+      <button class="dock-icon" type="button" aria-label="设置" aria-pressed="false">
+        <span class="dock-icon__tile" aria-hidden="true">⚙️</span>
+        <span class="dock-icon__dot" aria-hidden="true"></span>
+        <span class="dock-icon__tip" aria-hidden="true">设置</span>
+      </button>
+      <span class="dock__divider" aria-hidden="true"></span>
+      <button class="dock-icon" type="button" aria-label="废纸篓" aria-pressed="false">
+        <span class="dock-icon__tile" aria-hidden="true">🗑️</span>
+        <span class="dock-icon__dot" aria-hidden="true"></span>
+        <span class="dock-icon__tip" aria-hidden="true">废纸篓</span>
+      </button>
+    </nav>
+
+    <footer class="stage__footer">
+      参数集中在 dock.js 顶部 <code>PARAMS</code>；曲线 / 色板 / 玻璃 / 阴影一律引用
+      <code>shared/tokens.css</code> 的 <code>--ml-*</code> 令牌。
+    </footer>
+  </main>
+
+  <script src="dock.js" defer></script>
+</body>
+</html>

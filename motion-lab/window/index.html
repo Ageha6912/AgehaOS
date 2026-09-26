@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<!-- ============================================================================
+  motion-lab/window/index.html — 窗口动效演示模块（开合 / Genie 最小化 / 还原）
+
+  打开方式：双击本文件即可（零外部网络依赖，无字体/CDN/图标库）。
+  文件构成：index.html + window.css + window.js。
+  ※ 规范 SPEC §4 约定模块三文件名为 style.css / script.js，本模块按任务需求
+    命名为 window.css / window.js，语义不变（以需求为准）。
+
+  动效要点（详见 window.js 顶部注释与 PARAMS）：
+  · 打开：scale 0.9→1 + opacity 0→1，200ms，--ml-ease-spring 弹簧近似；
+    transform-origin 由 JS 投影到该窗口对应的 Dock 图标（SPEC §1.1 来源锚定）。
+  · 关闭：同一条路径反向，scale 1→0.92 + fade，150ms --ml-ease-in（恒短于打开）。
+  · 最小化：JS 读取目标 Dock 图标屏幕位置，Web Animations API 驱动
+    位移 + scale(0.08) + scaleY 压扁（genie 近似）+ 透明度渐隐；还原为同一路径
+    anim.reverse() 反向播放，路径严格镜像对称，且可在半途抓回（可中断）。
+  · 全程只写 transform/opacity，由合成器驱动；本模块没有 rAF 逐帧循环
+    （无指针连续跟随类动效），不涉及 SPEC §3.3 的逐帧纪律。
+
+  ======================== 降级与可访问性说明（需求 #6） ========================
+  · prefers-reduced-motion: reduce：window.js 用 matchMedia 检测（并实时响应
+    系统开关变化），所有开/关/最小化/还原直接落到终态、瞬时切换，不启动任何
+    WAAPI 动画；焦点描边等 CSS 过渡由 shared/tokens.css §9 把 --ml-dur-*
+    塌缩到 0.01ms 自动失效。降级形态选型：进出场类「瞬时切换」（任务指定）。
+  · prefers-reduced-transparency: reduce：tokens.css 已把玻璃退化为实色、
+    blur 归零，本模块无需额外处理（对比度永不依赖 blur）。
+  · 键盘可达：Dock 图标、红绿灯、控制按钮均为原生 <button>，Tab 聚焦 +
+    Enter/Space 激活，:focus-visible 焦点环照常渲染（SPEC §5）。
+  · will-change: transform 常驻在 .win 上是任务明确要求（SPEC §3.5 建议
+    动效前挂、结束后移；以需求为准并见 window.css 注释——本模块仅 3 个
+    窗口，合成层预算可控）。
+============================================================================ -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgehaOS 动效实验室 · 窗口开合与 Genie 最小化</title>
+  <link rel="stylesheet" href="window.css" />
+</head>
+<body>
+  <main class="stage" id="stage">
+    <!-- 页眉：标题 + 说明 + 深浅色切换（验证 ml-dark 一键切换不破相，SPEC §6） -->
+    <header class="stage__header">
+      <div class="stage__heading">
+        <h1>窗口开合 · Genie 最小化</h1>
+        <p>macOS Big Sur 式窗口生命周期动效：窗口从 Dock 图标弹性长出、沿原路收拢飞回；
+           焦点窗口带主题色描边。控制按钮与 Dock 图标、红绿灯均可操作。</p>
+      </div>
+      <button id="theme-toggle" class="controls__btn" type="button" aria-pressed="false">深色</button>
+    </header>
+
+    <!-- 控制按钮区（需求 #5）：打开新窗 / 关闭 / 最小化 / 还原，逐一可点 -->
+    <section class="controls" aria-label="窗口控制按钮区">
+      <button id="btn-open" class="controls__btn" type="button">打开新窗</button>
+      <button id="btn-close" class="controls__btn" type="button">关闭</button>
+      <button id="btn-min" class="controls__btn" type="button">最小化</button>
+      <button id="btn-restore" class="controls__btn" type="button">还原</button>
+      <span id="focus-hint" class="controls__hint" aria-live="polite">焦点：无</span>
+    </section>
+
+    <!-- 桌面语境：窗口层（--ml-z-window）永远压不过 Dock（--ml-z-taskbar），见 tokens §6 -->
+    <section class="desktop" aria-label="演示桌面">
+      <div class="win-layer">
+        <section class="win" data-app="notes" aria-label="备忘录窗口">
+          <header class="win__bar">
+            <span class="traffic">
+              <button class="traffic__btn traffic__btn--close" type="button" aria-label="关闭「备忘录」窗口"></button>
+              <button class="traffic__btn traffic__btn--min" type="button" aria-label="最小化「备忘录」窗口"></button>
+            </span>
+            <span class="win__title">备忘录</span>
+          </header>
+          <div class="win__body">
+            <h2 class="mock__h">燕子迁徙观察笔记</h2>
+            <p class="mock__p">第 42 次巡航记录：尾迹粒子在晨光下的色散已校准，回巢路线稳定。</p>
+            <ul class="mock__list">
+              <li>校准主翼液压（微反馈取 150ms 档）</li>
+              <li>复核 genie 曲线的路径镜像对称</li>
+              <li>给 Dock 的波浪补一档高斯 σ</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="win" data-app="terminal" aria-label="终端窗口">
+          <header class="win__bar">
+            <span class="traffic">
+              <button class="traffic__btn traffic__btn--close" type="button" aria-label="关闭「终端」窗口"></button>
+              <button class="traffic__btn traffic__btn--min" type="button" aria-label="最小化「终端」窗口"></button>
+            </span>
+            <span class="win__title">终端</span>
+          </header>
+          <pre class="win__body win__body--term">ageha@lab:~$ motion --inspect window
+  open    200ms  cubic-bezier(0.32, 0.72, 0, 1)
+  close   150ms  cubic-bezier(0.55, 0, 1, 0.45)
+  genie   300ms  transform + opacity only
+ageha@lab:~$ █</pre>
+        </section>
+
+        <section class="win" data-app="music" aria-label="音乐窗口">
+          <header class="win__bar">
+            <span class="traffic">
+              <button class="traffic__btn traffic__btn--close" type="button" aria-label="关闭「音乐」窗口"></button>
+              <button class="traffic__btn traffic__btn--min" type="button" aria-label="最小化「音乐」窗口"></button>
+            </span>
+            <span class="win__title">音乐</span>
+          </header>
+          <div class="win__body mock-music">
+            <div class="mock-music__cover" aria-hidden="true">♪</div>
+            <div class="mock-music__meta">
+              <strong>Fluid Interfaces</strong>
+              <span>Ageha Sound Dept.</span>
+              <span class="mock-music__track" aria-hidden="true"><i></i></span>
+              <span class="mock-music__time">01:24 / 03:32</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Dock：玻璃归 chrome（tokens --ml-glass-*）；图标与窗口经 data-app 一一对应 -->
+      <nav class="dock" aria-label="Dock">
+        <button class="dock-icon" data-app="notes" type="button" aria-label="备忘录" aria-pressed="false">
+          <span class="dock-icon__tip" aria-hidden="true">备忘录</span>
+          <span class="dock-icon__tile" aria-hidden="true">📝</span>
+          <span class="dock-icon__dot" aria-hidden="true"></span>
+        </button>
+        <button class="dock-icon" data-app="terminal" type="button" aria-label="终端" aria-pressed="false">
+          <span class="dock-icon__tip" aria-hidden="true">终端</span>
+          <span class="dock-icon__tile" aria-hidden="true">⌨️</span>
+          <span class="dock-icon__dot" aria-hidden="true"></span>
+        </button>
+        <button class="dock-icon" data-app="music" type="button" aria-label="音乐" aria-pressed="false">
+          <span class="dock-icon__tip" aria-hidden="true">音乐</span>
+          <span class="dock-icon__tile" aria-hidden="true">🎵</span>
+          <span class="dock-icon__dot" aria-hidden="true"></span>
+        </button>
+      </nav>
+    </section>
+
+    <footer class="stage__footer">
+      参数集中在 window.js 顶部 <code>PARAMS</code>；曲线 / 时长 / 色板 / 玻璃 / 阴影 / z 层一律引用
+      <code>shared/tokens.css</code> 的 <code>--ml-*</code> 令牌。动画由 Web Animations API
+      在合成器上驱动，仅写 transform / opacity。
+    </footer>
+  </main>
+
+  <script src="window.js" defer></script>
+</body>
+</html>

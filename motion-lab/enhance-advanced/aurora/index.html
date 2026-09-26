@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>效果 2 · 流光渐变氛围 — AgehaOS 动效实验室</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="aurora.css">
+</head>
+<body>
+  <main class="ml-stage" aria-label="流光渐变氛围演示舞台">
+    <!-- 效果 2 根元素：独立演示页默认启用 -->
+    <canvas class="mla-canvas" data-ml-aurora data-ml-enabled="true" aria-hidden="true"></canvas>
+
+    <aside class="mlc-panel mlc-panel--mini" role="group" aria-label="演示控制">
+      <h2 class="mlc-panel__title">效果 2 · 流光渐变氛围</h2>
+      <button class="mlc-btn" data-ml-theme-btn type="button">☾ 切换深色主题</button>
+      <p class="mlc-note">光斑以 30fps、半分辨率缓慢流动；切换主题观察配色与混合差异。</p>
+      <p class="mlc-note" data-ml-reduced-note hidden>已检测到 prefers-reduced-motion：仅渲染一帧静态氛围，循环已关闭。</p>
+      <a class="mlc-back" href="../index.html">← 返回组合演示页</a>
+    </aside>
+  </main>
+
+  <script src="aurora.js"></script>
+  <script src="../script.js"></script>
+</body>
+</html>

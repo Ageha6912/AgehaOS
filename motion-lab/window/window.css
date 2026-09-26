@@ -1,0 +1,356 @@
+@import "../shared/tokens.css";
+/* ==========================================================================
+ * motion-lab/window/window.css — 窗口动效模块样式
+ * --------------------------------------------------------------------------
+ * 合成层纪律（SPEC §3）：本文件中所有 transition/animation 只出现在
+ * transform / opacity 上（焦点描边淡入、Dock tooltip、tile 悬浮）。
+ * 窗口本体开合 / genie 最小化动画全部由 window.js 的 Web Animations API
+ * 驱动，故 .win 本体不挂任何 CSS transition，避免与 WAAPI 叠加。
+ * 颜色 / 阴影 / 背景的状态切换均为一次性类切换，不做过渡（不越红线）。
+ * ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--ml-font);
+  font-size: 14px;
+  color: var(--ml-text);
+  background: var(--ml-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 主题容器：ml-dark 挂在舞台根，整套语义令牌自动翻转（tokens §8）。
+   color 必须在 .stage 上再引用一次令牌——ml-dark 挂在 .stage 时，
+   body 级的 color 解析不到深色值，标题等继承文字会停留在浅色语义。 */
+.stage {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px clamp(16px, 4vw, 48px) 14px;
+  background: var(--ml-canvas); /* 大面渐变归画布（tokens §3） */
+  color: var(--ml-text);
+}
+
+/* 键盘焦点环：永远不能被动效吞掉（SPEC §5） */
+:is(button, .win):focus-visible {
+  outline: 2px solid var(--ml-primary);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+ * 页眉 / 页脚
+ * ------------------------------------------------------------------------ */
+.stage__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.stage__heading h1 { margin: 0 0 4px; font-size: 18px; }
+.stage__heading p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ml-text-muted);
+  max-width: 74ch;
+}
+.stage__footer {
+  font-size: 12px;
+  color: var(--ml-text-muted);
+}
+.stage__footer code {
+  font-family: var(--ml-font-mono);
+  font-size: 11px;
+  color: var(--ml-text);
+  background: var(--ml-surface-raised);
+  border-radius: var(--ml-radius-md);
+  padding: 1px 5px;
+}
+
+/* --------------------------------------------------------------------------
+ * 控制按钮区（玻璃归 chrome）
+ * ------------------------------------------------------------------------ */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  padding: 8px 10px;
+  background: var(--ml-glass-bg);
+  backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  border: 1px solid var(--ml-glass-border);
+  border-radius: var(--ml-radius-lg);
+  box-shadow: var(--ml-shadow-window-flat);
+}
+.controls__btn {
+  padding: 7px 16px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ml-text);
+  background: var(--ml-surface);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-md);
+  cursor: pointer;
+  /* 唯一的过渡属性是 transform（悬停微抬升），合成层友好 */
+  transition: transform var(--ml-dur-fast) var(--ml-ease-out);
+}
+.controls__btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--ml-primary-soft); /* 染色底瞬时切换，不参与过渡 */
+  border-color: var(--ml-primary);
+}
+.controls__btn:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+.controls__btn:disabled { opacity: 0.4; cursor: default; }
+.controls__hint {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--ml-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+ * 桌面：窗口层（z=30）在 Dock（z=40）之下，层级取自 tokens §6
+ * ------------------------------------------------------------------------ */
+.desktop {
+  position: relative;
+  flex: 1;
+  min-height: 480px;
+}
+.win-layer {
+  position: absolute;
+  inset: 0;
+  z-index: var(--ml-z-window); /* 窗口层内互比 zIndex，出不了这层 */
+}
+
+/* --------------------------------------------------------------------------
+ * 窗口本体
+ * 绝对定位 + will-change: transform 为任务明确要求（SPEC §3.5 建议瞬时
+ * 挂载；本模块仅 3 窗口，预算可控——以需求为准，见 index.html 头注）。
+ * 开合/genie 动画由 WAAPI 驱动，这里不挂 transition。
+ * ------------------------------------------------------------------------ */
+.win {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-lg);
+  background: var(--ml-panel);
+  box-shadow: var(--ml-shadow-window-flat);
+  will-change: transform;
+  z-index: 1;
+}
+.win.is-focused { box-shadow: var(--ml-shadow-window); }
+.win.is-closed { display: none; }
+/* 最小化后保留布局盒（visibility 不影响几何测量，restore 需要读它的位置） */
+.win.is-minimized { visibility: hidden; pointer-events: none; }
+
+/* 焦点描边：静态 inset box-shadow 只在伪元素上做 opacity 过渡（合成层属性） */
+.win::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px var(--ml-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ml-dur-fast) var(--ml-ease-out);
+}
+.win.is-focused::after { opacity: 1; }
+
+/* 窗口预设位（三窗瀑布错落）；宽高不在动画中改变 */
+.win[data-app="notes"]    { left: 5%;  top: 7%;  width: min(46%, 470px); height: min(62%, 340px); }
+.win[data-app="terminal"] { left: 26%; top: 24%; width: min(46%, 470px); height: min(56%, 300px); }
+.win[data-app="music"]    { left: 50%; top: 12%; width: min(38%, 380px); height: min(52%, 264px); }
+
+/* 标题栏：玻璃归 chrome */
+.win__bar {
+  position: relative;
+  flex: none;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: var(--ml-glass-bg);
+  backdrop-filter: blur(var(--ml-blur-sm)) saturate(var(--ml-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--ml-blur-sm)) saturate(var(--ml-glass-saturate));
+  border-bottom: 1px solid var(--ml-border);
+}
+.win__title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%); /* 静态居中，不参与动画 */
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 红绿灯：macOS 平台惯例色（非品牌色板扩展，数值取 Big Sur 标准值） */
+.traffic { display: flex; gap: 8px; }
+.traffic__btn {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 14%);
+  cursor: pointer;
+  transition: transform var(--ml-dur-fast) var(--ml-ease-out);
+}
+.traffic__btn--close { background: #ff5f57; }
+.traffic__btn--min   { background: #febc2e; }
+/* 非焦点窗口红绿灯去饱和：一次性 filter 切换，静态值不参与逐帧动画 */
+.win:not(.is-focused) .traffic__btn { filter: grayscale(1); opacity: 0.55; }
+.traffic__btn:hover { transform: scale(1.15); }
+
+/* 窗口纸面内容（纸面归应用） */
+.win__body {
+  flex: 1;
+  min-height: 0;
+  padding: 14px 16px;
+  overflow: auto;
+}
+.win__body--term {
+  margin: 0;
+  font-family: var(--ml-font-mono);
+  font-size: 12px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  background: var(--ml-canvas-dark);
+  color: rgb(230 236 247); /* 与 .ml-dark 下 --ml-text 同值（深底专用，取自令牌深色语义） */
+}
+.mock__h { margin: 0 0 8px; font-size: 14px; }
+.mock__p { margin: 0 0 10px; font-size: 13px; line-height: 1.7; color: var(--ml-text-muted); }
+.mock__list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 2;
+  color: var(--ml-text-muted);
+}
+
+/* 音乐 mock：封面 + 元信息 + 静态进度条（仪表不闪烁，不加循环动画） */
+.mock-music { display: flex; gap: 14px; align-items: flex-start; }
+.mock-music__cover {
+  flex: none;
+  width: 88px;
+  height: 88px;
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  color: var(--ml-primary);
+  background: var(--ml-surface-raised);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-lg);
+}
+.mock-music__meta { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mock-music__meta strong { font-size: 14px; }
+.mock-music__meta > span { font-size: 12px; color: var(--ml-text-muted); }
+.mock-music__track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ml-border);
+  overflow: hidden;
+}
+.mock-music__track i { display: block; height: 100%; width: 42%; background: var(--ml-primary); }
+.mock-music__time { font-family: var(--ml-font-mono); font-size: 11px; }
+
+/* --------------------------------------------------------------------------
+ * Dock（玻璃归 chrome；窗口 genie 飞行的落点）
+ * ------------------------------------------------------------------------ */
+.dock {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%); /* 静态居中，不参与动画 */
+  z-index: var(--ml-z-taskbar);
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 7px 10px 10px;
+  background: var(--ml-glass-bg);
+  backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  border: 1px solid var(--ml-glass-border);
+  border-radius: var(--ml-radius-lg);
+  box-shadow: var(--ml-shadow-window-flat);
+}
+.dock-icon {
+  position: relative;
+  width: 46px;
+  height: 50px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--ml-radius-md);
+  cursor: pointer;
+}
+.dock-icon__tile {
+  position: absolute;
+  left: 3px;
+  top: 2px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  font-size: 21px;
+  background: var(--ml-surface);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-md);
+  transition: transform var(--ml-dur-fast) var(--ml-ease-out); /* 仅 transform */
+}
+.dock-icon:hover .dock-icon__tile,
+.dock-icon:focus-visible .dock-icon__tile {
+  transform: translateY(-3px); /* 悬停抬升；阴影随 transform 整体出现（SPEC §1.3） */
+  box-shadow: var(--ml-shadow-lift);
+}
+/* 运行指示点：开=实心，最小化=半透明；状态切换瞬时，不做过渡 */
+.dock-icon__dot {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: transparent;
+}
+.dock-icon.is-running .dock-icon__dot { background: var(--ml-primary); }
+.dock-icon.is-minimized .dock-icon__dot { background: var(--ml-primary); opacity: 0.45; }
+/* 名称 tooltip：opacity + 4px 上浮，出现方向与展开方向一致 */
+.dock-icon__tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translate(-50%, 4px);
+  opacity: 0;
+  pointer-events: none;
+  padding: 5px 8px;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--ml-text);
+  background: var(--ml-surface);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-md);
+  box-shadow: var(--ml-shadow-lift);
+  transition:
+    opacity var(--ml-dur-fast) var(--ml-ease-out),
+    transform var(--ml-dur-fast) var(--ml-ease-out);
+}
+.dock-icon:hover .dock-icon__tip,
+.dock-icon:focus-visible .dock-icon__tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* --------------------------------------------------------------------------
+ * prefers-reduced-motion：JS 侧由 matchMedia 直达终态（见 window.js）；
+ * CSS 侧的少量过渡（描边/tooltip/悬浮）由 tokens §9 把 --ml-dur-* 塌缩到
+ * 0.01ms 自动失效，此处无需重复声明。
+ * ------------------------------------------------------------------------ */

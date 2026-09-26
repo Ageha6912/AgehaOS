@@ -1,0 +1,275 @@
+/* ==========================================================================
+ * motion-lab/boot/boot.css — AgehaOS 开机启动动画（框架无关演示模块）
+ * --------------------------------------------------------------------------
+ * 文件名说明：boot.css / boot.js 为任务指定文件名（SPEC §4 默认
+ * style.css / script.js，需求优先于规范，特此注明）。
+ *
+ * 动效豁免说明（SPEC §2「开机动画」行，唯一允许 >300ms 的场景）：
+ *   - 开机总时长由 boot.js PARAMS.BOOT_DURATION_MS 控制（默认 3800ms），
+ *     进度感靠内容本身（进度条推进），不加任何循环动画；
+ *   - 退场淡出+放大 400ms → 引用豁免档令牌 --ml-dur-boot（实际时长由
+ *     boot.js 注入 --boot-exit-duration，reduced 时不注入 → 直接回落令牌）；
+ *   - 其余一切过渡（Logo 淡入、登录卡就位、按压反馈）严格 150~300ms。
+ *
+ * 性能铁律（SPEC §3）：全程只动 transform/opacity——进度条用 scaleX
+ * 而非 width；blur 档位一次性到位永不逐帧动画；will-change 只在动画期间挂载。
+ * ========================================================================== */
+@import "../shared/tokens.css";
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--ml-font);
+  color: var(--ml-text);
+  /* 浅色画布：白→淡蓝渐变（与 AgehaOS 基调一致；开机期间被启动层覆盖） */
+  background: var(--ml-canvas);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --------------------------------------------------------------------------
+ * 下层：模拟登录界面（占位卡，需求 §5）
+ * ------------------------------------------------------------------------ */
+.login-stage {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--ml-canvas);
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: min(340px, calc(100vw - 48px));
+  padding: 32px 28px 20px;
+  border-radius: var(--ml-radius-lg);
+  /* 毛玻璃 chrome（SPEC §1.5：玻璃归 chrome）：材质一次性到位，blur 永不逐帧动画 */
+  background: var(--ml-glass-bg);
+  border: 1px solid var(--ml-glass-border);
+  box-shadow: var(--ml-shadow-overlay);
+  backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  /* 露出就位：起始缩放由 boot.js PARAMS.revealScaleFrom 注入（--boot-reveal-scale），
+     250ms = --ml-dur-mid，--ml-ease-spring（铁律 150~300ms 内） */
+  transform: scale(var(--boot-reveal-scale, 0.985));
+  transition: transform var(--ml-dur-mid) var(--ml-ease-spring);
+}
+
+/* 开机层开始退场时（boot.js 给舞台加 .is-revealed）：登录卡从 0.985 落定到 1 */
+.login-stage.is-revealed .login-card {
+  transform: scale(1);
+}
+
+.login-avatar {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ml-primary);
+  background: var(--ml-primary-soft);
+  border: 1px solid var(--ml-border);
+}
+
+.login-fields {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.login-label {
+  font-size: 12px;
+  color: var(--ml-text-muted);
+}
+
+.login-field {
+  width: 100%;
+  padding: 10px 12px;
+  margin: 0 0 6px;
+  font: inherit;
+  color: var(--ml-text);
+  background: var(--ml-surface-raised);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-md);
+}
+
+/* SPEC §5：键盘焦点环永不被动效吞掉 */
+.login-field:focus-visible,
+.login-submit:focus-visible,
+.replay-btn:focus-visible {
+  outline: 2px solid var(--ml-primary);
+  outline-offset: 2px;
+}
+
+/* 过渡只挂 transform/opacity（铁律）；hover 的明度反馈走 opacity，平滑且在合成层 */
+.login-submit {
+  width: 100%;
+  padding: 11px 16px;
+  margin-top: 6px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ml-primary-contrast);
+  background: var(--ml-primary);
+  border: none;
+  border-radius: var(--ml-radius-md);
+  cursor: pointer;
+  transition:
+    transform var(--ml-dur-fast) var(--ml-ease-out),
+    opacity var(--ml-dur-fast) var(--ml-ease-out);
+}
+
+.login-submit:hover {
+  opacity: 0.9;
+}
+
+.login-submit:active {
+  transform: scale(0.98);
+}
+
+.login-hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--ml-text-muted);
+}
+
+/* 演示辅助按钮：免刷新重播开机动画 */
+.replay-btn {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ml-text-muted);
+  background: var(--ml-glass-bg);
+  border: 1px solid var(--ml-border);
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(var(--ml-blur-xs));
+  -webkit-backdrop-filter: blur(var(--ml-blur-xs));
+  transition:
+    transform var(--ml-dur-fast) var(--ml-ease-out),
+    opacity var(--ml-dur-fast) var(--ml-ease-out);
+}
+
+.replay-btn:hover {
+  opacity: 0.85;
+}
+
+.replay-btn:active {
+  transform: scale(0.96);
+}
+
+/* --------------------------------------------------------------------------
+ * 上层：全屏开机启动层（需求 §1）
+ * ------------------------------------------------------------------------ */
+.boot-screen {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ml-z-boot); /* 共享令牌：开机屏在一切之上（80 层） */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--boot-logo-bar-gap, 44px);
+  /* 需求 §1：深色/纯黑基调。径向渐变的两个彩色锚点取自令牌 --ml-canvas-dark
+     的首末档（#131e36 / #0a0f1c），最外圈纯黑为需求指定；静态背景，不参与逐帧动画 */
+  background: radial-gradient(130% 100% at 50% 42%, rgb(19 30 54 / 88%) 0%, rgb(10 15 28 / 55%) 52%, #000 100%);
+  /* 退场（需求 §5）：opacity→0 + scale→1.05，约 400ms。
+     时长回落顺序：--boot-exit-duration（boot.js 注入）→ --ml-dur-boot（豁免档令牌，
+     prefers-reduced-motion 下由令牌层塌缩为 0.01ms，即「直接切换」） */
+  transition:
+    opacity var(--boot-exit-duration, var(--ml-dur-boot)) var(--ml-ease-standard),
+    transform var(--boot-exit-duration, var(--ml-dur-boot)) var(--ml-ease-standard);
+}
+
+/* 退场态（boot.js 在进度到 100 后加）：整个启动层淡出并轻微放大 */
+.boot-screen.is-exiting {
+  opacity: 0;
+  transform: scale(var(--boot-max-scale, 1.05));
+  /* 仅退场期间挂载 will-change（SPEC §3.5），hidden 后随元素移出渲染树 */
+  will-change: opacity, transform;
+}
+
+/* 覆盖 display:flex，确保退场后彻底移出命中测试与渲染树 */
+.boot-screen[hidden] {
+  display: none;
+}
+
+.boot-logo {
+  width: var(--boot-logo-size, 96px);
+  height: auto;
+  opacity: 0;
+  /* 静态品牌微光（不参与任何动画；filter 档位一次性到位） */
+  filter: drop-shadow(0 0 24px rgb(130 163 255 / 25%));
+  /* 加载完成后一次性淡入：200ms = --ml-dur-base（铁律内），非循环动画 */
+  transition: opacity var(--ml-dur-base) var(--ml-ease-out);
+}
+
+.boot-logo.is-loaded {
+  opacity: 1;
+}
+
+.boot-logo.is-missing {
+  /* 所有候选 Logo 都加载失败：隐藏破图占位，启动层只保留进度条 */
+  display: none;
+}
+
+.boot-progress {
+  width: var(--boot-bar-width, 240px);
+  height: var(--boot-bar-height, 4px);
+  border-radius: calc(var(--boot-bar-height, 4px) / 2);
+  background: var(--ml-surface-raised); /* .ml-dark 下为深藏蓝 #1b2438，纯黑底上的轨道 */
+  overflow: hidden;
+}
+
+.boot-progress__fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  /* 主题蓝填充（需求 §2）：.ml-dark 深色语义下为 #82a3ff，黑底可读性最佳 */
+  background: var(--ml-primary);
+  /* 进度推进用 scaleX（transform，合成层）而非 width（布局属性，铁律禁止）；
+     rAF 每帧由 boot.js 写入一次 */
+  transform: scaleX(0);
+  transform-origin: left center;
+  /* 整个开机期逐帧推进，属预期内的常驻 will-change */
+  will-change: transform;
+}
+
+/* --------------------------------------------------------------------------
+ * prefers-reduced-motion 降级（需求 §8 + SPEC §5「开机动画」行）：
+ * 进度条仍由 rAF 照常推进（功能性反馈，boot.js 不分支推进逻辑），
+ * 但一切位移/缩放/淡出动画关闭——直接切换。令牌层已把 --ml-dur-* 塌缩为
+ * 0.01ms，此处再显式斩断过渡作双保险；JS 侧另有 REDUCED 分支（跳过退场动画）。
+ * ------------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .boot-screen,
+  .boot-logo,
+  .login-card,
+  .login-submit,
+  .replay-btn {
+    transition: none;
+  }
+
+  .boot-logo {
+    opacity: 1; /* Logo 直接呈现，不做淡入 */
+  }
+
+  .login-card {
+    transform: none; /* 登录卡直接就位 */
+  }
+}

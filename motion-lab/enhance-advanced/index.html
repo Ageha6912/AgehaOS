@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>进阶炫技档 · 组合演示 — AgehaOS 动效实验室</title>
+  <!-- 舞台与控制面板 chrome -->
+  <link rel="stylesheet" href="style.css">
+  <!-- 五个效果的独立样式（每个可单独在 <effect>/index.html 中预览） -->
+  <link rel="stylesheet" href="parallax/parallax.css">
+  <link rel="stylesheet" href="aurora/aurora.css">
+  <link rel="stylesheet" href="window-tilt/window-tilt.css">
+  <link rel="stylesheet" href="dock-sheen/dock-sheen.css">
+  <link rel="stylesheet" href="theme-glow/theme-glow.css">
+</head>
+<body>
+  <main class="ml-stage" aria-label="进阶炫技档组合演示舞台">
+
+    <!-- 效果 1 · 壁纸视差景深（默认开：纯 transform 视差，开销最低档） -->
+    <div class="mlp-scene" data-ml-parallax data-ml-enabled="true" aria-hidden="true">
+      <span class="mlp-sun"></span>
+      <div class="mlp-layer mlp-layer--far">
+        <svg viewBox="0 0 1440 420" preserveAspectRatio="none" focusable="false">
+          <path d="M0 250 Q180 192 360 238 T720 214 T1080 240 T1440 216 L1440 420 L0 420 Z"/>
+        </svg>
+      </div>
+      <div class="mlp-layer mlp-layer--mid">
+        <svg viewBox="0 0 1440 420" preserveAspectRatio="none" focusable="false">
+          <path d="M0 300 Q160 226 340 282 T700 264 T1050 292 T1440 258 L1440 420 L0 420 Z"/>
+        </svg>
+      </div>
+      <div class="mlp-layer mlp-layer--near">
+        <svg viewBox="0 0 1440 420" preserveAspectRatio="none" focusable="false">
+          <path d="M0 356 L150 296 L310 348 L470 268 L640 342 L820 288 L1000 350 L1180 296 L1330 342 L1440 312 L1440 420 L0 420 Z"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- 效果 2 · 流光渐变氛围（默认关：canvas 逐帧绘制为本档最贵项，按需开启） -->
+    <canvas class="mla-canvas" data-ml-aurora data-ml-enabled="false" aria-hidden="true"></canvas>
+
+    <!-- 效果 5 · 主题氛围光晕（默认开：纯 CSS keyframes，合成器接管） -->
+    <div class="mlg-wrap" data-ml-theme-glow data-ml-enabled="true" aria-hidden="true">
+      <div class="mlg-glow"></div>
+    </div>
+
+    <!-- 效果 3 · 窗口切换转场（默认关：交互时才有开销，点击/Tab 观察转场） -->
+    <div class="mtw-field" data-ml-windows data-ml-enabled="false">
+      <section class="mtw is-focused" tabindex="0" aria-label="演示窗口：季度报告文稿">
+        <span class="mtw__shadow" aria-hidden="true"></span>
+        <header class="mtw__titlebar">
+          <span class="mtw__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="mtw__title">季度报告 · 文稿</span>
+        </header>
+        <div class="mtw__body">
+          <div class="mtw__line" style="width: 82%"></div>
+          <div class="mtw__line" style="width: 64%"></div>
+          <div class="mtw__line" style="width: 74%"></div>
+          <div class="mtw__line mtw__line--accent" style="width: 38%"></div>
+        </div>
+      </section>
+
+      <section class="mtw" tabindex="0" aria-label="演示窗口：系统图表">
+        <span class="mtw__shadow" aria-hidden="true"></span>
+        <header class="mtw__titlebar">
+          <span class="mtw__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="mtw__title">系统图表 · 监视</span>
+        </header>
+        <div class="mtw__body">
+          <div class="mtw__bars" aria-hidden="true">
+            <span class="mtw__bar" style="height: 42%"></span>
+            <span class="mtw__bar" style="height: 68%"></span>
+            <span class="mtw__bar mtw__bar--accent" style="height: 88%"></span>
+            <span class="mtw__bar" style="height: 55%"></span>
+            <span class="mtw__bar" style="height: 74%"></span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 效果 4 · Dock 高光扫过（默认关：低频 CSS 循环，开启后每 9s 扫过一次） -->
+    <footer class="mld-dock" data-ml-dock data-ml-enabled="false" aria-label="Dock 演示底座">
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__sep" aria-hidden="true"></span>
+      <span class="mld-dock__app mld-dock__app--tray"></span>
+    </footer>
+
+    <!-- 控制面板：默认只开两项（壁纸视差 + 氛围光晕）避免叠加卡顿 -->
+    <aside class="mlc-panel" role="group" aria-label="动效开关面板">
+      <h2 class="mlc-panel__title">进阶炫技档 · 动效开关</h2>
+      <label class="mlc-switch">
+        <input type="checkbox" data-ml-toggle="parallax">
+        <span class="mlc-switch__ui"><span class="mlc-switch__on"></span><span class="mlc-switch__thumb"></span></span>
+        壁纸视差景深
+      </label>
+      <label class="mlc-switch">
+        <input type="checkbox" data-ml-toggle="aurora">
+        <span class="mlc-switch__ui"><span class="mlc-switch__on"></span><span class="mlc-switch__thumb"></span></span>
+        流光渐变氛围
+      </label>
+      <label class="mlc-switch">
+        <input type="checkbox" data-ml-toggle="windows">
+        <span class="mlc-switch__ui"><span class="mlc-switch__on"></span><span class="mlc-switch__thumb"></span></span>
+        窗口切换转场
+      </label>
+      <label class="mlc-switch">
+        <input type="checkbox" data-ml-toggle="dock">
+        <span class="mlc-switch__ui"><span class="mlc-switch__on"></span><span class="mlc-switch__thumb"></span></span>
+        Dock 高光扫过
+      </label>
+      <label class="mlc-switch">
+        <input type="checkbox" data-ml-toggle="glow">
+        <span class="mlc-switch__ui"><span class="mlc-switch__on"></span><span class="mlc-switch__thumb"></span></span>
+        主题氛围光晕
+      </label>
+      <hr>
+      <button class="mlc-btn" data-ml-theme-btn type="button">☾ 切换深色主题</button>
+      <p class="mlc-note">默认仅启用「壁纸视差」与「氛围光晕」两项；全部叠加会放大合成层与绘制压力，按需开启观察。</p>
+      <p class="mlc-note" data-ml-reduced-note hidden>已检测到 prefers-reduced-motion：reduce，各效果已自动降级。</p>
+    </aside>
+
+    <p class="mlc-foot">
+      AgehaOS 动效实验室 · 进阶炫技档——五项效果均只动 transform/opacity；
+      氛围循环（流光/扫光/呼吸）为任务指定的低频环境动画，交互过渡一律 150~300ms。
+    </p>
+  </main>
+
+  <!-- 效果脚本（各自自动初始化，句柄注册到 window.MLAdvanced） -->
+  <script src="parallax/parallax.js"></script>
+  <script src="aurora/aurora.js"></script>
+  <script src="window-tilt/window-tilt.js"></script>
+  <script src="dock-sheen/dock-sheen.js"></script>
+  <script src="theme-glow/theme-glow.js"></script>
+  <!-- 控制器（开关/主题/降级提示） -->
+  <script src="script.js"></script>
+</body>
+</html>

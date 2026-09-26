@@ -1,0 +1,87 @@
+@import "../shared/tokens.css";
+/* ==========================================================================
+ * enhance-basic / click-ripple.css — 05 点击涟漪
+ * --------------------------------------------------------------------------
+ * 设计动机：确认「点到了哪里」——涟漪从接触点扩散，把点击坐标可视化地
+ * 反馈出来。
+ *
+ * 性能约定（SPEC §3）：
+ * - 涟漪本体是注入的 span，只动 transform（translate + scale）与 opacity；
+ *   播完 animationend 自清理（click-ripple.js 兜底定时移除）；
+ * - 点击坐标以 CSS 变量 --cr-x/--cr-y 注入 span（一次性，不逐帧），
+ *   keyframes 内的位移用同一对变量——坐标定位也走 transform，不碰 left/top；
+ * - 时长 --ml-dur-slow 与 click-ripple.js PARAMS.durationMs=300 同源（铁律上限档）；
+ * - reduced-motion：JS 侧不注入涟漪（动效关闭），反馈退化为宿主 :active
+ *   的瞬时微缩放（令牌塌缩时长，无运动过程）。
+ * ========================================================================== */
+
+/* 涟漪宿主：相对定位 + 裁剪，涟漪只在宿主内扩散 */
+[data-ripple] {
+  position: relative;
+  overflow: hidden;
+  transform: translateY(0);
+  transition: transform var(--ml-dur-fast) var(--ml-ease-out);
+}
+
+/* 按压微反馈（同时是无涟漪时的降级反馈通道）：只动 transform */
+[data-ripple]:active { transform: scale(0.985); }
+
+[data-ripple]:focus-visible {
+  outline: 2px solid var(--ml-primary);
+  outline-offset: 2px;
+}
+
+/* ---------- 涟漪本体 ----------
+ * 尺寸 --cr-d 与坐标 --cr-x/--cr-y、起始透明度 --cr-alpha 由 JS 在注入时
+ * 一次性写入；keyframes 从点击点 scale(0) 扩散到铺满并淡出。
+ */
+
+.cr-ripple {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--cr-d, 200px);
+  height: var(--cr-d, 200px);
+  border-radius: 50%;
+  pointer-events: none;
+  /* 品牌钴蓝径向渐变（--ml-primary 色相）；静态背景，不参与动画 */
+  background: radial-gradient(circle closest-side, rgb(47 95 232 / 55%) 0%, rgb(47 95 232 / 0%) 72%);
+  animation: cr-spread var(--ml-dur-slow) var(--ml-ease-standard) both;
+}
+
+/* 深色主题：换 --ml-primary-dark 色相（#82a3ff） */
+.ml-dark .cr-ripple {
+  background: radial-gradient(circle closest-side, rgb(130 163 255 / 50%) 0%, rgb(130 163 255 / 0%) 72%);
+}
+
+@keyframes cr-spread {
+  from {
+    transform: translate(var(--cr-x, 0px), var(--cr-y, 0px)) translate(-50%, -50%) scale(0);
+    opacity: var(--cr-alpha, 0.4);
+  }
+  to {
+    transform: translate(var(--cr-x, 0px), var(--cr-y, 0px)) translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
+/* ---------- 演示表面 ---------- */
+
+.ripple-stage { padding: 2px; }
+
+.ripple-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+.ripple-card {
+  margin-top: 14px;
+  padding: 18px 20px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--ml-panel);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-lg);
+  box-shadow: var(--ml-shadow-window-flat);
+}
+
+.ripple-card h3 { margin: 0 0 4px; font-size: 14px; }
+
+.ripple-card p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--ml-text-muted); }

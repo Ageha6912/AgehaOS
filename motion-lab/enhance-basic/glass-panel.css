@@ -1,0 +1,175 @@
+@import "../shared/tokens.css";
+/* ==========================================================================
+ * enhance-basic / glass-panel.css — 01 毛玻璃拟态面板
+ * --------------------------------------------------------------------------
+ * 设计动机：材质表达层级——玻璃后的色彩隐约透出，让这块 chrome 读起来是
+ * 「悬浮在桌面上」，而不是「画在桌面上」（玻璃归 chrome，SPEC §1.5）。
+ *
+ * 性能约定（SPEC §3）：
+ * - blur 档位只做一次性切换（data-blur 换档），backdrop-filter 永不参与
+ *   transition / 逐帧动画；
+ * - 入场 materialize 保留「scale+opacity 一起到位」的材质到达观感（SPEC
+ *   §1.5/§3.4 允许 keyframes 一次性走 blur+scale+opacity）；本模块按任务
+ *   铁律「只用 transform/opacity」收窄：blur 档自首帧即为最终档，由透明度
+ *   的揭示过程呈现「材质到达」，不把 blur 写进 keyframes；
+ * - 悬停抬升只过渡 transform，阴影档瞬时切换（不过渡 box-shadow）。
+ * ========================================================================== */
+
+/* ---------- 彩色渐变底（演示舞台） ----------
+ * Big Sur 壁纸式的多色光斑。彩色演示底色不在 --ml-* 语义色板内（令牌只有
+ * 蓝白语义轴）；任务明确要求「彩色渐变底」，此处为演示性新增色，不参与
+ * 语义（焦点/选中/主动作仍一律 --ml-primary）。静态背景，不加循环动画。
+ */
+
+.glass-scene {
+  position: relative;
+  min-height: 320px;
+  border-radius: var(--ml-radius-lg);
+  border: 1px solid var(--ml-border);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(46% 64% at 16% 20%, rgb(47 95 232 / 52%) 0%, transparent 72%),
+    radial-gradient(40% 56% at 84% 16%, rgb(255 122 176 / 42%) 0%, transparent 74%),
+    radial-gradient(48% 62% at 80% 84%, rgb(34 184 207 / 46%) 0%, transparent 72%),
+    radial-gradient(42% 58% at 22% 88%, rgb(124 92 255 / 40%) 0%, transparent 74%),
+    linear-gradient(168deg, #e7f0ff 0%, #ece4ff 48%, #dff4f8 100%);
+}
+
+.ml-dark .glass-scene {
+  background:
+    radial-gradient(46% 64% at 16% 20%, rgb(47 95 232 / 55%) 0%, transparent 72%),
+    radial-gradient(40% 56% at 84% 16%, rgb(255 122 176 / 30%) 0%, transparent 74%),
+    radial-gradient(48% 62% at 80% 84%, rgb(34 184 207 / 32%) 0%, transparent 72%),
+    radial-gradient(42% 58% at 22% 88%, rgb(124 92 255 / 34%) 0%, transparent 74%),
+    linear-gradient(168deg, #101a30 0%, #131433 48%, #0c2430 100%);
+}
+
+/* ---------- 玻璃卡片 ---------- */
+
+.glass-card {
+  position: relative;
+  width: min(360px, 88%);
+  padding: 14px 16px 16px;
+  border-radius: var(--ml-radius-lg);
+  /* 玻璃材质：blur（--ml-blur-* 档）+ 饱和度补偿，蓝白玻璃底 */
+  background: var(--ml-glass-bg);
+  border: 1px solid var(--ml-glass-border);
+  box-shadow: var(--ml-shadow-window-flat), inset 0 1px 0 var(--ml-glass-highlight);
+  transform: translateY(0);
+  /* 悬停抬升只过渡 transform（SPEC §3.2：box-shadow 不做过渡） */
+  transition: transform var(--ml-dur-base) var(--ml-ease-out);
+  /* 入场 materialize：scale+opacity 一次性到位（见文件头注释）；
+     时长 --ml-dur-mid 与 glass-panel.js PARAMS.materializeMs=250 同源 */
+  animation: glass-materialize var(--ml-dur-mid) var(--ml-ease-standard) both;
+}
+
+/* 模糊半径四档：材质越重取越大档；档位一次性切换（JS 换 data-blur），无过渡 */
+.glass-card[data-blur='xs'] {
+  -webkit-backdrop-filter: blur(var(--ml-blur-xs)) saturate(var(--ml-glass-saturate));
+  backdrop-filter: blur(var(--ml-blur-xs)) saturate(var(--ml-glass-saturate));
+}
+.glass-card[data-blur='sm'] {
+  -webkit-backdrop-filter: blur(var(--ml-blur-sm)) saturate(var(--ml-glass-saturate));
+  backdrop-filter: blur(var(--ml-blur-sm)) saturate(var(--ml-glass-saturate));
+}
+.glass-card[data-blur='md'] {
+  -webkit-backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+}
+.glass-card[data-blur='lg'] {
+  -webkit-backdrop-filter: blur(var(--ml-blur-lg)) saturate(var(--ml-glass-saturate));
+  backdrop-filter: blur(var(--ml-blur-lg)) saturate(var(--ml-glass-saturate));
+}
+
+/* 实色兜底②：演示开关手动关闭玻璃（模拟下方 @supports 失败路径，同观感）。
+   放在档位规则之后，等特异性下靠书写顺序压过 data-blur 档。 */
+.glass-card.is-solid {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--ml-surface);
+}
+
+/* 实色兜底①：浏览器不支持 backdrop-filter 时自动退化为实色面板
+   （对比度永不依赖 blur，SPEC §5） */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-card { background: var(--ml-surface); }
+}
+
+/* 悬停抬升：位移距离来自 --glass-lift（glass-panel.js 注入，PARAMS.liftPx），
+   阴影升到窗口标准档但瞬时切换、不参与过渡 */
+.glass-card:hover {
+  transform: translateY(calc(-1 * var(--glass-lift, 2px)));
+  box-shadow: var(--ml-shadow-window), inset 0 1px 0 var(--ml-glass-highlight);
+}
+
+/* 入场 materialize keyframes：只动 transform/opacity（文件头注释） */
+@keyframes glass-materialize {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 动画播完由 JS 加 is-materialized 摘除 fill 锁定
+   （fill-mode both 的终态会压住 hover 的 transform） */
+.glass-card.is-materialized { animation: none; }
+
+/* ---------- 卡片内部 chrome ---------- */
+
+.glass-card__bar { display: flex; align-items: center; gap: 6px; }
+
+.glass-card__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ml-surface-raised);
+  border: 1px solid var(--ml-glass-border);
+}
+
+.glass-card__title {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ml-text);
+}
+
+.glass-card__note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--ml-text-muted);
+}
+
+.glass-card__tiers { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+
+.glass-tier {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: var(--ml-surface);
+  color: var(--ml-text-muted);
+  border: 1px solid var(--ml-border);
+  transform: scale(1);
+  transition: transform var(--ml-dur-fast) var(--ml-ease-out);
+}
+
+.glass-tier:active { transform: scale(0.94); }
+
+.glass-tier:focus-visible {
+  outline: 2px solid var(--ml-primary);
+  outline-offset: 2px;
+}
+
+.glass-tier.is-active {
+  background: var(--ml-primary);
+  border-color: transparent;
+  color: var(--ml-primary-contrast);
+}

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgehaOS · 开机启动动画（motion-lab / boot）</title>
+    <!--
+      框架无关演示模块：双击本文件即可预览，零外部网络依赖。
+      结构：下层为开机完成后露出的模拟登录界面，上层为全屏开机启动层
+      （z-index 取共享令牌 --ml-z-boot，压在一切之上）。
+    -->
+    <link rel="stylesheet" href="boot.css" />
+  </head>
+  <body>
+    <!-- 下层：模拟登录界面（需求 §5 的露出目标；简单用户名+密码占位卡） -->
+    <main class="login-stage" id="loginStage" aria-label="AgehaOS 登录演示">
+      <section class="login-card" aria-label="登录占位卡">
+        <div class="login-avatar" aria-hidden="true">A</div>
+        <div class="login-fields">
+          <label class="login-label" for="loginUser">用户名</label>
+          <input class="login-field" id="loginUser" type="text" placeholder="用户名" autocomplete="off" />
+          <label class="login-label" for="loginPass">密码</label>
+          <input class="login-field" id="loginPass" type="password" placeholder="密码" autocomplete="off" />
+          <button class="login-submit" type="button">登 录</button>
+        </div>
+        <p class="login-hint">演示占位卡 · 开机层淡出后由此露出</p>
+      </section>
+      <!-- 演示辅助：免刷新重看开机动画（由 boot.js 绑定 reload） -->
+      <button class="replay-btn" id="replayBtn" type="button" title="重播开机动画">↺ 重播开机动画</button>
+    </main>
+
+    <!-- 上层：全屏开机启动层（需求 §1：深色/纯黑背景 + Logo + 细长圆角进度条）
+         ml-dark：让共享令牌在启动层内翻转为深色语义（主题蓝 → 深色主题蓝 #82a3ff） -->
+    <div
+      class="boot-screen ml-dark"
+      id="bootScreen"
+      data-boot="booting"
+      role="status"
+      aria-label="AgehaOS 正在启动"
+    >
+      <img class="boot-logo" id="bootLogo" alt="AgehaOS" />
+      <div
+        class="boot-progress"
+        id="bootBar"
+        role="progressbar"
+        aria-label="启动进度"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+      >
+        <div class="boot-progress__fill" id="bootFill"></div>
+      </div>
+    </div>
+
+    <script src="boot.js"></script>
+  </body>
+</html>

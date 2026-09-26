@@ -1,0 +1,207 @@
+@import "../../shared/tokens.css";
+/* ==========================================================================
+ * 效果 3/5 · 窗口切换转场（window-tilt.css）
+ * --------------------------------------------------------------------------
+ * 设计动机：焦点切换是最高频的状态变化——用轻微 crossfade + ≤2deg 的 3D
+ *   tilt 让「注意力从 A 窗移到 B 窗」变成一次可见的小起立，失焦窗口轻微
+ *   退后（降透明度 + 微缩），聚焦关系一目了然。
+ * 实现三档差异：
+ *   纯 CSS——类切换 + transition/animation 全程由合成器接管、天然可中断、
+ *     性能最佳；唯一缺口是「朝旧窗口方向倾斜」需要 JS 算方向；
+ *   JS 设方向 + CSS 合成动画（本文件配合 window-tilt.js）——JS 只在点击
+ *     瞬间写两个自定义属性，其余全交合成器，★推荐默认档；
+ *   WebGL——为 2D UI 做整窗 3D 需把 DOM 烘焙成纹理，成本与复杂度极高，
+ *     毫无必要。
+ * 推荐默认档：JS 设方向 + CSS transition/animation。
+ * 性能说明：只过渡 transform/opacity；焦点阴影用独立阴影层做 opacity
+ *   交叉淡化（SPEC §3.2 禁止过渡 box-shadow）；时长走 --ml-dur-* 档
+ *   （250/200ms，与 PARAMS 数值互为同源注释）。
+ * ========================================================================== */
+
+/* 窗口摆场：3D 视距挂在父级（perspective 不参与动画） */
+.mtw-field {
+  position: absolute;
+  inset: 0;
+  z-index: var(--ml-z-window);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(24px, 6vw, 80px);
+  /* 底部让位 Dock（约 88px 高 + 22px 底距 + 余量） */
+  padding: 24px clamp(16px, 5vw, 96px) 150px;
+  perspective: var(--mtw-persp, 1400px);
+  pointer-events: none; /* 空白处让事件穿透到壁纸层 */
+}
+
+/* 演示窗口（纸面）：失焦降透明度 + 微缩，聚焦关系一眼可辨 */
+.mtw {
+  pointer-events: auto;
+  position: relative;
+  width: min(360px, 38vw);
+  min-width: 260px;
+  min-height: 236px;
+  display: flex;
+  flex-direction: column;
+  background: var(--ml-surface);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-lg);
+  outline: none;
+  cursor: default;
+  /* 失焦常驻扁平影（静态，不参与过渡）；聚焦重影由 __shadow 层负责 */
+  box-shadow: var(--ml-shadow-window-flat);
+  transform-origin: 50% 60%;
+  transition:
+    opacity var(--mtw-dur-out, var(--ml-dur-base)) var(--ml-ease-standard),
+    transform var(--mtw-dur-out, var(--ml-dur-base)) var(--ml-ease-standard);
+}
+
+/* 失焦态：轻微降透明度 + 微缩（crossfade 的另一半） */
+.mtw:not(.is-focused) {
+  opacity: var(--mtw-dim, 0.86);
+  transform: scale(var(--mtw-scale-out, 0.995));
+}
+
+.mtw.is-focused {
+  z-index: 2;
+}
+
+/* 焦点重影层：opacity 交叉淡化代替 box-shadow 过渡（合成层友好） */
+.mtw__shadow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--ml-shadow-window);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--mtw-dur-out, var(--ml-dur-base)) var(--ml-ease-standard);
+}
+
+.mtw.is-focused .mtw__shadow {
+  opacity: 1;
+}
+
+/* 激活入场：从「朝旧窗口方向微后仰 + 微缩」立起到正对观众。
+ * 幅度由 JS 写入的 --mtw-ry / --mtw-rx 决定（≤2deg，PARAMS 铁律），
+ * JS 缺席时回退 0deg = 纯 crossfade，依然成立。 */
+@keyframes mtw-activate {
+  from {
+    opacity: 0.92;
+    transform: rotateY(var(--mtw-ry, 0deg)) rotateX(var(--mtw-rx, 0deg))
+      scale(var(--mtw-scale-in, 0.985));
+  }
+  to {
+    opacity: 1;
+    transform: rotateY(0deg) rotateX(0deg) scale(1);
+  }
+}
+
+.mtw.is-activating {
+  z-index: 3; /* 入场窗口压过正在失焦的窗口 */
+  animation: mtw-activate var(--mtw-dur-in, var(--ml-dur-mid)) var(--ml-ease-spring);
+}
+
+/* ---- 窗口 chrome：玻璃归标题区，纸面归内容（DESIGN.md 材质分工） ---- */
+.mtw__titlebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--ml-glass-bg);
+  backdrop-filter: blur(var(--ml-blur-sm)) saturate(var(--ml-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--ml-blur-sm)) saturate(var(--ml-glass-saturate));
+  border-bottom: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-lg) var(--ml-radius-lg) 0 0;
+}
+
+.mtw__dots {
+  display: flex;
+  gap: 6px;
+}
+
+.mtw__dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ml-border);
+}
+
+.mtw__title {
+  font-family: var(--ml-font);
+  font-size: 12px;
+  color: var(--ml-text-muted);
+  user-select: none;
+}
+
+.mtw__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px;
+  background: var(--ml-panel); /* 面板根渐变：渐变只属于大面 */
+  border-radius: 0 0 var(--ml-radius-lg) var(--ml-radius-lg);
+}
+
+/* 文稿骨架线 */
+.mtw__line {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--ml-surface-raised);
+}
+
+.mtw__line--accent {
+  background: var(--ml-primary-soft);
+}
+
+/* 图表骨架柱 */
+.mtw__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 104px;
+}
+
+.mtw__bar {
+  flex: 1;
+  border-radius: 4px 4px 0 0;
+  background: var(--ml-primary-soft);
+}
+
+.mtw__bar--accent {
+  background: var(--ml-primary);
+  opacity: 0.8;
+}
+
+/* 键盘焦点永不被动效吞掉（SPEC §5） */
+.mtw:focus-visible {
+  outline: 2px solid var(--ml-primary);
+  outline-offset: 2px;
+}
+
+/* 效果关闭：恢复全亮平铺（类切换走 transition，正常触发淡回） */
+.mtw-field.is-off .mtw {
+  opacity: 1 !important;
+  transform: none !important;
+  animation: none !important;
+}
+
+.mtw-field.is-off .mtw__shadow {
+  opacity: 0 !important;
+}
+
+/* 降级（SPEC §5 进出场档）：位移与缩放归零，仅保留 120ms opacity 交叉淡化 */
+@media (prefers-reduced-motion: reduce) {
+  .mtw {
+    transition: opacity 120ms linear;
+    transform: none !important;
+  }
+
+  .mtw.is-activating {
+    animation: none;
+  }
+
+  .mtw__shadow {
+    transition: opacity 120ms linear;
+  }
+}

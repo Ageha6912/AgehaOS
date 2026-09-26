@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgehaOS 动效实验室 · 演示中心</title>
+  <!--
+    演示中心（Hub）：汇总 motion-lab/ 下全部独立演示模块。
+    · 视觉基调统一引用 shared/tokens.css（--ml-* 令牌：色板/玻璃/阴影/时长/曲线）。
+    · 入场为纯 CSS 错峰 stagger（250ms --ml-dur-mid + 50ms 间隔，SPEC §1.4），
+      只动 transform/opacity；prefers-reduced-motion 下整体关闭（见 hub.css 尾部）。
+    · 页面零 JS、零外部网络依赖：双击即可预览。
+  -->
+  <link rel="stylesheet" href="hub.css">
+</head>
+<body>
+
+  <header class="hub-header">
+    <p class="hub-header__eyebrow" style="--i:0">MOTION LAB</p>
+    <h1 class="hub-header__title" style="--i:1">AgehaOS 动效实验室</h1>
+    <p class="hub-header__sub" style="--i:2">
+      参照 macOS Big Sur 及之后版本的动效设计语言，为启动流程与界面交互准备的高质量视觉动效演示。
+      全部模块框架无关：双击各模块 <code>index.html</code> 即可在浏览器直接预览。
+      性能铁律：过渡 150~300ms（开机动画豁免）· 只动 transform/opacity ·
+      全量提供 prefers-reduced-motion 降级。动效语言规范见 <code>SPEC.md</code>，
+      设计与集成文档见 <code>README.md</code>。
+    </p>
+  </header>
+
+  <main class="hub-main">
+
+    <!-- ============================================================
+         第一组 · 核心动效
+         ============================================================ -->
+    <section class="hub-group" aria-labelledby="g-core">
+      <h2 class="hub-group__title" id="g-core" style="--i:3">
+        <span class="hub-group__tag hub-group__tag--core">核心动效</span>
+        <span class="hub-group__note">开机 / 窗口 / Dock / 菜单与通知——桌面体验的主干动效</span>
+      </h2>
+
+      <div class="hub-cards">
+        <article class="hub-card" style="--i:4">
+          <h3 class="hub-card__name">boot <span>开机启动动画</span></h3>
+          <p class="hub-card__desc">纯黑全屏启动层 + 品牌 Logo + rAF 四段变速（快-慢-慢-冲刺）细长进度条，3.8s 完成后启动层淡出放大露出毛玻璃登录占位卡；暴露 window.AgehaBoot 对接接口与 data-boot 测试钩子。</p>
+          <a class="hub-card__link" href="boot/index.html" target="_blank" rel="noopener">在新标签打开 demo →</a>
+        </article>
+
+        <article class="hub-card" style="--i:5">
+          <h3 class="hub-card__name">window <span>窗口生命周期</span></h3>
+          <p class="hub-card__desc">macOS Big Sur 式窗口动效：从 Dock 图标弹性长出（scale 0.9→1 + fade）、沿原路收拢关闭（恒短于打开）、genie 式最小化飞行与 anim.reverse() 严格镜像还原，半途可抓回。</p>
+          <a class="hub-card__link" href="window/index.html" target="_blank" rel="noopener">在新标签打开 demo →</a>
+        </article>
+
+        <article class="hub-card" style="--i:6">
+          <h3 class="hub-card__name">dock <span>Dock 放大波浪</span></h3>
+          <p class="hub-card__desc">rAF 驱动的高斯距离衰减放大波浪（scale + translateY 合成层动画、帧内零布局读取）+ 玻璃底座 + 名称 tooltip + 发光激活点，含触屏 / 键盘 / reduced-motion 三路降级。</p>
+          <a class="hub-card__link" href="dock/index.html" target="_blank" rel="noopener">在新标签打开 demo →</a>
+        </article>
+
+        <article class="hub-card" style="--i:7">
+          <h3 class="hub-card__name">menu-toast <span>菜单与通知</span></h3>
+          <p class="hub-card__desc">右键上下文菜单与顶部下拉共用「淡入 + 上浮 4px」同款动效；系统通知右上角滑入 → 驻留（hover 暂停）→ 滑出，多条向下堆叠、腾位上移走 transform；「定位层 + 动效层」双层架构可中断。</p>
+          <a class="hub-card__link" href="menu-toast/index.html" target="_blank" rel="noopener">在新标签打开 demo →</a>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         第二组 · 基础增强
+         ============================================================ -->
+    <section class="hub-group" aria-labelledby="g-basic">
+      <h2 class="hub-group__title" id="g-basic" style="--i:8">
+        <span class="hub-group__tag hub-group__tag--basic">基础增强</span>
+        <span class="hub-group__note">低成本日常质感——建议默认全开的保守档</span>
+      </h2>
+
+      <div class="hub-cards">
+        <article class="hub-card" style="--i:9">
+          <h3 class="hub-card__name">enhance-basic <span>基础增强档（5 项）</span></h3>
+          <p class="hub-card__desc">毛玻璃拟态面板、图标按压微动效、进桌面错峰入场、鼠标跟随光晕、点击涟漪——五个独立 .css/.js 效果 + 一个可开关的组合演示页，全部遵守 150~300ms 与 transform/opacity 铁律。</p>
+          <a class="hub-card__link" href="enhance-basic/index.html" target="_blank" rel="noopener">在新标签打开组合 demo →</a>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         第三组 · 进阶炫技
+         ============================================================ -->
+    <section class="hub-group" aria-labelledby="g-adv">
+      <h2 class="hub-group__title" id="g-adv" style="--i:10">
+        <span class="hub-group__tag hub-group__tag--adv">进阶炫技</span>
+        <span class="hub-group__note">氛围与转场——按硬件与场景选开的高成本档</span>
+      </h2>
+
+      <div class="hub-cards">
+        <article class="hub-card" style="--i:11">
+          <h3 class="hub-card__name">enhance-advanced <span>进阶炫技档（5 项）</span></h3>
+          <p class="hub-card__desc">壁纸三层视差景深、Canvas 流光氛围、窗口切换 crossfade + 3D tilt、Dock 斜向扫光、主题光晕呼吸；组合演示页默认仅开「视差 + 光晕」两项，其余按需开关。</p>
+          <a class="hub-card__link" href="enhance-advanced/index.html" target="_blank" rel="noopener">在新标签打开组合 demo →</a>
+          <p class="hub-card__sub">单项独立演示页：
+            <a href="enhance-advanced/parallax/index.html" target="_blank" rel="noopener">视差景深</a> ·
+            <a href="enhance-advanced/aurora/index.html" target="_blank" rel="noopener">流光氛围</a> ·
+            <a href="enhance-advanced/window-tilt/index.html" target="_blank" rel="noopener">窗口转场</a> ·
+            <a href="enhance-advanced/dock-sheen/index.html" target="_blank" rel="noopener">Dock 扫光</a> ·
+            <a href="enhance-advanced/theme-glow/index.html" target="_blank" rel="noopener">光晕呼吸</a>
+          </p>
+        </article>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="hub-footer">
+    <p>验收：<code>node motion-lab/verify.mjs</code> 会对本目录下每个 demo 页面做零报错与关键行为冒烟（Playwright/Chromium）。</p>
+  </footer>
+
+</body>
+</html>

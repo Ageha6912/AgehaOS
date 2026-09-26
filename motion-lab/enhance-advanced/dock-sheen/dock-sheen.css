@@ -1,0 +1,119 @@
+@import "../../shared/tokens.css";
+/* ==========================================================================
+ * 效果 4/5 · Dock 高光扫过（dock-sheen.css）
+ * --------------------------------------------------------------------------
+ * 设计动机：给静态底座一次低频的「釉面反光」——高光带斜向扫过 Dock，
+ *   暗示材质是真实玻璃；静默期占循环 76%，只在你不注意时路过一次。
+ * 实现三档差异：
+ *   纯 CSS（本文件）——伪元素 + animation 只动 transform/opacity，全程
+ *     合成器接管、零 JS 常驻开销，★推荐默认档；
+ *   JS rAF——可精确控制亮度包络，但为一条 9s 一次的扫光开常驻循环不值
+ *     （空转耗电）；
+ *   WebGL——纯 2D 高光，纹理化成本远超收益，无意义。
+ * 推荐默认档：纯 CSS（JS 仅负责把 PARAMS 注入为自定义属性）。
+ * 时长说明：本效果是低频氛围循环动画（非交互过渡），扫过段约占周期 24%
+ *   （≈2.2s），由任务规格「斜向扫过 + 循环间隔长」决定，不受 150~300ms
+ *   交互动效过渡档约束（SPEC §3 铁律 1 的「过渡」语义）；启用/停用开关
+ *   本身走 --ml-dur-fast（150ms）。
+ * 性能说明：高光带只动 transform（纯位移，无 opacity 包络——进出画面靠
+ *   底座 overflow 裁剪，天然无跳变）；停用时 ::after opacity 归 0 走
+ *   transition；循环由合成器驱动，页面隐藏时自动挂起。
+ * ========================================================================== */
+
+/* Dock 底座：玻璃归 chrome，圆角裁剪高光带 */
+.mld-dock {
+  /* 高光带主题参数：峰值透明度双主题分档（值由 dock-sheen.js 注入） */
+  --mlds-peak: var(--mlds-peak-light, 0.5);
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: var(--ml-z-taskbar);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  overflow: hidden; /* 高光带进出画面靠此裁剪 */
+  background: var(--ml-glass-bg);
+  border: 1px solid var(--ml-glass-border);
+  backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  box-shadow: var(--ml-shadow-lift), inset 0 1px 0 var(--ml-glass-highlight);
+}
+
+.ml-dark .mld-dock {
+  --mlds-peak: var(--mlds-peak-dark, 0.65);
+}
+
+/* 应用磁贴：钴蓝族的克制变奏（实色/渐变小面，静态不参与动画） */
+.mld-dock__app {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--app, var(--ml-primary-soft));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 35%);
+}
+
+.mld-dock__app:nth-of-type(1) { --app: linear-gradient(160deg, #5b8cf7, #2f5fe8); }
+.mld-dock__app:nth-of-type(2) { --app: linear-gradient(160deg, #6ea8ff, #3b6ce0); }
+.mld-dock__app:nth-of-type(3) { --app: linear-gradient(160deg, #43b8d8, #2a7fb8); }
+.mld-dock__app:nth-of-type(4) { --app: linear-gradient(160deg, #8a7bff, #5a4fe8); }
+.mld-dock__app:nth-of-type(5) { --app: linear-gradient(160deg, #4fd2ff, #2f8fe8); }
+.mld-dock__app:nth-of-type(6) { --app: linear-gradient(160deg, #9db9ff, #6f92e0); }
+.mld-dock__app--tray { --app: var(--ml-surface-raised); }
+
+.mld-dock__sep {
+  width: 1px;
+  height: 32px;
+  background: var(--ml-border);
+}
+
+/* 高光带：白色软边渐变条，斜置；扫动是纯 transform 位移 */
+.mld-dock::after {
+  content: "";
+  position: absolute;
+  top: -80%;
+  bottom: -80%;
+  left: 0;
+  width: var(--mlds-strip-w, 30%);
+  background: linear-gradient(
+    105deg,
+    transparent 8%,
+    rgb(255 255 255 / var(--mlds-peak)) 50%,
+    transparent 92%
+  );
+  transform: translate3d(-190%, 0, 0) rotate(var(--mlds-angle, -16deg));
+  opacity: 0;
+  pointer-events: none;
+  /* 仅开关淡入淡出（150ms，--ml-dur-fast）；扫动本身不走 opacity */
+  transition: opacity var(--ml-dur-fast) var(--ml-ease-out);
+}
+
+/* 启用：循环动画交给合成器；delay 让位页面进场 */
+.mld-dock.is-sheen-on::after {
+  opacity: 1;
+  animation: mlds-sweep var(--mlds-cycle, 9000ms) linear infinite;
+  animation-delay: var(--mlds-delay, 1500ms);
+}
+
+/* 扫动关键帧：0~76% 静默停在场外，76%~100% 斜向扫过（约 2.2s）。
+ * 缓动声明在 76% 帧上，只作用于扫过段；进出画面由底座裁剪完成。 */
+@keyframes mlds-sweep {
+  0%,
+  76% {
+    transform: translate3d(-190%, 0, 0) rotate(var(--mlds-angle, -16deg));
+    animation-timing-function: cubic-bezier(0.4, 0.05, 0.25, 1);
+  }
+  100% {
+    transform: translate3d(430%, 0, 0) rotate(var(--mlds-angle, -16deg));
+  }
+}
+
+/* 降级（SPEC §5）：关闭扫光循环，底座与磁贴保持静态可见（状态可感知即可） */
+@media (prefers-reduced-motion: reduce) {
+  .mld-dock.is-sheen-on::after {
+    animation: none;
+    opacity: 0;
+  }
+}

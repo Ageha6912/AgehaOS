@@ -1,0 +1,368 @@
+@import "../shared/tokens.css";
+/* ==========================================================================
+ * menu-toast.css — AgehaOS 动效实验室 · 菜单与通知模块
+ * --------------------------------------------------------------------------
+ * 双层结构约定（与 menu-toast.js 头注释互指）：
+ *   定位层 .ml-pop / .ml-toast-slot —— 只承担 translate 摆位，永不挂过渡；
+ *   动效层 .ml-pop-card / .ml-toast —— 只过渡 opacity + transform（SPEC §3.2），
+ *   CSS transition 天然可中断：进出场半途反向时从当前呈现值续动。
+ * 时长全部引用 --ml-dur-* 令牌（铁律 150~300ms）；曲线全部引用 --ml-ease-*；
+ * 本文件不出现任何裸时长数值。
+ * 悬停高亮统一走「::after 透明度过渡」——不用 background-color 过渡
+ * （SPEC §3.2 禁止过渡布局/绘制属性），观感等价且只发生在合成层。
+ * 文件命名：任务指定 menu-toast.css / menu-toast.js（覆盖 SPEC §4 默认命名）。
+ * ========================================================================== */
+
+/* 模块级布局量：默认值与 JS 顶部 PARAMS 一致，运行时由 PARAMS 下发覆写（调参只动 PARAMS） */
+:root {
+  --menu-shift: 4px;       /* PARAMS.menuShiftPx —— 菜单浮出位移 */
+  --toast-gap: 10px;       /* PARAMS.stackGapPx —— 通知堆叠间距 */
+  --toast-overhang: 24px;  /* PARAMS.toastOverhangPx —— 进出场超出右缘的余量 */
+  --toast-top: 64px;       /* PARAMS.toastTopPx —— 通知层顶部偏移（避让顶栏） */
+  --toast-side: 16px;      /* PARAMS.toastSidePx —— 通知层右侧偏移 */
+  --toast-width: 340px;    /* PARAMS.toastWidthPx —— 通知卡片固定宽度（高度稳定，堆叠位移才算得准） */
+}
+
+/* —— 基底：白→淡蓝渐变只归大面（画布/面板根），控件一律实色 —— */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--ml-font);
+  color: var(--ml-text);
+  background: var(--ml-bg);
+  line-height: 1.5;
+}
+.ml-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ml-canvas);
+}
+
+/* —— 顶栏：玻璃归 chrome —— */
+.ml-topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--ml-z-taskbar);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 16px;
+  background: var(--ml-glass-bg);
+  -webkit-backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  border-bottom: 1px solid var(--ml-glass-border);
+  box-shadow: inset 0 1px 0 var(--ml-glass-highlight); /* 顶部受光亮边（静态，不参与动画） */
+}
+.ml-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.ml-brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ml-primary);
+  box-shadow: 0 0 0 3px var(--ml-primary-soft);
+}
+.ml-topbar-menus,
+.ml-topbar-actions { display: flex; align-items: center; gap: 8px; }
+.ml-topbar-actions { margin-left: auto; }
+
+/* —— 按钮：悬停高亮 = ::after 透明度过渡（合成层属性，无绘制抖动） —— */
+.ml-btn {
+  position: relative;
+  padding: 6px 12px;
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-md);
+  background: var(--ml-surface);
+  color: var(--ml-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ml-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ml-primary-soft);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ml-dur-fast) var(--ml-ease-out);
+}
+.ml-btn:hover::after,
+.ml-btn:focus-visible::after { opacity: 1; }
+.ml-btn:active { transform: translateY(1px); }  /* 按压位移：纯 transform，瞬时反馈不挂过渡 */
+.ml-btn:focus-visible { outline: 2px solid var(--ml-primary); outline-offset: 2px; }
+.ml-btn-primary {
+  background: var(--ml-primary);
+  color: var(--ml-primary-contrast);
+  border-color: transparent;
+}
+.ml-btn-primary::after { background: var(--ml-glass-highlight); }
+.ml-caret { margin-left: 2px; font-size: 10px; opacity: 0.6; }
+
+/* —— 桌面演示区（右键菜单的作用面） —— */
+.ml-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 32px 16px;
+}
+.ml-desktop {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  min-height: 380px;
+  padding: 20px;
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-lg);
+  background: var(--ml-panel);
+  box-shadow: var(--ml-shadow-window-flat);
+  user-select: none;
+}
+.ml-desktop-icons { display: flex; gap: 18px; }
+.ml-icon-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 84px;
+  padding: 12px 8px;
+  border-radius: var(--ml-radius-lg);
+  font-size: 12px;
+  color: var(--ml-text-muted);
+  transition: transform var(--ml-dur-fast) var(--ml-ease-out);  /* 仅 transform，铁律内 */
+}
+.ml-icon-tile:hover { transform: translateY(-2px); }
+.ml-icon-glyph {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ml-radius-md);
+  background: var(--ml-primary-soft);
+  color: var(--ml-primary);
+}
+.ml-icon-glyph svg { width: 22px; height: 22px; }
+.ml-hint { margin: auto 0 0; font-size: 13px; color: var(--ml-text-muted); }
+.ml-status {
+  margin: 6px 0 0;
+  font-family: var(--ml-font-mono);
+  font-size: 12px;
+  color: var(--ml-text-muted);
+}
+.ml-footnote { margin: 0; font-size: 12px; color: var(--ml-text-muted); }
+
+/* —— 弹层 · 定位层：瞬时摆位，永不过渡（换位重开不斜穿） —— */
+.ml-pop {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--ml-z-popover);
+  visibility: hidden;  /* 关闭态不可见不可聚焦；开合由 JS 切换内联 visibility */
+}
+
+/* —— 弹层 · 动效层：菜单卡片，右键菜单与顶部下拉共用同款动效 —— */
+.ml-pop-card {
+  min-width: 210px;
+  padding: 6px;
+  border: 1px solid var(--ml-glass-border);
+  border-radius: var(--ml-radius-lg);
+  background: var(--ml-glass-bg);
+  -webkit-backdrop-filter: blur(var(--ml-blur-sm)) saturate(var(--ml-glass-saturate));
+  backdrop-filter: blur(var(--ml-blur-sm)) saturate(var(--ml-glass-saturate));
+  box-shadow: inset 0 1px 0 var(--ml-glass-highlight), var(--ml-shadow-overlay);
+  opacity: 0;
+  transform: translateY(var(--menu-shift));
+  pointer-events: none;
+  /* 关闭态挂退场过渡：快速淡出 + 反向微移（--ml-ease-in，退场比进场快，SPEC §1.4） */
+  transition:
+    opacity var(--ml-dur-fast) var(--ml-ease-in),
+    transform var(--ml-dur-fast) var(--ml-ease-in);
+}
+.ml-pop-card.is-open {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  /* 打开态换挂进场过渡：淡入 + 上浮 4px→0（需求指定约 150ms ease-out，对应 --ml-dur-fast） */
+  transition:
+    opacity var(--ml-dur-fast) var(--ml-ease-out),
+    transform var(--ml-dur-fast) var(--ml-ease-out);
+}
+.ml-pop-card.is-anim { will-change: opacity, transform; }  /* 仅动效期间挂载，结束即移除（SPEC §3.5） */
+.ml-pop-card.no-anim { transition: none; }                 /* 已开时换位重开：瞬时回初态，避免斜穿 */
+
+/* —— 菜单行 —— */
+.ml-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--ml-radius-md);
+  background: transparent;
+  color: var(--ml-text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.ml-menu-item::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ml-primary-soft);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ml-dur-fast) var(--ml-ease-out);
+}
+.ml-menu-item:hover::after,
+.ml-menu-item:focus-visible::after { opacity: 1; }
+.ml-menu-item:focus-visible { outline: 2px solid var(--ml-primary); outline-offset: -2px; }
+.ml-kbd {
+  margin-left: auto;
+  font-family: var(--ml-font-mono);
+  font-size: 11px;
+  color: var(--ml-text-muted);
+}
+.ml-menu-sep { height: 1px; margin: 6px 8px; border: 0; background: var(--ml-border); }
+
+/* —— 通知堆叠层：零尺寸锚点，子项绝对定位 + transform 排布 —— */
+.ml-toast-layer {
+  position: fixed;
+  top: var(--toast-top);
+  right: var(--toast-side);
+  z-index: var(--ml-z-popover);
+  width: var(--toast-width);
+  pointer-events: none;  /* 层不拦截点击；卡片自身恢复 auto（pointer-events 可继承） */
+}
+
+/* 定位层：多条堆叠的「腾位上移」就是这条 transform 过渡（--ml-dur-base，standard） */
+.ml-toast-slot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100%;
+  transition: transform var(--ml-dur-base) var(--ml-ease-standard);
+  /* transform 过渡期间合成器会自动提升图层，无需常驻 will-change（SPEC §3.5） */
+}
+
+/* 动效层：通知卡片（通知属 chrome，用玻璃材质） */
+.ml-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--ml-glass-border);
+  border-radius: var(--ml-radius-lg);
+  background: var(--ml-glass-bg);
+  -webkit-backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  box-shadow: inset 0 1px 0 var(--ml-glass-highlight), var(--ml-shadow-window);
+  pointer-events: auto;
+  opacity: 0;
+  /* 关闭态：完全停在屏幕外右缘（自身宽度 + 余量），进出场沿同一路径（SPEC §1.1） */
+  transform: translateX(calc(100% + var(--toast-overhang)));
+  /* 关闭态挂退场过渡：translateX 回去 + fade（--ml-dur-base + ease-in，退场比进场快） */
+  transition:
+    opacity var(--ml-dur-base) var(--ml-ease-in),
+    transform var(--ml-dur-base) var(--ml-ease-in);
+}
+.ml-toast.is-in {
+  opacity: 1;
+  transform: translateX(0);
+  /* 打开态换挂进场过渡：滑入有动量 → 位移用克制弹性 --ml-ease-spring-bounce，
+     淡入不回弹用 --ml-ease-standard（SPEC §2 通知横幅档，--ml-dur-mid） */
+  transition:
+    opacity var(--ml-dur-mid) var(--ml-ease-standard),
+    transform var(--ml-dur-mid) var(--ml-ease-spring-bounce);
+}
+.ml-toast.is-anim { will-change: opacity, transform; }
+
+.ml-toast-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ml-radius-md);
+  background: var(--ml-primary-soft);
+  color: var(--ml-primary);
+}
+.ml-toast-icon svg { width: 20px; height: 20px; }
+.ml-toast-body { flex: 1 1 auto; min-width: 0; padding-top: 1px; }
+.ml-toast-title { font-size: 13px; font-weight: 600; }
+.ml-toast-text {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ml-text-muted);
+  overflow-wrap: anywhere;
+}
+.ml-toast-close {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: -2px -4px 0 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ml-text-muted);
+  cursor: pointer;
+}
+.ml-toast-close svg { width: 12px; height: 12px; }
+.ml-toast-close::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ml-primary-soft);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ml-dur-fast) var(--ml-ease-out);
+}
+.ml-toast-close:hover::after,
+.ml-toast-close:focus-visible::after { opacity: 1; }
+.ml-toast-close:focus-visible { outline: 2px solid var(--ml-primary); outline-offset: 1px; }
+
+/* ==========================================================================
+ * prefers-reduced-motion 降级（需求第 4 条：直接显隐）
+ * 令牌层已把 --ml-dur-* 塌缩到 0.01ms；这里再把位移归零、过渡关死，
+ * 双保险保证「直接显隐」（SPEC §5 进出场降级形态：位移与缩放归零）。
+ * 注意选择器需与 .is-open / .is-in 同权重书写，否则高特异性规则会漏网。
+ * ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .ml-pop-card,
+  .ml-pop-card.is-open,
+  .ml-toast,
+  .ml-toast.is-in,
+  .ml-toast-slot,
+  .ml-icon-tile,
+  .ml-btn::after,
+  .ml-menu-item::after,
+  .ml-toast-close::after {
+    transition: none;
+  }
+  .ml-pop-card,
+  .ml-pop-card.is-open,
+  .ml-toast,
+  .ml-toast.is-in {
+    transform: none;
+  }
+}

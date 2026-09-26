@@ -1,0 +1,40 @@
+@import "../../shared/tokens.css";
+/* ==========================================================================
+ * 效果 2/5 · 流光渐变氛围（aurora.css）
+ * --------------------------------------------------------------------------
+ * 设计动机：给桌面铺一层缓慢流动的极光光斑，让「系统有温度」——
+ *   低透明度、慢速度，只在深浅两主题下各自给出恰好的存在感。
+ * 实现三档差异：
+ *   纯 CSS——若干大半径 blur 光斑 + keyframes 位移，全程合成器、性能好，
+ *     但光斑交叠处的加色发光与色彩混合还原度低，超大 blur 在低端机反成瓶颈；
+ *   JS Canvas 2D（本文件配合 aurora.js）——光斑预烘焙成精灵、每帧只做
+ *     drawImage 合成，混合模式可控、半分辨率绘制天然柔边，★推荐默认档；
+ *   WebGL——着色器做多光源叠加还原度最高（真加色发光），但需要着色器/
+ *     纹理管理与回退方案，对「缓慢流动的氛围」收益有限、复杂度最高。
+ * 推荐默认档：JS Canvas 2D（精灵烘焙）。
+ * 性能说明：单 rAF 循环；document.hidden 自动暂停；devicePixelRatio 上限 2；
+ *   内部渲染分辨率再乘 renderScale（默认 0.5），光斑柔边正好吃掉放大锯齿；
+ *   帧率上限 fpsCap（默认 30）——缓慢流动 30fps 与 60fps 观感无差、开销减半。
+ * ========================================================================== */
+
+/* 全屏氛围画布：默认透明，启用后由 JS 设置主题对应的整体透明度 */
+.mla-canvas {
+  position: absolute;
+  inset: 0;
+  /* 氛围层：壁纸视差层（--ml-z-desktop）之上、光晕/窗口之下 */
+  z-index: calc(var(--ml-z-desktop) + 1);
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  /* 仅开关淡入淡出走 transition（200ms，--ml-dur-base）；流动本身走 canvas */
+  transition: opacity var(--ml-dur-base) var(--ml-ease-standard);
+}
+
+/* 降级（SPEC §5）：流动循环由 JS 关闭（只渲染一帧静态氛围），
+ * CSS 侧把开关淡入淡出一并即时化，做到「动效关闭」语义完整。 */
+@media (prefers-reduced-motion: reduce) {
+  .mla-canvas {
+    transition: none;
+  }
+}

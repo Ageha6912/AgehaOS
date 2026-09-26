@@ -1,0 +1,87 @@
+@import "../shared/tokens.css";
+/* ==========================================================================
+ * enhance-basic / icon-press.css — 02 图标按压微动效
+ * --------------------------------------------------------------------------
+ * 设计动机：给按压即时物理反馈——图标像有质量一样被按下、再弹回，
+ * 操作的确认感就来自这 150ms。
+ *
+ * 性能约定（SPEC §3）：
+ * - 按下/松开只过渡 transform（scale）；阴影档随 transform 同步瞬时切换，
+ *   绝不过渡 box-shadow（SPEC §3.2）；
+ * - 按下与松开使用不同曲线：CSS 过渡取「目标态」上声明的 transition——
+ *   按下态声明 ease-out（即时感），常态声明 spring（松开回弹的冲劲，
+ *   无真实过冲，符合 SPEC §1.2 过冲只给携带动量的交互）；
+ * - 时长取最低档 --ml-dur-fast（150ms，微反馈），与 icon-press.js
+ *   PARAMS.pressMs / releaseMs = 150 同源；
+ * - 键盘可达：:focus-visible 焦点环照常渲染（SPEC §5），Enter/Space
+ *   经 JS 补 .is-pressed（降级时不绑定，见 icon-press.js）。
+ * ========================================================================== */
+
+.press-stage {
+  border-radius: var(--ml-radius-md);
+  border: 1px solid var(--ml-border);
+  background-color: var(--ml-bg);
+  background-image: var(--ml-canvas);
+}
+
+.press-dock {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 34px 12px;
+}
+
+.press-icon {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  cursor: pointer;
+  border: 1px solid rgb(255 255 255 / 38%);
+  border-radius: var(--ml-radius-lg);
+  box-shadow: var(--ml-shadow-lift);
+  transform: scale(1);
+  /* 松开回弹：目标态是常态 → 此处声明的过渡生效；spring 有冲劲、无真实过冲 */
+  transition: transform var(--ml-dur-fast) var(--ml-ease-spring);
+}
+
+.press-icon svg { width: 26px; height: 26px; }
+
+.press-icon:active,
+.press-icon.is-pressed {
+  transform: scale(var(--ip-press-scale, 0.92)); /* 幅度由 icon-press.js 注入（PARAMS.pressScale） */
+  /* 按下即时感：目标态是按下态 → 此处声明的过渡生效 */
+  transition: transform var(--ml-dur-fast) var(--ml-ease-out);
+  /* 阴影降档（更紧更贴）：瞬时切换，不参与过渡（SPEC §3.2） */
+  box-shadow: 0 1px 4px rgb(18 32 62 / 20%);
+}
+
+.press-icon:focus-visible {
+  outline: 2px solid var(--ml-primary);
+  outline-offset: 2px;
+}
+
+/* 演示开关关闭：按压反馈整体摘除（JS 同步不再注入 .is-pressed） */
+.press-stage.is-off .press-icon:active {
+  transform: scale(1);
+  box-shadow: var(--ml-shadow-lift);
+}
+.press-stage.is-off .press-icon.is-pressed {
+  transform: scale(1);
+  box-shadow: var(--ml-shadow-lift);
+}
+
+/* ---------- 图标底色（演示贴片色） ----------
+ * 同 glass-panel.css：彩色贴片不在 --ml-* 语义色板内，为演示性新增色，
+ * 不承载语义；焦点环/选中态仍一律 --ml-primary。
+ */
+
+.press-icon--1 { background: linear-gradient(160deg, #4d74ff 0%, #2f5fe8 100%); }
+.press-icon--2 { background: linear-gradient(160deg, #8a6bff 0%, #6a48e8 100%); }
+.press-icon--3 { background: linear-gradient(160deg, #37c6d8 0%, #1da3b8 100%); }
+.press-icon--4 { background: linear-gradient(160deg, #ff7eae 0%, #ef548f 100%); }
+.press-icon--5 { background: linear-gradient(160deg, #52b788 0%, #2f9e6b 100%); }
+.press-icon--6 { background: linear-gradient(160deg, #f2a33c 0%, #e0821f 100%); }

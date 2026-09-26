@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>效果 1 · 壁纸视差景深 — AgehaOS 动效实验室</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="parallax.css">
+</head>
+<body>
+  <main class="ml-stage" aria-label="壁纸视差景深演示舞台">
+    <!-- 效果 1 根元素：data-ml-enabled="true" = 独立演示页默认启用 -->
+    <div class="mlp-scene" data-ml-parallax data-ml-enabled="true" aria-hidden="true">
+      <span class="mlp-sun"></span>
+      <!-- 远山：低缓、含雾 -->
+      <div class="mlp-layer mlp-layer--far">
+        <svg viewBox="0 0 1440 420" preserveAspectRatio="none" focusable="false">
+          <path d="M0 250 Q180 192 360 238 T720 214 T1080 240 T1440 216 L1440 420 L0 420 Z"/>
+        </svg>
+      </div>
+      <!-- 中景：滚动山脊 -->
+      <div class="mlp-layer mlp-layer--mid">
+        <svg viewBox="0 0 1440 420" preserveAspectRatio="none" focusable="false">
+          <path d="M0 300 Q160 226 340 282 T700 264 T1050 292 T1440 258 L1440 420 L0 420 Z"/>
+        </svg>
+      </div>
+      <!-- 前景：棱角最清晰 -->
+      <div class="mlp-layer mlp-layer--near">
+        <svg viewBox="0 0 1440 420" preserveAspectRatio="none" focusable="false">
+          <path d="M0 356 L150 296 L310 348 L470 268 L640 342 L820 288 L1000 350 L1180 296 L1330 342 L1440 312 L1440 420 L0 420 Z"/>
+        </svg>
+      </div>
+    </div>
+
+    <aside class="mlc-panel mlc-panel--mini" role="group" aria-label="演示控制">
+      <h2 class="mlc-panel__title">效果 1 · 壁纸视差景深</h2>
+      <button class="mlc-btn" data-ml-theme-btn type="button">☾ 切换深色主题</button>
+      <p class="mlc-note">移动指针观察三层景深视差；指针离开窗口后缓缓归位。</p>
+      <p class="mlc-note" data-ml-reduced-note hidden>已检测到 prefers-reduced-motion：视差已整体关闭，保留静态构图。</p>
+      <a class="mlc-back" href="../index.html">← 返回组合演示页</a>
+    </aside>
+  </main>
+
+  <script src="parallax.js"></script>
+  <script src="../script.js"></script>
+</body>
+</html>

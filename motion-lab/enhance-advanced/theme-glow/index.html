@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>效果 5 · 主题氛围光晕 — AgehaOS 动效实验室</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="theme-glow.css">
+</head>
+<body>
+  <main class="ml-stage" aria-label="主题氛围光晕演示舞台">
+    <!-- 效果 5 根元素：独立演示页默认启用（外层包罩负责开关淡入淡出） -->
+    <div class="mlg-wrap" data-ml-theme-glow data-ml-enabled="true" aria-hidden="true">
+      <div class="mlg-glow"></div>
+    </div>
+
+    <aside class="mlc-panel mlc-panel--mini" role="group" aria-label="演示控制">
+      <h2 class="mlc-panel__title">效果 5 · 主题氛围光晕</h2>
+      <button class="mlc-btn" data-ml-theme-btn type="button">☾ 切换深色主题</button>
+      <p class="mlc-note">光斑以 9s 周期缓慢呼吸（transform + opacity），切换主题观察光色与强度变化。</p>
+      <p class="mlc-note" data-ml-reduced-note hidden>已检测到 prefers-reduced-motion：呼吸循环已关闭，保留静态谷值光斑。</p>
+      <a class="mlc-back" href="../index.html">← 返回组合演示页</a>
+    </aside>
+  </main>
+
+  <script src="theme-glow.js"></script>
+  <script src="../script.js"></script>
+</body>
+</html>

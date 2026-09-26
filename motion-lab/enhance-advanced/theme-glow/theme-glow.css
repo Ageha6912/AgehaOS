@@ -1,0 +1,84 @@
+@import "../../shared/tokens.css";
+/* ==========================================================================
+ * 效果 5/5 · 主题氛围光晕（theme-glow.css）
+ * --------------------------------------------------------------------------
+ * 设计动机：让主题色从「平面上的颜色」变成「空间里的光」——一枚跟随主题
+ *   色的大光斑在壁纸深处缓慢呼吸（opacity/scale 缓慢循环），深浅两主题
+ *   各有恰当的存在感。
+ * 实现三档差异：
+ *   纯 CSS（本文件）——单 div + radial-gradient + opacity/scale keyframes，
+ *     零 JS 常驻开销、全程合成器，★推荐默认档；
+ *   JS rAF——只有需要「跟随指针/主题实时渐变」时才有意义，静态呼吸不值
+ *     得占一个循环；
+ *   WebGL——一枚径向渐变用不到着色器，纯浪费。
+ * 推荐默认档：纯 CSS（JS 仅负责把 PARAMS 注入为自定义属性 + 开关淡入淡出）。
+ * 时长说明：本效果是缓慢氛围循环动画（非交互过渡），呼吸周期 9s 不受
+ *   150~300ms 过渡档约束；开关淡入淡出走 --ml-dur-base（200ms）。
+ * 性能说明：keyframes 只动 transform（translate+scale）与 opacity；渐变
+ *   底是静态绘制（无 blur 参与动画）；停用时先由外层包罩淡出（transition），
+ *   淡出完成后再移除动画类，杜绝「动画中断跳变」。
+ * ========================================================================== */
+
+/* 包罩：负责启用/停用的整体淡入淡出（父层 opacity transition） */
+.mlg-wrap {
+  position: absolute;
+  inset: 0;
+  /* 氛围层：流光画布（--ml-z-desktop + 1）之上、窗口层之下 */
+  z-index: calc(var(--ml-z-desktop) + 2);
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--mlg-fade, var(--ml-dur-base)) var(--ml-ease-standard);
+}
+
+.mlg-wrap.is-on {
+  opacity: 1;
+}
+
+/* 光斑本体：radial-gradient 直接给出柔边，不引入 blur（无逐帧滤镜开销） */
+.mlg-glow {
+  /* 主题色光斑：浅色用钴蓝 --ml-primary，深色用 --ml-primary-dark 同族 */
+  --mlg-color: rgb(47 95 232 / 32%);
+  --mlg-min: var(--mlg-min-light, 0.45);
+  --mlg-max: var(--mlg-max-light, 0.75);
+  position: absolute;
+  left: 50%;
+  top: 32%;
+  width: var(--mlg-size, 72vmax);
+  height: var(--mlg-size, 72vmax);
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, var(--mlg-color) 0%, transparent 72%);
+  transform: translate(-50%, -50%) scale(1);
+  opacity: var(--mlg-min);
+}
+
+.ml-dark .mlg-glow {
+  --mlg-color: rgb(130 163 255 / 42%);
+  --mlg-min: var(--mlg-min-dark, 0.5);
+  --mlg-max: var(--mlg-max-dark, 0.9);
+}
+
+/* 启用后开始呼吸：transform + opacity 合成层属性，ease-in-out 往复 */
+.mlg-glow.is-on {
+  animation: mlg-breathe var(--mlg-cycle, 9000ms) ease-in-out infinite;
+}
+
+@keyframes mlg-breathe {
+  0%,
+  100% {
+    opacity: var(--mlg-min);
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: var(--mlg-max);
+    transform: translate(-50%, -50%) scale(var(--mlg-scale, 1.12));
+  }
+}
+
+/* 降级（SPEC §5）：呼吸循环关闭，保留静态谷值光斑（氛围在场、无运动） */
+@media (prefers-reduced-motion: reduce) {
+  .mlg-glow.is-on {
+    animation: none;
+    opacity: var(--mlg-min);
+  }
+}

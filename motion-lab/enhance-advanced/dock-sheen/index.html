@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>效果 4 · Dock 高光扫过 — AgehaOS 动效实验室</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="dock-sheen.css">
+</head>
+<body>
+  <main class="ml-stage" aria-label="Dock 高光扫过演示舞台">
+    <!-- 效果 4 根元素：独立演示页默认启用 -->
+    <footer class="mld-dock" data-ml-dock data-ml-enabled="true" aria-label="Dock 演示底座">
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__app"></span>
+      <span class="mld-dock__sep" aria-hidden="true"></span>
+      <span class="mld-dock__app mld-dock__app--tray"></span>
+    </footer>
+
+    <aside class="mlc-panel mlc-panel--mini" role="group" aria-label="演示控制">
+      <h2 class="mlc-panel__title">效果 4 · Dock 高光扫过</h2>
+      <button class="mlc-btn" data-ml-theme-btn type="button">☾ 切换深色主题</button>
+      <p class="mlc-note">高光每 9s 斜向扫过一次底座（静默期占 76%，注意留意才看得到）。</p>
+      <p class="mlc-note" data-ml-reduced-note hidden>已检测到 prefers-reduced-motion：扫光已关闭，底座保持静态可见。</p>
+      <a class="mlc-back" href="../index.html">← 返回组合演示页</a>
+    </aside>
+  </main>
+
+  <script src="dock-sheen.js"></script>
+  <script src="../script.js"></script>
+</body>
+</html>

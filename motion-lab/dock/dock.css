@@ -1,0 +1,343 @@
+@import "../shared/tokens.css";
+/* ==========================================================================
+ * motion-lab/dock/dock.css — Dock 放大波浪模块样式
+ * --------------------------------------------------------------------------
+ * 分工边界（与 dock.js 约定，SPEC §1.3 / §2）：
+ * · 波浪的 scale / translateY 全部由 dock.js 以 rAF 写入 .dock-icon__tile，
+ *   本文件不参与「跟随段」动画（跟随 0ms，无 CSS transition 接手）。
+ * · 本文件只负责：玻璃底座、tooltip 显隐、激活点显隐与 pulse、
+ *   hover 变色（opacity 合成层）、焦点环，以及 reduced-motion 降级。
+ *
+ * 与规范的差异（以需求为准，均已在对应位置注释）：
+ * · 激活点 pulse 为循环动画（规范 §0/DESIGN §2.5 不新增循环动画）——
+ *   任务明确要求「轻微 pulse」，故保留，且 prefers-reduced-motion 下关闭。
+ * · 文件名 dock.css / dock.js 对应 SPEC §4 的 style.css / script.js。
+ * ========================================================================== */
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  /* 大面渐变只属于画布根（tokens §3 材质分工），整页即「桌面」 */
+  min-height: 100vh;
+  background: var(--ml-canvas) fixed;
+  color: var(--ml-text);
+  font-family: var(--ml-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+.stage {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 24px 20px;
+}
+
+/* --------------------------------------------------------------------------
+ * 页眉与说明
+ * ------------------------------------------------------------------------ */
+
+.stage__header {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.stage__heading h1 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.stage__heading p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ml-text-muted);
+  max-width: 520px;
+}
+
+/* 主题切换：小件玻璃按钮（玻璃归 chrome），状态切换只动 opacity/transform 之外的
+ * 静态属性即时生效——这里不写字体/颜色过渡，不违反「只动 transform/opacity」。 */
+.theme-toggle {
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ml-text);
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ml-glass-border);
+  background: var(--ml-glass-bg);
+  box-shadow: var(--ml-shadow-lift);
+  backdrop-filter: blur(var(--ml-blur-xs)) saturate(var(--ml-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--ml-blur-xs)) saturate(var(--ml-glass-saturate));
+  cursor: pointer;
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--ml-primary);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+ * 桌面语境：静态玻璃窗口 mock（无动效，仅提供层级参照）
+ * ------------------------------------------------------------------------ */
+
+.mock-window {
+  width: min(560px, 100%);
+  margin: auto 0;               /* 垂直居中于剩余空间，把 Dock 推到底部 */
+  border-radius: var(--ml-radius-lg);
+  border: 1px solid var(--ml-glass-border);
+  background: var(--ml-glass-bg);
+  box-shadow: var(--ml-shadow-window);
+  backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  overflow: hidden;
+}
+
+.mock-window__bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ml-glass-border);
+  font-size: 12px;
+  color: var(--ml-text-muted);
+}
+
+.mock-window__bar i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ml-border);
+}
+
+.mock-window__bar i:first-child { background: var(--ml-primary-soft); }
+.mock-window__bar span { margin-left: 8px; }
+
+.mock-window__body {
+  padding: 26px 22px 30px;
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--ml-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+ * Dock 本体：玻璃底座（chrome）
+ * ------------------------------------------------------------------------ */
+
+.dock {
+  /* 模块局部几何常量（JS 通过 getBoundingClientRect 实测中心，无需同步）。
+   * 随视口流体收缩：10 个图标的最小内容宽度必须小于窄屏内容宽度，否则整条
+   * Dock 溢出视口（flex 子项不可压缩）。
+   * --icon-gap 需 ≥ icon-size × (maxScale-1) × 邻系收缩量，否则波峰处相邻
+   * 图标会重叠——本方案只允许 scale + translateY（任务约定），无法横向推开；
+   * 窄屏上为不溢出优先，波峰允许轻微贴边（触屏本就不依赖波浪，见 index.html）。 */
+  --icon-size: clamp(23px, 6vw, 48px);
+  --icon-gap: clamp(6px, 1.72vw, 22px);
+  --tip-gap: 24px;              /* tooltip 悬浮于图标顶部的间距（波峰上浮后仍有余量） */
+  /* 激活点 pulse 周期：需求要求的呼吸感（循环动画豁免说明见文件头），非过渡时长，
+   * 不占 150~300ms 铁律档；prefers-reduced-motion 下该动画整体关闭。 */
+  --ml-dock-dot-pulse-ms: 2400ms;
+
+  position: relative;
+  z-index: var(--ml-z-taskbar);
+  display: flex;
+  align-items: center;
+  gap: var(--icon-gap);
+  /* 顶部 26px（满档时）：波峰上探 = size×(maxScale-1)/2 + liftHeight ≈ 20.4px + 余量；
+   * 底部 22px：容纳悬在下方的激活点。Big Sur 式垂直居中，放大自中心向上下生长。 */
+  padding: clamp(16px, 3vw, 26px) clamp(14px, 2.4vw, 30px) clamp(14px, 2.4vw, 22px);
+  border-radius: calc(var(--ml-radius-lg) * 2);   /* 24px：Dock 大圆角，由令牌档派生 */
+  border: 1px solid var(--ml-glass-border);
+  background: var(--ml-glass-bg);
+  box-shadow: var(--ml-shadow-window);
+  backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--ml-blur-md)) saturate(var(--ml-glass-saturate));
+}
+
+.dock__divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 0;
+  background: var(--ml-border);
+}
+
+/* --------------------------------------------------------------------------
+ * 图标按钮：布局锚点本身不参与波浪，rAF 只写内层 tile 的 transform
+ * ------------------------------------------------------------------------ */
+
+.dock-icon {
+  position: relative;
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dock-icon:focus-visible {
+  outline: 2px solid var(--ml-primary);
+  outline-offset: 4px;
+  border-radius: var(--ml-radius-md);
+}
+
+/* 图标砖面：rAF 波浪的唯一写入目标。
+ * transform-origin 保持默认中心：放大自中心向四周生长，中心 x 不随 scale 漂移，
+ * 因此 dock.js 缓存的图标中心坐标在波浪中恒定有效（帧内零布局读取的前提）。 */
+.dock-icon__tile {
+  position: relative;           /* 锚定 ::after 悬停叠加层，使其随 tile 一起缩放 */
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: calc(var(--icon-size) * 0.52);
+  line-height: 1;
+  user-select: none;
+  background: var(--ml-surface);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-lg);
+  box-shadow:
+    0 1px 2px rgb(18 32 62 / 8%),
+    inset 0 1px 0 var(--ml-glass-highlight);
+}
+
+/* 悬停 / 聚焦变色：用叠加层的 opacity 过渡表达（合成层属性），
+ * 不过渡 background-color（绘制属性，SPEC §3.2 禁止）。
+ * prefers-reduced-motion 时该过渡时长被令牌塌缩为瞬时变色——即降级形态。 */
+.dock-icon__tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ml-primary-soft);
+  opacity: 0;
+  transition: opacity var(--ml-dur-fast) var(--ml-ease-out);
+}
+
+.dock-icon:hover .dock-icon__tile::after,
+.dock-icon:focus-visible .dock-icon__tile::after {
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+ * 激活指示点：主题蓝 + 光晕 + 轻微 pulse（需求指定；循环豁免见上）
+ * —— box-shadow 光晕为静态绘制，pulse 只动 transform/opacity。
+ * ------------------------------------------------------------------------ */
+
+.dock-icon__dot {
+  position: absolute;
+  left: 50%;
+  bottom: -16px;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;          /* 居中用 margin 而非 translate，避免占用 pulse 的 transform */
+  border-radius: 50%;
+  background: var(--ml-primary);
+  box-shadow:
+    0 0 4px var(--ml-primary),
+    0 0 10px var(--ml-primary);
+  opacity: 0;
+  transition: opacity var(--ml-dur-fast) var(--ml-ease-out);
+  pointer-events: none;
+}
+
+.dock-icon.is-active .dock-icon__dot {
+  opacity: 1;
+  animation: ml-dock-dot-pulse var(--ml-dock-dot-pulse-ms) var(--ml-ease-in-out) infinite;
+}
+
+@keyframes ml-dock-dot-pulse {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.35); opacity: 0.72; }
+}
+
+/* --------------------------------------------------------------------------
+ * 名称 tooltip：悬停 / 聚焦显现，opacity + 4px 上浮（SPEC §2「菜单淡入+位移」同款）
+ * 延迟 200ms 出现——扫过 Dock 时不闪烁；隐藏无延迟（消失比出现快，SPEC §1.4）。
+ * ------------------------------------------------------------------------ */
+
+.dock-icon__tip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--tip-gap));
+  padding: 5px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--ml-text);
+  background: var(--ml-glass-bg);
+  border: 1px solid var(--ml-glass-border);
+  border-radius: var(--ml-radius-md);
+  box-shadow: var(--ml-shadow-lift);
+  backdrop-filter: blur(var(--ml-blur-sm)) saturate(var(--ml-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--ml-blur-sm)) saturate(var(--ml-glass-saturate));
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 4px);
+  transition:
+    opacity var(--ml-dur-fast) var(--ml-ease-standard),
+    transform var(--ml-dur-fast) var(--ml-ease-standard),
+    visibility 0s linear var(--ml-dur-fast);
+  pointer-events: none;
+  z-index: var(--ml-z-popover);
+}
+
+.dock-icon:hover .dock-icon__tip,
+.dock-icon:focus-visible .dock-icon__tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition-delay: 200ms, 200ms, 200ms;
+}
+
+/* --------------------------------------------------------------------------
+ * 页脚：参数与令牌指引
+ * ------------------------------------------------------------------------ */
+
+.stage__footer {
+  margin-top: 16px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--ml-text-muted);
+  text-align: center;
+}
+
+.stage__footer code {
+  font-family: var(--ml-font-mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: var(--ml-radius-md);
+  background: var(--ml-primary-soft);
+  color: var(--ml-text);
+}
+
+/* --------------------------------------------------------------------------
+ * prefers-reduced-motion 降级（SPEC §5「Dock 放大」行）：
+ * JS 侧已在 matchMedia 命中时整体关闭波浪 / 按压 / 上浮（rAF 不启动），
+ * 此处收尾声明式部分：pulse 关闭、tooltip 取消位移只剩即时显隐。
+ * hover 变色保留（令牌已把 --ml-dur-* 塌缩为 0.01ms，呈瞬时高亮）。
+ * ------------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-icon__dot { animation: none; }
+  .dock-icon__tip {
+    transform: translate(-50%, 0);
+    transition: opacity 0.01ms linear, visibility 0s linear;
+    transition-delay: 0s;
+  }
+  /* 压掉悬停规则的 200ms 出现延迟：降级下 tooltip 即时显现 */
+  .dock-icon:hover .dock-icon__tip,
+  .dock-icon:focus-visible .dock-icon__tip { transition-delay: 0s; }
+  .dock-icon__tile::after { transition: opacity 0.01ms linear; }
+}

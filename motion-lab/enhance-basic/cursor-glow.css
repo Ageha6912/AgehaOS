@@ -1,0 +1,92 @@
+@import "../shared/tokens.css";
+/* ==========================================================================
+ * enhance-basic / cursor-glow.css — 04 鼠标跟随光晕
+ * --------------------------------------------------------------------------
+ * 设计动机：指针是扰动源——光斑连续跟随让平面产生纵深与驻点，
+ * 界面「活」起来但不喧宾夺主。
+ *
+ * 性能约定（SPEC §3）：
+ * - 光斑定位只写 transform（translate3d），每帧最多一次写、由 rAF 节流；
+ *   pointer-events: none，永不拦截指针；
+ * - 进出舞台的淡入淡出只过渡 opacity（--ml-dur-fast 与 cursor-glow.js
+ *   PARAMS.fadeMs=150 同源）；
+ * - will-change 纪律（SPEC §3.5）：只在光斑可见（.is-visible）时挂载，
+ *   淡出即随类摘除，不常驻占用合成层预算；
+ * - mix-blend-mode 为静态声明不参与动画；isolation 隔离混合范围；
+ * - reduced-motion：JS 侧强制 1:1 瞬时跟随（SPEC §5 跟随类降级），
+ *   opacity 过渡时长被令牌塌缩、瞬现瞬隐。
+ * ========================================================================== */
+
+.glow-stage { /* 演示区块舞台容器（JS 注入 --cg-size / --cg-opacity） */ }
+
+.glow-canvas {
+  position: relative;
+  isolation: isolate; /* 圈定 mix-blend-mode 的混合范围，不外溢到页面 */
+  overflow: hidden;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  cursor: crosshair;
+  border-radius: var(--ml-radius-md);
+  border: 1px solid var(--ml-border);
+  background-color: var(--ml-bg);
+  background-image: var(--ml-canvas);
+}
+
+.glow-chips { display: flex; gap: 10px; }
+
+.glow-chip {
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--ml-text-muted);
+  background: var(--ml-surface);
+  border: 1px solid var(--ml-border);
+  border-radius: 999px;
+}
+
+.glow-canvas__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ml-text-muted);
+  text-align: center;
+  padding: 0 16px;
+}
+
+/* ---------- 光斑本体 ----------
+ * 初始藏到场外（-9999px），首次 pointerenter 由 JS 就地亮起、不从场外飞入。
+ * 尺寸/不透明度来自 --cg-size / --cg-opacity（cursor-glow.js 注入 PARAMS）。
+ */
+
+.glow-orb {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--cg-size, 320px);
+  height: var(--cg-size, 320px);
+  border-radius: 50%;
+  pointer-events: none;
+  /* 浅色主题：multiply 在白→淡蓝画布上染出钴蓝光晕 */
+  mix-blend-mode: multiply;
+  background: radial-gradient(circle closest-side, rgb(47 95 232 / 62%) 0%, rgb(47 95 232 / 0%) 72%);
+  opacity: 0;
+  transform: translate3d(-9999px, -9999px, 0);
+  transition: opacity var(--ml-dur-fast) var(--ml-ease-out);
+}
+
+/* 深色主题：screen 在藏蓝底上提亮（令牌 --ml-primary-dark 色相） */
+.ml-dark .glow-orb {
+  mix-blend-mode: screen;
+  background: radial-gradient(circle closest-side, rgb(130 163 255 / 50%) 0%, rgb(130 163 255 / 0%) 72%);
+}
+
+/* PARAMS.blend = 'normal' 时 JS 加 is-blend-normal：关闭混合模式 */
+.glow-stage.is-blend-normal .glow-orb { mix-blend-mode: normal; }
+
+/* 可见态：will-change 只在此时挂载（SPEC §3.5），淡出随类摘除 */
+.glow-orb.is-visible {
+  opacity: var(--cg-opacity, 0.5);
+  will-change: transform;
+}

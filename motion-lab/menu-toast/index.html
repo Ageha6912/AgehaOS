@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgehaOS 动效实验室 · 菜单与通知</title>
+  <link rel="stylesheet" href="menu-toast.css">
+</head>
+<body>
+  <div class="ml-app">
+    <header class="ml-topbar">
+      <div class="ml-brand"><span class="ml-brand-dot" aria-hidden="true"></span>菜单与通知动效</div>
+
+      <!-- 顶部下拉菜单触发按钮（与右键菜单共用同款进出场动效） -->
+      <nav class="ml-topbar-menus" aria-label="顶部下拉菜单演示">
+        <button type="button" class="ml-btn" id="menuFileBtn" aria-haspopup="menu" aria-expanded="false">文件<span class="ml-caret" aria-hidden="true">▾</span></button>
+        <button type="button" class="ml-btn" id="menuHelpBtn" aria-haspopup="menu" aria-expanded="false">帮助<span class="ml-caret" aria-hidden="true">▾</span></button>
+      </nav>
+
+      <div class="ml-topbar-actions">
+        <button type="button" class="ml-btn ml-btn-primary" id="notifyBtn">发一条通知</button>
+        <button type="button" class="ml-btn" id="burstBtn">连发三条</button>
+        <button type="button" class="ml-btn" id="themeBtn" aria-pressed="false">深色模式</button>
+      </div>
+    </header>
+
+    <main class="ml-stage">
+      <!-- 桌面演示区：右键打开上下文菜单 -->
+      <section class="ml-desktop" id="desktop" aria-label="桌面演示区域：右键打开上下文菜单">
+        <div class="ml-desktop-icons" aria-hidden="true">
+          <div class="ml-icon-tile">
+            <span class="ml-icon-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span>
+            文档
+          </div>
+          <div class="ml-icon-tile">
+            <span class="ml-icon-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 17.5l4.5-4.5 4 4 3-3 3.5 3.5"/></svg></span>
+            图片
+          </div>
+        </div>
+        <p class="ml-hint">在桌面区域右键 → 上下文菜单在指针位置弹出（淡入 + 上浮 4px，150ms）· 点击外部或按 Esc 快速淡出</p>
+        <p class="ml-status" id="statusLine" aria-live="polite">最近动作：—</p>
+      </section>
+      <p class="ml-footnote">通知从右上角滑入（translateX + fade，250ms），驻留 3 秒自动滑出；多条向下堆叠、腾位上移走 transform 过渡；悬停通知可暂停倒计时。</p>
+    </main>
+  </div>
+
+  <!-- 顶部下拉菜单 ×2：定位层 .ml-pop（瞬时摆位）+ 动效层 .ml-pop-card（淡入+上浮） -->
+  <div class="ml-pop" id="popFile" aria-hidden="true">
+    <div class="ml-pop-card" role="menu" aria-label="文件菜单">
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="新建窗口">新建窗口<span class="ml-kbd">⌘N</span></button>
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="打开文件">打开文件…<span class="ml-kbd">⌘O</span></button>
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="最近使用">最近使用</button>
+      <hr class="ml-menu-sep">
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="关闭窗口">关闭窗口<span class="ml-kbd">⌘W</span></button>
+    </div>
+  </div>
+  <div class="ml-pop" id="popHelp" aria-hidden="true">
+    <div class="ml-pop-card" role="menu" aria-label="帮助菜单">
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="查看快捷键">快捷键<span class="ml-kbd">⌘/</span></button>
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="打开用户手册">用户手册</button>
+      <hr class="ml-menu-sep">
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="反馈问题">反馈问题</button>
+    </div>
+  </div>
+
+  <!-- 右键上下文菜单：JS 摆位到指针位置（视口边缘自动收拢） -->
+  <div class="ml-pop" id="popContext" aria-hidden="true">
+    <div class="ml-pop-card" role="menu" aria-label="上下文菜单">
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="新建文件夹">新建文件夹</button>
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="重命名">重命名</button>
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="显示简介">显示简介</button>
+      <hr class="ml-menu-sep">
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="刷新桌面">刷新桌面</button>
+      <button type="button" class="ml-menu-item" role="menuitem" data-action="排列方式">排列方式</button>
+    </div>
+  </div>
+
+  <!-- 通知堆叠层（aria-live：新通知对读屏可感知） -->
+  <div class="ml-toast-layer" id="toastLayer" aria-live="polite"></div>
+
+  <noscript><p style="padding:16px">本演示需要启用 JavaScript。</p></noscript>
+  <script src="menu-toast.js"></script>
+</body>
+</html>

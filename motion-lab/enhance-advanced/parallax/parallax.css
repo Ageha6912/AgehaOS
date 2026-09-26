@@ -1,0 +1,106 @@
+@import "../../shared/tokens.css";
+/* ==========================================================================
+ * 效果 1/5 · 壁纸视差景深（parallax.css）
+ * --------------------------------------------------------------------------
+ * 设计动机：让壁纸成为「有纵深的空间」——远山几乎不动、中景轻移、前景明显
+ *   跟随，用三层位移差讲出空间层次（Big Sur 式景深）。
+ * 实现三档差异：
+ *   纯 CSS——只能靠 hover/scroll 等离散状态位移，无法 1:1 跟随自由指针，
+ *     还原度最低（合成层性能最好但做不出本效果）；
+ *   JS rAF + translate3d（本文件配合 parallax.js）——每帧最多 3 次合成层
+ *     写操作、插值续动、可中断，性能与还原度平衡最佳，★推荐默认档；
+ *   WebGL——需把三层烘焙成纹理并着色器偏移 UV，还原度相同，但初始化/
+ *     内存/复杂度全面更高，对位图视差纯属浪费。
+ * 推荐默认档：JS rAF。
+ * 性能说明：本文件只提供静态构图（渐变 + 内联 SVG 山体），位移全部由
+ *   JS 每帧写 transform 完成；will-change 由 JS 在效果启用时挂载、
+ *   关闭时摘除（SPEC §3.5 will-change 纪律），此处不静态声明。
+ * ========================================================================== */
+
+/* 视差舞台：铺满演示舞台底层，裁掉层的出界余量 */
+.mlp-scene {
+  /* 山体色由令牌派生（color-mix 混合 --ml-primary 与 --ml-bg）：
+   * 主题切换时自动跟随，无需另写 .ml-dark 分支；上方的字面量是
+   * 不支持 color-mix 的旧浏览器回退值。 */
+  --mlp-far: #dbe7fa;  /* 回退：远山 */
+  --mlp-mid: #c0cdf6;  /* 回退：中景 */
+  --mlp-near: #7d94ea; /* 回退：前景 */
+  --mlp-far: color-mix(in srgb, var(--ml-primary) 10%, var(--ml-bg));
+  --mlp-mid: color-mix(in srgb, var(--ml-primary) 22%, var(--ml-bg));
+  --mlp-near: color-mix(in srgb, var(--ml-primary) 42%, var(--ml-bg));
+  position: absolute;
+  inset: 0;
+  /* 壁纸视差层归桌面层（令牌 z 梯最底档），氛围层在其上以 +1/+2 叠加 */
+  z-index: var(--ml-z-desktop);
+  overflow: hidden;
+  pointer-events: none; /* 壁纸层不拦截任何交互 */
+}
+
+/* 天体（太阳/月亮）：静态装饰，不参与视差与动画 */
+.mlp-sun {
+  position: absolute;
+  top: 13%;
+  left: 64%;
+  width: 24vmin;
+  height: 24vmin;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgb(255 255 255 / 90%) 0%,
+    rgb(140 170 255 / 26%) 52%,
+    transparent 72%
+  );
+  opacity: 0.85;
+}
+
+.ml-dark .mlp-sun {
+  background: radial-gradient(
+    circle,
+    rgb(230 236 247 / 26%) 0%,
+    rgb(130 163 255 / 10%) 50%,
+    transparent 70%
+  );
+}
+
+/* 视差层：四边各留 56px 出界余量（大于 PARAMS.nearPx = 38px 的最大位移），
+ * 保证任意方向平移都不会露出边缘。层内 SVG 通过 preserveAspectRatio="none"
+ * 铺满，山脊线由远及近逐层降低、变清晰。 */
+.mlp-layer {
+  position: absolute;
+  left: -56px;
+  right: -56px;
+  bottom: -56px;
+}
+
+.mlp-layer svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 层高与雾化：越远越低透明度（大气透视） */
+.mlp-layer--far {
+  height: 46%;
+  opacity: 0.78;
+}
+
+.mlp-layer--mid {
+  height: 58%;
+  opacity: 0.92;
+}
+
+.mlp-layer--near {
+  height: 40%;
+}
+
+.mlp-layer--far path { fill: var(--mlp-far); }
+.mlp-layer--mid path { fill: var(--mlp-mid); }
+.mlp-layer--near path { fill: var(--mlp-near); }
+
+/* 降级（SPEC §5）：跟随类动效在减少动态偏好下整体关闭，
+ * 保留静态三层构图（状态可感知即可）。JS 侧同时不再监听指针。 */
+@media (prefers-reduced-motion: reduce) {
+  .mlp-layer {
+    transform: none !important;
+  }
+}

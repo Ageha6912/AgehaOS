@@ -1,0 +1,211 @@
+@import "../shared/tokens.css";
+/* ==========================================================================
+ * enhance-basic / demo-page.css — 演示页共用框架样式（页面 chrome）
+ * --------------------------------------------------------------------------
+ * 只负责页头、区块框架、开关、通用按钮；五个效果各自的样式在同名 *.css 中，
+ * 可单独拎走复用。
+ * 注：本模块按任务要求拆分为「每个效果独立 .css/.js + 组合演示页」，与
+ * SPEC §4 的三文件（index/style/script）约定不同——以需求为准。
+ * 曲线/时长/色板/玻璃/阴影/z 全部走 --ml-* 令牌（SPEC §4）。
+ * ========================================================================== */
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: var(--ml-font);
+  color: var(--ml-text);
+  /* 画布大面：白→淡蓝渐变（浅色）/ 藏蓝（深色，随 ml-dark 语义自动翻转） */
+  background-color: var(--ml-bg);
+  background-image: var(--ml-canvas);
+  background-attachment: fixed;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 页头 ---------- */
+
+.lab-header { padding: 30px 20px 6px; }
+
+.lab-header__inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.lab-header__text h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: 0.2px; }
+
+.lab-header__sub {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ml-text-muted);
+}
+
+/* ---------- 区块框架 ---------- */
+
+main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 20px 20px 56px;
+  display: grid;
+  gap: 24px;
+}
+
+.demo-block {
+  background: var(--ml-panel);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-lg);
+  box-shadow: var(--ml-shadow-window-flat);
+  padding: 18px 20px 18px;
+}
+
+.demo-block__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.demo-block__title h2 { margin: 0 0 4px; font-size: 16px; }
+
+.demo-block__motive {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ml-text-muted);
+}
+
+.demo-block__stage { margin: 0 2px; }
+
+.demo-block__hint {
+  margin: 12px 2px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ml-text-muted);
+}
+
+/* ---------- 演示开关 ----------
+ * 动效只走合成层属性：填充层用 opacity 过渡、滑块用 transform 过渡；
+ * 轨道底色变化是瞬时切换（background 不参与过渡——SPEC §3.2）。
+ */
+
+.demo-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.demo-switch input {
+  /* 视觉隐藏但保留键盘可达（焦点环由下方 :focus-visible 承接） */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  opacity: 0;
+}
+
+.demo-switch__track {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--ml-surface-raised);
+  border: 1px solid var(--ml-border);
+}
+
+.demo-switch__track::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ml-primary);
+  opacity: 0;
+  transition: opacity var(--ml-dur-fast) var(--ml-ease-out);
+}
+
+.demo-switch__track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(18 32 62 / 25%);
+  transform: translateX(0);
+  transition: transform var(--ml-dur-fast) var(--ml-ease-out);
+}
+
+.demo-switch input:checked + .demo-switch__track::before { opacity: 1; }
+.demo-switch input:checked + .demo-switch__track::after { transform: translateX(16px); }
+
+.demo-switch input:focus-visible + .demo-switch__track {
+  outline: 2px solid var(--ml-primary);
+  outline-offset: 2px;
+}
+
+.demo-switch__text { font-size: 13px; color: var(--ml-text-muted); }
+
+/* ---------- 通用按钮 ----------
+ * 悬停抬升：transform 过渡 + 阴影档瞬时切换（不过渡 box-shadow，SPEC §3.2）。
+ */
+
+.demo-btn {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ml-text);
+  padding: 8px 16px;
+  border-radius: var(--ml-radius-md);
+  background: var(--ml-surface);
+  border: 1px solid var(--ml-border);
+  cursor: pointer;
+  transform: translateY(0);
+  transition: transform var(--ml-dur-fast) var(--ml-ease-out);
+}
+
+.demo-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ml-shadow-lift);
+}
+
+.demo-btn:active { transform: translateY(0) scale(0.98); }
+
+.demo-btn:focus-visible {
+  outline: 2px solid var(--ml-primary);
+  outline-offset: 2px;
+}
+
+.demo-btn--primary {
+  background: var(--ml-primary);
+  border-color: transparent;
+  color: var(--ml-primary-contrast);
+}
+
+/* ---------- 页脚 ---------- */
+
+.lab-footer {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+}
+
+.lab-footer p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ml-text-muted);
+  border-top: 1px solid var(--ml-border);
+  padding-top: 16px;
+}

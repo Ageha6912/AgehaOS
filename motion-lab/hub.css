@@ -1,0 +1,247 @@
+/* ==========================================================================
+ * motion-lab/hub.css — 演示中心样式
+ * --------------------------------------------------------------------------
+ * 视觉基调完全取自 shared/tokens.css（--ml-* 令牌），不发明第二套数值。
+ * 动效只有两处：入场错峰 stagger（一次性 animation）与卡片悬停抬升
+ * （150ms transform 过渡）——全部只动 transform/opacity，合成器接管。
+ * ========================================================================== */
+@import "shared/tokens.css";
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--ml-canvas);
+  background-attachment: fixed;
+  color: var(--ml-text);
+  font-family: var(--ml-font);
+  line-height: 1.6;
+}
+
+code {
+  font-family: var(--ml-font-mono);
+  font-size: 0.92em;
+  padding: 0.08em 0.4em;
+  border-radius: 6px;
+  background: var(--ml-primary-soft);
+  color: var(--ml-primary);
+}
+
+/* ==========================================================================
+ * 顶部标题区
+ * ========================================================================== */
+
+.hub-header {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 56px 24px 8px;
+}
+
+.hub-header__eyebrow {
+  margin: 0 0 6px;
+  font-family: var(--ml-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.35em;
+  color: var(--ml-primary);
+}
+
+.hub-header__title {
+  margin: 0 0 14px;
+  font-size: clamp(28px, 4.5vw, 40px);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.hub-header__sub {
+  margin: 0;
+  max-width: 62em;
+  font-size: 14px;
+  color: var(--ml-text-muted);
+}
+
+/* ==========================================================================
+ * 分组与卡片
+ * ========================================================================== */
+
+.hub-main {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 24px 24px 40px;
+}
+
+.hub-group {
+  margin: 28px 0 8px;
+}
+
+.hub-group__title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.hub-group__tag {
+  padding: 2px 12px;
+  border-radius: 9999px;
+  font-size: 14px;
+  color: var(--ml-primary-contrast);
+  background: var(--ml-primary);
+}
+
+/* 组标签的档位色：核心动效 = 强调色实底；两档增强 = 染色底 + 主色字（层级更轻） */
+.hub-group__tag--basic,
+.hub-group__tag--adv {
+  color: var(--ml-primary);
+  background: var(--ml-primary-soft);
+}
+
+.hub-group__note {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ml-text-muted);
+}
+
+.hub-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.hub-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-lg);
+  background: var(--ml-panel);
+  box-shadow: var(--ml-shadow-window-flat);
+}
+
+.hub-card__name {
+  margin: 0;
+  font-family: var(--ml-font-mono);
+  font-size: 15px;
+  color: var(--ml-primary);
+}
+
+.hub-card__name span {
+  margin-left: 8px;
+  font-family: var(--ml-font);
+  font-size: 13px;
+  color: var(--ml-text-muted);
+}
+
+.hub-card__desc {
+  margin: 0;
+  flex: 1;
+  font-size: 13px;
+  color: var(--ml-text);
+}
+
+.hub-card__link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ml-primary);
+  text-decoration: none;
+}
+
+.hub-card__link:hover,
+.hub-card__link:focus-visible {
+  text-decoration: underline;
+}
+
+.hub-card__sub {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ml-text-muted);
+}
+
+.hub-card__sub a {
+  color: var(--ml-primary);
+  text-decoration: none;
+}
+
+.hub-card__sub a:hover,
+.hub-card__sub a:focus-visible {
+  text-decoration: underline;
+}
+
+/* 悬停抬升：只动 transform，150ms 微反馈档（--ml-dur-fast） */
+.hub-card {
+  transition: transform var(--ml-dur-fast) var(--ml-ease-out);
+}
+
+.hub-card:hover {
+  transform: translateY(-2px);
+}
+
+/* ==========================================================================
+ * 页脚
+ * ========================================================================== */
+
+.hub-footer {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 0 24px 48px;
+  font-size: 12px;
+  color: var(--ml-text-muted);
+}
+
+/* ==========================================================================
+ * 入场错峰 stagger（SPEC §1.4：间隔 40~60ms、共用同一条曲线）
+ * 每个元素经内联 style="--i:N" 声明序号；只动 opacity + translateY。
+ * ========================================================================== */
+
+.hub-header__eyebrow,
+.hub-header__title,
+.hub-header__sub,
+.hub-group__title,
+.hub-card,
+.hub-footer {
+  animation: hub-enter var(--ml-dur-mid) var(--ml-ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 50ms);
+}
+
+@keyframes hub-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+ * 可访问性降级（SPEC §5）：动效关闭，内容直接呈现。
+ * 时长档虽会被令牌层塌缩为 0.01ms，但 animation-delay 不在令牌内，
+ * 故此处显式关闭动画与延迟，保证 reduce 下同帧到场。
+ * ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-header__eyebrow,
+  .hub-header__title,
+  .hub-header__sub,
+  .hub-group__title,
+  .hub-card,
+  .hub-footer {
+    animation: none;
+    animation-delay: 0ms;
+  }
+
+  .hub-card {
+    transition: none;
+  }
+
+  .hub-card:hover {
+    transform: none;
+  }
+}
