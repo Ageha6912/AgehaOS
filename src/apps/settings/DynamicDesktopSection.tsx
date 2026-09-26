@@ -3,6 +3,7 @@ import type { MessageKey } from '@/core/i18n'
 import { sliderBand } from '@/core/dynamic/decision/engine'
 import { systemDynamicDesktop } from '@/services/dynamic-desktop'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
+import { ToggleSwitch } from '@/components/toggle-switch'
 
 /** Settings「动态桌面」section（设计文档 §6.5 入口 ①）：总开关、滑杆、固定/屏蔽、历史、清除数据。 */
 
@@ -81,41 +82,34 @@ export function DynamicDesktopSection() {
       <h2 className="mb-4 text-base font-semibold text-text">{t('dynamicDesktop.section')}</h2>
 
       <div className="mb-5">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={prefs.enabled}
-          data-testid="dynamic-desktop-toggle"
-          className={`rounded-md border px-3 py-1.5 text-xs ${
-            prefs.enabled
-              ? 'border-primary/60 bg-primary/10 text-text'
-              : 'border-border text-text-muted hover:bg-surface-raised hover:text-text'
-          }`}
-          onClick={() => {
-            setEnabled(!prefs.enabled)
-            if (!prefs.enabled) void systemDynamicDesktop.refresh()
-          }}
-        >
-          {t('dynamicDesktop.enable')}
-        </button>
+        <div className="flex items-center gap-2">
+          <ToggleSwitch
+            checked={prefs.enabled}
+            label={t('dynamicDesktop.enable')}
+            testId="dynamic-desktop-toggle"
+            onClick={() => {
+              setEnabled(!prefs.enabled)
+              if (!prefs.enabled) void systemDynamicDesktop.refresh()
+            }}
+          />
+          <span className="text-xs text-text">{t('dynamicDesktop.enable')}</span>
+        </div>
         <p className="mt-1 text-xs text-text-muted">{t('dynamicDesktop.enableHint')}</p>
       </div>
 
       <div className="mb-5">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={prefs.llmEnhance}
-          data-testid="llm-enhance-toggle"
-          className={`rounded-md border px-3 py-1.5 text-xs ${
-            prefs.llmEnhance
-              ? 'border-primary/60 bg-primary/10 text-text'
-              : 'border-border text-text-muted hover:bg-surface-raised hover:text-text'
-          } ${prefs.enabled ? '' : 'pointer-events-none opacity-50'}`}
-          onClick={() => setLlmEnhance(!prefs.llmEnhance)}
-        >
-          {t('dynamicDesktop.llmEnhance')}
-        </button>
+        <div className="flex items-center gap-2">
+          <ToggleSwitch
+            checked={prefs.llmEnhance}
+            label={t('dynamicDesktop.llmEnhance')}
+            testId="llm-enhance-toggle"
+            disabled={!prefs.enabled}
+            onClick={() => setLlmEnhance(!prefs.llmEnhance)}
+          />
+          <span className={`text-xs ${prefs.enabled ? 'text-text' : 'text-text-muted/60'}`}>
+            {t('dynamicDesktop.llmEnhance')}
+          </span>
+        </div>
         <p className="mt-1 text-xs text-text-muted">{t('dynamicDesktop.llmEnhanceHint')}</p>
       </div>
 
@@ -206,6 +200,7 @@ export function DynamicDesktopSection() {
         <label className="flex items-center gap-2 text-xs text-text-muted">
           <input
             type="checkbox"
+            className="h-3.5 w-3.5 accent-[var(--ag-primary)]"
             checked={prefs.hideBadge}
             onChange={(event) => setHideBadge(event.target.checked)}
           />

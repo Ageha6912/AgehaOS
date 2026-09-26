@@ -7,6 +7,7 @@ import { AuthError, isRemoteAuthActive, systemAuthService } from '@/core/auth'
 import type { SessionInfo } from '@/core/auth'
 import { useSessionStore } from '@/store/session-store'
 import { isSyncEnabled, setSyncEnabled } from '@/services/settings-sync'
+import { ToggleSwitch } from '@/components/toggle-switch'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -345,23 +346,18 @@ export function AccountSection() {
           <div className="mt-4 border-t border-border pt-3">
             <h3 className="mb-1 text-sm font-semibold text-text">{t('settings.account.sync')}</h3>
             <p className="mb-2 text-xs text-text-muted">{t('settings.account.syncHint')}</p>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={syncOn}
-              data-testid="settings-sync-toggle"
-              className={`rounded-md border px-3 py-1.5 text-xs ${
-                syncOn
-                  ? 'border-primary/60 bg-primary/10 text-text'
-                  : 'border-border text-text-muted hover:bg-surface-raised hover:text-text'
-              }`}
-              onClick={() => {
-                setSyncEnabled(!syncOn)
-                setSyncOn(!syncOn)
-              }}
-            >
-              {t('settings.account.syncToggle')}
-            </button>
+            <div className="flex items-center gap-2">
+              <ToggleSwitch
+                checked={syncOn}
+                label={t('settings.account.syncToggle')}
+                testId="settings-sync-toggle"
+                onClick={() => {
+                  setSyncEnabled(!syncOn)
+                  setSyncOn(!syncOn)
+                }}
+              />
+              <span className="text-xs text-text">{t('settings.account.syncToggle')}</span>
+            </div>
           </div>
         )}
       </div>

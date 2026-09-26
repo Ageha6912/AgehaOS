@@ -44,23 +44,31 @@ export function SettingsApp() {
   const [section, setSection] = useState<SectionId>('appearance')
 
   return (
-    <div className="flex h-full bg-surface text-sm">
-      <aside className="w-40 shrink-0 overflow-y-auto border-r border-border bg-surface p-2">
+    <div className="surface-panel flex h-full text-sm">
+      <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface/60 p-2">
         <ul>
-          {SECTIONS.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-text hover:bg-surface-raised ${
-                  section === item.id ? 'bg-surface-raised' : ''
-                }`}
-                onClick={() => setSection(item.id)}
-              >
-                <span aria-hidden="true">{item.icon}</span>
-                {t(item.labelKey)}
-              </button>
-            </li>
-          ))}
+          {SECTIONS.map((item) => {
+            const active = section === item.id
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  aria-current={active ? 'true' : undefined}
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
+                    active
+                      ? 'bg-primary/10 font-medium text-primary'
+                      : 'text-text hover:bg-surface-raised'
+                  }`}
+                  onClick={() => setSection(item.id)}
+                >
+                  <span aria-hidden="true" className={active ? 'text-primary' : 'text-text-muted'}>
+                    {item.icon}
+                  </span>
+                  {t(item.labelKey)}
+                </button>
+              </li>
+            )
+          })}
         </ul>
       </aside>
 
@@ -88,26 +96,26 @@ function OptionRow({
   onSelect: (value: string) => void
 }) {
   return (
-    <div className="mb-5">
-      <p className="mb-2 text-xs text-text-muted">{label}</p>
-      <div className="flex gap-1" role="group" aria-label={label}>
-        {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={currentValue === option.value}
-            className={`rounded-md border px-3 py-1.5 text-xs ${
-              currentValue === option.value
-                ? 'border-primary/60 bg-primary/10 text-text'
-                : 'border-border text-text-muted hover:bg-surface-raised hover:text-text'
-            }`}
-            onClick={() => onSelect(option.value)}
-          >
-            {option.label}
-          </button>
-        ))}
+      <div className="mb-5">
+        <p className="mb-2 text-xs text-text-muted">{label}</p>
+        <div className="flex gap-1" role="group" aria-label={label}>
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={currentValue === option.value}
+              className={`h-8 rounded-md border px-3 text-xs ${
+                currentValue === option.value
+                  ? 'border-primary bg-primary/10 font-medium text-text'
+                  : 'border-border text-text-muted hover:bg-surface-raised hover:text-text'
+              }`}
+              onClick={() => onSelect(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
   )
 }
 
@@ -200,7 +208,7 @@ function AboutSection() {
         </span>
         <div>
           <p className="font-medium text-text">AgehaOS</p>
-          <p className="text-xs text-text-muted">
+          <p className="font-mono text-[11px] text-text-muted">
             {t('settings.aboutVersion')} 0.2.0 · {t('settings.aboutDescription')}
           </p>
         </div>
