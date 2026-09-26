@@ -34,3 +34,6 @@ playwright-report/
 blob-report/
 playwright/.cache/
 server/data/
+
+# 会话临时脚本/截图（永不提交）
+.tmp/
