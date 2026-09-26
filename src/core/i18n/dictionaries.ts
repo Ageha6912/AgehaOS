@@ -195,7 +195,9 @@ export const dictionaries = {
 
     'notes.save': '保存',
     'notes.empty': '选择或新建一条笔记',
+    'notes.emptyHint': '从左侧列表选择，或点击「新建文本文件」开始',
     'notes.listEmpty': '暂无笔记',
+    'notes.listEmptyHint': '点击上方按钮写下第一条',
     'notes.editor': '笔记编辑器',
     'notes.unsaved': '有未保存的更改',
 
@@ -492,7 +494,9 @@ export const dictionaries = {
 
     'notes.save': 'Save',
     'notes.empty': 'Select or create a note',
+    'notes.emptyHint': 'Pick one from the list, or click New text file to start',
     'notes.listEmpty': 'No notes yet',
+    'notes.listEmptyHint': 'Click the button above to write your first note',
     'notes.editor': 'Note editor',
     'notes.unsaved': 'Unsaved changes',
 

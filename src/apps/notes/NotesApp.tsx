@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { FilePlus, FileText, NoteBlank } from '@phosphor-icons/react'
+
 import { PromptDialog } from '@/components/prompt-dialog'
 import { systemBus } from '@/core/events'
 import { useTranslation } from '@/core/i18n'
@@ -96,47 +98,60 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
   const dirty = draft !== savedContent
 
   return (
-    <div className="flex h-full bg-surface text-sm">
-      <aside className="flex w-44 shrink-0 flex-col border-r border-border bg-surface">
-        <div className="flex items-center justify-between gap-1 px-2 py-2">
-          <span className="truncate text-xs text-text-muted">{NOTES_DIR}</span>
+    <div className="surface-panel flex h-full text-sm">
+      <aside className="flex w-44 shrink-0 flex-col border-r border-border bg-surface/60">
+        <div className="flex h-10 shrink-0 items-center justify-between gap-1 border-b border-border px-2">
+          <span className="truncate font-mono text-[11px] text-text-muted">{NOTES_DIR}</span>
           <button
             type="button"
-            className="shrink-0 whitespace-nowrap rounded-md border border-border px-2 py-1 text-xs text-text hover:bg-surface-raised"
+            className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-primary px-2.5 text-xs text-primary-contrast hover:opacity-90"
             onClick={() => {
               setDialogError(null)
               setDialogOpen(true)
             }}
           >
+            <FilePlus aria-hidden="true" size={14} />
             {t('files.newFile')}
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-1">
+        <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
           {files === null ? (
-            <p className="p-2 text-text-muted" role="status">
+            <p className="flex items-center gap-2 p-2 text-xs text-text-muted" role="status">
+              <span aria-hidden="true" className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
               {t('files.loading')}
             </p>
           ) : files.length === 0 ? (
-            <p className="p-2 text-text-muted">{t('notes.listEmpty')}</p>
+            <div className="flex flex-col items-center gap-2 px-2 py-10 text-center">
+              <NoteBlank aria-hidden="true" size={28} className="text-text-muted/40" />
+              <p className="text-xs text-text-muted">{t('notes.listEmpty')}</p>
+              <p className="text-xs text-text-muted">{t('notes.listEmptyHint')}</p>
+            </div>
           ) : (
             <ul>
-              {files.map((file) => (
-                <li key={file.id}>
-                  <button
-                    type="button"
-                    aria-current={
-                      selectedPath === joinPath(NOTES_DIR, file.name) ? 'true' : undefined
-                    }
-                    className={`flex w-full items-center gap-2 truncate rounded-md px-2 py-1.5 text-left text-text hover:bg-surface-raised ${
-                      selectedPath === joinPath(NOTES_DIR, file.name) ? 'bg-surface-raised' : ''
-                    }`}
-                    onClick={() => void openFile(joinPath(NOTES_DIR, file.name))}
-                  >
-                    <span aria-hidden="true">📄</span>
-                    <span className="truncate">{file.name}</span>
-                  </button>
-                </li>
-              ))}
+              {files.map((file) => {
+                const active = selectedPath === joinPath(NOTES_DIR, file.name)
+                return (
+                  <li key={file.id}>
+                    <button
+                      type="button"
+                      aria-current={active ? 'true' : undefined}
+                      className={`flex w-full items-center gap-2 truncate rounded-md px-2 py-1.5 text-left text-xs ${
+                        active
+                          ? 'bg-primary/10 font-medium text-primary'
+                          : 'text-text hover:bg-surface-raised'
+                      }`}
+                      onClick={() => void openFile(joinPath(NOTES_DIR, file.name))}
+                    >
+                      <FileText
+                        aria-hidden="true"
+                        size={14}
+                        className={active ? 'text-primary' : 'text-text-muted'}
+                      />
+                      <span className="truncate">{file.name}</span>
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
@@ -149,13 +164,15 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
           </p>
         )}
         {selectedPath === null ? (
-          <div className="flex flex-1 items-center justify-center text-text-muted">
-            {t('notes.empty')}
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-center">
+            <NoteBlank aria-hidden="true" size={36} className="text-text-muted/40" />
+            <p className="text-sm text-text">{t('notes.empty')}</p>
+            <p className="max-w-60 text-xs text-text-muted">{t('notes.emptyHint')}</p>
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-              <span className="truncate text-text">{selectedPath}</span>
+            <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
+              <span className="truncate font-mono text-xs text-text">{selectedPath}</span>
               {dirty && (
                 <span
                   className="h-2 w-2 shrink-0 rounded-full bg-primary"
@@ -166,7 +183,7 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
               <button
                 type="button"
                 disabled={!dirty}
-                className="ml-auto rounded-md bg-primary px-3 py-1 text-xs text-primary-contrast hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                className="ml-auto flex h-7 items-center rounded-md bg-primary px-2.5 text-xs text-primary-contrast hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                 onClick={() => void save()}
               >
                 {t('notes.save')}
@@ -176,7 +193,7 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
               aria-label={t('notes.editor')}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              className="min-h-0 flex-1 resize-none bg-surface p-3 text-sm leading-relaxed text-text"
+              className="m-2 min-h-0 flex-1 resize-none rounded-md bg-surface-raised/60 p-3 text-sm leading-relaxed text-text"
             />
           </>
         )}
