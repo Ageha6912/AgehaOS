@@ -27,6 +27,10 @@ describe('StoreApp', () => {
     }
     // 内置四条样例，全部可安装。
     expect(screen.getAllByRole('button', { name: '安装' })).toHaveLength(4)
+
+    // 列表图标 = 应用徽章系统（DESIGN.md §8），逐条渲染白色字形。
+    const badgeCount = screen.getByTestId('store-list').querySelectorAll('li svg').length
+    expect(badgeCount).toBe(4)
   })
 
   it('shows the bottom scroll fade only while content extends below the fold', () => {

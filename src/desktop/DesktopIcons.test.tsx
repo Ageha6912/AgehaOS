@@ -1,7 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { STORE_CATALOG } from '@/apps/store/catalog'
 import { launchApp } from '@/apps/launch'
+import {
+  installApp,
+  registerBuiltinApps,
+  resetAppStore,
+  uninstallApp,
+} from '@/store/app-store'
 
 import { DesktopIcons } from './DesktopIcons'
 
@@ -11,6 +18,8 @@ const launchMock = vi.mocked(launchApp)
 
 beforeEach(() => {
   launchMock.mockReset()
+  resetAppStore()
+  registerBuiltinApps()
 })
 
 describe('DesktopIcons', () => {
@@ -66,5 +75,24 @@ describe('DesktopIcons', () => {
 
     fireEvent.pointerDown(document.body)
     expect(files).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('shows apps installed from the store on the desktop and drops them on uninstall', () => {
+    const result = installApp(STORE_CATALOG[0].manifest)
+    expect(result.ok).toBe(true)
+
+    render(<DesktopIcons />)
+
+    // 内置 7 个 + 安装的时钟，时钟排在内置之后。
+    expect(screen.getAllByRole('button')).toHaveLength(8)
+    const clockIcon = screen.getByRole('button', { name: '时钟' })
+    expect(clockIcon).toHaveAttribute('data-testid', 'desktop-icon-com.ageha.samples.clock')
+
+    // 卸载 → 桌面图标随之消失（zustand 写入需 act 包裹才会刷新 RTL）。
+    act(() => {
+      uninstallApp('com.ageha.samples.clock')
+    })
+    expect(screen.queryByRole('button', { name: '时钟' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button')).toHaveLength(7)
   })
 })

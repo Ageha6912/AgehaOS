@@ -1,10 +1,11 @@
 import type { CSSProperties } from 'react'
 
-import { APP_BADGES, FALLBACK_BADGE } from './app-badges'
+import { badgeForAppId } from './app-badges'
 
 /**
- * 应用徽章图标（docs/DESIGN.md §6）：AppIcon 渲染圆角徽章——
+ * 应用徽章图标（docs/DESIGN.md §8）：AppIcon 渲染圆角徽章——
  * 冷色系双色渐变底 + 白色填充字形，几何与投影完全统一。
+ * 精选应用走手工配色，其余应用按 appId 确定性生成（同 id 恒同徽章）。
  * 尺寸约定：搜索 16 / 窗口标题栏 16 / 任务栏 20 / 悬停预览 20·48 / 开始菜单 24 / 桌面 40。
  */
 const TILE_CLASS =
@@ -21,7 +22,7 @@ export interface AppIconProps {
 }
 
 export function AppIcon({ appId, size = 24, label, className }: AppIconProps) {
-  const badge = APP_BADGES[appId] ?? FALLBACK_BADGE
+  const badge = badgeForAppId(appId)
   const Glyph = badge.glyph
   const style: CSSProperties = {
     width: size,

@@ -36,11 +36,15 @@ describe('AppIcon', () => {
     expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull()
   })
 
-  it('falls back to the neutral badge for unknown apps', () => {
-    const { container } = render(<AppIcon appId="com.example.unknown" size={20} label="外部应用" />)
+  it('renders a deterministic generated badge for unknown apps', () => {
+    const first = render(<AppIcon appId="com.example.unknown" size={20} label="外部应用" />)
+    const tile = first.container.firstElementChild as HTMLElement
+    expect(tile.style.backgroundImage).toContain('linear-gradient')
+    expect(tile.querySelector('svg')).not.toBeNull()
 
-    const tile = screen.getByRole('img', { name: '外部应用' }) as HTMLElement
-    expect(tile.style.backgroundImage).toContain('rgb(107, 122, 148)')
-    expect(container.querySelector('svg')).not.toBeNull()
+    // 同一 appId 永远同一徽章（跨会话稳定的视觉身份）。
+    const second = render(<AppIcon appId="com.example.unknown" size={20} />)
+    const tile2 = second.container.firstElementChild as HTMLElement
+    expect(tile2.style.backgroundImage).toBe(tile.style.backgroundImage)
   })
 })

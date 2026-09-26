@@ -46,6 +46,9 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
 
   await expect(store.getByText('已安装').first()).toBeVisible()
 
+  // 安装的应用同步出现在桌面上（徽章图标 + 名称）。
+  await expect(page.getByTestId('desktop-icon-com.ageha.samples.clock')).toBeVisible()
+
   // 从商店直接启动：出现沙箱 iframe（allow-scripts、同源站点）。
   await store.getByRole('button', { name: '打开' }).click()
   const clockWindow = page.getByRole('region', { name: '时钟' })

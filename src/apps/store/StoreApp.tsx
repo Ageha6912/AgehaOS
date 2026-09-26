@@ -1,7 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 
-import { CheckCircle, Clock, PaintBrush, Trash, Download } from '@phosphor-icons/react'
+import { CheckCircle, Trash } from '@phosphor-icons/react'
 
+import { AppIcon } from '@/apps/app-icon'
 import { useTranslation } from '@/core/i18n'
 import { PermissionConsentDialog } from '@/components/permission-consent-dialog'
 import { ScrollFadeList } from '@/components/scroll-fade-list'
@@ -16,12 +17,8 @@ import { STORE_CATALOG } from './catalog'
  * App Store（PRD §26 P1 骨架 + §47 远端目录前置切片）：内置打包目录 + 签名远程
  * 目录（Ed25519 验签，失败整包忽略）。浏览 → 权限确认（Default Deny，§10.2）
  * → installApp 注册 → 持久化，重装系统后自动恢复。卸载同步遗忘权限（§10.3）。
+ * 列表图标 = 应用徽章系统（DESIGN.md §8）：精选 + 确定性生成，与桌面一致。
  */
-
-const SAMPLE_ICONS: Record<string, ReactNode> = {
-  'com.ageha.samples.clock': <Clock size={20} weight="regular" />,
-  'com.ageha.samples.sketch': <PaintBrush size={20} weight="regular" />,
-}
 
 interface StoreEntry {
   manifest: AppManifest
@@ -99,9 +96,7 @@ export function StoreApp() {
               className="rounded-lg border border-border bg-surface-raised/50 p-3"
             >
               <div className="flex items-start gap-3">
-                <span aria-hidden="true" className="mt-0.5 text-text-muted">
-                  {SAMPLE_ICONS[entry.manifest.id] ?? <Download size={20} weight="regular" />}
-                </span>
+                <AppIcon appId={entry.manifest.id} size={36} className="mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 font-medium text-text">
                     {entry.manifest.name}
