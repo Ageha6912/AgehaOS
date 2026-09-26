@@ -187,7 +187,7 @@ body {
   gap: var(--boot-logo-bar-gap, 44px);
   /* 需求 §1：深色/纯黑基调。径向渐变的两个彩色锚点取自令牌 --ml-canvas-dark
      的首末档（#131e36 / #0a0f1c），最外圈纯黑为需求指定；静态背景，不参与逐帧动画 */
-  background: radial-gradient(130% 100% at 50% 42%, rgb(19 30 54 / 88%) 0%, rgb(10 15 28 / 55%) 52%, #000 100%);
+  background: radial-gradient(130% 100% at 50% 42%, #131e36 0%, #0a0f1c 52%, #000 100%);
   /* 退场（需求 §5）：opacity→0 + scale→1.05，约 400ms。
      时长回落顺序：--boot-exit-duration（boot.js 注入）→ --ml-dur-boot（豁免档令牌，
      prefers-reduced-motion 下由令牌层塌缩为 0.01ms，即「直接切换」） */
