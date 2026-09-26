@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 
-import { componentFor } from '@/apps/builtin'
+import { AppIcon } from '@/apps/app-icon'
 import { useWindowStore } from '@/store/window-store'
 
 import { AppLauncher } from './AppLauncher'
@@ -44,7 +44,6 @@ export function Taskbar() {
 
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {windows.map((win) => {
-          const meta = componentFor(win.appId)
           const active = win.focused && win.state !== 'minimized'
           return (
             <div
@@ -69,7 +68,7 @@ export function Taskbar() {
                 }`}
                 onClick={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
               >
-                <span aria-hidden="true">{meta?.icon}</span>
+                <AppIcon appId={win.appId} size={20} />
                 {active && (
                   <span
                     aria-hidden="true"

@@ -3,6 +3,7 @@ import { WindowLayer } from '@/desktop/window/WindowLayer'
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
 import { NotificationToasts } from '@/desktop/NotificationToasts'
 import { SearchPalette } from '@/desktop/search/SearchPalette'
+import { DesktopIcons } from '@/desktop/DesktopIcons'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
@@ -15,6 +16,7 @@ export function Desktop() {
   return (
     <div className="surface-canvas relative h-full overflow-hidden">
       {showWallpaper && <WallpaperLayer />}
+      <DesktopIcons />
       <WindowLayer />
       <NotificationToasts />
       <Taskbar />

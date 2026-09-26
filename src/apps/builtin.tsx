@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react'
 
-import { Calculator, FolderOpen, GearSix, Newspaper, NotePencil, Storefront, TerminalWindow } from '@phosphor-icons/react'
-
 import type { MessageKey } from '@/core/i18n'
 
 import { DynamicPanelApp } from './dynamic-panel/DynamicPanelApp'
@@ -16,50 +14,22 @@ import type { AppHostProps } from './placeholder-app'
 export interface AppUiMeta {
   /** Localized display name for the launcher/window title (PRD §41). */
   titleKey: MessageKey
-  icon: ReactNode
   Component: (props: AppHostProps) => ReactNode
 }
 
 /**
  * UI-side metadata for built-in apps, keyed by manifest id. Apps installed
- * without an entry here fall back to their manifest name and a generic icon.
+ * without an entry here fall back to their manifest name. Visual identity
+ * (badge icons) lives in ./app-icon — every id here must ship a badge there.
  */
 export const APP_UI_META: Record<string, AppUiMeta> = {
-  'com.ageha.notes': {
-    titleKey: 'app.notes.title',
-    icon: <NotePencil size={16} weight="regular" />,
-    Component: NotesApp,
-  },
-  'com.ageha.files': {
-    titleKey: 'app.files.title',
-    icon: <FolderOpen size={16} weight="regular" />,
-    Component: FileManagerApp,
-  },
-  'com.ageha.settings': {
-    titleKey: 'app.settings.title',
-    icon: <GearSix size={16} weight="regular" />,
-    Component: SettingsApp,
-  },
-  'com.ageha.store': {
-    titleKey: 'app.store.title',
-    icon: <Storefront size={16} weight="regular" />,
-    Component: StoreApp,
-  },
-  'com.ageha.calculator': {
-    titleKey: 'app.calculator.title',
-    icon: <Calculator size={16} weight="regular" />,
-    Component: CalculatorApp,
-  },
-  'com.ageha.dynamic.panel': {
-    titleKey: 'app.dynamicPanel.title',
-    icon: <Newspaper size={16} weight="regular" />,
-    Component: DynamicPanelApp,
-  },
-  'com.ageha.terminal': {
-    titleKey: 'app.terminal.title',
-    icon: <TerminalWindow size={16} weight="regular" />,
-    Component: TerminalApp,
-  },
+  'com.ageha.notes': { titleKey: 'app.notes.title', Component: NotesApp },
+  'com.ageha.files': { titleKey: 'app.files.title', Component: FileManagerApp },
+  'com.ageha.settings': { titleKey: 'app.settings.title', Component: SettingsApp },
+  'com.ageha.store': { titleKey: 'app.store.title', Component: StoreApp },
+  'com.ageha.calculator': { titleKey: 'app.calculator.title', Component: CalculatorApp },
+  'com.ageha.dynamic.panel': { titleKey: 'app.dynamicPanel.title', Component: DynamicPanelApp },
+  'com.ageha.terminal': { titleKey: 'app.terminal.title', Component: TerminalApp },
 }
 
 export function componentFor(appId: string): AppUiMeta | null {

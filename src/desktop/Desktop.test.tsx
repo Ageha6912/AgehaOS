@@ -36,13 +36,15 @@ describe('Desktop', () => {
     launchFromStartMenu(/记事/)
 
     expect(useWindowStore.getState().windows).toHaveLength(1)
-    // 任务栏项现在只显示图标（悬停预览里才有标题），标题仅出现在窗口标题栏。
-    expect(screen.getAllByText('记事').length).toBe(1)
+    // 任务栏项只显示图标（悬停预览里才有标题）；标题出现在桌面图标标签
+    // 和窗口标题栏，共两处。
+    expect(screen.getAllByText('记事').length).toBe(2)
 
     fireEvent.click(screen.getByRole('button', { name: '关闭窗口' }))
 
     expect(useWindowStore.getState().windows).toHaveLength(0)
-    expect(screen.queryByText('记事')).not.toBeInTheDocument()
+    // 桌面图标标签仍在，窗口标题栏文本随窗口消失。
+    expect(screen.getAllByText('记事').length).toBe(1)
   })
 
   it('stacks a second window above the first and focuses on click', () => {

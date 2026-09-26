@@ -2,6 +2,7 @@ import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } fr
 
 import { Minus, Square, X } from '@phosphor-icons/react'
 
+import { AppIcon } from '@/apps/app-icon'
 import { componentFor } from '@/apps/builtin'
 import { MissingApp } from '@/apps/placeholder-app'
 import { useTranslation } from '@/core/i18n'
@@ -138,7 +139,7 @@ export function WindowFrame({ win }: { win: WindowInstance }) {
   return (
     <section
       aria-label={win.title}
-      className={`surface-glass animate-os-pop-in absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
+      className={`surface-glass animate-os-pop-in pointer-events-auto absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
         maximized ? 'rounded-none' : 'rounded-lg'
       } ${
         win.focused
@@ -159,6 +160,7 @@ export function WindowFrame({ win }: { win: WindowInstance }) {
           if (win.resizable) toggleMaximize(win.id)
         }}
       >
+        <AppIcon appId={win.appId} size={16} />
         <span className={`truncate text-sm ${win.focused ? 'text-text' : 'text-text-muted'}`}>
           {win.title}
         </span>

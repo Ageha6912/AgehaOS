@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { File, Package } from '@phosphor-icons/react'
+import { File } from '@phosphor-icons/react'
 
+import { AppIcon } from '@/apps/app-icon'
 import { launchApp } from '@/apps/launch'
 import { componentFor } from '@/apps/builtin'
 import { useTranslation } from '@/core/i18n'
@@ -148,9 +149,7 @@ export function SearchPalette() {
                   onMouseEnter={() => setActive(index)}
                   onClick={() => openApp(hit.id)}
                 >
-                  <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center text-base">
-                    {componentFor(hit.id)?.icon ?? <Package size={16} weight="regular" />}
-                  </span>
+                  <AppIcon appId={hit.id} size={16} />
                   {hit.title}
                 </button>
               </li>

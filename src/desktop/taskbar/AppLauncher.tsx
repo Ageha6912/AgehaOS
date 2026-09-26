@@ -1,7 +1,8 @@
 import { useState } from 'react'
 
-import { Package, Sparkle } from '@phosphor-icons/react'
+import { Sparkle } from '@phosphor-icons/react'
 
+import { AppIcon } from '@/apps/app-icon'
 import { componentFor } from '@/apps/builtin'
 import { launchApp } from '@/apps/launch'
 import { useTranslation } from '@/core/i18n'
@@ -136,9 +137,7 @@ function LauncherItem({ appId, onLaunch }: { appId: string; onLaunch: (appId: st
         className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm text-text hover:bg-surface-raised"
         onClick={() => onLaunch(app.id)}
       >
-        <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center text-base">
-          {meta?.icon ?? <Package size={16} weight="regular" />}
-        </span>
+        <AppIcon appId={app.id} size={24} />
         {meta ? t(meta.titleKey) : app.name}
       </button>
     </li>

@@ -39,6 +39,8 @@ export const dictionaries = {
     'search.empty': '无匹配结果',
     'search.hint': '↑↓ 选择 · Enter 打开 · Esc 关闭 · Ctrl+K 呼出',
 
+    'desktop.iconsLabel': '桌面应用',
+
     'taskbar.start': '开始',
     'taskbar.preview.minimized': '窗口已最小化',
 
@@ -346,6 +348,8 @@ export const dictionaries = {
     'search.files': 'Files',
     'search.empty': 'No results',
     'search.hint': '↑↓ navigate · Enter opens · Esc closes · Ctrl+K toggles',
+
+    'desktop.iconsLabel': 'Desktop apps',
 
     'taskbar.start': 'Start',
     'taskbar.preview.minimized': 'Window minimized',

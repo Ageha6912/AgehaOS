@@ -1,6 +1,6 @@
 import { X } from '@phosphor-icons/react'
 
-import { componentFor } from '@/apps/builtin'
+import { AppIcon } from '@/apps/app-icon'
 import { useTranslation } from '@/core/i18n'
 import type { WindowInstance } from '@/core/window/types'
 
@@ -27,7 +27,6 @@ export function WindowPreview({
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  const meta = componentFor(win.appId)
   const minimized = win.state === 'minimized'
   const left = Math.max(8, Math.min(anchorLeft, window.innerWidth - 272))
 
@@ -42,9 +41,7 @@ export function WindowPreview({
       }}
     >
       <div className="flex items-center gap-2 pb-2">
-        <span aria-hidden="true" className="text-text-muted">
-          {meta?.icon}
-        </span>
+        <AppIcon appId={win.appId} size={20} />
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-text">{win.title}</span>
         <button
           type="button"
@@ -64,9 +61,7 @@ export function WindowPreview({
         {minimized ? (
           <p className="text-xs text-text-muted">{t('taskbar.preview.minimized')}</p>
         ) : (
-          <span aria-hidden="true" className="text-text-muted opacity-40 [&>svg]:h-12 [&>svg]:w-12">
-            {meta?.icon}
-          </span>
+          <AppIcon appId={win.appId} size={48} className="opacity-40" />
         )}
       </div>
     </div>
