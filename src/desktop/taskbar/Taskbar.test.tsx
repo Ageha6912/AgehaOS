@@ -143,4 +143,89 @@ describe('Taskbar', () => {
     expect(screen.queryByText('工具')).not.toBeInTheDocument()
     expect(screen.queryByText('系统')).not.toBeInTheDocument()
   })
+
+  it('auto-hides by default and slides in from the bottom edge zone', () => {
+    render(<Taskbar />)
+
+    const bar = screen.getByRole('contentinfo') as HTMLElement
+    expect(bar).toHaveAttribute('data-state', 'hidden')
+    expect(bar.style.transform).toBe('translateY(100%)')
+
+    fireEvent.pointerEnter(screen.getByTestId('taskbar-reveal-zone'))
+    expect(bar).toHaveAttribute('data-state', 'revealed')
+    expect(bar.style.transform).toBe('translateY(0)')
+  })
+
+  it('uses a transparent scrim instead of a glass panel', () => {
+    render(<Taskbar />)
+
+    const bar = screen.getByRole('contentinfo') as HTMLElement
+    expect(bar.className).not.toContain('surface-glass')
+    expect(bar.className).toContain('from-bg/')
+  })
+
+  it('hides again after the pointer leaves, and re-entering cancels the hide', async () => {
+    const { act } = await import('@testing-library/react')
+    render(<Taskbar />)
+
+    const bar = screen.getByRole('contentinfo') as HTMLElement
+    fireEvent.pointerEnter(screen.getByTestId('taskbar-reveal-zone'))
+    expect(bar).toHaveAttribute('data-state', 'revealed')
+
+    fireEvent.pointerLeave(bar)
+    // 400ms 缓冲内回到任务栏（或再触底）→ 不收起。
+    fireEvent.pointerEnter(bar)
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(bar).toHaveAttribute('data-state', 'revealed')
+
+    fireEvent.pointerLeave(bar)
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(bar).toHaveAttribute('data-state', 'hidden')
+  })
+
+  it('hides when the pointer leaves the reveal zone without entering the bar', async () => {
+    const { act } = await import('@testing-library/react')
+    render(<Taskbar />)
+
+    const bar = screen.getByRole('contentinfo') as HTMLElement
+    const zone = screen.getByTestId('taskbar-reveal-zone')
+
+    fireEvent.pointerEnter(zone)
+    expect(bar).toHaveAttribute('data-state', 'revealed')
+
+    // 真实浏览器：任务栏滑到静止指针下方时不发 enter，直接跳走只触发
+    // 唤出区的 leave——这条路径也必须收起。
+    fireEvent.pointerLeave(zone)
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(bar).toHaveAttribute('data-state', 'hidden')
+  })
+
+  it('reveals for keyboard focus and hides when focus leaves the taskbar', async () => {
+    const { act } = await import('@testing-library/react')
+    render(<Taskbar />)
+
+    const bar = screen.getByRole('contentinfo') as HTMLElement
+    const start = screen.getByRole('button', { name: /开始/ })
+
+    fireEvent.focus(start)
+    expect(bar).toHaveAttribute('data-state', 'revealed')
+
+    // 焦点移向任务栏内的另一个控件（通知铃铛）不收起。
+    const bell = bar.querySelectorAll('button')[1] as HTMLElement
+    fireEvent.blur(start, { relatedTarget: bell })
+    fireEvent.focus(bell)
+    expect(bar).toHaveAttribute('data-state', 'revealed')
+
+    fireEvent.blur(bell, { relatedTarget: document.body })
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(bar).toHaveAttribute('data-state', 'hidden')
+  })
 })

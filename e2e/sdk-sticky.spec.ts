@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { revealTaskbar } from './helpers'
+
 /**
  * Type C SDK（PRD §8.1、§30.1）：安装便签（storage + window 权限）→ 在沙箱
  * iframe 里添加便签 → 关窗重开后数据仍在——证明存储经宿主桥落在了
@@ -21,6 +23,7 @@ test('sdk sticky notes: install, write through the sandbox bridge, persist acros
   await expect(startButton).toBeVisible()
 
   // 安装便签（申请 storage + window 权限，对话框默认全选）。
+  await revealTaskbar(page)
   await startButton.click()
   await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /应用商店/ }).click()
   const store = page.getByRole('region', { name: '应用商店' })

@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { revealTaskbar } from './helpers'
+
 /**
  * AI 动态桌面 Phase A 验收（设计文档 §11.2-A ⑨⑩）：
  * 设置中启用 → 壁纸层与 AI 徽标出现；关闭后回到 v0.1 默认桌面外观。
@@ -21,6 +23,7 @@ test('dynamic desktop: enable in settings, wallpaper appears, disable restores t
   await expect(startButton).toBeVisible()
 
   // 打开 设置 → 动态桌面。
+  await revealTaskbar(page)
   await startButton.click()
   await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /设置/ }).click()
   await page.getByRole('button', { name: '动态桌面' }).click()

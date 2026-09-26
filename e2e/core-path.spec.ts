@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { revealTaskbar } from './helpers'
+
 /**
  * The PRD §34.3 core path, exercised end to end:
  * Login → Desktop → Open App → Create File → Save → Close → Reopen
@@ -23,6 +25,8 @@ test('core path: register, work with a note, restore session, sign out', async (
   await expect(page.getByRole('button', { name: /e2euser/ })).toBeVisible()
 
   const launch = async (appName: RegExp) => {
+    // 任务栏自动隐藏：先唤出再点开始菜单（docs/DESIGN.md §9）。
+    await revealTaskbar(page)
     await startButton.click()
     await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: appName }).click()
   }
@@ -58,6 +62,7 @@ test('core path: register, work with a note, restore session, sign out', async (
   await page.getByRole('button', { name: '关闭窗口' }).click()
   await expect(page.getByRole('region', { name: '记事' })).toBeHidden()
 
+  await revealTaskbar(page)
   await page.getByRole('button', { name: /e2euser/ }).click()
   await page.getByRole('button', { name: '退出登录' }).click()
   await expect(page.getByRole('form', { name: '登录 AgehaOS' })).toBeVisible()

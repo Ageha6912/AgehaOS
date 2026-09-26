@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { revealTaskbar } from './helpers'
+
 /**
  * Performance and robustness checks (PRD §29): interactive desktop within
  * 3 seconds of a reload, and a usable desktop under 20 open windows.
@@ -43,6 +45,8 @@ test('keeps the desktop responsive with 20 open windows (PRD §29.2)', async ({ 
 
   const notesItem = page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /记事/ })
   for (let index = 0; index < 20; index++) {
+    // 任务栏自动隐藏：每次启动前唤出（docs/DESIGN.md §9）。
+    await revealTaskbar(page)
     await startButton.click()
     await notesItem.click()
   }
@@ -52,6 +56,7 @@ test('keeps the desktop responsive with 20 open windows (PRD §29.2)', async ({ 
   await expect(taskbar.getByRole('button', { name: /记事/ })).toHaveCount(20)
 
   // The desktop still reacts: focusing another window and opening the menu.
+  await revealTaskbar(page)
   await taskbar.getByRole('button', { name: /记事/ }).first().click()
   await startButton.click()
   await expect(page.getByRole('list', { name: /开始/ })).toBeVisible()

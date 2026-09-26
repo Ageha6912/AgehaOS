@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { revealTaskbar } from './helpers'
+
 /**
  * SDK Notification/File API（PRD §17）：安装云笔记（filesystem.read/write +
  * notification 权限）→ 沙箱内输入自动写入本应用专属目录 → 关窗重开内容仍在
@@ -22,6 +24,7 @@ test('sdk fs-note: install, persist a note through the file bridge, raise a host
   await expect(startButton).toBeVisible()
 
   // 安装云笔记（申请读/写文件 + 发送通知权限，对话框默认全选）。
+  await revealTaskbar(page)
   await startButton.click()
   await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /应用商店/ }).click()
   const store = page.getByRole('region', { name: '应用商店' })

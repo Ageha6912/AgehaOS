@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { revealTaskbar } from './helpers'
+
 /**
  * App Store + Type B 沙箱应用（PRD §26、§30.3）：
  * 打开商店 → 安装示例 Web 应用（零权限确认）→ 启动出现沙箱 iframe → 卸载。
@@ -18,6 +20,7 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
   await expect(startButton).toBeVisible()
 
   // 内置应用里现在有计算器（P1 系统应用）。
+  await revealTaskbar(page)
   await startButton.click()
   await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /计算器/ }).click()
   const calculator = page.getByRole('region', { name: '计算器' })
@@ -30,6 +33,7 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
   await page.getByRole('button', { name: '关闭窗口' }).click()
 
   // 打开应用商店，安装「时钟」（零权限 Web 应用）。
+  await revealTaskbar(page)
   await startButton.click()
   await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /应用商店/ }).click()
   const store = page.getByRole('region', { name: '应用商店' })
@@ -54,6 +58,7 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
   await clockWindow.getByRole('button', { name: '关闭窗口' }).click()
   await expect(clockWindow).toBeHidden()
   await store.getByRole('button', { name: /卸载 时钟/ }).click()
+  await revealTaskbar(page)
   await startButton.click()
   await expect(
     page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /时钟/ }),

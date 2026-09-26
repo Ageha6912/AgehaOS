@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { revealTaskbar } from './helpers'
+
 /**
  * AI 内容面板（DDS §5.1 域③，Phase B 本地切片）：启动面板 → 卡片渲染且带
  * 「AI 生成」标识 → 决策来源为本地规则。
@@ -17,6 +19,7 @@ test('dynamic panel: local cards render with AI attribution', async ({ page }) =
   const startButton = page.getByRole('button', { name: /开始/ })
   await expect(startButton).toBeVisible()
 
+  await revealTaskbar(page)
   await startButton.click()
   await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /动态面板/ }).click()
   const panel = page.getByRole('region', { name: '动态面板' })
