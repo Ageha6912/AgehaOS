@@ -1,3 +1,6 @@
+import { systemBus } from '@/core/events'
+import type { EventBus, SystemEventMap } from '@/core/events'
+
 import type { KeyValueStorage } from './auth-service'
 import type { AuthProvider, ProfileInput } from './provider'
 import { AuthError } from './types'
@@ -49,6 +52,12 @@ export interface RemoteAuthClientOptions {
   fetchFn?: typeof fetch
   storage?: KeyValueStorage | null
   now?: () => number
+  /**
+   * 系统事件总线：登录/注册/登出必须与本地 AuthService 同语义地广播
+   * user.login / user.logout——动态桌面、文件同步等登录钩子依赖它
+   * （2026-09-26 修复：远程模式下壁纸从不生成、同步从不拉取）。
+   */
+  bus?: Pick<EventBus<SystemEventMap>, 'emit'>
 }
 
 /**
@@ -64,12 +73,18 @@ export class RemoteAuthClient implements AuthProvider {
     this.cache = this.loadCache()
   }
 
+  private get bus(): Pick<EventBus<SystemEventMap>, 'emit'> {
+    return this.options.bus ?? systemBus
+  }
+
   async register(username: string, password: string): Promise<User> {
     const body = await this.request<ApiSessionResponse>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     })
     this.storeCache(body)
+    // 注册即登录：与本地 AuthService 同语义广播，登录钩子（壁纸/同步）才能触发。
+    this.bus.emit('user.login', { userId: body.user.id })
     return body.user
   }
 
@@ -81,12 +96,14 @@ export class RemoteAuthClient implements AuthProvider {
     this.storeCache(body)
     // The real token stays in the cookie; an empty token marks it "remote".
     const session: Session = { token: '', userId: body.user.id, expiresAt: body.expiresAt }
+    this.bus.emit('user.login', { userId: body.user.id })
     return { user: body.user, session }
   }
 
   logout(): string | null {
     const userId = this.cache?.user.id ?? null
     this.clearCache()
+    if (userId !== null) this.bus.emit('user.logout', { userId })
     void this.request<void>('/api/auth/logout', { method: 'POST' }).catch(() => {
       /* best-effort: local state is already signed out */
     })

@@ -55,12 +55,14 @@ function makeClient(
 ) {
   const storage = fakeStorage()
   const { fetchFn, requests } = makeFetch(fetchSetup)
+  const bus = { emit: vi.fn() }
   const client = new RemoteAuthClient({
     fetchFn,
     storage,
     now: options.now ?? (() => 1_000_000),
+    bus,
   })
-  return { client, fetchFn, requests, storage }
+  return { client, fetchFn, requests, storage, bus }
 }
 
 const SESSION_BODY = { user: USER, expiresAt: 2_000_000 }
@@ -137,6 +139,36 @@ describe('RemoteAuthClient', () => {
     await Promise.resolve()
     expect(requests[1]?.url).toBe('/api/auth/logout')
     expect(requests[1]?.init.method).toBe('POST')
+  })
+
+  it('broadcasts user.login on register/login and user.logout on logout', async () => {
+    const { client, bus } = makeClient([
+      { status: 201, body: SESSION_BODY },
+      { status: 200, body: SESSION_BODY },
+      { status: 204 },
+    ])
+
+    // 注册即登录：登录钩子（动态桌面/文件同步）依赖这条事件。
+    await client.register('alice', 'secret123')
+    expect(bus.emit).toHaveBeenCalledWith('user.login', { userId: 'u1' })
+
+    await client.login('alice', 'secret123')
+    expect(bus.emit).toHaveBeenCalledTimes(2)
+    expect(bus.emit).toHaveBeenLastCalledWith('user.login', { userId: 'u1' })
+
+    client.logout()
+    expect(bus.emit).toHaveBeenLastCalledWith('user.logout', { userId: 'u1' })
+  })
+
+  it('emits user.logout even when the server round-trip fails', async () => {
+    const { client, bus } = makeClient([
+      { status: 200, body: SESSION_BODY },
+      { status: 500, body: {} },
+    ])
+    await client.login('alice', 'secret123')
+    // 登出是本地事实：网络失败也必须广播，否则监听方状态泄漏。
+    expect(client.logout()).toBe('u1')
+    expect(bus.emit).toHaveBeenCalledWith('user.logout', { userId: 'u1' })
   })
 
   it('reconciles against the server and clears state when signed out', async () => {
