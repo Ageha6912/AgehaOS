@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 import { isRemoteAuthActive, systemAuthService } from '@/core/auth'
 import type { AuthError, ProfileInput, User } from '@/core/auth'
+import { systemBus } from '@/core/events'
 
 export type SessionStatus = 'authenticated' | 'anonymous'
 
@@ -86,9 +87,15 @@ export const useSessionStore = create<SessionState>()(() => ({
   },
 
   reconcile: async () => {
+    // 匿名 → 已认证的转变必须补广播 user.login：远程模式刷新页面时
+    // 会话经这里恢复（Cookie → /api/auth/session），而壁纸生成、文件同步
+    // 等登录钩子都订阅该事件——此前 reconcile 静默设值，刷新后壁纸丢失。
+    // 已有会话时（本地模式恢复路径）不重复广播，避免登录钩子跑两遍。
+    const previous = useSessionStore.getState().user
     const user = await systemAuthService.reconcile()
     if (user) {
       useSessionStore.setState({ user, status: 'authenticated', sessionExpired: false })
+      if (!previous) systemBus.emit('user.login', { userId: user.id })
     } else {
       useSessionStore.setState({ user: null, status: 'anonymous' })
     }

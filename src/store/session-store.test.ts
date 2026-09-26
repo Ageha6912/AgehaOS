@@ -1,8 +1,33 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 import { setAuthProvider, systemAuthService } from '@/core/auth'
+import type { AuthProvider } from '@/core/auth'
+import { systemBus } from '@/core/events'
 
 import { resetSessionStore, seedSessionForTests, useSessionStore } from './session-store'
+
+/** Only reconcile is meaningful; every other call is a test bug. */
+function makeStubProvider(reconcile: AuthProvider['reconcile']): AuthProvider {
+  return {
+    register: async () => {
+      throw new Error('unused')
+    },
+    login: async () => {
+      throw new Error('unused')
+    },
+    logout: () => null,
+    getSession: () => null,
+    getUser: () => null,
+    reconcile,
+    updateProfile: async () => {
+      throw new Error('unused')
+    },
+    changePassword: async () => {},
+    revokeOtherSessions: async () => 0,
+    listSessions: async () => [],
+    revokeSession: async () => {},
+  }
+}
 
 // Unique usernames per test: the auth singleton keeps users for the file.
 beforeEach(() => {
@@ -100,30 +125,12 @@ describe('session-store', () => {
 
   it('reconciles against the provider: live session keeps the user', async () => {
     seedSessionForTests({ id: 'u9', username: 'remote-reconcile', createdAt: '', updatedAt: '' })
-    setAuthProvider({
-      register: async () => {
-        throw new Error('unused')
-      },
-      login: async () => {
-        throw new Error('unused')
-      },
-      logout: () => null,
-      getSession: () => null,
-      getUser: () => null,
-      reconcile: async () => ({
-        id: 'u9',
-        username: 'remote-reconcile',
-        createdAt: '',
-        updatedAt: '',
-      }),
-      updateProfile: async () => {
-        throw new Error('unused')
-      },
-      changePassword: async () => {},
-      revokeOtherSessions: async () => 0,
-      listSessions: async () => [],
-      revokeSession: async () => {},
-    })
+    setAuthProvider(makeStubProvider(async () => ({
+      id: 'u9',
+      username: 'remote-reconcile',
+      createdAt: '',
+      updatedAt: '',
+    })))
     try {
       await useSessionStore.getState().reconcile()
       expect(useSessionStore.getState().status).toBe('authenticated')
@@ -133,27 +140,35 @@ describe('session-store', () => {
     }
   })
 
+  it('reconcile broadcasts user.login exactly once when reviving an anonymous boot', async () => {
+    // 远程模式刷新场景：store 初始化时无用户（Cookie 会话待确认），
+    // reconcile 恢复会话必须补广播 user.login——壁纸/同步登录钩子靠它触发。
+    const emit = vi.spyOn(systemBus, 'emit')
+    setAuthProvider(makeStubProvider(async () => ({
+      id: 'u9',
+      username: 'remote-reconcile',
+      createdAt: '',
+      updatedAt: '',
+    })))
+    try {
+      await useSessionStore.getState().reconcile()
+      expect(useSessionStore.getState().user?.id).toBe('u9')
+      expect(emit).toHaveBeenCalledTimes(1)
+      expect(emit).toHaveBeenCalledWith('user.login', { userId: 'u9' })
+
+      // 已是认证态的二次 reconcile 不再广播（本地恢复路径不重复触发钩子）。
+      emit.mockClear()
+      await useSessionStore.getState().reconcile()
+      expect(emit).not.toHaveBeenCalled()
+    } finally {
+      emit.mockRestore()
+      setAuthProvider(null)
+    }
+  })
+
   it('reconciles against the provider: dead session signs out', async () => {
     seedSessionForTests({ id: 'u9', username: 'remote-reconcile', createdAt: '', updatedAt: '' })
-    setAuthProvider({
-      register: async () => {
-        throw new Error('unused')
-      },
-      login: async () => {
-        throw new Error('unused')
-      },
-      logout: () => null,
-      getSession: () => null,
-      getUser: () => null,
-      reconcile: async () => null,
-      updateProfile: async () => {
-        throw new Error('unused')
-      },
-      changePassword: async () => {},
-      revokeOtherSessions: async () => 0,
-      listSessions: async () => [],
-      revokeSession: async () => {},
-    })
+    setAuthProvider(makeStubProvider(async () => null))
     try {
       await useSessionStore.getState().reconcile()
       expect(useSessionStore.getState().status).toBe('anonymous')
