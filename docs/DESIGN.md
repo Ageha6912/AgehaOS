@@ -336,3 +336,40 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   高（48px），放大 + 上浮不出框（坑 13 的变体）。
 - 演示模块的激活点 pulse（2.4s 循环）不迁入：任务栏已有静态下划线指示，
   循环动画需走 §2.5 豁免评审。
+
+## 14. 菜单与通知（motion-lab menu-toast → 产品集成）
+
+2026-09-26 起弹层与通知统一 motion-lab/menu-toast 的动效语言：菜单类浮层
+「淡入 + 上浮 4px」进、反向微移出；通知「右滑入 → 驻留（hover 暂停）→
+滑出 + 腾位上移」三段节奏。
+
+### 架构
+
+- **动效原语** `src/components/pop-motion.ts`：`useExitPhase`（退场相位——
+  open 翻 false 后节点多存活 120ms 播完过渡，期间重开立即恢复：CSS
+  transition 从当前呈现值续动，天然可中断）；`popoverMotionClass` /
+  `toastMotionClass`（进/出态类名矩阵）；`motionMs`（reduced 或无 WAAPI
+  运行时归零）。
+- **双层分离的产品化**：进场沿用既有 `animate-os-pop-in`（200ms
+  `--ag-motion-base`），退场走 transition（120ms `--ag-motion-fast` +
+  新令牌 `--ag-motion-ease-in`，关闭恒不长于打开）；浮层定位类挂外层元素，
+  动效类只写 opacity/transform，不与摆位冲突。
+- **退场接线范围**：开始菜单（AppLauncher 双形态）、用户菜单、通知中心
+  面板、Ctrl+K 搜索面板（含遮罩淡出）。桌面图标/窗口无退场动画（窗口走
+  §12 ghost）。
+- **降级**：`prefers-reduced-motion` 全局令牌塌缩 + JS 等待归零；无 WAAPI
+  运行时（jsdom/老浏览器）退场相位直接跳过——保持旧的即时卸载语义
+  （fake-timer 测试里退场计时器会被冻结，无 WAAPI 即无 CSS transition
+  可播，停留纯属死时间）。
+
+### 通知三段节奏（NotificationToasts 重写）
+
+- **滑入 200ms**（`animate-os-toast-in`：translateX 24px 过冲 + 淡入）→
+  **驻留**（normal 4.5s / critical 8s 不变；hover 暂停、离开续走剩余时间，
+  `performance.now()` 差值法）→ **滑出 120ms** + 卸载。
+- **栈 ≤3 条**（此前产品只显示最新一条，本次按演示模块的堆叠形态放开）：
+  最新 3 条可见，第 4 条起排队等位；槽位固定宽度，高度实测后以 translateY
+  排布，关闭腾位时其余卡片 transform 过渡上移（与滑出并行）。测量结果经
+  延迟一拍提交（坑 4），新卡片首帧以旧偏移渲染、随后过渡归位。
+- 点击通知 = 标记已读 + 滑出退出；SDK 通知经 `notification-store.push()`
+  汇入同一路径自动生效。

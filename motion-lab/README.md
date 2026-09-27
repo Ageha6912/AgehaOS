@@ -636,6 +636,14 @@ CSS 侧令牌塌缩 + `menu-toast.css` 显式 `transition: none` + 位移归零�
 
 ### 8.4 menu-toast · 菜单与通知
 
+> **落地状态（2026-09-26）**：本节已实施——菜单退场动效经 `src/components/pop-motion.ts`
+> 的 `useExitPhase` 接线开始菜单/用户菜单/通知中心/搜索面板（进场沿用产品
+> 既有 os-pop-in，退场 120ms ease-in 新令牌 `--ag-motion-ease-in`；重开中断
+> 续动）；通知三段节奏重写 `NotificationToasts.tsx`（滑入 200ms/驻留 hover
+> 暂停/滑出 120ms，栈 ≤3 条排队等位，槽位 translateY 腾位）。右键上下文菜单
+> 为新增能力未立项。归档口径以产品档为准（120/200ms）。权威契约见产品
+> `docs/DESIGN.md` §14。以下原文保留。
+
 **现有实现**：菜单类弹层有 `src/desktop/taskbar/AppLauncher.tsx`（开始菜单）、
 `src/desktop/taskbar/UserMenu.tsx`（用户菜单）、`src/desktop/search/SearchPalette.tsx`
 （Ctrl+K 面板）；通知是 `src/desktop/NotificationToasts.tsx`（toast 渲染组件，

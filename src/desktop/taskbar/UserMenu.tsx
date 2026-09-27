@@ -4,10 +4,12 @@ import { SignOut, User } from '@phosphor-icons/react'
 
 import { useTranslation } from '@/core/i18n'
 import { useSessionStore } from '@/store/session-store'
+import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
 
 export function UserMenu() {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const menuPhase = useExitPhase(open)
   const user = useSessionStore((state) => state.user)
   const logout = useSessionStore((state) => state.logout)
 
@@ -34,10 +36,10 @@ export function UserMenu() {
         )}
         {user.displayName ?? user.username}
       </button>
-      {open && (
+      {menuPhase.render && (
         <menu
           aria-label={user.username}
-          className="surface-glass animate-os-pop-in absolute bottom-10 right-0 z-50 w-40 rounded-lg border border-border p-1.5 shadow-window"
+          className={`surface-glass absolute bottom-10 right-0 z-50 w-40 rounded-lg border border-border p-1.5 shadow-window ${popoverMotionClass(menuPhase.exiting)}`}
         >
           <li>
             <button

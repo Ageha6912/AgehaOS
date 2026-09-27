@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### motion-lab 菜单/通知动效接入 AgehaOS 本体（docs/DESIGN.md §14）
+
+- 弹层统一动效语言：进场保留 `animate-os-pop-in`（200ms），新增 120ms 退场（`--ag-motion-ease-in` 新令牌，关闭恒不长于打开）；`useExitPhase` 退场相位——open 翻 false 后节点多存活 120ms 播完过渡，重开即中断续动；接线开始菜单（双形态）/用户菜单/通知中心面板/Ctrl+K 搜索面板（含遮罩淡出）；无 WAAPI 运行时（jsdom）保持旧即时卸载语义
+- 通知三段节奏重写（NotificationToasts）：右上滑入 200ms（translateX 24px 过冲 + 淡入）→ 驻留（normal 4.5s/critical 8s，hover 暂停、离开续走剩余时间，performance.now 差值法）→ 滑出 120ms；**栈 ≤3 条**（原只显示最新一条，按演示形态放开）：最新 3 条可见、第 4 条排队等位，槽位固定宽度 + 实测高度 translateY 排布，腾位上移与滑出并行；点击 = 已读 + 滑出
+- 测试：新增 pop-motion 7 项（退场相位/中断续动/双降级）+ NotificationToasts 4 项重写（TTL 退场相位/hover 暂停/堆叠排队/点击退出）；740 前端（89 文件）+ 58 后端 + E2E 12/12 全绿；浏览器烟雾 8/8（退场中 opacity 渐隐、重开恢复、hover 暂停 6.5s 仍在）
+
 ### motion-lab Dock 波浪接入 + 窗口关闭 ghost 化（docs/DESIGN.md §13、§12 修订）
 
 - 任务栏窗口按钮图标接入高斯距离衰减放大波浪（motion-lab/dock）：波峰 1.5× + 3px 上浮、σ 44px（≤1.2× 图标间距）、enter 120ms/settle 200ms 归档到产品档；纯数学 `src/core/dock/wave.ts`（cubic-bezier 同语义求值 + 高斯波形）+ rAF 引擎 `use-dock-wave.ts`（事件只记坐标、帧内零布局读取、**收敛停帧**——悬停静止即停表省帧，pointermove 唤醒）；触屏与 reduced-motion 不启动，仅悬停变色/原生按压保留；激活点 pulse 不迁入（任务栏已有静态下划线，循环动画需豁免评审）

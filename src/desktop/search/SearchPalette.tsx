@@ -11,6 +11,8 @@ import { useAppStore } from '@/store/app-store'
 import { useSearchStore } from '@/store/search-store'
 import type { VfsSearchResult } from '@/core/filesystem'
 
+import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
+
 import { limitFiles, rankApps } from './search'
 
 /**
@@ -25,6 +27,7 @@ export function SearchPalette() {
   const close = useSearchStore((s) => s.close)
   const apps = useAppStore((s) => s.apps)
 
+  const phase = useExitPhase(open)
   const [query, setQuery] = useState('')
   const [files, setFiles] = useState<VfsSearchResult[]>([])
   const [active, setActive] = useState(0)
@@ -64,7 +67,7 @@ export function SearchPalette() {
     if (open) inputRef.current?.focus()
   }, [open])
 
-  if (!open) return null
+  if (!phase.render) return null
 
   const total = appHits.length + fileHits.length
   const openApp = (appId: string): void => {
@@ -87,7 +90,9 @@ export function SearchPalette() {
 
   return (
     <div
-      className="absolute inset-0 z-50 flex items-start justify-center bg-black/30 pt-[12vh]"
+      className={`absolute inset-0 z-50 flex items-start justify-center pt-[12vh] transition-opacity duration-[120ms] ${
+        phase.exiting ? 'bg-black/0 opacity-0' : 'bg-black/30 opacity-100'
+      }`}
       data-testid="search-backdrop"
       onClick={close}
     >
@@ -95,7 +100,7 @@ export function SearchPalette() {
         role="dialog"
         aria-label={t('search.placeholder')}
         data-testid="search-palette"
-        className="surface-glass w-[32rem] max-w-[90%] rounded-xl border border-border p-3 shadow-window"
+        className={`surface-glass w-[32rem] max-w-[90%] rounded-xl border border-border p-3 shadow-window ${popoverMotionClass(phase.exiting)}`}
         onClick={(event) => event.stopPropagation()}
       >
         <input

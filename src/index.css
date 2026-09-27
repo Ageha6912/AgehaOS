@@ -40,6 +40,8 @@
   --ag-motion-base: 200ms;
   /* 开机退场豁免档（唯一 >300ms；motion-lab --ml-dur-boot 归档，DESIGN.md §11）。 */
   --ag-motion-boot: 400ms;
+  /* 退场加速曲线（菜单/通知/窗口关闭共用；motion-lab --ml-ease-in 同值声明）。 */
+  --ag-motion-ease-in: cubic-bezier(0.55, 0, 1, 0.45);
   --ag-motion-ease: cubic-bezier(0.2, 0, 0, 1);
 
   /* Boot screen (theme-independent dark reveal canvas; does not flip on .dark). */
@@ -232,11 +234,25 @@ body {
     opacity: 1;
   }
 }
+/* 通知卡片右侧滑入（DESIGN.md §14）：translateX 24px 过冲 + 淡入，一次性。 */
+@keyframes os-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
 .animate-os-pop-in {
   animation: os-pop-in var(--ag-motion-base) var(--ag-motion-ease);
 }
 .animate-os-fade-in {
   animation: os-fade-in var(--ag-motion-base) var(--ag-motion-ease);
+}
+.animate-os-toast-in {
+  animation: os-toast-in var(--ag-motion-base) var(--ag-motion-ease);
 }
 
 /*

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Bell, Check, X } from '@phosphor-icons/react'
 
 import { useLocaleStore, useTranslation } from '@/core/i18n'
+import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
 import { ScrollFadeList } from '@/components/scroll-fade-list'
 import {
   notificationBodyText,
@@ -72,6 +73,7 @@ function NotificationRow({ item }: { item: NotificationItem }) {
 export function NotificationCenter() {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const panelPhase = useExitPhase(open)
   const items = useNotificationStore((s) => s.items)
   const markAllRead = useNotificationStore((s) => s.markAllRead)
   const clear = useNotificationStore((s) => s.clear)
@@ -100,12 +102,12 @@ export function NotificationCenter() {
         )}
       </button>
 
-      {open && (
+      {panelPhase.render && (
         <div
           role="region"
           aria-label={t('notification.center')}
           data-testid="notification-panel"
-          className="surface-glass animate-os-pop-in absolute bottom-10 right-0 z-50 flex max-h-96 w-80 flex-col rounded-lg border border-border p-2 shadow-window"
+          className={`surface-glass absolute bottom-10 right-0 z-50 flex max-h-96 w-80 flex-col rounded-lg border border-border p-2 shadow-window ${popoverMotionClass(panelPhase.exiting)}`}
         >
           <div className="flex items-center justify-between px-1 pb-2">
             <p className="text-xs font-semibold text-text">{t('notification.center')}</p>

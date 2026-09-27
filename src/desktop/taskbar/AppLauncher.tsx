@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
+
 import { Sparkle } from '@phosphor-icons/react'
 
 import { AppIcon } from '@/apps/app-icon'
@@ -23,6 +25,7 @@ const TIER_WIDTH_CLASS: Record<string, string> = {
 
 export function AppLauncher() {
   const [open, setOpen] = useState(false)
+  const menuPhase = useExitPhase(open)
   const { t } = useTranslation()
   const apps = useAppStore((s) => s.apps)
   const appliedLayout = useDynamicDesktopStore((s) => s.appliedLayout)
@@ -54,10 +57,10 @@ export function AppLauncher() {
         {t('taskbar.start')}
       </button>
 
-      {open && !layout && (
+      {menuPhase.render && !layout && (
         <menu
           aria-label={t('taskbar.start')}
-          className="surface-glass animate-os-pop-in absolute bottom-10 left-0 z-50 w-56 rounded-lg border border-border p-1.5 shadow-window"
+          className={`surface-glass absolute bottom-10 left-0 z-50 w-56 rounded-lg border border-border p-1.5 shadow-window ${popoverMotionClass(menuPhase.exiting)}`}
         >
           {apps.map((app) => (
             <LauncherItem key={app.id} appId={app.id} onLaunch={launch} />
@@ -65,13 +68,13 @@ export function AppLauncher() {
         </menu>
       )}
 
-      {open && layout && (
+      {menuPhase.render && layout && (
         <menu
           aria-label={t('taskbar.start')}
           data-testid={`launcher-layout-${layout.tier}`}
-          className={`surface-glass animate-os-pop-in absolute bottom-10 left-0 z-50 ${
+          className={`surface-glass absolute bottom-10 left-0 z-50 ${
             TIER_WIDTH_CLASS[layout.tier] ?? 'w-56'
-          } rounded-lg border border-border p-1.5 shadow-window`}
+          } rounded-lg border border-border p-1.5 shadow-window ${popoverMotionClass(menuPhase.exiting)}`}
         >
           {systemApps.length > 0 && (
             <li aria-label={t('dynamic.layout.systemGroup')}>
