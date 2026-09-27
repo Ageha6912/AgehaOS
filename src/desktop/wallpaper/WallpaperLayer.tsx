@@ -5,6 +5,8 @@ import { systemBus } from '@/core/events'
 import type { WallpaperPlan } from '@/core/dynamic/types'
 import { photoById } from '@/core/dynamic/photos/catalog'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
+import { useMotionPrefsStore } from '@/store/motion-prefs-store'
+import { useWallpaperParallax } from '@/desktop/motion/use-wallpaper-parallax'
 import { cssGradient, drawPlan } from './render'
 
 /**
@@ -114,6 +116,11 @@ function WallpaperSurface({
   active: boolean
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const photoRef = useRef<HTMLImageElement | null>(null)
+  const parallax = useMotionPrefsStore((s) => s.parallax)
+  // 照片位图单层视差（DESIGN.md §15）：仅照片计划启用；非激活层（交叉淡入
+  // 的下层）不参与，避免双层错位。
+  useWallpaperParallax(photoRef, parallax && active)
   const [supportsCanvas] = useState(() => {
     try {
       return typeof document !== 'undefined' && document.createElement('canvas').getContext('2d') !== null
@@ -151,6 +158,7 @@ function WallpaperSurface({
     if (photo && !photoFailed) {
       return (
         <img
+          ref={photoRef}
           src={photo.src}
           alt=""
           draggable={false}

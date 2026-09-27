@@ -20,6 +20,9 @@ const DESKTOP_APP_ORDER: readonly string[] = [
 /**
  * 桌面图标层：左上角纵向网格，单击选中、双击/回车启动。
  *
+ * 错峰入场（DESIGN.md §15，enhance-basic stagger-enter）：每个桌面会话的
+ * 首次挂载播一次 60ms 错峰上浮入场，会话内重进不重播（模块级标记）。
+ *
  * 内置应用按固定顺序常驻；用户从商店安装的应用（含远程目录发布）排在
  * 其后，卸载即从桌面消失（随 app store 响应式更新）。
  *
@@ -28,10 +31,20 @@ const DESKTOP_APP_ORDER: readonly string[] = [
  * 图标之外时清除（含点在窗口/任务栏上的情况）。
  * 标签用白字 + 深色投影，明暗壁纸与照片壁纸下均可读。
  */
+/** 每页面会话只播一次错峰入场（重进桌面不重播）。 */
+let iconStaggerClaimed = false
+
+const STAGGER_STEP_MS = 60
+
 export function DesktopIcons() {
   const { t } = useTranslation()
   const apps = useAppStore((s) => s.apps)
   const [selected, setSelected] = useState<string | null>(null)
+  const [stagger] = useState(() => {
+    if (iconStaggerClaimed) return false
+    iconStaggerClaimed = true
+    return true
+  })
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -60,7 +73,7 @@ export function DesktopIcons() {
       aria-label={t('desktop.iconsLabel')}
       className="pointer-events-none absolute left-2 top-2 z-10 flex max-h-[calc(100%-1rem)] flex-col flex-wrap content-start gap-0.5"
     >
-      {entries.map((app) => {
+      {entries.map((app, index) => {
         const meta = componentFor(app.id)
         const name = meta ? t(meta.titleKey) : app.name
         const isSelected = selected === app.id
@@ -73,7 +86,14 @@ export function DesktopIcons() {
             aria-label={name}
             aria-pressed={isSelected}
             title={name}
-            className="pointer-events-auto flex w-20 flex-col items-center gap-1 rounded-lg px-1 py-2 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            style={
+              stagger
+                ? { animationDelay: `${index * STAGGER_STEP_MS}ms` }
+                : undefined
+            }
+            className={`pointer-events-auto flex w-20 flex-col items-center gap-1 rounded-lg px-1 py-2 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              stagger ? 'os-stagger-item' : ''
+            }`}
             onClick={() => setSelected(app.id)}
             onDoubleClick={() => open(app.id)}
             onKeyDown={(event) => {

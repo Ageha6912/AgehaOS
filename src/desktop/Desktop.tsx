@@ -8,8 +8,11 @@ import { NotificationToasts } from '@/desktop/NotificationToasts'
 import { SearchPalette } from '@/desktop/search/SearchPalette'
 import { DesktopIcons } from '@/desktop/DesktopIcons'
 import { openRandomGame } from '@/desktop/game-rotation'
+import { useClickRipple } from '@/desktop/motion/use-click-ripple'
+import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
+import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { getAppManifest } from '@/store/app-store'
 import { useWindowStore } from '@/store/window-store'
 
@@ -20,6 +23,12 @@ export function Desktop() {
   // 动态桌面关闭（或尚无生成结果）时回落到系统画布渐变（docs/DESIGN.md §2.1，
   // 蓝白/藏蓝随主题；v0.1 的暖色硬编码渐变已随 2026-09 方向翻新退场）。
   const showWallpaper = useDynamicDesktopStore((s) => s.prefs.enabled && s.currentPlan !== null)
+  // 桌面增强动效（DESIGN.md §15）：涟漪 + 可选指针光晕（默认关）。
+  const glow = useMotionPrefsStore((s) => s.glow)
+  const canvasRef = useRef<HTMLDivElement | null>(null)
+  const orbRef = useRef<HTMLDivElement | null>(null)
+  useClickRipple(canvasRef)
+  useCursorGlow(canvasRef, orbRef, glow)
   useGlobalShortcuts()
 
   // 每个桌面会话自动打开一次动态面板：停靠桌面右上（避开左侧图标列），
@@ -47,8 +56,15 @@ export function Desktop() {
   }, [])
 
   return (
-    <div className="surface-canvas relative h-full overflow-hidden">
+    <div ref={canvasRef} className="surface-canvas relative h-full overflow-hidden">
       {showWallpaper && <WallpaperLayer />}
+      {/* 指针光晕层（默认关）：pointer-events-none，压壁纸、垫窗口与图标。 */}
+      <div
+        aria-hidden="true"
+        ref={orbRef}
+        data-testid="cursor-glow-orb"
+        className="os-cursor-glow pointer-events-none absolute left-0 top-0 z-[5] opacity-0"
+      />
       <DesktopIcons />
       <WindowLayer />
       <NotificationToasts />

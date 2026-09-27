@@ -672,6 +672,15 @@ CSS 侧令牌塌缩 + `menu-toast.css` 显式 `transition: none` + 位移归零�
 
 ### 8.5 增强效果（basic / advanced）挂载与开关
 
+> **落地状态（2026-09-26）**：四项已接入产品——壁纸视差（照片单层平面化，
+> `use-wallpaper-parallax.ts`，默认开 + 设置项）、桌面图标错峰入场（每会话
+> 一次）、点击涟漪（仅桌面空白画布）、指针光晕（默认关 + 设置项，
+> `use-cursor-glow.ts`）；开关存储 `motion-prefs-store`（设备本地）。
+> 裁定不接入：glass-panel / icon-press（产品 `.surface-glass` 与全局
+> `:active` 已等价覆盖）、theme-glow（照片模式无挂载面）、aurora /
+> dock-sheen（默认关缓办）、window-tilt（与 §12 窗口动效二选一）。
+> 权威契约见产品 `docs/DESIGN.md` §15。以下原文保留。
+
 | 效果 | 挂载组件（已核实存在） | 开关建议 |
 | --- | --- | --- |
 | glass-panel | `Taskbar.tsx`、`AppLauncher.tsx`、`NotificationCenter.tsx`（玻璃归 chrome） | 默认开；`prefers-reduced-transparency` 已在令牌层自动实色兜底 |

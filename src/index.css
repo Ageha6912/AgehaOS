@@ -256,6 +256,50 @@ body {
 }
 
 /*
+ * 桌面增强动效（DESIGN.md §15，motion-lab enhance 档）。
+ * 点击涟漪：JS 注入 .os-ripple（定位/尺寸/透明度走变量），扩散由 keyframes
+ * 一次完成，animationend 自清理。 */
+.os-ripple {
+  position: absolute;
+  left: var(--cr-x);
+  top: var(--cr-y);
+  width: var(--cr-d);
+  height: var(--cr-d);
+  margin-left: calc(var(--cr-d) / -2);
+  margin-top: calc(var(--cr-d) / -2);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--ag-primary) 100%, transparent);
+  opacity: var(--cr-alpha);
+  pointer-events: none;
+  animation: os-ripple-spread 300ms var(--ag-motion-ease) both;
+}
+@keyframes os-ripple-spread {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* 桌面图标错峰入场（enhance-basic stagger-enter）：一次性上浮淡入，
+   错峰间隔由每图标的 --stagger-delay 注入；播完停在自然态。 */
+@keyframes os-stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.os-stagger-item {
+  animation: os-stagger-in 250ms var(--ag-motion-ease) both;
+}
+
+/*
  * Boot screen (motion-lab boot → product integration, DESIGN.md §11):
  * dark reveal canvas + thin progress bar, engine-driven via transform only.
  * The 400ms exit (fade + scale 1.05) is the single >300ms exemption slot;
@@ -322,4 +366,30 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* 指针跟随光晕（enhance-basic cursor-glow，DESIGN.md §15）：主题色径向
+   光斑，浅色 multiply / 深色 screen；进出舞台由 .is-visible 淡入淡出。 */
+.os-cursor-glow {
+  width: 320px;
+  height: 320px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--ag-primary) 32%, transparent) 0%,
+    transparent 70%
+  );
+  opacity: var(--glow-opacity, 0.5);
+  mix-blend-mode: multiply;
+  transition: opacity 120ms var(--ag-motion-ease);
+  will-change: transform;
+}
+.dark .os-cursor-glow {
+  mix-blend-mode: screen;
+}
+.os-cursor-glow.is-visible {
+  opacity: var(--glow-opacity, 0.5);
+}
+.os-cursor-glow:not(.is-visible) {
+  opacity: 0;
 }

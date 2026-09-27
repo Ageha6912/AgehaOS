@@ -373,3 +373,37 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   延迟一拍提交（坑 4），新卡片首帧以旧偏移渲染、随后过渡归位。
 - 点击通知 = 标记已读 + 滑出退出；SDK 通知经 `notification-store.push()`
   汇入同一路径自动生效。
+
+## 15. 桌面增强档（motion-lab enhance → 产品集成）
+
+2026-09-26 起 enhance 档四项接入产品，其余按挂载面与产品现状裁定（见末表）。
+开关存储：`motion-prefs-store`（`agehaos.motion.prefs.v1`，设备本地——性能
+相关开关不进云端同步），设置 → 外观分区两个 ToggleSwitch。
+
+### 已接入
+
+- **壁纸指针视差**（parallax 照片平面化单层版，默认开）：照片是单层位图，
+  三层景深不适用——单层位移 ±22px（纵向 ×0.55、反向、lerp 0.085、收敛
+  停帧 epsilon 0.0012）+ scale 1.03 掩边；仅照片计划且激活层参与（交叉
+  淡入的下层不错位）；rAF 纪律同前，`use-wallpaper-parallax.ts`。
+- **桌面图标错峰入场**（stagger-enter，默认开，每页面会话一次）：250ms
+  上浮 14px 淡入 + 60ms 错峰（SPEC §1.4 的 40~60ms 档）；`os-stagger-item`
+  类 + 每图标 animationDelay；模块级标记保证会话内重进不重播。
+- **点击涟漪**（click-ripple，默认开）：仅桌面空白画布（宿主自身或壁纸层；
+  图标/窗口/任务栏等交互元素不注入）——直径 = 点击点到最远角 ×2 ×1.15
+  （上限 720px），300ms 扩散（铁律上限档），animationend 自清理 + 超时兜底；
+  reduced-motion 不注入（反馈退化为 `:active` 微缩放）。
+- **指针跟随光晕**（cursor-glow，**默认关** + 设置项）：320px 主题色径向
+  光斑（浅色 multiply / 深色 screen），平滑 0.18、收敛停帧、进出淡入淡出；
+  光晕层 z-5 压壁纸垫窗口（不叠窗口内容），pointer-events-none。
+
+### 裁定不接入/缓办
+
+- **glass-panel**：产品已有 `.surface-glass`（blur 24px、实色兜底、
+  reduced-transparency 回退）+ 弹层进场动效，等价覆盖。
+- **icon-press**：全局 `:where(button):active { scale(0.98) }` 已覆盖。
+- **theme-glow**：指南明确照片壁纸上叠大光斑显脏——当前唯一主动样域即
+  照片，无挂载面，待程序化样域回归再议。
+- **aurora / dock-sheen**：默认关 + 常驻成本，无设置面，缓办。
+- **window-tilt**：与 §12 窗口生命周期动效二选一，取 §12（打开/genie 已是
+  来源锚定的空间连续语言）。

@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### motion-lab 增强档接入：壁纸视差/图标错峰/点击涟漪/指针光晕（docs/DESIGN.md §15）
+
+- **壁纸指针视差**（默认开，设置 → 外观可关）：照片单层平面化 ±22px（纵向 ×0.55、反向、lerp 0.085、epsilon 收敛停帧）+ scale 1.03 掩边；仅照片计划激活层参与，交叉淡入下层不错位（`use-wallpaper-parallax.ts`）
+- **桌面图标错峰入场**（默认开，每页面会话一次）：250ms 上浮 14px 淡入 + 60ms 错峰；模块级标记防会话内重播
+- **点击涟漪**（默认开）：仅桌面空白画布与壁纸层；直径按点击点到最远角 ×1.15（上限 720px），300ms 扩散 animationend 自清理 + 兜底；reduced 不注入
+- **指针跟随光晕**（默认关 + 设置项）：320px 主题色光斑（浅 multiply/深 screen）、平滑 0.18、收敛停帧、进出淡入淡出；z-5 压壁纸垫窗口、pointer-events-none；移动兜底点亮（桌面内跨元素移动不触发 pointerenter）
+- 开关走新增 `motion-prefs-store`（设备本地 localStorage，不进同步）；裁定不接入：glass-panel/icon-press（产品已有等价）、theme-glow（照片上显脏无挂载面）、aurora/dock-sheen（默认关缓办）、window-tilt（与 §12 二选一）
+- 测试：新增 motion-engines 9 项（视差插值/收敛停帧/指针离开归零/降级、光晕点亮与清理、涟漪注入与自清理/子元素豁免/reduced 惰性）；749 前端（90 文件）+ 58 后端 + E2E 12/12 全绿；浏览器烟雾 9/9（错峰 7/7 图标、涟漪自清理、视差矩阵、开关持久化、光斑点亮）
+
 ### motion-lab 菜单/通知动效接入 AgehaOS 本体（docs/DESIGN.md §14）
 
 - 弹层统一动效语言：进场保留 `animate-os-pop-in`（200ms），新增 120ms 退场（`--ag-motion-ease-in` 新令牌，关闭恒不长于打开）；`useExitPhase` 退场相位——open 翻 false 后节点多存活 120ms 播完过渡，重开即中断续动；接线开始菜单（双形态）/用户菜单/通知中心面板/Ctrl+K 搜索面板（含遮罩淡出）；无 WAAPI 运行时（jsdom）保持旧即时卸载语义
