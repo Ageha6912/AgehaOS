@@ -68,6 +68,7 @@ export function clearInlinePose(el: HTMLElement): void {
   el.style.opacity = ''
   el.style.transformOrigin = ''
   el.style.display = ''
+  el.style.pointerEvents = ''
 }
 
 /** 打开：scale 0.9→1 + fade，origin 投影到任务栏按钮（从触发源长出来）。 */
@@ -87,6 +88,10 @@ export function startOpen(el: HTMLElement, anchor: MotionPoint): Animation | nul
 /** 关闭：同一条路径反向（origin 与打开一致），恒短于打开。 */
 export function startClose(el: HTMLElement, anchor: MotionPoint): Animation | null {
   if (!supportsWAAPI(el)) return null
+  // 退场即断开命中：垂死窗口的布局盒在飞行期间不变，pointer-events-auto
+  // 会吃掉指向下层 UI 的点击（快速「关了就开」的真实操作与 E2E 都会踩）；
+  // 它即将消失，点击应直接穿透到下层界面。
+  el.style.pointerEvents = 'none'
   const origin = originToward(el.getBoundingClientRect(), anchor)
   el.style.transformOrigin = origin
   return el.animate(

@@ -50,7 +50,7 @@ function TypeBOrMissing({ appId, title, windowId }: { appId: string; title: stri
   return <MissingApp windowId={windowId} />
 }
 
-export function WindowFrame({ win }: { win: WindowInstance }) {
+export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost?: boolean }) {
   const { t } = useTranslation()
   const focus = useWindowStore((s) => s.focus)
   const minimize = useWindowStore((s) => s.minimize)
@@ -60,8 +60,9 @@ export function WindowFrame({ win }: { win: WindowInstance }) {
 
   const sectionRef = useRef<HTMLElement | null>(null)
   // 窗口动效（DESIGN.md §12）：打开/关闭/genie 飞行 + 半途抓回；关闭走
-  // requestClose（退场飞完才提交），最小化/还原由 store 状态迁移驱动。
-  const { requestClose } = useWindowMotion(win, sectionRef)
+  // requestClose（store 立即提交 + ghost 快照续播退场），最小化/还原由
+  // store 状态迁移驱动。ghost = 关闭退场中的快照壳：不进可达树、不吃指针。
+  const { requestClose } = useWindowMotion(win, sectionRef, { ghost })
 
   const dragOrigin = useRef<DragOrigin | null>(null)
   const resizeOrigin = useRef<ResizeOrigin | null>(null)
@@ -145,13 +146,14 @@ export function WindowFrame({ win }: { win: WindowInstance }) {
     <section
       ref={sectionRef}
       aria-label={win.title}
-      className={`surface-glass animate-os-pop-in pointer-events-auto absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
+      aria-hidden={ghost || undefined}
+      className={`surface-glass absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
         maximized ? 'rounded-none' : 'rounded-lg'
       } ${
         win.focused
           ? 'border-primary/50 shadow-window'
           : 'border-border shadow-window-flat'
-      }`}
+      } ${ghost ? 'pointer-events-none' : 'pointer-events-auto'}`}
       style={style}
       onPointerDown={() => focus(win.id)}
     >

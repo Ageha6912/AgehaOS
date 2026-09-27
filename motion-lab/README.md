@@ -612,6 +612,13 @@ CSS 侧令牌塌缩 + `menu-toast.css` 显式 `transition: none` + 位移归零�
 
 ### 8.3 dock · 放大波浪 → 任务栏/启动器
 
+> **落地状态（2026-09-26）**：本节已实施——波浪挂**任务栏窗口按钮图标区**：
+> 纯数学 `src/core/dock/wave.ts` + rAF 引擎 `use-dock-wave.ts`，只写
+> `[data-wave-icon]` 图标包裹层的 transform。归档：maxScale 1.5 / lift 3 /
+> σ 44 / enter 120 / settle 200；**收敛停帧**（悬停静止停表）为产品侧改进；
+> pressScale 不迁入（产品按钮已有 `:active`）；激活点 pulse 不迁入（循环
+> 动画豁免评审未走）。权威契约见产品 `docs/DESIGN.md` §13。以下原文保留。
+
 **现有实现**：`src/desktop/taskbar/Taskbar.tsx`（任务栏主体，自动隐藏 300ms 滑入
 /400ms 收起）、`src/desktop/taskbar/AppLauncher.tsx`（开始菜单/图标行）、
 `src/desktop/taskbar/WindowPreview.tsx`（悬停预览小窗）。

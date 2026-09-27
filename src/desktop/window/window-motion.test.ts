@@ -98,12 +98,14 @@ describe('播放函数（WAAPI 就绪时）', () => {
     )
   })
 
-  it('plays close into scale 0.92 with the ease-in leg', () => {
+  it('plays close into scale 0.92 with the ease-in leg and disconnects hit-testing', () => {
     const animate = installAnimate()
     const el = document.createElement('section')
 
     startClose(el, { x: 222, y: 708 })
 
+    // 退场即穿透：垂死窗口不再吃掉指向下层 UI 的点击（sdk-fs-note E2E 竞态根因）
+    expect(el.style.pointerEvents).toBe('none')
     expect(animate).toHaveBeenCalledWith(
       [
         { transform: 'scale(1)', opacity: 1 },
@@ -156,12 +158,13 @@ describe('播放函数（WAAPI 就绪时）', () => {
 })
 
 describe('clearInlinePose（位姿清空）', () => {
-  it('clears exactly the four motion-owned inline properties', () => {
+  it('clears exactly the five motion-owned inline properties', () => {
     const el = document.createElement('section')
     el.style.transform = 'translateX(10px)'
     el.style.opacity = '0'
     el.style.transformOrigin = '50% 140%'
     el.style.display = 'flex'
+    el.style.pointerEvents = 'none'
     el.style.left = '12px' // React 管理的定位属性不得被清
 
     clearInlinePose(el)
@@ -170,6 +173,7 @@ describe('clearInlinePose（位姿清空）', () => {
     expect(el.style.opacity).toBe('')
     expect(el.style.transformOrigin).toBe('')
     expect(el.style.display).toBe('')
+    expect(el.style.pointerEvents).toBe('')
     expect(el.style.left).toBe('12px')
   })
 })

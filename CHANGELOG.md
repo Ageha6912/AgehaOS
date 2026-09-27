@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### motion-lab Dock 波浪接入 + 窗口关闭 ghost 化（docs/DESIGN.md §13、§12 修订）
+
+- 任务栏窗口按钮图标接入高斯距离衰减放大波浪（motion-lab/dock）：波峰 1.5× + 3px 上浮、σ 44px（≤1.2× 图标间距）、enter 120ms/settle 200ms 归档到产品档；纯数学 `src/core/dock/wave.ts`（cubic-bezier 同语义求值 + 高斯波形）+ rAF 引擎 `use-dock-wave.ts`（事件只记坐标、帧内零布局读取、**收敛停帧**——悬停静止即停表省帧，pointermove 唤醒）；触屏与 reduced-motion 不启动，仅悬停变色/原生按压保留；激活点 pulse 不迁入（任务栏已有静态下划线，循环动画需豁免评审）
+- 任务栏图标行 `self-stretch` 抬高 `overflow-x-auto` 隐式裁剪盒到 48px，波浪不出框；波浪只写 `[data-wave-icon]` 包裹层 transform，自动隐藏 reveal/hide 链不受影响（E2E 固化）
+- **根除一处真实竞态（sdk-fs-note E2E 素因 + 产品缺陷）**：窗口关闭原「退场飞完才提交 store.close」让将死窗口在 store 里多活 120ms，期间紧随的重开点击会撞可达树（strict-mode/旧 iframe 错配，~50% 复现）。改为 **store 立即提交 + ghost 快照续播退场**（`closing-ghosts.ts`：同 key 组件实例与 DOM 存活、内容连续；aria-hidden + pointer-events-none；飞完即卸载 + 600ms 兜底）。另修 WindowLayer 改按 id 稳定序渲染（z 序本来由 zIndex 样式决定，focus 提交不再 insertBefore 移动节点打断点击事件序列）与退场即 `pointer-events:none`（垂死窗口不再吃掉指向下层 UI 的点击）
+- 测试：新增 wave 9 项 + use-dock-wave 7 项（mock 几何 + fake-rAF 确定性驱动）；WindowFrame 关闭语义测试重写（即时提交/ghost 可达树隔离/重开唯一可寻址）+ window-motion 修订；731 前端（88 文件）+ 58 后端 + E2E 12/12 全绿（sdk-fs-note 连跑 6 次稳定）；浏览器烟雾 9/9（波峰矩阵 1.5×、收敛清空、autohide 链、genie 回归）
+
 ### motion-lab 窗口动效接入 AgehaOS 本体（docs/DESIGN.md §12）
 
 - 窗口打开从任务栏按钮方向弹性长出（scale 0.9→1 + fade，200ms 弹簧曲线）；关闭沿同一路径反向收拢（120ms，恒短于打开，**飞完才提交卸载**）；genie 最小化/还原沿「窗口中心 → 任务栏按钮」位移三关键帧飞行（300ms，横缩纵压 + 先坠后收弧线），还原 = 同一组关键帧 `anim.reverse()` 时间镜像

@@ -279,8 +279,13 @@ favicon 在明暗标签栏下均无底色方块。
   路径共用一条来源），动效是纯表现层——最小化飞行期间 React 类名已是
   `hidden`，用 inline `display:flex` 反压保持可见，落定后 `clearInlinePose`
   交还类名接管。
-- **唯一例外是关闭**：退场飞完（120ms）才提交 `store.close`（窗口在退场期间
-  仍在 store 中）；任务栏悬停预览/引擎路径的关闭仍即时卸载。
+- **关闭 = 立即提交 + ghost 续播（2026-09-27 修订）**：`store.close` 在点击
+  瞬间提交（引擎/任务栏/启动逻辑立刻见到真相），退场视觉由 ghost 快照接管
+  （`closing-ghosts.ts`）：WindowLayer 以同 key 渲染快照（组件实例与 DOM 存活，
+  内容连续），aria-hidden + pointer-events-none——不进可达树、不截胡指针，
+  飞完即卸载（600ms 兜底清除）。早期方案的「退场飞完才提交」会让将死窗口在
+  store 里多活 120ms，与紧随其后的重开点击产生可达树撞车与旧 iframe 错配
+  （sdk-fs-note E2E 竞态根因，已根除）。
 - **半途抓回**：最小化↔还原互为反向，飞行中点反操作走 `anim.reverse()` 从
   当前呈现值续动（时间镜像、路径严格对称）；打开途中点关闭同样反向收回收回；
   交叉中断先落定当前目标终态再继续；任何时刻不锁 store、不锁输入。
@@ -298,3 +303,36 @@ favicon 在明暗标签栏下均无底色方块。
 - 断言窗口类名单一类用 `classList.contains`（className 子串会撞上
   `overflow-hidden`）；飞行中的位姿在动画效果里，读 `getComputedStyle`
   的 transform/opacity 而非 `el.style`。
+
+## 13. 任务栏波浪（motion-lab dock → 产品集成）
+
+2026-09-26 起任务栏窗口按钮图标带高斯距离衰减放大波浪（macOS Dock 隐喻，
+SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·exp(-d²/2σ²)`
+随水平距离连续放大并上浮，近者多、远者趋于 1，无跳变。
+
+### 架构与归档
+
+- **纯数学** `src/core/dock/wave.ts`：gaussianScale / iconScale（波形 × 进入
+  包络）/ iconLift / wavePose / cubicBezierAt（CSS cubic-bezier 同语义二分求值）；
+  零 DOM 零 React。
+- **rAF 引擎** `use-dock-wave.ts`：事件回调只记指针坐标，每帧至多一轮
+  「计算 + 写入」；图标中心在 pointerenter/resize/scroll 一次性实测缓存
+  （中心 x 不随缩放漂移）；变化阈值内的静止帧零写入。
+- **收敛停帧（改进于演示模块）**：包络满格且指针静止即停表，pointermove
+  唤醒；离开后 200ms 收敛归位并摘 will-change（SPEC §3.5 只在动效期挂载）。
+- **归档参数**：maxScale 1.5 + lift 3px（48px 裁剪盒内 20px 图标不出框）、
+  σ 44px（图标间距 48px 的 ≤1.2×）、enter 120ms = `--ag-motion-fast`、
+  settle 200ms = `--ag-motion-base`、ease = `--ag-motion-ease` 同值声明。
+- **降级**：触屏（pointerType=touch）与 prefers-reduced-motion 整体不启动，
+  按钮 CSS 悬停变色 / `:active` 按压保留（演示模块的 pressScale 不迁入——
+  全局按钮 `:active scale(0.98)` 已有，避免同元素两套按压）。
+
+### 与任务栏既有机制的边界
+
+- 波浪只写 `[data-wave-icon]` 包裹层（按钮内图标 span）的 transform，不碰
+  按钮自身——自动隐藏任务栏的 reveal/hide pointerenter/leave 链（§9）不受
+  影响（E2E `taskbar-autohide` 固化）。
+- 图标行容器 `self-stretch` 把 `overflow-x-auto` 的隐式裁剪盒抬到整条任务栏
+  高（48px），放大 + 上浮不出框（坑 13 的变体）。
+- 演示模块的激活点 pulse（2.4s 循环）不迁入：任务栏已有静态下划线指示，
+  循环动画需走 §2.5 豁免评审。

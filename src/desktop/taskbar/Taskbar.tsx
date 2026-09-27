@@ -8,6 +8,7 @@ import { NotificationCenter } from './NotificationCenter'
 import { useClock } from './use-clock'
 import { UserMenu } from './UserMenu'
 import { WindowPreview } from './WindowPreview'
+import { useDockWave } from './use-dock-wave'
 
 const HOVER_DELAY_MS = 350
 /** 移出后到收起的缓冲，给「滑到悬停预览/菜单」留路径。 */
@@ -32,6 +33,10 @@ export function Taskbar() {
   const [anchorLeft, setAnchorLeft] = useState(0)
   const hoverTimer = useRef<number | null>(null)
   const hideTimer = useRef<number | null>(null)
+  // 任务栏波浪（DESIGN.md §13）：高斯距离衰减放大，只写 data-wave-icon 的
+  // transform，不碰按钮与 reveal/hide 的 pointerenter/leave 链。
+  const waveRowRef = useRef<HTMLDivElement | null>(null)
+  useDockWave(waveRowRef)
 
   useEffect(
     () => () => {
@@ -101,7 +106,12 @@ export function Taskbar() {
       >
         <AppLauncher />
 
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        {/* self-stretch：裁剪盒抬到整条任务栏高（48px），波浪放大不出框（坑 13 的
+            overflow 隐式裁剪）；波浪引擎挂这里，只动图标不动按钮。 */}
+        <div
+          ref={waveRowRef}
+          className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-x-auto"
+        >
           {windows.map((win) => {
             const active = win.focused && win.state !== 'minimized'
             return (
@@ -127,7 +137,9 @@ export function Taskbar() {
                   }`}
                   onClick={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
                 >
-                  <AppIcon appId={win.appId} size={20} />
+                  <span aria-hidden="true" data-wave-icon className="flex">
+                    <AppIcon appId={win.appId} size={20} />
+                  </span>
                   {active && (
                     <span
                       aria-hidden="true"

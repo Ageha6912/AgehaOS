@@ -1,12 +1,14 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { resetClosingGhosts } from './closing-ghosts'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
 import { WindowLayer } from './WindowLayer'
 
 beforeEach(() => {
   resetWindowStore()
+  resetClosingGhosts()
 })
 
 describe('WindowFrame (via WindowLayer)', () => {
@@ -152,27 +154,49 @@ describe('WindowFrame 窗口动效（WAAPI 就绪）', () => {
     expect(options.easing).toBe('cubic-bezier(0.32, 0.72, 0, 1)')
   })
 
-  it('defers close until the exit flight finishes', async () => {
-    const id = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
-    render(<WindowLayer />)
+  it('commits close immediately; the aria-hidden ghost finishes the exit flight', async () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const { container } = render(<WindowLayer />)
+    await act(async () => {
+      flights[0].resolve() // 打开飞行先落定
+    })
 
-    // 先让打开飞行落定，关闭才走独立的退场飞行
+    fireEvent.click(screen.getByRole('button', { name: '关闭窗口' }))
+    // store 即刻提交（引擎/任务栏/启动逻辑立刻见到真相）
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+    // ghost 壳仍在 DOM 播退场，但已退出可达树、不再截胡指针
+    const ghost = container.querySelector('section[aria-label="记事"]')
+    expect(ghost).not.toBeNull()
+    expect(ghost).toHaveAttribute('aria-hidden', 'true')
+    expect(ghost?.className).toContain('pointer-events-none')
+
+    await act(async () => {
+      flights[1].resolve() // 退场飞行结束
+    })
+    expect(container.querySelector('section[aria-label="记事"]')).toBeNull()
+  })
+
+  it('keeps the reopened window uniquely addressable while the old one exits', async () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
     await act(async () => {
       flights[0].resolve()
     })
-    expect(animateMock).toHaveBeenCalledTimes(1)
 
+    // 关闭（ghost 退场中）立刻重开同名应用
     fireEvent.click(screen.getByRole('button', { name: '关闭窗口' }))
-    expect(animateMock).toHaveBeenCalledTimes(2) // 退场飞行已启动
-    expect(useWindowStore.getState().windows).toHaveLength(1) // 飞行中仍在 store
-    expect(getRegion('记事')).toBeInTheDocument()
-
-    await act(async () => {
-      flights[1].resolve()
+    act(() => {
+      useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     })
 
-    expect(useWindowStore.getState().windows).toHaveLength(0)
-    expect(useWindowStore.getState().windows.find((win) => win.id === id)).toBeUndefined()
+    // 可达树里只有新窗口（ghost 已 aria-hidden）——不会 strict-mode 撞车
+    expect(screen.getAllByRole('region', { name: '记事' })).toHaveLength(1)
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+
+    await act(async () => {
+      flights[1].resolve() // ghost 退场结束
+    })
+    expect(useWindowStore.getState().windows).toHaveLength(1)
   })
 
   it('commits minimize immediately but holds the window visible through the genie flight', async () => {
