@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 
 import { launchApp } from '@/apps/launch'
 import { Taskbar } from '@/desktop/taskbar/Taskbar'
@@ -6,6 +6,7 @@ import { WindowLayer } from '@/desktop/window/WindowLayer'
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
 import { NotificationToasts } from '@/desktop/NotificationToasts'
 import { SearchPalette } from '@/desktop/search/SearchPalette'
+import { ContextMenu, type ContextMenuPosition } from '@/desktop/ContextMenu'
 import { DesktopIcons } from '@/desktop/DesktopIcons'
 import { openRandomGame } from '@/desktop/game-rotation'
 import { useClickRipple } from '@/desktop/motion/use-click-ripple'
@@ -26,6 +27,15 @@ export function Desktop() {
   // 桌面增强动效（DESIGN.md §15）：涟漪 + 可选指针光晕（默认关）。
   const glow = useMotionPrefsStore((s) => s.glow)
   const canvasRef = useRef<HTMLDivElement | null>(null)
+  // 桌面右键上下文菜单（DESIGN.md §14 遗留项）：仅空白画布（含壁纸层）。
+  const [contextPos, setContextPos] = useState<ContextMenuPosition | null>(null)
+  const onCanvasContextMenu = (event: ReactMouseEvent): void => {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    if (!(target === event.currentTarget || target.closest('[data-testid="wallpaper-layer"]'))) return
+    event.preventDefault()
+    setContextPos({ x: event.clientX, y: event.clientY })
+  }
   const orbRef = useRef<HTMLDivElement | null>(null)
   useClickRipple(canvasRef)
   useCursorGlow(canvasRef, orbRef, glow)
@@ -56,7 +66,11 @@ export function Desktop() {
   }, [])
 
   return (
-    <div ref={canvasRef} className="surface-canvas relative h-full overflow-hidden">
+    <div
+      ref={canvasRef}
+      className="surface-canvas relative h-full overflow-hidden"
+      onContextMenu={onCanvasContextMenu}
+    >
       {showWallpaper && <WallpaperLayer />}
       {/* 指针光晕层（默认关）：pointer-events-none，压壁纸、垫窗口与图标。 */}
       <div
@@ -70,6 +84,7 @@ export function Desktop() {
       <NotificationToasts />
       <Taskbar />
       <SearchPalette />
+      <ContextMenu position={contextPos} onClose={() => setContextPos(null)} />
     </div>
   )
 }

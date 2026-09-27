@@ -5,6 +5,10 @@ export const dictionaries = {
     'boot.ready': '启动完成',
     'boot.login': '请登录以继续',
     'boot.progress': '启动进度',
+    'contextmenu.label': '桌面菜单',
+    'contextmenu.renewWallpaper': '更换壁纸',
+    'contextmenu.openStore': '打开应用商店',
+    'contextmenu.openSettings': '打开设置',
     'boot.skipHint': '点击任意处或按任意键跳过',
 
     'auth.loginTitle': '登录 AgehaOS',
@@ -321,6 +325,10 @@ export const dictionaries = {
     'boot.ready': 'Ready',
     'boot.login': 'Sign in to continue',
     'boot.progress': 'Boot progress',
+    'contextmenu.label': 'Desktop menu',
+    'contextmenu.renewWallpaper': 'New wallpaper',
+    'contextmenu.openStore': 'Open App Store',
+    'contextmenu.openSettings': 'Open Settings',
     'boot.skipHint': 'Click anywhere or press any key to skip',
 
     'auth.loginTitle': 'Sign in to AgehaOS',
