@@ -19,6 +19,8 @@ export interface ServerConfig {
   dataDir: string
   /** Postgres connection string (postgres store only). */
   databaseUrl: string | null
+  /** Redis connection string: enables the shared rate-limit store (multi-instance). */
+  redisUrl: string | null
   sessionTtlMs: number
   cookieSecure: boolean
   logLevel: string
@@ -61,6 +63,7 @@ function listEnv(name: string): string[] {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const nodeEnv = env.NODE_ENV ?? 'development'
   const databaseUrl = env.DATABASE_URL?.trim() || null
+  const redisUrl = env.AGEHA_REDIS_URL?.trim() || null
   const storeEnv = env.AGEHA_STORE?.trim()
   const store: StoreKind =
     storeEnv === 'memory' || storeEnv === 'file' || storeEnv === 'postgres'
@@ -77,6 +80,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
       ? path.resolve(env.AGEHA_DATA_DIR)
       : path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data'),
     databaseUrl,
+    redisUrl,
     sessionTtlMs: intEnv('AGEHA_SESSION_TTL_MS', 7 * 24 * 60 * 60 * 1000),
     cookieSecure: nodeEnv === 'production',
     logLevel: env.AGEHA_LOG_LEVEL ?? 'info',

@@ -2,11 +2,12 @@ import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
-import type { FastifyError, FastifyInstance } from 'fastify'
+import type { FastifyError, FastifyInstance, FastifyLoggerOptions } from 'fastify'
 
 import { loadConfig } from './config'
 import type { ServerConfig } from './config'
 import { originCheck } from './plugins/origin-check'
+import type { RedisLike } from './rate-limit-redis'
 import { aiRoutes } from './routes/ai'
 import { authRoutes } from './routes/auth'
 import { storeRoutes } from './routes/store'
@@ -23,7 +24,9 @@ export interface BuildAppOptions {
   /** Pre-built catalog signing key (tests); loaded from dataDir otherwise. */
   signingKey?: Awaited<ReturnType<typeof loadOrCreateSigningKey>>
   /** Fastify logger option; `false` quiets tests, a pino config for prod. */
-  logger?: boolean | Record<string, unknown>
+  logger?: boolean | FastifyLoggerOptions
+  /** 测试注入：共享限流的 Redis 客户端（缺省按 config.redisUrl 动态 import ioredis）。 */
+  redis?: RedisLike
 }
 
 /**
@@ -61,7 +64,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   await app.register(helmet)
   await app.register(cookie)
-  await app.register(rateLimit, { global: false })
+  if (options.redis ?? config.redisUrl) {
+    // 多实例共享限流计数（ADR 21 附注）：AGEHA_REDIS_URL 或测试注入的 Redis 客户端。
+    const { default: Redis } = await import('ioredis')
+    const redis =
+      options.redis ?? (new Redis(config.redisUrl as string) as unknown as RedisLike)
+    const { redisRateLimitStoreCtor } = await import('./rate-limit-redis')
+    await app.register(rateLimit, { global: false, store: redisRateLimitStoreCtor(redis) })
+  } else {
+    await app.register(rateLimit, { global: false })
+  }
 
   const store = options.store ?? createStore(config)
   await store.init()
