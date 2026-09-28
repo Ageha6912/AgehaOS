@@ -38,11 +38,11 @@ function stubCtx(counters: { fillRect?: number; fill?: number } = {}): CanvasRen
   return ctx as unknown as CanvasRenderingContext2D
 }
 
-describe('FIELD_COMPOSITIONS（10 款构图，5 亮 + 5 暗）', () => {
-  it('holds exactly five light and five dark compositions', () => {
-    expect(FIELD_COMPOSITIONS).toHaveLength(10)
-    expect(fieldCompositionsForTheme('light')).toHaveLength(5)
-    expect(fieldCompositionsForTheme('dark')).toHaveLength(5)
+describe('FIELD_COMPOSITIONS（18 款构图，9 亮 + 9 暗）', () => {
+  it('holds exactly nine light and nine dark compositions', () => {
+    expect(FIELD_COMPOSITIONS).toHaveLength(18)
+    expect(fieldCompositionsForTheme('light')).toHaveLength(9)
+    expect(fieldCompositionsForTheme('dark')).toHaveLength(9)
   })
 
   it('keeps ids unique and resolvable', () => {

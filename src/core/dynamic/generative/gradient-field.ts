@@ -25,7 +25,7 @@ export interface FieldComposition {
   accent: { color: string; base: number }
 }
 
-export const FIELD_ENGINE_VERSION = 1
+export const FIELD_ENGINE_VERSION = 2
 
 export const FIELD_COMPOSITIONS: readonly FieldComposition[] = [
   {
@@ -139,6 +139,106 @@ export const FIELD_COMPOSITIONS: readonly FieldComposition[] = [
       { from: '#251b56', to: '#4f3ab8', base: 0.88, amp: 0.09 },
     ],
     accent: { color: 'rgba(190, 160, 255, 0.14)', base: 0.5 },
+  },
+  {
+    id: 'emerald-mist',
+    nameKey: 'wallpaper.field.emeraldMist',
+    theme: 'light',
+    bg: ['#f2fcf7', '#d2f0e2'],
+    layers: [
+      { from: '#e2f8ee', to: '#b8ead0', base: 0.4, amp: 0.1 },
+      { from: '#cdf2e0', to: '#8fd8b6', base: 0.62, amp: 0.12 },
+      { from: '#aee3cc', to: '#5cbd97', base: 0.84, amp: 0.09 },
+      { from: '#82d3ad', to: '#2ea47b', base: 0.95, amp: 0.07 },
+    ],
+    accent: { color: 'rgba(255, 255, 255, 0.22)', base: 0.5 },
+  },
+  {
+    id: 'peach-blossom',
+    nameKey: 'wallpaper.field.peachBlossom',
+    theme: 'light',
+    bg: ['#fff9f5', '#fce3d4'],
+    layers: [
+      { from: '#feefe4', to: '#f9d0b6', base: 0.4, amp: 0.1 },
+      { from: '#fde2cc', to: '#f4b48c', base: 0.62, amp: 0.12 },
+      { from: '#fbd0ae', to: '#ec935e', base: 0.84, amp: 0.09 },
+      { from: '#f7bc8e', to: '#dd7434', base: 0.95, amp: 0.07 },
+    ],
+    accent: { color: 'rgba(255, 255, 255, 0.2)', base: 0.48 },
+  },
+  {
+    id: 'glacier',
+    nameKey: 'wallpaper.field.glacier',
+    theme: 'light',
+    bg: ['#f7fafc', '#dbe7ee'],
+    layers: [
+      { from: '#e9f1f6', to: '#c8d9e4', base: 0.4, amp: 0.1 },
+      { from: '#dbe7f0', to: '#aec6d6', base: 0.62, amp: 0.12 },
+      { from: '#cddde9', to: '#8fb0c6', base: 0.84, amp: 0.09 },
+      { from: '#bcd0e0', to: '#6f97b3', base: 0.95, amp: 0.07 },
+    ],
+    accent: { color: 'rgba(255, 255, 255, 0.24)', base: 0.52 },
+  },
+  {
+    id: 'sea-salt',
+    nameKey: 'wallpaper.field.seaSalt',
+    theme: 'light',
+    bg: ['#f8fcfc', '#e0eff0'],
+    layers: [
+      { from: '#ecf7f7', to: '#cfe8e8', base: 0.4, amp: 0.1 },
+      { from: '#dff0f0', to: '#b2d8d8', base: 0.62, amp: 0.12 },
+      { from: '#cfe8e8', to: '#8ec4c6', base: 0.84, amp: 0.09 },
+      { from: '#bce0e0', to: '#5fa9ad', base: 0.95, amp: 0.07 },
+    ],
+    accent: { color: 'rgba(255, 255, 255, 0.22)', base: 0.5 },
+  },
+  {
+    id: 'emerald-night',
+    nameKey: 'wallpaper.field.emeraldNight',
+    theme: 'dark',
+    bg: ['#06120c', '#0c2618'],
+    layers: [
+      { from: '#081a10', to: '#0f3320', base: 0.42, amp: 0.1 },
+      { from: '#0c2818', to: '#14482a', base: 0.66, amp: 0.12 },
+      { from: '#103421', to: '#1a6138', base: 0.88, amp: 0.09 },
+    ],
+    accent: { color: 'rgba(110, 220, 160, 0.13)', base: 0.5 },
+  },
+  {
+    id: 'wine-night',
+    nameKey: 'wallpaper.field.wineNight',
+    theme: 'dark',
+    bg: ['#12060a', '#2a0d1a'],
+    layers: [
+      { from: '#1a0810', to: '#3c1224', base: 0.42, amp: 0.1 },
+      { from: '#240d18', to: '#551a36', base: 0.66, amp: 0.12 },
+      { from: '#2e1220', to: '#6e2248', base: 0.88, amp: 0.09 },
+    ],
+    accent: { color: 'rgba(255, 120, 150, 0.12)', base: 0.5 },
+  },
+  {
+    id: 'graphite',
+    nameKey: 'wallpaper.field.graphite',
+    theme: 'dark',
+    bg: ['#0b0e12', '#1a212b'],
+    layers: [
+      { from: '#10141a', to: '#202a36', base: 0.42, amp: 0.1 },
+      { from: '#151c26', to: '#2c3a4a', base: 0.66, amp: 0.12 },
+      { from: '#1a2430', to: '#3a4c60', base: 0.88, amp: 0.09 },
+    ],
+    accent: { color: 'rgba(160, 190, 220, 0.1)', base: 0.5 },
+  },
+  {
+    id: 'copper-night',
+    nameKey: 'wallpaper.field.copperNight',
+    theme: 'dark',
+    bg: ['#100a06', '#2b1a0c'],
+    layers: [
+      { from: '#180f08', to: '#3a2410', base: 0.42, amp: 0.1 },
+      { from: '#20140a', to: '#543318', base: 0.66, amp: 0.12 },
+      { from: '#281a0e', to: '#6e4520', base: 0.88, amp: 0.09 },
+    ],
+    accent: { color: 'rgba(255, 170, 100, 0.13)', base: 0.5 },
   },
   {
     id: 'amber-night',
