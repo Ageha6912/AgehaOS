@@ -10,6 +10,7 @@ import { originCheck } from './plugins/origin-check'
 import type { RedisLike } from './rate-limit-redis'
 import { aiRoutes } from './routes/ai'
 import { authRoutes } from './routes/auth'
+import { sampleRoutes } from './routes/samples'
 import { storeRoutes } from './routes/store'
 import { syncRoutes } from './routes/sync'
 import { loadOrCreateSigningKey } from './store-keys'
@@ -110,6 +111,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     rateLimitWindowMs: config.rateLimit.windowMs,
   })
   await app.register(syncRoutes, { prefix: '/api', store })
+
+  // 举报样本上传（DDS §8.6）：匿名上报 + 服务端分类器，复审清单仅 admin。
+  await app.register(sampleRoutes, {
+    prefix: '/api',
+    store,
+    rateLimitWindowMs: config.rateLimit.windowMs,
+  })
 
   // 远端应用目录（PRD §47 前置切片）：Ed25519 签名密钥落在数据目录，重启不变。
   const signingKey =

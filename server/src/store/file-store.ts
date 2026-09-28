@@ -1,8 +1,8 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import type { DataStore, SessionRecord, UserRecord } from './types'
-import { UsernameTakenError } from './types'
+import type { ContentSampleRecord, DataStore, SessionRecord, UserRecord } from './types'
+import { MAX_CONTENT_SAMPLES, UsernameTakenError } from './types'
 
 interface SyncEntry {
   data: string
@@ -17,6 +17,9 @@ interface SerializedFile {
   sync: Record<string, Record<string, SyncEntry>>
   /** Admin-published remote store catalog (ADR 20); absent = built-in. */
   catalog?: string
+  /** Reported content samples (DDS §8.6); absent on files written before the
+   *  sample-upload slice. Newest first, capped at MAX_CONTENT_SAMPLES. */
+  samples?: ContentSampleRecord[]
 }
 
 /** Distinguishes the legacy flat entry from the nested per-domain record. */
@@ -34,6 +37,7 @@ export class FileDataStore implements DataStore {
   private sessions = new Map<string, SessionRecord>()
   private syncData = new Map<string, Map<string, SyncEntry>>()
   private appCatalog: string | null = null
+  private contentSamples: ContentSampleRecord[] = []
   private writing = Promise.resolve()
 
   constructor(private readonly filePath: string) {}
@@ -75,6 +79,12 @@ export class FileDataStore implements DataStore {
       }
       if (typeof parsed.catalog === 'string' && parsed.catalog.length > 0) {
         this.appCatalog = parsed.catalog
+      }
+      if (Array.isArray(parsed.samples)) {
+        for (const sample of parsed.samples) {
+          if (isContentSampleRecord(sample)) this.contentSamples.push(sample)
+        }
+        this.contentSamples = this.contentSamples.slice(0, MAX_CONTENT_SAMPLES)
       }
     } catch {
       // Corrupted file: start empty rather than crash-looping; the next
@@ -178,6 +188,15 @@ export class FileDataStore implements DataStore {
     await this.persist()
   }
 
+  async createContentSample(sample: ContentSampleRecord): Promise<void> {
+    this.contentSamples = [sample, ...this.contentSamples].slice(0, MAX_CONTENT_SAMPLES)
+    await this.persist()
+  }
+
+  async listContentSamples(): Promise<ContentSampleRecord[]> {
+    return [...this.contentSamples]
+  }
+
   /** Serializes writes so concurrent requests cannot clobber each other. */
   private persist(): Promise<void> {
     this.writing = this.writing.then(() => this.writeNow())
@@ -194,6 +213,7 @@ export class FileDataStore implements DataStore {
       sessions: [...this.sessions.values()],
       sync,
       ...(this.appCatalog !== null ? { catalog: this.appCatalog } : {}),
+      ...(this.contentSamples.length > 0 ? { samples: this.contentSamples } : {}),
     }
     const tmpPath = `${this.filePath}.tmp`
     await writeFile(tmpPath, JSON.stringify(payload, null, 2), 'utf8')
@@ -227,4 +247,17 @@ function isSyncEntry(value: unknown): value is SyncEntry {
   if (typeof value !== 'object' || value === null) return false
   const entry = value as Record<string, unknown>
   return typeof entry.data === 'string' && typeof entry.updatedAt === 'string'
+}
+
+function isContentSampleRecord(value: unknown): value is ContentSampleRecord {
+  if (typeof value !== 'object' || value === null) return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.id === 'string' &&
+    typeof record.text === 'string' &&
+    (record.classification === 'ok' ||
+      record.classification === 'misleading' ||
+      record.classification === 'discomfort') &&
+    typeof record.createdAt === 'string'
+  )
 }

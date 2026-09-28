@@ -9,6 +9,7 @@ import { MemoryDataStore } from '../src/store/memory-store'
 import { PostgresDataStore } from '../src/store/postgres-store'
 import type { PgPoolLike } from '../src/store/postgres-store'
 import { UsernameTakenError } from '../src/store/types'
+import { MAX_CONTENT_SAMPLES } from '../src/store/types'
 import type { DataStore, UserRecord } from '../src/store/types'
 
 function makeUser(overrides: Partial<UserRecord> = {}): UserRecord {
@@ -78,6 +79,23 @@ async function expectStoreBehavior(store: DataStore): Promise<void> {
   await store.putAppCatalog('[]')
   expect(await store.getAppCatalog()).toBe('[]')
 
+  // 样本上传切片（DDS §8.6）：样本往返 + 新样本在前。
+  expect(await store.listContentSamples()).toEqual([])
+  await store.createContentSample({
+    id: 's1',
+    text: '较早的样本',
+    classification: 'ok',
+    createdAt: '2026-09-28T00:00:01.000Z',
+  })
+  await store.createContentSample({
+    id: 's2',
+    text: '较晚的样本',
+    classification: 'misleading',
+    createdAt: '2026-09-28T00:00:02.000Z',
+  })
+  const samples = await store.listContentSamples()
+  expect(samples.map((sample) => sample.id)).toEqual(['s2', 's1'])
+
   await store.close()
 }
 
@@ -118,6 +136,26 @@ describe('FileDataStore', () => {
 
     const raw = JSON.parse(await readFile(filePath, 'utf8')) as { users: unknown[] }
     expect(raw.users).toHaveLength(1)
+  })
+
+  it('persists content samples across instances (样本上传切片)', async () => {
+    const filePath = path.join(dir, 'auth.json')
+    const first = new FileDataStore(filePath)
+    await first.init()
+    await first.createContentSample({
+      id: 's1',
+      text: '重启后仍在',
+      classification: 'discomfort',
+      createdAt: '2026-09-28T00:00:00.000Z',
+    })
+    await first.close()
+
+    const second = new FileDataStore(filePath)
+    await second.init()
+    const samples = await second.listContentSamples()
+    expect(samples.map((sample) => sample.id)).toEqual(['s1'])
+    expect(samples[0]?.classification).toBe('discomfort')
+    await second.close()
   })
 
   it('starts empty on a corrupted file', async () => {
@@ -226,7 +264,7 @@ describe('PostgresDataStore', () => {
     const store = new PostgresDataStore(pool)
     await store.init()
     const initTexts = pool.queries.map((query) => query.text)
-    expect(initTexts).toHaveLength(14)
+    expect(initTexts).toHaveLength(15)
     expect(
       initTexts.every(
         (text) =>
@@ -242,6 +280,8 @@ describe('PostgresDataStore', () => {
     // ADR 20：用户角色列 + 管理员发布目录表。
     expect(initTexts.some((text) => text.includes("ADD COLUMN IF NOT EXISTS role"))).toBe(true)
     expect(initTexts.some((text) => text.includes('ageha_app_catalog'))).toBe(true)
+    // 样本上传切片（DDS §8.6）：匿名样本复审表。
+    expect(initTexts.some((text) => text.includes('ageha_content_samples'))).toBe(true)
     await store.close()
     expect(pool.ended).toBe(true)
   })
@@ -394,5 +434,39 @@ describe('PostgresDataStore', () => {
   it('returns prune counts from rowCount', async () => {
     const pool = makeFakePool({ rowCount: 3 })
     expect(await new PostgresDataStore(pool).pruneExpiredSessions(1000)).toBe(3)
+  })
+
+  it('binds parameters for content sample writes and caps storage (样本上传切片)', async () => {
+    const pool = makeFakePool()
+    const store = new PostgresDataStore(pool)
+
+    await store.createContentSample({
+      id: 's1',
+      text: '参数化写入',
+      classification: 'ok',
+      createdAt: '2026-09-28T00:00:00.000Z',
+    })
+    expect(pool.queries[0]?.text).toContain('INSERT INTO ageha_content_samples')
+    expect(pool.queries[0]?.values).toEqual(['s1', '参数化写入', 'ok', '2026-09-28T00:00:00.000Z'])
+    // 容量封顶：超出 MAX_CONTENT_SAMPLES 的最旧样本被清除。
+    expect(pool.queries[1]?.text).toContain('DELETE FROM ageha_content_samples')
+    expect(pool.queries[1]?.text).toContain('OFFSET $1')
+    expect(pool.queries[1]?.values).toEqual([MAX_CONTENT_SAMPLES])
+
+    const listPool = makeFakePool({
+      rows: [
+        {
+          id: 's1',
+          text: '参数化写入',
+          classification: 'misleading',
+          created_at: '2026-09-28T00:00:00.000Z',
+        },
+      ],
+    })
+    const samples = await new PostgresDataStore(listPool).listContentSamples()
+    expect(listPool.queries[0]?.text).toContain('ORDER BY created_at DESC, id')
+    expect(samples).toEqual([
+      { id: 's1', text: '参数化写入', classification: 'misleading', createdAt: '2026-09-28T00:00:00.000Z' },
+    ])
   })
 })

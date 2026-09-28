@@ -1,11 +1,11 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 
 import { canonicalJson, REMOTE_CATALOG_APPS, validateCatalogApps } from '../remote-catalog'
 import type { RemoteCatalogApp, RemoteCatalogPayload } from '../remote-catalog'
-import { SESSION_COOKIE } from './auth'
 import { signPayload } from '../store-keys'
 import type { CatalogSigningKey } from '../store-keys'
 import type { DataStore } from '../store/types'
+import { requireAdmin } from './require-admin'
 
 export interface StoreRoutesOptions {
   signingKey: CatalogSigningKey
@@ -45,28 +45,6 @@ export async function storeRoutes(app: FastifyInstance, options: StoreRoutesOpti
     }
   }
 
-  const requireAdmin = async (
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ): Promise<boolean> => {
-    const token = request.cookies[SESSION_COOKIE]
-    if (!token) {
-      await reply.code(401).send({ error: 'not-authenticated' })
-      return false
-    }
-    const session = await store.findSession(token)
-    if (!session || session.expiresAt <= Date.now()) {
-      await reply.code(401).send({ error: 'not-authenticated' })
-      return false
-    }
-    const user = await store.findUserById(session.userId)
-    if (!user || user.role !== 'admin') {
-      await reply.code(403).send({ error: 'not-admin' })
-      return false
-    }
-    return true
-  }
-
   app.get('/store/catalog', async () => {
     const payload: RemoteCatalogPayload = {
       version: 1,
@@ -84,7 +62,7 @@ export async function storeRoutes(app: FastifyInstance, options: StoreRoutesOpti
   })
 
   app.get('/store/admin/catalog', async (request, reply) => {
-    if (!(await requireAdmin(request, reply))) return reply
+    if (!(await requireAdmin(store, request, reply))) return reply
     return reply.code(200).send({ apps: await effectiveApps() })
   })
 
@@ -92,7 +70,7 @@ export async function storeRoutes(app: FastifyInstance, options: StoreRoutesOpti
     '/store/admin/catalog',
     { schema: { body: CATALOG_BODY_SCHEMA } },
     async (request, reply) => {
-      if (!(await requireAdmin(request, reply))) return reply
+      if (!(await requireAdmin(store, request, reply))) return reply
       const { apps } = request.body as { apps: unknown }
       const validated = validateCatalogApps(apps)
       if (!validated) {

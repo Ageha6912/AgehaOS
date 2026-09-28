@@ -32,6 +32,21 @@ export class UsernameTakenError extends Error {
   }
 }
 
+/** Storage cap for reported samples; the oldest records are evicted. */
+export const MAX_CONTENT_SAMPLES = 500
+
+/**
+ * Content sample reported by a user for review (DDS §8.6): anonymous by
+ * design (no user/session linkage) and classified by the server-side
+ * classifier — `violation` text is rejected by the route and never persisted.
+ */
+export interface ContentSampleRecord {
+  id: string
+  text: string
+  classification: 'ok' | 'misleading' | 'discomfort'
+  createdAt: string
+}
+
 /**
  * Persistence boundary for the auth service. Implementations: memory
  * (tests/dev), file (default local dev, survives restarts) and postgres
@@ -63,4 +78,8 @@ export interface DataStore {
   getAppCatalog(): Promise<string | null>
   /** Replaces the published catalog (single JSON blob, validated by the route). */
   putAppCatalog(catalogJson: string): Promise<void>
+  /** Stores one reported sample (DDS §8.6); keeps newest MAX_CONTENT_SAMPLES. */
+  createContentSample(sample: ContentSampleRecord): Promise<void>
+  /** All stored samples, newest first (admin review listing). */
+  listContentSamples(): Promise<ContentSampleRecord[]>
 }

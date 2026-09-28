@@ -1,7 +1,7 @@
 import type { PoolClient, QueryResult } from 'pg'
 
-import type { DataStore, SessionRecord, UserRecord } from './types'
-import { UsernameTakenError } from './types'
+import type { ContentSampleRecord, DataStore, SessionRecord, UserRecord } from './types'
+import { MAX_CONTENT_SAMPLES, UsernameTakenError } from './types'
 
 /** Minimal pool surface so tests can inject a fake. */
 export interface PgPoolLike {
@@ -48,6 +48,14 @@ const SCHEMA_MIGRATIONS = [
   `ALTER TABLE ageha_sync DROP CONSTRAINT IF EXISTS ageha_sync_pkey`,
   `ALTER TABLE ageha_sync ADD COLUMN IF NOT EXISTS domain TEXT NOT NULL DEFAULT 'settings'`,
   `CREATE UNIQUE INDEX IF NOT EXISTS ageha_sync_user_domain_idx ON ageha_sync (user_id, domain)`,
+  // 2026-09 (样本上传切片, DDS §8.6): anonymous reported content samples for
+  // admin review. No user reference by design (privacy minimization).
+  `CREATE TABLE IF NOT EXISTS ageha_content_samples (
+     id TEXT PRIMARY KEY,
+     text TEXT NOT NULL,
+     classification TEXT NOT NULL,
+     created_at TIMESTAMPTZ NOT NULL
+   )`,
 ]
 
 const UNIQUE_VIOLATION = '23505'
@@ -194,6 +202,27 @@ export class PostgresDataStore implements DataStore {
       [catalogJson, new Date().toISOString()],
     )
   }
+
+  async createContentSample(sample: ContentSampleRecord): Promise<void> {
+    await this.pool.query(
+      'INSERT INTO ageha_content_samples (id, text, classification, created_at) VALUES ($1, $2, $3, $4)',
+      [sample.id, sample.text, sample.classification, sample.createdAt],
+    )
+    await this.pool.query(
+      `DELETE FROM ageha_content_samples
+       WHERE id IN (
+         SELECT id FROM ageha_content_samples ORDER BY created_at DESC, id OFFSET $1
+       )`,
+      [MAX_CONTENT_SAMPLES],
+    )
+  }
+
+  async listContentSamples(): Promise<ContentSampleRecord[]> {
+    const result = await this.pool.query(
+      'SELECT id, text, classification, created_at FROM ageha_content_samples ORDER BY created_at DESC, id',
+    )
+    return result.rows.map(rowToContentSample)
+  }
 }
 
 function rowToUser(row: Record<string, unknown>): UserRecord {
@@ -232,6 +261,15 @@ function rowToSession(row: Record<string, unknown>): SessionRecord {
     session.device = String(row.device)
   }
   return session
+}
+
+function rowToContentSample(row: Record<string, unknown>): ContentSampleRecord {
+  return {
+    id: String(row.id),
+    text: String(row.text),
+    classification: String(row.classification) as ContentSampleRecord['classification'],
+    createdAt: new Date(row.created_at as string).toISOString(),
+  }
 }
 
 function isPgError(cause: unknown, code: string): cause is { code: string } {

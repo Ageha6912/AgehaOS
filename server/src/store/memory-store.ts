@@ -1,5 +1,5 @@
-import type { DataStore, SessionRecord, UserRecord } from './types'
-import { UsernameTakenError } from './types'
+import type { ContentSampleRecord, DataStore, SessionRecord, UserRecord } from './types'
+import { MAX_CONTENT_SAMPLES, UsernameTakenError } from './types'
 
 /** In-memory store: unit tests and throwaway dev runs. */
 export class MemoryDataStore implements DataStore {
@@ -7,6 +7,7 @@ export class MemoryDataStore implements DataStore {
   private sessions = new Map<string, SessionRecord>()
   private syncData = new Map<string, Map<string, { data: string; updatedAt: string }>>()
   private appCatalog: string | null = null
+  private contentSamples: ContentSampleRecord[] = []
 
   async init(): Promise<void> {}
 
@@ -95,5 +96,13 @@ export class MemoryDataStore implements DataStore {
 
   async putAppCatalog(catalogJson: string): Promise<void> {
     this.appCatalog = catalogJson
+  }
+
+  async createContentSample(sample: ContentSampleRecord): Promise<void> {
+    this.contentSamples = [sample, ...this.contentSamples].slice(0, MAX_CONTENT_SAMPLES)
+  }
+
+  async listContentSamples(): Promise<ContentSampleRecord[]> {
+    return [...this.contentSamples]
   }
 }

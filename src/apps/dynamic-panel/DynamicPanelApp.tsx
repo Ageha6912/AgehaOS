@@ -18,8 +18,11 @@ import { buildLayoutSuggestion } from '@/core/dynamic/layout/engine'
 import type { LayoutSuggestion } from '@/core/dynamic/layout/engine'
 import { fieldCompositionById } from '@/core/dynamic/generative/gradient-field'
 import { banContent, getCachedAiSlots, requestAiSlots } from '@/core/dynamic/llm/client'
+import { isRemoteAuthActive } from '@/core/auth/provider'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { useAppStore } from '@/store/app-store'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
+import { useNotificationStore } from '@/store/notification-store'
 
 /**
  * AI 内容面板（DDS §5.1 域③、§5.5，Phase B 本地切片）：
@@ -52,6 +55,9 @@ export function DynamicPanelApp() {
   const [enhancedTipId, setEnhancedTipId] = useState<string | null>(null)
   const [enhancedTipText, setEnhancedTipText] = useState<string | null>(null)
   const [enhanceSource, setEnhanceSource] = useState<'local' | 'llm' | 'cache'>('local')
+  /** §8.6 样本上传：举报后待用户显式同意的内容文本（null = 无待同意样本）。 */
+  const [pendingSample, setPendingSample] = useState<string | null>(null)
+  const [uploadBusy, setUploadBusy] = useState(false)
   const aliveRef = useRef(true)
 
   useEffect(() => {
@@ -145,6 +151,30 @@ export function DynamicPanelApp() {
     apps.find((app) => app.id === appId)?.name ?? appId
 
   const appliedId = appliedLayout?.layoutId ?? null
+
+  // §8.6：仅在远程模式提供上传（纯本地模式没有可上传的服务端）；匿名上报，
+  // 失败经通知中心透明告知。撤销/失败都不影响已完成的本机撤下。
+  const submitSample = useCallback(async (text: string) => {
+    setUploadBusy(true)
+    try {
+      const response = await fetch('/api/dynamic/samples', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      if (!response.ok) throw new Error(`sample-http-${response.status}`)
+      setPendingSample(null)
+    } catch {
+      setPendingSample(null)
+      useNotificationStore.getState().push({
+        appId: PANEL_ID,
+        titleKey: 'cards.tip.uploadFailedTitle',
+        bodyKey: 'cards.tip.uploadFailedBody',
+      })
+    } finally {
+      setUploadBusy(false)
+    }
+  }, [])
 
   return (
     <div className="surface-panel flex h-full flex-col text-sm">
@@ -271,12 +301,14 @@ export function DynamicPanelApp() {
                       data-testid="panel-tip-report"
                       className="mt-1 text-[11px] text-text-muted underline hover:text-text"
                       onClick={() => {
-                        // §8.6：立即撤下 + 会话内封禁；样本上传待基础设施（不经确认不上传）。
+                        // §8.6：立即撤下 + 会话内封禁；上传仅在用户随后于
+                        // 确认框中显式同意后发生（不经确认不上传）。
                         banContent(enhancedTipText ?? '')
                         setEnhancedTipText(null)
                         setEnhancedTipId(null)
                         setEnhanceSource('local')
                         systemBus.emit('ai.content.blocked', { panelId: PANEL_ID, reason: 'reported' })
+                        if (isRemoteAuthActive()) setPendingSample(enhancedTipText ?? '')
                       }}
                     >
                       {t('cards.tip.report')}
@@ -292,6 +324,18 @@ export function DynamicPanelApp() {
           </li>
         ))}
       </ul>
+
+      {pendingSample !== null && (
+        <ConfirmDialog
+          title={t('cards.tip.reportDialog.title')}
+          body={t('cards.tip.reportDialog.body')}
+          confirmLabel={t('cards.tip.reportDialog.confirm')}
+          cancelLabel={t('cards.tip.reportDialog.cancel')}
+          busy={uploadBusy}
+          onConfirm={() => void submitSample(pendingSample)}
+          onCancel={() => setPendingSample(null)}
+        />
+      )}
 
       <p className="border-t border-border px-4 py-2 font-mono text-[11px] text-text-muted" data-testid="panel-decision-source">
         {t('cards.panel.decisionBy')} {t(SOURCE_KEYS[enhanceSource])}

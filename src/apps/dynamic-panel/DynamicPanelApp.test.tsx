@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { systemBus } from '@/core/events'
 import { resetAppStore } from '@/store/app-store'
@@ -7,6 +7,7 @@ import {
   resetDynamicDesktopStore,
   useDynamicDesktopStore,
 } from '@/store/dynamic-desktop-store'
+import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
 import { resetSettingsStore } from '@/store/settings-store'
 
 import { DynamicPanelApp } from './DynamicPanelApp'
@@ -18,6 +19,17 @@ vi.mock('@/core/dynamic/llm/client', async (importOriginal) => {
   return {
     ...actual,
     requestAiSlots: (...args: unknown[]) => requestAiSlots(...args),
+  }
+})
+
+// 样本上传确认框仅远程模式提供（§8.6）；本地模式保持纯本机撤下。
+const remoteAuth = vi.hoisted(() => ({ active: false }))
+
+vi.mock('@/core/auth/provider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/core/auth/provider')>()
+  return {
+    ...actual,
+    isRemoteAuthActive: () => remoteAuth.active,
   }
 })
 
@@ -34,7 +46,13 @@ beforeEach(() => {
   resetAppStore()
   resetDynamicDesktopStore()
   resetSettingsStore()
+  resetNotificationStore()
+  remoteAuth.active = false
   requestAiSlots.mockReset()
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
@@ -207,5 +225,84 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
     expect(blockedSpy).toHaveBeenCalledWith({ panelId: 'com.ageha.dynamic.panel', reason: 'reported' })
     // 封禁后同一文本不再被接受。
     expect(client.isContentBanned('今天适合把窗口排成两列，效率更高。')).toBe(true)
+    // 本地模式：不弹同意框、不发上传请求（§8.6 不经确认不上传）。
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  describe('样本上传确认框（§8.6，仅远程模式）', () => {
+    const SAMPLE_TEXT = '今天适合把窗口排成两列，效率更高。'
+
+    function enableFreeTextTip(): void {
+      useDynamicDesktopStore.setState({
+        prefs: {
+          enabled: true,
+          randomness: 40,
+          hideBadge: false,
+          pinned: null,
+          blockedStyles: [],
+          llmEnhance: true,
+        },
+      })
+      requestAiSlots.mockResolvedValue([{ slotId: 'tip', text: SAMPLE_TEXT }])
+    }
+
+    async function reportFreeText(): Promise<void> {
+      render(<DynamicPanelApp />)
+      await waitFor(() =>
+        expect(screen.getByTestId('panel-tip-body').textContent).toContain('两列'),
+      )
+      fireEvent.click(screen.getByTestId('panel-tip-report'))
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    }
+
+    it('asks for consent in remote mode and uploads anonymously on confirm', async () => {
+      remoteAuth.active = true
+      enableFreeTextTip()
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 201 })
+      vi.stubGlobal('fetch', fetchMock)
+
+      await reportFreeText()
+      fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/dynamic/samples',
+        expect.objectContaining({ method: 'POST' }),
+      )
+      expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as { body: string }).body)).toEqual({
+        text: SAMPLE_TEXT,
+      })
+    })
+
+    it('cancel keeps the takedown local and never sends a request', async () => {
+      remoteAuth.active = true
+      enableFreeTextTip()
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const client = await import('@/core/dynamic/llm/client')
+      client.resetAiSessionState()
+
+      await reportFreeText()
+      fireEvent.click(screen.getByTestId('confirm-dialog-cancel'))
+
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+      // 撤下与封禁语义不受选择影响。
+      expect(client.isContentBanned(SAMPLE_TEXT)).toBe(true)
+    })
+
+    it('notifies transparently when the upload fails or is rejected', async () => {
+      remoteAuth.active = true
+      enableFreeTextTip()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 422 }))
+
+      await reportFreeText()
+      fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      const items = useNotificationStore.getState().items
+      expect(items[0]?.titleKey).toBe('cards.tip.uploadFailedTitle')
+      expect(items[0]?.bodyKey).toBe('cards.tip.uploadFailedBody')
+    })
   })
 })
