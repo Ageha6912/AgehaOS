@@ -1,7 +1,7 @@
+import { FIELD_ENGINE_VERSION } from './gradient-field'
 import { mulberry32 } from './seed'
 import { paletteById } from './palettes'
 import { DENSITY_LEVELS, type Composition, type PlanShape, type WallpaperPlan, type WallpaperStyle } from '../types'
-import { PHOTO_CATALOG_VERSION } from '../photos/catalog'
 
 /** 生成器版本（§4.3：升级递增，旧三元组结果仍可复现）。v2 = 山水引擎进场。 */
 export const GENERATOR_VERSION = 2
@@ -264,24 +264,24 @@ export function buildWallpaperPlan(params: {
  * 照片壁纸计划（Phase A.6）：位图不进图元空间（shapes 恒空），渲染层以
  * `<img>` cover 呈现目录条目；种子仍参与采样决策的确定性寻址。
  */
-export function buildPhotoPlan(params: {
+export function buildFieldPlan(params: {
   seed: string
-  photoId: string
+  fieldId: string
   zone: WallpaperPlan['zone']
   reason: WallpaperPlan['reason']
 }): WallpaperPlan {
   return {
     seed: params.seed,
-    generatorVersion: PHOTO_CATALOG_VERSION,
-    templateId: 'photo',
-    style: 'photo',
-    paletteId: 'photo',
+    generatorVersion: FIELD_ENGINE_VERSION,
+    templateId: 'gradient-field',
+    style: 'gradient-field',
+    paletteId: 'gradient-field',
     compositionId: COMPOSITIONS[0].id,
     density: DENSITY_LEVELS[0],
     shapes: [],
     animation: { kind: 'none', flickerPerSec: 0 },
     reason: params.reason,
     zone: params.zone,
-    photoId: params.photoId,
+    fieldId: params.fieldId,
   }
 }

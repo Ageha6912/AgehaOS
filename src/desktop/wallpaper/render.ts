@@ -1,4 +1,5 @@
 import { STATIC_GRADIENT_STOPS } from '@/core/dynamic/generative/fallbacks'
+import { drawGradientField, fieldCompositionById } from '@/core/dynamic/generative/gradient-field'
 import { paletteById } from '@/core/dynamic/generative/palettes'
 import { COMPOSITIONS } from '@/core/dynamic/generative/templates'
 import { mulberry32 } from '@/core/dynamic/generative/seed'
@@ -230,6 +231,12 @@ export function drawPlan(
 
   const targetFps = TIER_TARGET_FPS[options.tier]
   if (!options.animate || targetFps <= 0 || plan.animation.kind === 'none') {
+    if (plan.style === 'gradient-field') {
+      const composition =
+        plan.fieldId !== undefined ? fieldCompositionById(plan.fieldId) : undefined
+      if (composition) drawGradientField(ctx, canvas.width, canvas.height, composition, plan.seed)
+      return () => undefined
+    }
     paintFrame(ctx, canvas.width, canvas.height, plan, 0)
     return () => undefined
   }

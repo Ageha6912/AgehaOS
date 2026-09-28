@@ -140,7 +140,8 @@ describe('Desktop × dynamic wallpaper (验收 ⑨)', () => {
     render(<Desktop />)
 
     expect(screen.getByTestId('wallpaper-layer')).toBeInTheDocument()
-    expect(screen.getByTestId('ai-badge')).toBeInTheDocument()
+    // 2026-09-27 裁决：生成式壁纸不显示 AI 徽标。
+    expect(screen.queryByTestId('ai-badge')).toBeNull()
   })
 
   it('unmounts the wallpaper layer again when the user switches the feature off', () => {

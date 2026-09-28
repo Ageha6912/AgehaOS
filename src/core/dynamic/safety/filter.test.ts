@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildPhotoPlan, buildWallpaperPlan, COMPOSITIONS } from '../generative/templates'
+import { buildFieldPlan, buildWallpaperPlan, COMPOSITIONS } from '../generative/templates'
 import { safetyFilter, validatePlanSchema } from './filter'
 import type { WallpaperPlan } from '../types'
 
@@ -54,35 +54,35 @@ describe('safety filter (§8.4，铁律 7)', () => {
   })
 })
 
-describe('photo plan schema (Phase A.6 照片域)', () => {
-  it('allows a photo plan whose photoId is in the catalog', () => {
-    const plan = buildPhotoPlan({
+describe('gradient-field plan schema (2026-09-27 生成域)', () => {
+  it('allows a gradient-field plan whose fieldId is in the catalog', () => {
+    const plan = buildFieldPlan({
       seed: 's',
-      photoId: 'yamzho-yumco',
+      fieldId: 'dawn-white',
       zone: 'converge',
-      reason: { signals: [], palette: 'yamzho-yumco', motif: 'photo' },
+      reason: { signals: [], palette: 'dawn-white', motif: 'gradient-field' },
     })
     expect(safetyFilter({ plan, blockedStyles: [] })).toEqual({ allowed: true })
   })
 
-  it('rejects a photo plan with an unknown photoId at the schema gate', () => {
-    const plan = buildPhotoPlan({
+  it('rejects a gradient-field plan with an unknown fieldId at the schema gate', () => {
+    const plan = buildFieldPlan({
       seed: 's',
-      photoId: 'no-such-photo',
+      fieldId: 'no-such-field',
       zone: 'converge',
-      reason: { signals: [], palette: 'no-such-photo', motif: 'photo' },
+      reason: { signals: [], palette: 'no-such-field', motif: 'gradient-field' },
     })
-    expect(validatePlanSchema(plan)).toMatch(/unknown photo/)
+    expect(validatePlanSchema(plan)).toMatch(/unknown field composition/)
     expect(safetyFilter({ plan, blockedStyles: [] }).reason).toBe('schema')
   })
 
-  it('blocks the photo style via the style blocklist like any other style', () => {
-    const plan = buildPhotoPlan({
+  it('blocks the gradient-field style via the style blocklist like any other style', () => {
+    const plan = buildFieldPlan({
       seed: 's',
-      photoId: 'yamzho-yumco',
+      fieldId: 'dawn-white',
       zone: 'converge',
-      reason: { signals: [], palette: 'yamzho-yumco', motif: 'photo' },
+      reason: { signals: [], palette: 'dawn-white', motif: 'gradient-field' },
     })
-    expect(safetyFilter({ plan, blockedStyles: ['photo'] }).reason).toBe('blocked-style')
+    expect(safetyFilter({ plan, blockedStyles: ['gradient-field'] }).reason).toBe('blocked-style')
   })
 })

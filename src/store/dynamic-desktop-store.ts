@@ -70,7 +70,7 @@ interface DynamicDesktopState {
   history: HistoryEntry[]
   recentStyles: WallpaperStyle[]
   /** 最近应用的照片 id（会话级，照片域防短期重复）。 */
-  recentPhotoIds: string[]
+  recentFieldIds: string[]
   generationOrdinal: number
   lastGenerateAt: number
   generating: boolean
@@ -224,7 +224,7 @@ export const useDynamicDesktopStore = create<DynamicDesktopState>()((set, get) =
   tier: 'mid',
   history: [],
   recentStyles: [],
-  recentPhotoIds: [],
+  recentFieldIds: [],
   generationOrdinal: 1,
   lastGenerateAt: 0,
   generating: false,
@@ -239,7 +239,7 @@ export const useDynamicDesktopStore = create<DynamicDesktopState>()((set, get) =
         profile: emptyProfile(),
         currentPlan: null,
         generating: false,
-        recentPhotoIds: [],
+        recentFieldIds: [],
         layoutSuggestion: null,
         appliedLayout: null,
       })
@@ -347,9 +347,9 @@ export const useDynamicDesktopStore = create<DynamicDesktopState>()((set, get) =
       generating: false,
       generationOrdinal: state.generationOrdinal + 1,
       recentStyles: [...state.recentStyles, outcome.plan.style].slice(-10),
-      recentPhotoIds: outcome.plan.photoId
-        ? [...state.recentPhotoIds, outcome.plan.photoId].slice(-6)
-        : state.recentPhotoIds,
+      recentFieldIds: outcome.plan.fieldId
+        ? [...state.recentFieldIds, outcome.plan.fieldId].slice(-6)
+        : state.recentFieldIds,
       history: [...state.history, entry].slice(-30),
       // 手动「换一张」是轻负向反馈（§10.2：−1.5）。
       profile:
@@ -377,7 +377,7 @@ export const useDynamicDesktopStore = create<DynamicDesktopState>()((set, get) =
       lastDecisionSource: null,
       generating: false,
       recentStyles: [],
-      recentPhotoIds: [],
+      recentFieldIds: [],
       generationOrdinal: 1,
       layoutSuggestion: null,
       appliedLayout: null,
@@ -400,7 +400,7 @@ export const useDynamicDesktopStore = create<DynamicDesktopState>()((set, get) =
       lastDecisionSource: null,
       history: [],
       recentStyles: [],
-      recentPhotoIds: [],
+      recentFieldIds: [],
       generationOrdinal: 1,
       layoutSuggestion: null,
       appliedLayout: null,
@@ -435,7 +435,7 @@ export function resetDynamicDesktopStore(): void {
     tier: 'mid',
     history: [],
     recentStyles: [],
-    recentPhotoIds: [],
+    recentFieldIds: [],
     generationOrdinal: 1,
     lastGenerateAt: 0,
     generating: false,

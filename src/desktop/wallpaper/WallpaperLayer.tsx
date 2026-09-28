@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { useTranslation } from '@/core/i18n'
 import { systemBus } from '@/core/events'
 import type { WallpaperPlan } from '@/core/dynamic/types'
-import { photoById } from '@/core/dynamic/photos/catalog'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useWallpaperParallax } from '@/desktop/motion/use-wallpaper-parallax'
@@ -30,9 +28,6 @@ function prefersReducedMotion(): boolean {
 export function WallpaperLayer() {
   const plan = useDynamicDesktopStore((s) => s.currentPlan)
   const tier = useDynamicDesktopStore((s) => s.tier)
-  const hideBadge = useDynamicDesktopStore((s) => s.prefs.hideBadge)
-  const pinned = useDynamicDesktopStore((s) => s.prefs.pinned)
-  const { t } = useTranslation()
 
   const [front, setFront] = useState<WallpaperPlan | null>(plan)
   const [back, setBack] = useState<WallpaperPlan | null>(null)
@@ -69,12 +64,7 @@ export function WallpaperLayer() {
     }
   }, [fading, back])
 
-  // 照片计划不显示「AI 生成」徽标：照片是人类摄影师的作品，AI 只参与自动选片，
-  // 「由 AI 生成」的声明对真实照片不成立（DDS 透明性徽标仅针对 AI 生成内容）。
-  const showBadge =
-    plan !== null && !pinned && !hideBadge && plan.style !== 'photo'
-  const badgePlan = pinned ? null : plan
-
+  // 「AI 生成」徽标随照片域退役（2026-09-27 用户裁决：生成式壁纸不显示徽标）。
   return (
     <div className="absolute inset-0" data-testid="wallpaper-layer">
       {front && <WallpaperSurface plan={front} tier={tier} active={back === null} />}
@@ -91,17 +81,6 @@ export function WallpaperLayer() {
           <WallpaperSurface plan={back} tier={tier} active />
         </div>
       )}
-      {showBadge && badgePlan && (
-        <div
-          data-testid="ai-badge"
-          title={`${t('dynamicDesktop.badgeTitle')} · ${t(
-            `dynamicDesktop.style.${badgePlan.style}` as 'dynamicDesktop.style.fluid-gradient',
-          )}`}
-          className="absolute bottom-14 right-3 z-10 rounded-full border border-border/60 bg-surface/70 px-2.5 py-1 text-[10px] text-text-muted backdrop-blur-sm"
-        >
-          ✦ {t('dynamicDesktop.badgeLabel')}
-        </div>
-      )}
     </div>
   )
 }
@@ -116,11 +95,10 @@ function WallpaperSurface({
   active: boolean
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const photoRef = useRef<HTMLImageElement | null>(null)
   const parallax = useMotionPrefsStore((s) => s.parallax)
   // 照片位图单层视差（DESIGN.md §15）：仅照片计划启用；非激活层（交叉淡入
   // 的下层）不参与，避免双层错位。
-  useWallpaperParallax(photoRef, parallax && active)
+  useWallpaperParallax(canvasRef, parallax && active)
   const [supportsCanvas] = useState(() => {
     try {
       return typeof document !== 'undefined' && document.createElement('canvas').getContext('2d') !== null
@@ -129,19 +107,10 @@ function WallpaperSurface({
     }
   })
   const reduced = useRef(prefersReducedMotion())
-  // 照片加载失败 → 本会话内回落渐变（失败事件转「壁纸失败」通知），换照片时重置。
-  const [photoFailed, setPhotoFailed] = useState(false)
-  const [renderedPhotoId, setRenderedPhotoId] = useState(plan.photoId)
-  if (plan.photoId !== renderedPhotoId) {
-    setRenderedPhotoId(plan.photoId)
-    setPhotoFailed(false)
-  }
-
-  const photo = plan.style === 'photo' && plan.photoId !== undefined ? photoById(plan.photoId) : undefined
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !supportsCanvas || !active || photo) return
+    if (!canvas || !supportsCanvas || !active) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     const stop = drawPlan(canvas, ctx, plan, {
@@ -152,38 +121,7 @@ function WallpaperSurface({
       },
     })
     return stop
-  }, [plan, tier, active, supportsCanvas, photo])
-
-  if (plan.style === 'photo') {
-    if (photo && !photoFailed) {
-      return (
-        <img
-          ref={photoRef}
-          src={photo.src}
-          alt=""
-          draggable={false}
-          data-testid="wallpaper-surface-photo"
-          className="absolute inset-0 h-full w-full select-none object-cover"
-          onError={() => {
-            setPhotoFailed(true)
-            systemBus.emit('desktop.generation.failed', {
-              seed: plan.seed,
-              stage: 'gate',
-              reason: `photo image unavailable: ${plan.photoId}`,
-            })
-          }}
-        />
-      )
-    }
-    // 目录条目缺失/加载失败：回落静态渐变（paletteId 'photo' 无调色板 → 主题中性渐变）。
-    return (
-      <div
-        className="absolute inset-0"
-        style={{ background: cssGradient(plan) }}
-        data-testid="wallpaper-surface-photo-fallback"
-      />
-    )
-  }
+  }, [plan, tier, active, supportsCanvas])
 
   if (!supportsCanvas) {
     return (

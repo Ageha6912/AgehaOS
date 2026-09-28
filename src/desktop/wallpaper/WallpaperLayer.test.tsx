@@ -1,9 +1,8 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { buildPhotoPlan, buildWallpaperPlan, COMPOSITIONS } from '@/core/dynamic/generative/templates'
+import { buildFieldPlan, buildWallpaperPlan, COMPOSITIONS } from '@/core/dynamic/generative/templates'
 import type { WallpaperPlan } from '@/core/dynamic/types'
-import { systemBus } from '@/core/events'
 import { resetDynamicDesktopStore, useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
 import { WallpaperLayer } from './WallpaperLayer'
@@ -88,10 +87,10 @@ describe('WallpaperLayer (§4.5，验收 ⑧)', () => {
     expect(screen.getByTestId('wallpaper-surface-css').style.background).not.toContain(RGB.nebulaDeep)
   })
 
-  it('shows the AI badge while unpinned and hides it when pinned (铁律 1/4)', () => {
+  it('never shows the AI badge (2026-09-27 裁决：生成式壁纸不显示徽标)', () => {
     useDynamicDesktopStore.setState({ currentPlan: PLAN_A })
     render(<WallpaperLayer />)
-    expect(screen.getByTestId('ai-badge')).toBeInTheDocument()
+    expect(screen.queryByTestId('ai-badge')).toBeNull()
 
     act(() => {
       resetDynamicDesktopStore()
@@ -113,64 +112,40 @@ describe('WallpaperLayer (§4.5，验收 ⑧)', () => {
   })
 })
 
-describe('WallpaperLayer photo surfaces (Phase A.6 照片域)', () => {
-  function photoPlan(seed: string, photoId: string): WallpaperPlan {
-    return buildPhotoPlan({
+describe('WallpaperLayer gradient-field surfaces (2026-09-27 生成域)', () => {
+  function fieldPlan(seed: string, fieldId: string): WallpaperPlan {
+    return buildFieldPlan({
       seed,
-      photoId,
+      fieldId,
       zone: 'converge',
-      reason: { signals: ['theme:light'], palette: photoId, motif: 'photo' },
+      reason: { signals: ['theme:light'], palette: fieldId, motif: 'gradient-field' },
     })
   }
 
-  it('renders a photo plan as an <img> surface with the catalog src (never canvas)', () => {
-    useDynamicDesktopStore.setState({ currentPlan: photoPlan('p1', 'yamzho-yumco') })
-    render(<WallpaperLayer />)
+  it('renders a gradient-field plan with the canvas or css fallback surface (照片面已退役)', () => {
+    // jsdom 无 2d context → 走 CSS 回退分支；canvas 分支由浏览器烟雾覆盖。
+    useDynamicDesktopStore.setState({ currentPlan: fieldPlan('p1', 'dawn-white') })
+    const { container } = render(<WallpaperLayer />)
 
-    const img = screen.getByTestId('wallpaper-surface-photo')
-    expect(img.getAttribute('src')).toBe('/wallpapers/landscapes/yamzho-yumco.jpg')
-    expect(screen.queryByTestId('wallpaper-surface-canvas')).toBeNull()
+    const canvas = container.querySelector('[data-testid="wallpaper-surface-canvas"]')
+    const css = container.querySelector('[data-testid="wallpaper-surface-css"]')
+    expect(canvas !== null || css !== null).toBe(true)
+    expect(container.querySelector('[data-testid="wallpaper-surface-photo"]')).toBeNull()
+    expect(container.querySelector('[data-testid="wallpaper-surface-photo-fallback"]')).toBeNull()
   })
 
-  it('falls back to a gradient and reports the failure when the photo errors', () => {
-    const reasons: string[] = []
-    const off = systemBus.on('desktop.generation.failed', (payload) => reasons.push(payload.reason))
-    useDynamicDesktopStore.setState({ currentPlan: photoPlan('p1', 'yamzho-yumco') })
-    render(<WallpaperLayer />)
+  it('keeps the surface mounted across plan transitions of the same style', () => {
+    useDynamicDesktopStore.setState({ currentPlan: fieldPlan('p1', 'dawn-white') })
+    const { container } = render(<WallpaperLayer />)
 
-    fireEvent.error(screen.getByTestId('wallpaper-surface-photo'))
-
-    expect(screen.getByTestId('wallpaper-surface-photo-fallback')).toBeTruthy()
-    expect(reasons).toHaveLength(1)
-    expect(reasons[0]).toContain('yamzho-yumco')
-    off()
-  })
-
-  it('recovers with the next photo plan after a failure', () => {
-    useDynamicDesktopStore.setState({ currentPlan: photoPlan('p1', 'yamzho-yumco') })
-    render(<WallpaperLayer />)
-    fireEvent.error(screen.getByTestId('wallpaper-surface-photo'))
-    expect(screen.queryByTestId('wallpaper-surface-photo')).toBeNull()
-
-    act(() => useDynamicDesktopStore.setState({ currentPlan: photoPlan('p2', 'braies-dock') }))
+    act(() => useDynamicDesktopStore.setState({ currentPlan: fieldPlan('p2', 'night-veil') }))
     act(() => vi.advanceTimersByTime(700))
 
-    const img = screen.getByTestId('wallpaper-surface-photo')
-    expect(img.getAttribute('src')).toBe('/wallpapers/landscapes/braies-dock.jpg')
-  })
-})
-
-describe('WallpaperLayer photo badge semantics (Phase A.6)', () => {
-  it('hides the AI badge on photo plans (照片非 AI 生成，声明不成立)', () => {
-    useDynamicDesktopStore.setState({
-      currentPlan: buildPhotoPlan({
-        seed: 'p1',
-        photoId: 'yamzho-yumco',
-        zone: 'converge',
-        reason: { signals: [], palette: 'yamzho-yumco', motif: 'photo' },
-      }),
-    })
-    render(<WallpaperLayer />)
-    expect(screen.queryByTestId('ai-badge')).toBeNull()
+    expect(
+      container.querySelector(
+        '[data-testid="wallpaper-surface-canvas"], [data-testid="wallpaper-surface-css"]',
+      ),
+    ).not.toBeNull()
+    expect(useDynamicDesktopStore.getState().currentPlan?.fieldId).toBe('night-veil')
   })
 })

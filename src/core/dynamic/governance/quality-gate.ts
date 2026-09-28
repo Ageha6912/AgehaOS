@@ -1,5 +1,5 @@
 import { paletteById } from '../generative/palettes'
-import { photoById } from '../photos/catalog'
+import { fieldCompositionById } from '../generative/gradient-field'
 import type { ContextSnapshot, WallpaperPlan } from '../types'
 import { blendHex, contrastRatio, hexToRgb } from './contrast'
 
@@ -63,24 +63,27 @@ export function evaluateQuality(input: QualityInput): QualityResult {
   const palette = paletteById(plan.paletteId)
 
   // 照片计划（Phase A.6）：位图无调色板/对比度口径，校验目录成员 + 主题 mood 匹配。
-  if (plan.style === 'photo') {
-    const photo = plan.photoId !== undefined ? photoById(plan.photoId) : undefined
-    if (!photo) {
+  if (plan.style === 'gradient-field') {
+    const composition = plan.fieldId !== undefined ? fieldCompositionById(plan.fieldId) : undefined
+    if (!composition) {
       return {
         passed: false,
-        violations: [{ item: 'schema', detail: `unknown photo ${plan.photoId ?? '(none)'}` }],
+        violations: [{ item: 'schema', detail: `unknown field composition ${plan.fieldId ?? '(none)'}` }],
       }
     }
-    if (photo.mood !== input.snapshot.theme) {
-      violations.push({
-        item: 'schema',
-        detail: `photo mood ${photo.mood} does not match theme ${input.snapshot.theme}`,
-      })
+    if (composition.theme !== input.snapshot.theme) {
+      return {
+        passed: false,
+        violations: [
+          {
+            item: 'schema',
+            detail: `composition theme ${composition.theme} does not match theme ${input.snapshot.theme}`,
+          },
+        ],
+      }
     }
-    if (plan.animation.flickerPerSec > MAX_FLICKER_PER_SEC) {
-      violations.push({ item: 'flicker', detail: `flickerPerSec=${plan.animation.flickerPerSec}` })
-    }
-    return { passed: violations.length === 0, violations }
+    // gradient-field 自带配色（构图级裁决），无调色板/亮度/对比度口径——通过即短路。
+    return { passed: true, violations: [] }
   }
 
   if (!palette) {

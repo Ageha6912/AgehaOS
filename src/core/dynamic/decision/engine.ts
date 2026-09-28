@@ -1,7 +1,10 @@
-import { buildPhotoPlan, buildWallpaperPlan, COMPOSITIONS } from '../generative/templates'
+import { buildFieldPlan, buildWallpaperPlan, COMPOSITIONS } from '../generative/templates'
 import { compatiblePalettes } from '../generative/palettes'
 import { deriveDomainSeed, mulberry32 } from '../generative/seed'
-import { PHOTO_CATALOG, photosForTheme } from '../photos/catalog'
+import {
+  FIELD_COMPOSITIONS,
+  fieldCompositionsForTheme,
+} from '../generative/gradient-field'
 import type {
   ContextSnapshot,
   PreferenceProfile,
@@ -13,10 +16,11 @@ import { DENSITY_LEVELS, WALLPAPER_STYLES } from '../types'
 import { EPSILON_BY_STAGE, stageForProfile } from '../feedback/epsilon'
 
 /**
- * 当前启用风格域（Phase A.6 裁决）：用户裁决「要真实风景照片」——程序化山水退出
- * 采样域（代码保留，旧计划重放仍可渲染，与 abstract 退出时同规）。新风格进域只需在此登记。
+ * 当前启用风格域（2026-09-27 裁决）：「不要风景图了，参照 macOS 自行设计与现有
+ * 主题相关的壁纸」——照片域整体移除，gradient-field（macOS 风分层渐变色场）进场；
+ * 山水/abstract 代码保留供旧计划重放。新风格进域只需在此登记。
  */
-export const ACTIVE_STYLES: readonly WallpaperStyle[] = ['photo']
+export const ACTIVE_STYLES: readonly WallpaperStyle[] = ['gradient-field']
 
 /**
  * 规则引擎（设计文档 §4.2、§6.3、§6.4）：纯函数，P95 ≤10ms 预算（§7.2）。
@@ -141,17 +145,18 @@ function pickPalette(
 }
 
 /**
- * 照片采样（Phase A.6）：按主题取 mood 匹配池，优先排除最近用过的照片
+ * 构图采样（gradient-field）：按主题取匹配池，优先排除最近用过的构图
  * （finite 池防短期重复；排除后为空则放开）。种子驱动均匀采样。
  */
-export function pickPhotoId(
+export function pickFieldId(
   theme: ContextSnapshot['theme'],
-  recentPhotoIds: readonly string[],
+  recentFieldIds: readonly string[],
   rng: () => number,
 ): string {
-  const themePool = photosForTheme(theme)
-  const fresh = themePool.filter((photo) => !recentPhotoIds.includes(photo.id))
-  const pool = fresh.length > 0 ? fresh : themePool.length > 0 ? themePool : PHOTO_CATALOG
+  const themePool = fieldCompositionsForTheme(theme)
+  const fresh = themePool.filter((composition) => !recentFieldIds.includes(composition.id))
+  const pool =
+    fresh.length > 0 ? fresh : themePool.length > 0 ? themePool : FIELD_COMPOSITIONS
   return (pool[Math.floor(rng() * pool.length)] as { id: string }).id
 }
 
@@ -185,8 +190,8 @@ export interface DecideInput {
   /** 会话内生成序号（从 1 起）。 */
   generationOrdinal: number
   recentStyles: readonly WallpaperStyle[]
-  /** 最近应用的照片 id（照片域防短期重复；finite 池下优先排除）。 */
-  recentPhotoIds?: readonly string[]
+  /** 最近应用的构图 id（gradient-field 防短期重复；finite 池下优先排除）。 */
+  recentFieldIds?: readonly string[]
   /** 个性化阶段覆盖（测试注入）；缺省由画像推导。 */
   stageOverride?: Parameters<typeof stageForProfile>[0]['stageOverride']
 }
@@ -222,8 +227,8 @@ export function decideWallpaper(input: DecideInput): DecideResult {
   // （程序风格 = 主题家族调色板 §2.1；照片风格 = mood 匹配目录池）。
   const themeLightness = snapshot.theme === 'dark' ? 'dark' : 'light'
   const allowed = ACTIVE_STYLES.filter((s) =>
-    s === 'photo'
-      ? !input.blockedStyles.includes(s) && photosForTheme(snapshot.theme).length > 0
+    s === 'gradient-field'
+      ? !input.blockedStyles.includes(s) && fieldCompositionsForTheme(snapshot.theme).length > 0
       : !input.blockedStyles.includes(s) &&
         compatiblePalettes(s).some((p) => p.family.lightness === themeLightness),
   )
@@ -254,9 +259,9 @@ export function decideWallpaper(input: DecideInput): DecideResult {
   }
 
   let plan: WallpaperPlan
-  if (style === 'photo') {
-    const photoId = pickPhotoId(snapshot.theme, input.recentPhotoIds ?? [], rng)
-    plan = buildPhotoPlan({ seed: domainSeed, photoId, zone, reason: { ...reason, palette: photoId } })
+  if (style === 'gradient-field') {
+    const fieldId = pickFieldId(snapshot.theme, input.recentFieldIds ?? [], rng)
+    plan = buildFieldPlan({ seed: domainSeed, fieldId, zone, reason: { ...reason, palette: fieldId } })
   } else {
     const paletteId = pickPalette(style, snapshot, profile, rng)
     const composition = COMPOSITIONS[Math.floor(rng() * COMPOSITIONS.length)]

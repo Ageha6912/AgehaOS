@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { buildPhotoPlan, buildWallpaperPlan, COMPOSITIONS } from '@/core/dynamic/generative/templates'
+import { buildFieldPlan, buildWallpaperPlan, COMPOSITIONS } from '@/core/dynamic/generative/templates'
 import type { GenerationOutcome } from '@/core/dynamic/types'
 
 import {
@@ -268,27 +268,27 @@ describe('layout suggestion adoption (DDS §5.1 域②)', () => {
   })
 })
 
-describe('photo plan recents (Phase A.6 照片域防重复)', () => {
-  it('tracks recentPhotoIds from applied photo plans and clears on logout', () => {
+describe('gradient-field plan recents (2026-09-27 生成域防重复)', () => {
+  it('tracks recentFieldIds from applied gradient-field plans and clears on logout', () => {
     seedDynamicDesktopForTests('u1')
-    const photoOutcome = (seed: string, photoId: string): GenerationOutcome => ({
-      plan: buildPhotoPlan({
+    const fieldOutcome = (seed: string, fieldId: string): GenerationOutcome => ({
+      plan: buildFieldPlan({
         seed,
-        photoId,
+        fieldId,
         zone: 'converge',
-        reason: { signals: [], palette: photoId, motif: 'photo' },
+        reason: { signals: [], palette: fieldId, motif: 'gradient-field' },
       }),
       level: 'L0',
       durationMs: 5,
       decisionSource: 'local',
     })
     const store = useDynamicDesktopStore.getState()
-    store.applyOutcome({ outcome: photoOutcome('a', 'yamzho-yumco'), trigger: 'login', atMs: 1, tier: 'mid' })
-    store.applyOutcome({ outcome: photoOutcome('b', 'braies-dock'), trigger: 'timer', atMs: 2, tier: 'mid' })
-    // 非照片计划不影响照片近迹。
+    store.applyOutcome({ outcome: fieldOutcome('a', 'dawn-white'), trigger: 'login', atMs: 1, tier: 'mid' })
+    store.applyOutcome({ outcome: fieldOutcome('b', 'isle-teal'), trigger: 'timer', atMs: 2, tier: 'mid' })
+    // 非 gradient-field 计划不影响构图近迹。
     store.applyOutcome({ outcome: outcomeOf('plain'), trigger: 'timer', atMs: 3, tier: 'mid' })
-    expect(useDynamicDesktopStore.getState().recentPhotoIds).toEqual(['yamzho-yumco', 'braies-dock'])
+    expect(useDynamicDesktopStore.getState().recentFieldIds).toEqual(['dawn-white', 'isle-teal'])
     useDynamicDesktopStore.getState().handleLogout()
-    expect(useDynamicDesktopStore.getState().recentPhotoIds).toEqual([])
+    expect(useDynamicDesktopStore.getState().recentFieldIds).toEqual([])
   })
 })

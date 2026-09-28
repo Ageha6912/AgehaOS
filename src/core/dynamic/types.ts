@@ -22,7 +22,7 @@ export const WALLPAPER_STYLES = [
   'mountain-silhouette',
   'grid-wavefield',
   'landscape',
-  'photo',
+  'gradient-field',
 ] as const
 export type WallpaperStyle = (typeof WALLPAPER_STYLES)[number]
 
@@ -117,10 +117,10 @@ export interface WallpaperPlan {
   compositionId: string
   /** 密度采样值（DENSITY_LEVELS 之一）。 */
   density: number
-  /** 渲染图元（确定性，由种子驱动）。照片计划为空数组（位图不进图元空间）。 */
+  /** 渲染图元（确定性，由种子驱动）。gradient-field 计划为空数组（色场直接绘制）。 */
   shapes: PlanShape[]
-  /** 照片计划专属（style = 'photo'）：目录条目 id（src/core/dynamic/photos/catalog.ts）。 */
-  photoId?: string
+  /** gradient-field 计划专属：构图 id（src/core/dynamic/generative/gradient-field.ts）。 */
+  fieldId?: string
   /** 动画参数（§4.4 光敏安全：flickerPerSec ≤3；Phase A 仅 slowDrift）。 */
   animation: { kind: 'none' | 'slow-drift'; flickerPerSec: number }
   reason: GenerationReason

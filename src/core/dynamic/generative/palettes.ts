@@ -75,8 +75,8 @@ const STYLE_FAMILY_CONSTRAINTS: Record<
   'mountain-silhouette': { saturation: 'low' },
   'grid-wavefield': {},
   landscape: {},
-  // 照片计划不进调色板空间（mood 过滤在照片目录上完成）。
-  photo: {},
+  // gradient-field 自带构图配色（主题在构图上标注），不进旧调色板可行域。
+  'gradient-field': {},
 }
 
 export function isCompatible(style: WallpaperStyle, palette: Palette): boolean {

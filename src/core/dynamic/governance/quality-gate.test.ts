@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildPhotoPlan, buildWallpaperPlan, COMPOSITIONS } from '../generative/templates'
+import { buildFieldPlan, buildWallpaperPlan, COMPOSITIONS } from '../generative/templates'
 import type { ContextSnapshot, WallpaperPlan } from '../types'
 import {
   brightnessRangeFor,
@@ -113,39 +113,39 @@ describe('quality gate (§4.4，铁律 2)', () => {
   })
 })
 
-describe('quality gate: photo plans (Phase A.6)', () => {
-  it('passes when the photo mood matches the theme', () => {
-    const plan = buildPhotoPlan({
+describe('quality gate: gradient-field plans (2026-09-27)', () => {
+  it('passes when the composition theme matches the snapshot theme', () => {
+    const plan = buildFieldPlan({
       seed: 's',
-      photoId: 'yamzho-yumco',
+      fieldId: 'dawn-white',
       zone: 'converge',
-      reason: { signals: [], palette: 'yamzho-yumco', motif: 'photo' },
+      reason: { signals: [], palette: 'dawn-white', motif: 'gradient-field' },
     })
     const result = evaluateQuality({ plan, snapshot: snapshotOf('light') })
     expect(result.passed, result.violations.map((v) => v.detail).join('; ')).toBe(true)
   })
 
-  it('fails the schema gate when the photo mood mismatches the theme', () => {
-    const plan = buildPhotoPlan({
+  it('fails the schema gate when the composition theme mismatches the snapshot theme', () => {
+    const plan = buildFieldPlan({
       seed: 's',
-      photoId: 'matterhorn-dawn',
+      fieldId: 'night-veil',
       zone: 'converge',
-      reason: { signals: [], palette: 'matterhorn-dawn', motif: 'photo' },
+      reason: { signals: [], palette: 'night-veil', motif: 'gradient-field' },
     })
     const result = evaluateQuality({ plan, snapshot: snapshotOf('light') })
     expect(result.passed).toBe(false)
     expect(result.violations[0]?.item).toBe('schema')
   })
 
-  it('fails the schema gate on an unknown photoId', () => {
-    const plan = buildPhotoPlan({
+  it('fails the schema gate on an unknown fieldId', () => {
+    const plan = buildFieldPlan({
       seed: 's',
-      photoId: 'ghost',
+      fieldId: 'ghost',
       zone: 'converge',
-      reason: { signals: [], palette: 'ghost', motif: 'photo' },
+      reason: { signals: [], palette: 'ghost', motif: 'gradient-field' },
     })
     const result = evaluateQuality({ plan, snapshot: snapshotOf('light') })
     expect(result.passed).toBe(false)
-    expect(result.violations[0]?.detail).toContain('unknown photo')
+    expect(result.violations[0]?.detail).toContain('unknown field composition')
   })
 })

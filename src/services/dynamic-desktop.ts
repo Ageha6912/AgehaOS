@@ -108,7 +108,7 @@ async function generate(trigger: 'login' | 'timer' | 'manual'): Promise<Generati
         profile: current.profile,
         generationOrdinal: current.generationOrdinal,
         recentStyles: current.recentStyles,
-        recentPhotoIds: current.recentPhotoIds,
+        recentFieldIds: current.recentFieldIds,
       },
       {
         emit,

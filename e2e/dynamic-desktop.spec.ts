@@ -3,11 +3,12 @@ import { expect, test } from '@playwright/test'
 import { revealTaskbar, taskbarStartButton } from './helpers'
 
 /**
- * AI 动态桌面验收（设计文档 §11.2-A ⑨⑩ + 2026-09-26 默认开启裁决）：
- * 照片壁纸出厂即开（新账号登录后壁纸层自动出现、AI 徽标隐藏）；
- * 主开关关闭后退回纯色渐变桌面（opt-out 语义）。
+ * AI 动态桌面验收（设计文档 §11.2-A ⑨⑩ + 2026-09-26 默认开启裁决 +
+ * 2026-09-27 生成域切换）：gradient-field 壁纸出厂即开（canvas 绘制的
+ * macOS 风分层色场，AI 徽标按裁决不显示）；主开关关闭后退回纯色渐变桌面
+ * （opt-out 语义）。
  */
-test('dynamic desktop: photo wallpaper on by default, opt-out restores the plain desktop', async ({
+test('dynamic desktop: generated wallpaper on by default, opt-out restores the plain desktop', async ({
   page,
 }) => {
   await page.goto('/')
@@ -20,14 +21,21 @@ test('dynamic desktop: photo wallpaper on by default, opt-out restores the plain
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
 
-  // 默认开启：生成流程完成后壁纸层出现。Phase A.6：主动样域为真实照片——
-  // <img> 照片表面 + 「AI 生成」徽标隐藏（照片非 AI 生成，徽标声明不成立）。
+  // 默认开启：生成流程完成后壁纸层出现。2026-09-27：gradient-field 生成域——
+  // canvas 绘制的分层色场（照片面已退役）+ AI 徽标不显示（用户裁决）。
   const layer = page.getByTestId('wallpaper-layer')
   await expect(layer).toBeVisible({ timeout: 20_000 })
-  const photo = page.getByTestId('wallpaper-surface-photo')
-  await expect(photo).toBeVisible()
-  await expect(photo).toHaveAttribute('src', /\/wallpapers\/landscapes\/.+\.jpg$/)
+  await expect(page.getByTestId('wallpaper-surface-canvas')).toBeVisible()
+  await expect(page.getByTestId('wallpaper-surface-photo')).toHaveCount(0)
   await expect(page.getByTestId('ai-badge')).toHaveCount(0)
+
+  // 右键菜单「更换壁纸」：seed 变化驱动 canvas 重绘（同款构图或新构图都合法）。
+  await page.mouse.click(660, 560, { button: 'right' })
+  const menu = page.getByTestId('context-menu')
+  await expect(menu).toBeVisible()
+  await page.getByTestId('context-menu-renew-wallpaper').click()
+  await expect(menu).toBeHidden()
+  await expect(page.getByTestId('wallpaper-surface-canvas')).toBeVisible()
 
   // 设置 → 动态桌面：开关处于开启位。
   const startButton = taskbarStartButton(page)

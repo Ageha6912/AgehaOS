@@ -2,7 +2,7 @@ import { DENSITY_LEVELS, WALLPAPER_STYLES } from '../types'
 import type { WallpaperPlan, WallpaperStyle } from '../types'
 import { paletteById } from '../generative/palettes'
 import { COMPOSITIONS } from '../generative/templates'
-import { photoById } from '../photos/catalog'
+import { fieldCompositionById } from '../generative/gradient-field'
 
 /**
  * 内容安全过滤管线（设计文档 §8.4，铁律 7）：渲染前同步过滤。
@@ -33,10 +33,10 @@ export function safetyFilter(input: SafetyInput): SafetyResult {
 /** 计划 schema 白名单：未知字段在类型层已挡，这里校验值域（§5.4 参数 schema 校验，非法即回退默认模板）。 */
 export function validatePlanSchema(plan: WallpaperPlan): string | null {
   if (!WALLPAPER_STYLES.includes(plan.style)) return `unknown style: ${plan.style}`
-  // 照片计划不进调色板空间：校验目录成员（photoId）而非 paletteId。
-  if (plan.style === 'photo') {
-    if (plan.photoId === undefined || photoById(plan.photoId) === undefined) {
-      return `unknown photo: ${plan.photoId ?? '(none)'}`
+  // gradient-field 计划不进调色板空间：校验构图成员（fieldId）而非 paletteId。
+  if (plan.style === 'gradient-field') {
+    if (plan.fieldId === undefined || fieldCompositionById(plan.fieldId) === undefined) {
+      return `unknown field composition: ${plan.fieldId ?? '(none)'}`
     }
   } else if (!paletteById(plan.paletteId)) {
     return `unknown palette: ${plan.paletteId}`
