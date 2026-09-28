@@ -119,10 +119,25 @@ docker compose -f server/docker-compose.yml up -d   # 可选：本地 PostgreSQL
 - 错误：`400 invalid-body`、`403 forbidden`（CSRF origin）、`429 rate-limited`（20/min/IP）、`502 ai-upstream`、`502 ai-invalid-response`（模型输出非 JSON）、`504 ai-timeout`。
 - 阶段门控：Phase B 客户端只接受词表内的**结构化编排值**（提示卡变体号），自由文本一律丢弃不渲染（§5.3/§8.4）；Phase C 起扩展为完整过滤管线。
 
+### POST /api/dynamic/samples（举报样本上传，DDS §8.6，匿名）
+
+用户在 AI 内容面板举报自由文本并**于确认框显式同意后**上传的内容样本，供人工复审（铁律 4/10：最小化 + 显式同意）。
+
+- **匿名**：无需登录、不携带任何用户/会话标识（举报者身份不出本地，§8.5 上行最小化）；滥用由共享限流（10/min/IP）、512 字符上限与服务端分类器把关。
+- 请求：`{ text: string }`（1–512 字符；空白串 `400 invalid-body`）。
+- 服务端分类器先行（`server/src/classifier.ts`，与客户端离线兜底词库同口径、独立演化）：`violation` → `422 {"error":"content-rejected"}` 且**不落库**（违规内容本体不入任何存储）；`misleading`/`discomfort`/`ok` → `201 {"status":"accepted","id","classification"}` 并落库。
+- 存储：`ageha_content_samples`（postgres）/ file 存储序列化 `samples` 字段；容量 500 条，超出淘汰最旧（`MAX_CONTENT_SAMPLES`）。
+
+### GET /api/dynamic/samples（复审清单，仅 admin）
+
+- 认证：会话 Cookie + `role=admin`（与 ADR 20 目录管理同一 `requireAdmin` 门）；匿名 `401 not-authenticated`，普通用户 `403 not-admin`。
+- 响应：`200 { samples: [{id, text, classification, createdAt}] }`，新样本在前。
+- 复审 UI 未交付（PRD §47 应用审核范畴）；当前经 API 复审。
+
 ## 4. 安全机制（PRD §30.5）
 
 - **口令哈希**：scrypt（N=2¹⁵, r=8, p=1, 64B key, 16B 随机盐，`maxmem` 64 MiB），存储格式 `scrypt$N$r$p$盐$哈希`（参数随哈希保存，可平滑升级成本），校验用 `timingSafeEqual`。
-- **限流**：`@fastify/rate-limit` 按 IP + 路由（login 10/min、register 20/min，可配）；响应带 `x-ratelimit-*` 头。
+- **限流**：`@fastify/rate-limit` 按 IP + 路由（login 10/min、register 20/min、AI 代理 20/min、样本上传 10/min，可配）；响应带 `x-ratelimit-*` 头；多实例部署设 `AGEHA_REDIS_URL` 共享计数（ADR 21 附注，fail-open）。
 - **输入校验**：Fastify JSON Schema（用户名 3–32 位 `^[a-zA-Z0-9_-]+$`、口令 6–128 位），schema 失败统一 `400 invalid-body`。
 - **审计**：pino 结构化日志 `auth.register / auth.login / auth.login_failed / auth.logout`（成功日志只记 userId，不记用户名与令牌）。
 - **安全头**：`@fastify/helmet` 默认全套（CSP、nosniff、frameguard、HSTS 等）。
@@ -130,7 +145,7 @@ docker compose -f server/docker-compose.yml up -d   # 可选：本地 PostgreSQL
 
 ## 5. 存储
 
-`DataStore` 接口（`server/src/store/types.ts`）：`createUser / updateUser / findUserByUsername / findUserById / createSession / findSession / deleteSession / pruneExpiredSessions / deleteSessionsForUserExcept`。
+`DataStore` 接口（`server/src/store/types.ts`）：`createUser / updateUser / findUserByUsername / findUserById / createSession / findSession / deleteSession / pruneExpiredSessions / deleteSessionsForUserExcept`，另有同步 KV（`getSyncData/putSyncData`）、管理员目录（`getAppCatalog/putAppCatalog`）与举报样本（`createContentSample/listContentSamples`，容量 500）。
 
 | 驱动       | 用途                                       | 测试状态                             |
 | ---------- | ------------------------------------------ | ------------------------------------ |
