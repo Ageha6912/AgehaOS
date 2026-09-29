@@ -7,10 +7,11 @@
 ### 举报样本上传：用户同意框 + 服务端分类器 + 匿名复审端点（DDS §8.6 收尾，ADR 22）
 
 - **举报流程补全后两环**（前两环「立即撤下 + 会话 banlist」已于 Phase C 落地）：举报自由文本后弹共享 `ConfirmDialog` 显式同意框（铁律 4/10），同意才上传；取消仅本机撤下、零请求
-- **匿名端点** `POST /api/dynamic/samples`：无需登录、不携带任何用户/会话标识（举报者身份不出本地，§8.5）；限流 10/min/IP + 512 字符上限；`GET /api/dynamic/samples` 复审清单仅 admin（与 ADR 20 共用提取出的 `requireAdmin` 门），复审 UI 留待 §47
+- **匿名端点** `POST /api/dynamic/samples`：无需登录、不携带任何用户/会话标识（举报者身份不出本地，§8.5）；限流 10/min/IP + 512 字符上限；`GET /api/dynamic/samples` 复审清单仅 admin（与 ADR 20 共用提取出的 `requireAdmin` 门）
+- **内容复审 UI（admin 尾巴，2026-09-29 交付）**：设置新增 admin-only「内容复审」分区（`SampleReviewSection`，与「远程目录」并列入侧栏）——样本清单（新样本在前）+ 分类徽标（正常/误导/不适，语义 Token 配色）+ 等宽时间戳 + 计数插值 + 手动刷新；列表走 `ScrollFadeList`（§3 规范）；只读视图，处置动作留待 §47 应用审核完整交付
 - **服务端分类器先行**（Phase B「分类器服务端化」前置落地）：`server/src/classifier.ts` 三类口径与客户端离线兜底同口径、独立演化；`violation` 422 且**不落库**（违规内容本体不入任何存储），`misleading`/`discomfort`/`ok` 落库供复审
 - **存储三驱动同扩**：`ContentSampleRecord` + `createContentSample/listContentSamples`；postgres 新表 `ageha_content_samples`（幂等迁移）、file 存储序列化 `samples` 字段、容量 500 淘汰最旧；纯本地模式无服务端，保持纯本机撤下；上传失败经通知中心透明告知
-- 测试：分类器 8 项 + 样本路由 7 项 + 存储契约/pg SQL 形状扩充（78 后端）+ ConfirmDialog 4 项 + 面板同意框流路 3 项（761 前端，92 文件）；E2E 13/13；浏览器烟雾 8/8（远程模式真后端：注册→深度增强→LLM 桩自由文本→举报→同意→**真实落库核对**→取消零请求；真实服务端 violation 422/misleading 201 实测）
+- 测试：分类器 8 项 + 样本路由 7 项 + 存储契约/pg SQL 形状扩充（78 后端）+ ConfirmDialog 4 项 + 面板同意框流路 3 项 + 复审分区 5 项 + Settings admin 门（767 前端，93 文件）；E2E 13/13；浏览器烟雾 8/8 + 7/7（远程模式真后端：注册→深度增强→LLM 桩自由文本→举报→同意→**真实落库核对**→取消零请求；admin UI 复审列表/徽标/计数/刷新/普通用户无入口；真实服务端 violation 422/misleading 201 实测）
 - 文档：API.md 两端点 + DDS §8.6 交付状态 + ADR 21（Redis 共享限流，补记）+ ADR 22（本裁决）
 
 ### 生成式壁纸 gradient-field：macOS 风分层色场，照片域退役（docs/DESIGN.md §16）
