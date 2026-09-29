@@ -237,6 +237,16 @@ export const dictionaries = {
     'settings.catalogInvalid': '发布被拒绝：条目未通过服务端校验。',
     'settings.catalogSaved': '已发布',
     'settings.catalogRemove': '移除',
+    'settings.review': '内容复审',
+    'settings.reviewHint':
+      '举报样本清单（匿名上报，新样本在前），供人工复审与词库校准；分类由服务端分类器判定，违规样本不会被存储。当前为只读视图。',
+    'settings.reviewEmpty': '暂无举报样本。',
+    'settings.reviewLoadError': '样本清单加载失败。',
+    'settings.reviewRefresh': '刷新清单',
+    'settings.reviewCount': '{count} 条样本',
+    'settings.reviewClass.ok': '正常',
+    'settings.reviewClass.misleading': '误导',
+    'settings.reviewClass.discomfort': '不适',
     'settings.account.syncHint':
       '把主题、字体大小、语言与文本文件同步到后端账户，登录时自动恢复；默认关闭。',
     'settings.account.syncToggle': '开启同步',
@@ -567,6 +577,16 @@ export const dictionaries = {
     'settings.catalogInvalid': 'Rejected: an entry failed server-side validation.',
     'settings.catalogSaved': 'Published',
     'settings.catalogRemove': 'Remove',
+    'settings.review': 'Content review',
+    'settings.reviewHint':
+      'Reported samples (anonymous, newest first) for human review and filter calibration; classifications come from the server-side classifier, and violating text is never stored. Read-only for now.',
+    'settings.reviewEmpty': 'No reported samples yet.',
+    'settings.reviewLoadError': 'Failed to load the sample list.',
+    'settings.reviewRefresh': 'Refresh list',
+    'settings.reviewCount': '{count} samples',
+    'settings.reviewClass.ok': 'OK',
+    'settings.reviewClass.misleading': 'Misleading',
+    'settings.reviewClass.discomfort': 'Discomfort',
     'settings.account.syncHint':
       'Syncs theme, font size, language and text files to your backend account and restores them on sign-in. Off by default.',
     'settings.account.syncToggle': 'Enable sync',

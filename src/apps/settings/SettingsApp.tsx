@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { BrandLogo } from '@/components/brand-logo'
 import { ToggleSwitch } from '@/components/toggle-switch'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
-import { GlobeHemisphereWest, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
+import { GlobeHemisphereWest, ListChecks, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
 
 import { useTranslation, useLocaleStore } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
@@ -15,8 +15,9 @@ import { useSessionStore } from '@/store/session-store'
 import { DynamicDesktopSection } from './DynamicDesktopSection'
 import { AccountSection } from './AccountSection'
 import { CatalogSection } from './CatalogSection'
+import { SampleReviewSection } from './SampleReviewSection'
 
-type SectionId = 'account' | 'appearance' | 'dynamic' | 'catalog' | 'language' | 'permissions' | 'about'
+type SectionId = 'account' | 'appearance' | 'dynamic' | 'catalog' | 'review' | 'language' | 'permissions' | 'about'
 
 const THEME_OPTIONS: Array<{ value: ThemePreference; labelKey: MessageKey }> = [
   { value: 'light', labelKey: 'theme.light' },
@@ -46,7 +47,10 @@ export function SettingsApp() {
     { id: 'appearance', labelKey: 'settings.appearance', icon: <Palette size={14} weight="regular" /> },
     { id: 'dynamic', labelKey: 'dynamicDesktop.section', icon: <Sparkle size={14} weight="regular" /> },
     ...(isAdmin
-      ? [{ id: 'catalog' as const, labelKey: 'settings.catalog' as MessageKey, icon: <ShieldCheck size={14} weight="regular" /> }]
+      ? [
+          { id: 'catalog' as const, labelKey: 'settings.catalog' as MessageKey, icon: <ShieldCheck size={14} weight="regular" /> },
+          { id: 'review' as const, labelKey: 'settings.review' as MessageKey, icon: <ListChecks size={14} weight="regular" /> },
+        ]
       : []),
     { id: 'language', labelKey: 'settings.language', icon: <GlobeHemisphereWest size={14} weight="regular" /> },
     { id: 'permissions', labelKey: 'settings.permissions', icon: <LockSimple size={14} weight="regular" /> },
@@ -87,6 +91,7 @@ export function SettingsApp() {
         {section === 'appearance' && <AppearanceSection />}
         {section === 'dynamic' && <DynamicDesktopSection />}
         {section === 'catalog' && isAdmin && <CatalogSection />}
+        {section === 'review' && isAdmin && <SampleReviewSection />}
         {section === 'language' && <LanguageSection />}
         {section === 'permissions' && <PermissionsSection />}
         {section === 'about' && <AboutSection />}
