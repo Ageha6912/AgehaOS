@@ -132,7 +132,11 @@ docker compose -f server/docker-compose.yml up -d   # 可选：本地 PostgreSQL
 
 - 认证：会话 Cookie + `role=admin`（与 ADR 20 目录管理同一 `requireAdmin` 门）；匿名 `401 not-authenticated`，普通用户 `403 not-admin`。
 - 响应：`200 { samples: [{id, text, classification, createdAt}] }`，新样本在前。
-- 复审 UI 未交付（PRD §47 应用审核范畴）；当前经 API 复审。
+
+### DELETE /api/dynamic/samples/:id（复审处置，仅 admin）
+
+- 复审后的处置动作：删除已复核样本；`200 { deleted: true }`，未知 id `404 {"error":"not-found"}`，权限语义与 GET 一致（401/403）。审计日志只记 sampleId，不记内容。
+- 复审 UI（设置「内容复审」分区）已交付：只读清单 + 删除处置；完整应用审核面（版本管理/开发者门户）仍属 PRD §47。
 
 ## 4. 安全机制（PRD §30.5）
 

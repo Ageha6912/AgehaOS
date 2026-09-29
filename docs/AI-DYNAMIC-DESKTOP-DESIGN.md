@@ -520,7 +520,7 @@ flowchart LR
 
 每个 AI 内容卡片带「AI 生成」标识与「反馈/举报」按钮 → 立即撤下该内容 + 对应模板/标签负权重 + 弹确认框，**经用户确认后才上传该条样本**供复审（铁律 4/10：样本上传本身也遵循最小化与显式同意）。
 
-> **交付状态（2026-09-28）**：举报即撤下 + 会话 banlist（Phase C 切片）、样本上传全链路已交付——远程模式下举报弹 `ConfirmDialog` 显式同意框，同意后匿名 `POST /api/dynamic/samples`（无用户/会话标识，§8.5 上行最小化），服务端分类器先行（Phase B「分类器服务端化」前置落地）：`violation` 422 且不落库，其余分类落 `ageha_content_samples` 供复审（`GET /api/dynamic/samples` 仅 admin，复审 UI 留待 §47 应用审核）。纯本地模式无服务端可传，保持纯本机撤下。契约见 `docs/API.md`。
+> **交付状态（2026-09-28/29）**：举报即撤下 + 会话 banlist（Phase C 切片）、样本上传全链路已交付——远程模式下举报弹 `ConfirmDialog` 显式同意框，同意后匿名 `POST /api/dynamic/samples`（无用户/会话标识，§8.5 上行最小化），服务端分类器先行（Phase B「分类器服务端化」前置落地）：`violation` 422 且不落库，其余分类落 `ageha_content_samples` 供复审；**admin 复审 UI + 删除处置已交付**（设置「内容复审」分区：只读清单 + 逐条删除，`DELETE /api/dynamic/samples/:id` 仅 admin）；完整应用审核面（版本管理/开发者门户）留待 §47。纯本地模式无服务端可传，保持纯本机撤下。契约见 `docs/API.md`。
 
 ---
 
