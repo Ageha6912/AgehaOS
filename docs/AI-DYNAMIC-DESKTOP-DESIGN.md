@@ -697,7 +697,7 @@ AI 动态桌面**不在 PRD §35 既有规划内**，作为新方向协调：Pha
 6. **`blob:` URL 是否放开**：现 CSP `img-src 'self' data:` 拦截 blob，若流式加载大图需要 blob，须先过 CSP 变更评审。
 7. **Phase A 版本槽位**：v0.2.x 增量（本文建议）与「独立立项 v0.3」两种排期均被提出，需与 §35 Phase 2 的实际进度联合裁决。
 8. **微调档三区配比（90/10/0）为整合推导值**，未经用户研究验证，Phase A 灰度期以跳过率数据校准。
-9. **VFS 二进制承载的技术路线**（OPFS 适配器 vs 以 base64/data URL 文本承载并评估存储配额——≤8MB 图 ≈ 11MB base64）：Phase C 开工前须定案；Phase A 位图不落盘（§11.1），不受影响。
+9. **VFS 二进制承载的技术路线**（OPFS 适配器 vs 以 base64/data URL 文本承载并评估存储配额——≤8MB 图 ≈ 11MB base64）：Phase C 开工前须定案；Phase A 位图不落盘（§11.1），不受影响。**已定案（2026-09-29，ADR 23）**：两条候选路线均未采纳——`VfsNode.bytes: Uint8Array` 双字段直存，经 IndexedDB 结构化克隆持久化（≤8MB 上限，`writeFileBytes/readFileBytes` API，`readFile` 对二进制抛 `is-binary`）；base64 方案因 37% 体积膨胀出局，OPFS 因第二存储域维护成本在分片写入落地前收益为负出局。见 `docs/ARCHITECTURE.md` §3.8/ADR 23。
 
 ---
 

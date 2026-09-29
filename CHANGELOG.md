@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### VFS 二进制承载：bytes 双字段直存 IndexedDB（Phase 3 第一片，ADR 23）
+
+- **能力层交付**：`VfsNode.bytes?: Uint8Array` 与 `content` 互斥（二进制节点 content 恒 ''、size 恒为字节长度），经既有 IdbAdapter **结构化克隆**原生持久化——DDS Phase C 原计划的 OPFS 适配器与 base64 文本承载路线均改判出局（ADR 23：第二存储域/37% 膨胀，在全量快照模型下收益为负）
+- API：`writeFileBytes`（≤`MAX_FILE_BYTES` 8MB，超限抛 `payload-too-large` 且不留半成品）/ `readFileBytes`（统一字节视图：文本经 UTF-8 编码、二进制返回存储字节，一律隔离副本）；`readFile` 对二进制抛 **`is-binary`** 响亮失败而非返回乱码；文本↔二进制相互覆盖由互斥不变量保证；`copy` 产生独立缓冲
+- 错误映射：`is-binary`/`payload-too-large` 进 `vfsErrorMessageKey` → 双语文案（Files 预览二进制即见「二进制文件无法以文本形式打开」）
+- **云同步快照跳过二进制**（设备本地语义；对象存储切片为 Phase 3 第二片，届时树中只携带哈希/键）
+- 测试：VFS +7（往返/互斥/is-binary/超限/覆盖翻转/独立副本/按名搜索）+ IDB 二进制持久化 + file-sync 排除断言（778 前端，93 文件）+ 80 后端；E2E 13/13；浏览器烟雾 8/8（dev 动态 import systemVfs：写读往返 → reload 后**真 IndexedDB** 字节完好 → Files 列表可见 + 双击预览报错文案）
+
 ### 举报样本上传：用户同意框 + 服务端分类器 + 匿名复审端点（DDS §8.6 收尾，ADR 22）
 
 - **举报流程补全后两环**（前两环「立即撤下 + 会话 banlist」已于 Phase C 落地）：举报自由文本后弹共享 `ConfirmDialog` 显式同意框（铁律 4/10），同意才上传；取消仅本机撤下、零请求
