@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Files 上传入口：本机文件 → 二进制落盘（Phase 3 第一片 UI 面）
+
+- 工具栏新增「上传文件」（回收站视图隐藏）：隐藏 `<input type="file">` → `writeFileBytes` 落入当前目录，事件驱动刷新（其他窗口即时可见）；input 值每次选择后清空，允许连续重选同一文件
+- 防护：同名**先行拒绝**（走既有 `already-exists` 文案——`writeFileBytes` 是创建或覆盖语义，绝不静默覆盖既有文件）；超 8MB 在读取前拦截（免无谓内存复制，不落半成品）
+- 测试：FileManager +4（上传字节落盘+input 清空 / 同名拒绝且原文件不动 / 超限先拦截 / 回收站无入口）（782 前端，93 文件）+ 80 后端；E2E 13/13；浏览器烟雾 5/5（真上传 logo PNG → VFS 字节核对（PNG 魔数）→ 同名再传被拒 → reload 经 IndexedDB 仍在 → 双击预览报 is-binary 文案）
+
 ### VFS 二进制承载：bytes 双字段直存 IndexedDB（Phase 3 第一片，ADR 23）
 
 - **能力层交付**：`VfsNode.bytes?: Uint8Array` 与 `content` 互斥（二进制节点 content 恒 ''、size 恒为字节长度），经既有 IdbAdapter **结构化克隆**原生持久化——DDS Phase C 原计划的 OPFS 适配器与 base64 文本承载路线均改判出局（ADR 23：第二存储域/37% 膨胀，在全量快照模型下收益为负）
