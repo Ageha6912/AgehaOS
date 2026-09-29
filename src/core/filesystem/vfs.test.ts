@@ -4,7 +4,7 @@ import { EventBus, type SystemEventMap } from '@/core/events'
 
 import { MemoryAdapter } from './adapter'
 import { Vfs, DEFAULT_DIRECTORIES } from './vfs'
-import { VfsError } from './types'
+import { MAX_FILE_BYTES, VfsError } from './types'
 
 function createVfsUnderTest() {
   const adapter = new MemoryAdapter()
@@ -342,5 +342,91 @@ describe('Vfs persistence', () => {
     expect(saved?.content).toBe('persisted')
     // root + 9 default directories + the new file
     expect(raw.length).toBe(11)
+  })
+})
+
+describe('Vfs binary files（Phase 3 二进制承载）', () => {
+  it('round-trips binary bytes exactly, including zero bytes', async () => {
+    const { vfs } = createVfsUnderTest()
+    const payload = new Uint8Array([0x00, 0xff, 0x10, 0x00, 0x7f, 0x80])
+
+    const written = await vfs.writeFileBytes('/Pictures/smoke.bin', payload)
+    expect(written.size).toBe(payload.byteLength)
+    expect(written.content).toBe('') // 互斥不变量：二进制节点 content 恒 ''
+
+    const loaded = await vfs.readFileBytes('/Pictures/smoke.bin')
+    expect([...loaded]).toEqual([...payload])
+  })
+
+  it('readFileBytes returns isolated copies for text and binary files', async () => {
+    const { vfs } = createVfsUnderTest()
+    await vfs.writeFile('/Documents/note.txt', '文本')
+    const textBytes = await vfs.readFileBytes('/Documents/note.txt')
+    expect([...textBytes]).toEqual([...new TextEncoder().encode('文本')])
+
+    const payload = new Uint8Array([1, 2, 3])
+    await vfs.writeFileBytes('/Pictures/data.bin', payload)
+    const first = await vfs.readFileBytes('/Pictures/data.bin')
+    first[0] = 99
+    const second = await vfs.readFileBytes('/Pictures/data.bin')
+    expect(second[0]).toBe(1) // 树内数据不受读取方改动影响
+  })
+
+  it('readFile on a binary file throws is-binary instead of returning garbage', async () => {
+    const { vfs } = createVfsUnderTest()
+    await vfs.writeFileBytes('/Pictures/photo.jpg', new Uint8Array([0x89, 0x50]))
+    await expect(vfs.readFile('/Pictures/photo.jpg')).rejects.toMatchObject({
+      name: 'VfsError',
+      code: 'is-binary',
+    })
+  })
+
+  it('rejects payloads above MAX_FILE_BYTES with payload-too-large', async () => {
+    const { vfs } = createVfsUnderTest()
+    const oversized = new Uint8Array(MAX_FILE_BYTES + 1)
+    await expect(vfs.writeFileBytes('/Pictures/huge.bin', oversized)).rejects.toMatchObject({
+      code: 'payload-too-large',
+    })
+    // 越界写入不得留下半成品节点。
+    await expect(vfs.get('/Pictures/huge.bin')).resolves.toBeNull()
+  })
+
+  it('overwrites a text file with bytes and back, keeping the payload exclusive', async () => {
+    const { vfs } = createVfsUnderTest()
+    await vfs.writeFile('/Documents/report.txt', '第一版')
+    await vfs.writeFileBytes('/Documents/report.txt', new Uint8Array([9, 9]))
+    const asText = await vfs.get('/Documents/report.txt')
+    expect(asText?.bytes?.[0]).toBe(9)
+    expect(asText?.content).toBe('')
+
+    await vfs.writeFile('/Documents/report.txt', '第二版')
+    const backToText = await vfs.get('/Documents/report.txt')
+    expect(backToText?.content).toBe('第二版')
+    expect(backToText?.bytes).toBeUndefined()
+    expect(backToText?.size).toBe(new TextEncoder().encode('第二版').length)
+  })
+
+  it('copies binary files as independent buffers', async () => {
+    const { vfs } = createVfsUnderTest()
+    const payload = new Uint8Array([4, 5, 6])
+    await vfs.writeFileBytes('/Pictures/origin.bin', payload)
+    await vfs.copy('/Pictures/origin.bin', '/Documents')
+
+    const origin = await vfs.readFileBytes('/Pictures/origin.bin')
+    const copy = await vfs.readFileBytes('/Documents/origin.bin')
+    expect([...copy]).toEqual([...payload])
+    // 改副本不影响原件。
+    copy[0] = 77
+    expect((await vfs.readFileBytes('/Pictures/origin.bin'))[0]).toBe(4)
+    void origin
+  })
+
+  it('searches binary files by name like any other node', async () => {
+    const { vfs } = createVfsUnderTest()
+    await vfs.writeFileBytes('/Pictures/photo.bin', new Uint8Array([1, 2, 3]))
+    const hits = await vfs.search('/Pictures', 'photo')
+    expect(hits).toHaveLength(1)
+    expect(hits[0]?.path).toBe('/Pictures/photo.bin')
+    expect(hits[0]?.node.bytes).toBeDefined()
   })
 })

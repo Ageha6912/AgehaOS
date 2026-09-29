@@ -154,6 +154,8 @@ export const dictionaries = {
     'files.error.invalidName': '名称不合法',
     'files.error.rootProtected': '系统目录受保护',
     'files.error.cycle': '不能移动到自身的子目录',
+    'files.error.isBinary': '二进制文件无法以文本形式打开',
+    'files.error.tooLarge': '文件超过 8 MB 上限',
     'files.error.generic': '操作失败，请重试',
 
     'settings.appearance': '外观',
@@ -495,6 +497,8 @@ export const dictionaries = {
     'files.error.invalidName': 'Invalid name',
     'files.error.rootProtected': 'System folders are protected',
     'files.error.cycle': 'Cannot move a folder into its own subtree',
+    'files.error.isBinary': 'Binary files cannot be opened as text',
+    'files.error.tooLarge': 'File exceeds the 8 MB limit',
     'files.error.generic': 'Operation failed, please try again',
 
     'settings.appearance': 'Appearance',

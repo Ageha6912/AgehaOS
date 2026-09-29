@@ -110,9 +110,11 @@ export async function serializeTree(vfs: Vfs): Promise<SyncTreeV2> {
       if (node.type === 'directory') {
         dirs.push(path)
         await walk(path)
-      } else {
+      } else if (node.bytes === undefined) {
         files[path] = { hash: hashContent(node.content), content: node.content }
       }
+      // 二进制文件（bytes 有义）暂不参与同步——设备本地语义；对象存储切片
+      // （Phase 3 第二片）接管后放开，届时树中只携带哈希/键而非内容。
     }
   }
   await walk('/')

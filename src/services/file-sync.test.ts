@@ -77,6 +77,17 @@ describe('file-sync snapshot helpers (PRD §35 Phase 3 文本切片)', () => {
     expect(tree.files['/Documents/notes.txt']?.hash).toBeTruthy()
   })
 
+  it('excludes binary files from the snapshot（Phase 3 二进制承载：设备本地语义）', async () => {
+    const vfs = await makeVfs()
+    await vfs.writeFile('/Documents/text.txt', '同步')
+    await vfs.writeFileBytes('/Pictures/photo.bin', new Uint8Array([1, 2, 3]))
+
+    const tree = await serializeTree(vfs)
+
+    expect(tree.files['/Documents/text.txt']).toBeDefined()
+    expect(tree.files['/Pictures/photo.bin']).toBeUndefined()
+  })
+
   it('applies a snapshot: creates dirs/files, updates changed, culls extraneous', async () => {
     const vfs = await makeVfs()
     await vfs.writeFile('/Documents/local-only.txt', 'obsolete')

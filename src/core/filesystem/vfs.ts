@@ -4,7 +4,7 @@ import type { EventBus, SystemEventMap } from '@/core/events'
 import { MemoryAdapter } from './adapter'
 import type { VfsStorageAdapter } from './adapter'
 import { dirname, joinPath, splitPath, validateName } from './paths'
-import { ROOT_ID, VfsError } from './types'
+import { MAX_FILE_BYTES, ROOT_ID, VfsError } from './types'
 import type { VfsNode, VfsSearchResult } from './types'
 
 export const DEFAULT_DIRECTORIES = [
@@ -89,7 +89,28 @@ export class Vfs {
   }
 
   writeFile(path: string, content: string): Promise<VfsNode> {
+    return this.writeFilePayload(path, { kind: 'text', text: content })
+  }
+
+  /**
+   * 创建或覆盖一个二进制文件（Phase 3 VFS 二进制承载，语义与 writeFile 一致）。
+   * 超过 MAX_FILE_BYTES 抛 payload-too-large；写文本用 writeFile。
+   */
+  writeFileBytes(path: string, data: Uint8Array): Promise<VfsNode> {
+    return this.writeFilePayload(path, { kind: 'binary', bytes: data })
+  }
+
+  private writeFilePayload(
+    path: string,
+    payload: { kind: 'text'; text: string } | { kind: 'binary'; bytes: Uint8Array },
+  ): Promise<VfsNode> {
     return this.operate(async () => {
+      if (payload.kind === 'binary' && payload.bytes.byteLength > MAX_FILE_BYTES) {
+        throw new VfsError(
+          'payload-too-large',
+          `File exceeds the ${MAX_FILE_BYTES}-byte limit: "${path}"`,
+        )
+      }
       const name = this.leafName(path)
       validateName(name)
       const parentPath = dirname(path)
@@ -100,8 +121,7 @@ export class Vfs {
         if (existing.type === 'directory') {
           throw new VfsError('is-a-directory', `Cannot write a file over the directory "${path}"`)
         }
-        existing.content = content
-        existing.size = byteSize(content)
+        this.applyPayload(existing, payload)
         existing.updatedAt = now()
         await this.persist()
         this.emitFileEvent('file.updated', existing, path)
@@ -112,7 +132,8 @@ export class Vfs {
         parentId: parent.id,
         name,
         type: 'file',
-        content,
+        content: payload.kind === 'text' ? payload.text : '',
+        ...(payload.kind === 'binary' ? { bytes: payload.bytes } : {}),
       })
       await this.persist()
       this.emitFileEvent('file.created', node, path)
@@ -127,7 +148,25 @@ export class Vfs {
       if (node.type === 'directory') {
         throw new VfsError('is-a-directory', `"${path}" is a directory`)
       }
+      if (node.bytes !== undefined) {
+        throw new VfsError('is-binary', `"${path}" holds binary data; use readFileBytes`)
+      }
       return node.content
+    })
+  }
+
+  /**
+   * 读取任意文件的字节负载（Phase 3）：文本文件经 UTF-8 编码返回，二进制文件
+   * 返回其存储字节（每次返回副本，调用方改动不影响树内数据）。
+   */
+  readFileBytes(path: string): Promise<Uint8Array> {
+    return this.operate(async () => {
+      const node = this.resolveNode(path)
+      if (!node) throw new VfsError('not-found', `No such file: "${path}"`)
+      if (node.type === 'directory') {
+        throw new VfsError('is-a-directory', `"${path}" is a directory`)
+      }
+      return node.bytes !== undefined ? node.bytes.slice() : new TextEncoder().encode(node.content)
     })
   }
 
@@ -310,6 +349,7 @@ export class Vfs {
     name: string
     type: 'directory' | 'file'
     content: string
+    bytes?: Uint8Array
   }): VfsNode {
     const id = this.newId()
     const timestamp = now()
@@ -318,14 +358,33 @@ export class Vfs {
       parentId: input.parentId,
       name: input.name,
       type: input.type,
-      content: input.type === 'file' ? input.content : '',
-      size: input.type === 'file' ? byteSize(input.content) : 0,
+      content: input.type === 'file' && input.bytes === undefined ? input.content : '',
+      size: input.type === 'file' ? payloadSize(input) : 0,
       trashed: false,
       createdAt: timestamp,
       updatedAt: timestamp,
     }
+    if (input.type === 'file' && input.bytes !== undefined) {
+      node.bytes = input.bytes
+    }
     this.nodes.set(node.id, node)
     return node
+  }
+
+  /** 互斥不变量：写载荷时清空另一侧（二进制 → content 恒 ''，反之 bytes 删除）。 */
+  private applyPayload(
+    node: VfsNode,
+    payload: { kind: 'text'; text: string } | { kind: 'binary'; bytes: Uint8Array },
+  ): void {
+    if (payload.kind === 'binary') {
+      node.content = ''
+      node.bytes = payload.bytes
+      node.size = payload.bytes.byteLength
+    } else {
+      delete node.bytes
+      node.content = payload.text
+      node.size = byteSize(payload.text)
+    }
   }
 
   private newId(): string {
@@ -423,6 +482,8 @@ export class Vfs {
       name: source.name,
       type: source.type,
       content: source.content,
+      // 副本持有独立缓冲：与源互不影响。
+      ...(source.bytes !== undefined ? { bytes: source.bytes.slice() } : {}),
     })
     if (source.type === 'directory') {
       for (const child of this.childrenOf(source.id)) {
@@ -446,7 +507,8 @@ export class Vfs {
 }
 
 function cloneNode(node: VfsNode): VfsNode {
-  return { ...node }
+  // 二进制节点返回独立缓冲副本，调用方改动不会影响树内数据。
+  return node.bytes !== undefined ? { ...node, bytes: node.bytes.slice() } : { ...node }
 }
 
 function now(): string {
@@ -455,6 +517,10 @@ function now(): string {
 
 function byteSize(content: string): number {
   return new TextEncoder().encode(content).length
+}
+
+function payloadSize(input: { content: string; bytes?: Uint8Array }): number {
+  return input.bytes !== undefined ? input.bytes.byteLength : byteSize(input.content)
 }
 
 /** Creates the default VFS: IndexedDB when available, memory otherwise (§31). */

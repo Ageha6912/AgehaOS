@@ -15,6 +15,10 @@ export function vfsErrorMessageKey(error: unknown): MessageKey {
         return 'files.error.rootProtected'
       case 'cycle':
         return 'files.error.cycle'
+      case 'is-binary':
+        return 'files.error.isBinary'
+      case 'payload-too-large':
+        return 'files.error.tooLarge'
       default:
         return 'files.error.generic'
     }
