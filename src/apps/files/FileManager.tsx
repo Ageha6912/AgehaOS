@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   DownloadSimple,
@@ -13,6 +13,7 @@ import {
   MusicNote,
   SquaresFour,
   Trash,
+  UploadSimple,
   VideoCamera,
 } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
@@ -21,7 +22,7 @@ import { PromptDialog } from '@/components/prompt-dialog'
 import { systemBus } from '@/core/events'
 import { formatMessage, useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
-import { joinPath, splitPath, Vfs } from '@/core/filesystem'
+import { joinPath, splitPath, Vfs, MAX_FILE_BYTES } from '@/core/filesystem'
 import type { VfsNode } from '@/core/filesystem'
 
 import { vfsErrorMessageKey } from './error-messages'
@@ -68,6 +69,33 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
   const [dialog, setDialog] = useState<DialogState>(null)
   const [dialogError, setDialogError] = useState<MessageKey | null>(null)
   const [preview, setPreview] = useState<PreviewState | null>(null)
+  const uploadInputRef = useRef<HTMLInputElement>(null)
+
+  /**
+   * 上传入口（Phase 3 二进制承载的 UI 面）：本机文件 → writeFileBytes 落入
+   * 当前目录。同名先行拒绝（writeFileBytes 是创建或覆盖语义，坑 33）；超限
+   * 在读取前拦截，避免无谓的内存复制。
+   */
+  const uploadFile = useCallback(
+    async (file: File) => {
+      setError(null)
+      try {
+        if (file.size > MAX_FILE_BYTES) {
+          setError('files.error.tooLarge')
+          return
+        }
+        const target = joinPath(path, file.name)
+        if ((await vfs.get(target)) !== null) {
+          setError('files.error.alreadyExists')
+          return
+        }
+        await vfs.writeFileBytes(target, new Uint8Array(await file.arrayBuffer()))
+      } catch (cause) {
+        setError(vfsErrorMessageKey(cause))
+      }
+    },
+    [path, vfs],
+  )
 
   const refresh = useCallback(async () => {
     try {
@@ -299,6 +327,25 @@ export function FileManager({ vfs, windowId }: FileManagerProps) {
                   onClick={() => {
                     setDialogError(null)
                     setDialog({ kind: 'newFile' })
+                  }}
+                />
+                <ToolbarButton
+                  label={t('files.upload')}
+                  icon={<UploadSimple aria-hidden="true" size={14} />}
+                  onClick={() => uploadInputRef.current?.click()}
+                />
+                <input
+                  ref={uploadInputRef}
+                  type="file"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  data-testid="file-upload-input"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    // 允许连续重选同一文件。
+                    event.target.value = ''
+                    if (file) void uploadFile(file)
                   }}
                 />
                 <ToolbarButton
