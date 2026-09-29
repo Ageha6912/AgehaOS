@@ -223,6 +223,11 @@ export class PostgresDataStore implements DataStore {
     )
     return result.rows.map(rowToContentSample)
   }
+
+  async deleteContentSample(id: string): Promise<boolean> {
+    const result = await this.pool.query('DELETE FROM ageha_content_samples WHERE id = $1', [id])
+    return (result.rowCount ?? 0) > 0
+  }
 }
 
 function rowToUser(row: Record<string, unknown>): UserRecord {

@@ -105,4 +105,10 @@ export class MemoryDataStore implements DataStore {
   async listContentSamples(): Promise<ContentSampleRecord[]> {
     return [...this.contentSamples]
   }
+
+  async deleteContentSample(id: string): Promise<boolean> {
+    const before = this.contentSamples.length
+    this.contentSamples = this.contentSamples.filter((sample) => sample.id !== id)
+    return this.contentSamples.length !== before
+  }
 }

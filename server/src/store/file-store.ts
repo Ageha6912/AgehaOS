@@ -197,6 +197,14 @@ export class FileDataStore implements DataStore {
     return [...this.contentSamples]
   }
 
+  async deleteContentSample(id: string): Promise<boolean> {
+    const before = this.contentSamples.length
+    this.contentSamples = this.contentSamples.filter((sample) => sample.id !== id)
+    const deleted = this.contentSamples.length !== before
+    if (deleted) await this.persist()
+    return deleted
+  }
+
   /** Serializes writes so concurrent requests cannot clobber each other. */
   private persist(): Promise<void> {
     this.writing = this.writing.then(() => this.writeNow())

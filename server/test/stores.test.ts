@@ -95,6 +95,10 @@ async function expectStoreBehavior(store: DataStore): Promise<void> {
   })
   const samples = await store.listContentSamples()
   expect(samples.map((sample) => sample.id)).toEqual(['s2', 's1'])
+  // 复审处置：删除已复核样本；未知 id 返回 false。
+  expect(await store.deleteContentSample('s2')).toBe(true)
+  expect((await store.listContentSamples()).map((sample) => sample.id)).toEqual(['s1'])
+  expect(await store.deleteContentSample('ghost')).toBe(false)
 
   await store.close()
 }
@@ -148,14 +152,25 @@ describe('FileDataStore', () => {
       classification: 'discomfort',
       createdAt: '2026-09-28T00:00:00.000Z',
     })
+    await first.createContentSample({
+      id: 's2',
+      text: '复审后删除',
+      classification: 'ok',
+      createdAt: '2026-09-28T00:00:01.000Z',
+    })
     await first.close()
 
     const second = new FileDataStore(filePath)
     await second.init()
-    const samples = await second.listContentSamples()
-    expect(samples.map((sample) => sample.id)).toEqual(['s1'])
-    expect(samples[0]?.classification).toBe('discomfort')
+    expect((await second.listContentSamples()).map((sample) => sample.id)).toEqual(['s2', 's1'])
+    // 删除持久化：第三个实例确认 s2 已消失。
+    expect(await second.deleteContentSample('s2')).toBe(true)
     await second.close()
+
+    const third = new FileDataStore(filePath)
+    await third.init()
+    expect((await third.listContentSamples()).map((sample) => sample.id)).toEqual(['s1'])
+    await third.close()
   })
 
   it('starts empty on a corrupted file', async () => {
@@ -468,5 +483,13 @@ describe('PostgresDataStore', () => {
     expect(samples).toEqual([
       { id: 's1', text: '参数化写入', classification: 'misleading', createdAt: '2026-09-28T00:00:00.000Z' },
     ])
+
+    const deletePool = makeFakePool({ rowCount: 1 })
+    expect(await new PostgresDataStore(deletePool).deleteContentSample('s1')).toBe(true)
+    expect(deletePool.queries[0]?.text).toContain('DELETE FROM ageha_content_samples WHERE id = $1')
+    expect(deletePool.queries[0]?.values).toEqual(['s1'])
+
+    const missingPool = makeFakePool()
+    expect(await new PostgresDataStore(missingPool).deleteContentSample('ghost')).toBe(false)
   })
 })

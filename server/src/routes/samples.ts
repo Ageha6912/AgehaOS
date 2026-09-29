@@ -24,12 +24,13 @@ export interface SampleRoutesOptions {
 }
 
 /**
- * 举报样本上传（DDS §8.6 收尾 + Phase B「分类器服务端化」）：
+ * 举报样本上传与处置（DDS §8.6 收尾 + Phase B「分类器服务端化」）：
  * - `POST /dynamic/samples`（匿名，无需登录——举报者身份永不出本地，§8.5
  *   上行最小化；滥用由共享限流 + 512 字符上限 + 服务端分类器把关）：内容先过
  *   服务端分类器，`violation` 直接 422 且不落库（违规内容本体不入任何存储），
  *   其余分类落库供复审。
  * - `GET /dynamic/samples`（仅 role=admin）：复审清单，新样本在前。
+ * - `DELETE /dynamic/samples/:id`（仅 role=admin）：复审处置——删除已复核样本。
  */
 export async function sampleRoutes(app: FastifyInstance, options: SampleRoutesOptions): Promise<void> {
   const { store } = options
@@ -66,5 +67,14 @@ export async function sampleRoutes(app: FastifyInstance, options: SampleRoutesOp
   app.get('/dynamic/samples', async (request, reply) => {
     if (!(await requireAdmin(store, request, reply))) return reply
     return { samples: await store.listContentSamples() }
+  })
+
+  app.delete('/dynamic/samples/:id', async (request, reply) => {
+    if (!(await requireAdmin(store, request, reply))) return reply
+    const { id } = request.params as { id: string }
+    const deleted = await store.deleteContentSample(id)
+    if (!deleted) return reply.code(404).send({ error: 'not-found' })
+    app.log.info({ audit: 'content.sample_deleted', sampleId: id }, 'reported sample deleted after review')
+    return { deleted: true }
   })
 }

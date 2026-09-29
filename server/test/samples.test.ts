@@ -188,4 +188,59 @@ describe('content sample upload（DDS §8.6 匿名上报 + 服务端分类器）
       firstId,
     ])
   })
+
+  it('deletes a reviewed sample as admin and 404s on unknown ids', async () => {
+    const store = new MemoryDataStore()
+    app = await makeApp(store, 'boss')
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/dynamic/samples',
+      payload: { text: '待处置样本' },
+    })
+    const id = (created.json() as { id: string }).id
+    const admin = await register(app, 'boss')
+
+    const deleted = await app.inject({
+      method: 'DELETE',
+      url: `/api/dynamic/samples/${id}`,
+      cookies: admin.cookies,
+    })
+    expect(deleted.statusCode).toBe(200)
+    expect(deleted.json()).toEqual({ deleted: true })
+    expect((await store.listContentSamples()).map((s) => s.id)).toEqual([])
+
+    const missing = await app.inject({
+      method: 'DELETE',
+      url: `/api/dynamic/samples/no-such-id`,
+      cookies: admin.cookies,
+    })
+    expect(missing.statusCode).toBe(404)
+    expect(missing.json()).toEqual({ error: 'not-found' })
+  })
+
+  it('rejects sample deletion from anonymous and non-admin callers', async () => {
+    const store = new MemoryDataStore()
+    app = await makeApp(store, 'boss')
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/dynamic/samples',
+      payload: { text: '不应被别人删掉的样本' },
+    })
+    const id = (created.json() as { id: string }).id
+
+    expect(
+      (await app.inject({ method: 'DELETE', url: `/api/dynamic/samples/${id}` })).statusCode,
+    ).toBe(401)
+
+    const plain = await register(app, 'alice')
+    const forbidden = await app.inject({
+      method: 'DELETE',
+      url: `/api/dynamic/samples/${id}`,
+      cookies: plain.cookies,
+    })
+    expect(forbidden.statusCode).toBe(403)
+    expect(forbidden.json()).toEqual({ error: 'not-admin' })
+    // 样本仍在：守卫生效。
+    expect((await store.listContentSamples()).map((s) => s.id)).toEqual([id])
+  })
 })

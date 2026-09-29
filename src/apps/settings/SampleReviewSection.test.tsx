@@ -84,4 +84,41 @@ describe('SampleReviewSection（DDS §8.6 复审视图，仅 admin 分区挂载�
     fireEvent.click(screen.getByTestId('sample-review-refresh'))
     await waitFor(() => expect(fetchMock.mock.calls.length).toBe(callsAfterLoad + 1))
   })
+
+  it('deletes a reviewed sample and updates the list and count', async () => {
+    fetchMock.mockImplementation((url: string | URL | Request) => {
+      const href = String(url)
+      if (href.endsWith('/api/dynamic/samples') || href.endsWith('/api/dynamic/samples/')) {
+        return Promise.resolve(okGet(SAMPLES))
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ deleted: true }) } as Response)
+    })
+    render(<SampleReviewSection />)
+    await waitFor(() => expect(screen.getByTestId('sample-review-list')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByTestId('sample-review-delete')[0])
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1))
+    expect(screen.getByText('1 条样本')).toBeInTheDocument()
+    const [url, init] = fetchMock.mock.calls.find(([u]) => String(u).includes('/api/dynamic/samples/s')) ?? []
+    expect(String(url)).toMatch(/\/api\/dynamic\/samples\/s[12]$/)
+    expect(init).toMatchObject({ method: 'DELETE', credentials: 'same-origin' })
+  })
+
+  it('keeps the row and shows an alert when deletion fails', async () => {
+    fetchMock.mockImplementation((url: string | URL | Request) => {
+      const href = String(url)
+      if (href.endsWith('/api/dynamic/samples') || href.endsWith('/api/dynamic/samples/')) {
+        return Promise.resolve(okGet(SAMPLES))
+      }
+      return Promise.resolve({ ok: false, status: 404 } as Response)
+    })
+    render(<SampleReviewSection />)
+    await waitFor(() => expect(screen.getByTestId('sample-review-list')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByTestId('sample-review-delete')[0])
+    await waitFor(() => expect(screen.getByTestId('sample-review-delete-error')).toBeInTheDocument())
+    expect(screen.getByRole('alert')).toHaveTextContent('样本删除失败。')
+    // 行保留：数据不静默丢失。
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+  })
 })

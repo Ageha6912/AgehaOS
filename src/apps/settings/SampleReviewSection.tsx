@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { ArrowClockwise, ListChecks } from '@phosphor-icons/react'
+import { ArrowClockwise, ListChecks, Trash } from '@phosphor-icons/react'
 
 import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
@@ -38,6 +38,8 @@ export function SampleReviewSection() {
   const { t } = useTranslation()
   const [samples, setSamples] = useState<ContentSample[] | null>(null)
   const [loadError, setLoadError] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState(false)
 
   const load = useCallback(async () => {
     setLoadError(false)
@@ -51,6 +53,27 @@ export function SampleReviewSection() {
       setSamples(body.samples)
     } catch {
       setLoadError(true)
+    }
+  }, [])
+
+  // 复审处置（ADR 22 尾巴）：删除已复核样本；失败行保留 + 行内告警。
+  const removeSample = useCallback(async (id: string) => {
+    setBusy(true)
+    setDeleteError(false)
+    try {
+      const response = await fetch(`/api/dynamic/samples/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      })
+      if (!response.ok) {
+        setDeleteError(true)
+        return
+      }
+      setSamples((previous) => previous?.filter((sample) => sample.id !== id) ?? previous)
+    } catch {
+      setDeleteError(true)
+    } finally {
+      setBusy(false)
     }
   }, [])
 
@@ -80,6 +103,11 @@ export function SampleReviewSection() {
       </div>
       <p className="mb-4 text-xs text-text-muted">{t('settings.reviewHint')}</p>
 
+      {deleteError && (
+        <p role="alert" className="mb-3 text-xs text-danger" data-testid="sample-review-delete-error">
+          {t('settings.reviewDeleteFailed')}
+        </p>
+      )}
       {loadError ? (
         <p role="alert" className="text-xs text-danger" data-testid="sample-review-error">
           {t('settings.reviewLoadError')}
@@ -112,6 +140,16 @@ export function SampleReviewSection() {
                       {t(CLASS_KEY[sample.classification])}
                     </span>
                     <span className="font-mono text-[11px] text-text-muted">{sample.createdAt}</span>
+                    <button
+                      type="button"
+                      aria-label={`${t('settings.reviewDelete')} (${sample.id})`}
+                      data-testid="sample-review-delete"
+                      disabled={busy}
+                      className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-raised hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
+                      onClick={() => void removeSample(sample.id)}
+                    >
+                      <Trash aria-hidden="true" size={12} />
+                    </button>
                   </div>
                   <p className="mt-1 break-words text-xs text-text">{sample.text}</p>
                 </li>

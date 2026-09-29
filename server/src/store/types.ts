@@ -82,4 +82,6 @@ export interface DataStore {
   createContentSample(sample: ContentSampleRecord): Promise<void>
   /** All stored samples, newest first (admin review listing). */
   listContentSamples(): Promise<ContentSampleRecord[]>
+  /** Deletes one sample by id (admin disposition); false when the id is unknown. */
+  deleteContentSample(id: string): Promise<boolean>
 }
