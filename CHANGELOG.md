@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### UI 全面视觉升级 Slice 7：启动器（DESIGN.md §22）
+
+- 开始菜单升级为图标优先面板：`w-[24rem]` + `rounded-xl` 玻璃 + 顶部本地搜索框（`launcher-search`，本地化名称过滤，启动即清空，未命中复用 `search.empty`）+ 4 列图标瓦片网格（AppIcon 40 + 11px 标签）；布局建议形态保留分组行式、宽度调至 384/480/544、分组标题 10→11px（§5 纪律收口）
+- 缓办并记录：Recent/Categories（无真实数据源不做装饰）、560-680 全宽档（现应用数量下更克制）
+- 契约不变：menu[aria-label=开始]/按名点击/launcher-layout-*/reset testid/三档机制/§14 动效/bottom-full 悬于胶囊上方
+- 测试：Taskbar +2（搜索过滤+启动清空 / 空态）；前端 97 文件全绿 + 80 后端；E2E 14/14；visual-judge 1/1（382px/20px 圆角/与 Dock 10px 间隙/4 列无截断）
+
 ### UI 全面视觉升级 Slice 6：窗口 chrome（DESIGN.md §21）
 
 - 窗体 `rounded-lg(12)` → `rounded-xl(20)`（最大化 rounded-none 不变）；头部 `h-9(36)` → `h-11(44)` 并弃实色底改为玻璃连续 + `border-border-subtle` 发丝线——「玻璃归 chrome、纸面归应用」分层更清晰

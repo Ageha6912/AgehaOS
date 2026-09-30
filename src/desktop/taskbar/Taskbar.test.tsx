@@ -138,6 +138,31 @@ describe('Taskbar', () => {
     expect(screen.queryByText('系统')).not.toBeInTheDocument()
   })
 
+  it('filters the flat launcher by the local search box (§22)', () => {
+    render(<Taskbar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+    fireEvent.change(screen.getByTestId('launcher-search'), { target: { value: '记' } })
+    expect(screen.getByRole('button', { name: '记事' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '文件' })).not.toBeInTheDocument()
+
+    // 命中即启动；输入随菜单关闭清空。
+    fireEvent.click(screen.getByRole('button', { name: '记事' }))
+    expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.notes')
+
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+    expect(screen.getByTestId('launcher-search')).toHaveValue('')
+  })
+
+  it('shows the empty state when the launcher search misses', () => {
+    render(<Taskbar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+    fireEvent.change(screen.getByTestId('launcher-search'), { target: { value: 'zzz' } })
+
+    expect(screen.getByText('无匹配结果')).toBeInTheDocument()
+  })
+
   it('auto-hides by default and slides in from the bottom edge zone', () => {
     render(<Taskbar />)
 

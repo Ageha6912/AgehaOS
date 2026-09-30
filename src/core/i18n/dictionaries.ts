@@ -58,6 +58,7 @@ export const dictionaries = {
     'desktop.iconsLabel': '桌面应用',
 
     'taskbar.start': '开始',
+    'launcher.searchPlaceholder': '搜索应用…',
     'taskbar.preview.minimized': '窗口已最小化',
 
     'window.close': '关闭窗口',
@@ -412,6 +413,7 @@ export const dictionaries = {
     'desktop.iconsLabel': 'Desktop apps',
 
     'taskbar.start': 'Start',
+    'launcher.searchPlaceholder': 'Search apps…',
     'taskbar.preview.minimized': 'Window minimized',
 
     'window.close': 'Close window',
