@@ -33,6 +33,12 @@ function launchFromStartMenu(appName: RegExp) {
 }
 
 describe('Desktop', () => {
+  it('mounts the top menu bar (DESIGN.md §19)', () => {
+    render(<Desktop />)
+
+    expect(screen.getByTestId('menu-bar')).toBeInTheDocument()
+  })
+
   it('auto-opens the dynamic panel once per desktop session, docked to the right', () => {
     const { rerender } = render(<Desktop />)
 

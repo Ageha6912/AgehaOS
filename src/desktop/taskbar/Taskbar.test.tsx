@@ -16,12 +16,6 @@ beforeEach(() => {
 })
 
 describe('Taskbar', () => {
-  it('shows the clock for the current time', () => {
-    render(<Taskbar />)
-
-    expect(screen.getByText('10:30')).toBeInTheDocument()
-  })
-
   it('launches an app from the start menu', () => {
     render(<Taskbar />)
 
@@ -208,6 +202,8 @@ describe('Taskbar', () => {
 
   it('reveals for keyboard focus and hides when focus leaves the taskbar', async () => {
     const { act } = await import('@testing-library/react')
+    // 尾部系统状态已迁往顶栏（§19）——焦点链用窗口项按钮验证。
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     render(<Taskbar />)
 
     const bar = screen.getByRole('contentinfo') as HTMLElement
@@ -216,13 +212,13 @@ describe('Taskbar', () => {
     fireEvent.focus(start)
     expect(bar).toHaveAttribute('data-state', 'revealed')
 
-    // 焦点移向任务栏内的另一个控件（通知铃铛）不收起。
-    const bell = bar.querySelectorAll('button')[1] as HTMLElement
-    fireEvent.blur(start, { relatedTarget: bell })
-    fireEvent.focus(bell)
+    // 焦点移向任务栏内的另一个控件（窗口项按钮）不收起。
+    const item = bar.querySelectorAll('button')[1] as HTMLElement
+    fireEvent.blur(start, { relatedTarget: item })
+    fireEvent.focus(item)
     expect(bar).toHaveAttribute('data-state', 'revealed')
 
-    fireEvent.blur(bell, { relatedTarget: document.body })
+    fireEvent.blur(item, { relatedTarget: document.body })
     act(() => {
       vi.advanceTimersByTime(500)
     })

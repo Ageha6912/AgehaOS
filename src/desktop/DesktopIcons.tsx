@@ -71,7 +71,7 @@ export function DesktopIcons() {
   return (
     <nav
       aria-label={t('desktop.iconsLabel')}
-      className="pointer-events-none absolute left-2 top-2 z-10 flex max-h-[calc(100%-1rem)] flex-col flex-wrap content-start gap-0.5"
+      className="pointer-events-none absolute left-2 top-[calc(var(--ag-menubar-height)+0.5rem)] z-10 flex max-h-[calc(100%-var(--ag-menubar-height)-1.25rem)] flex-col flex-wrap content-start gap-0.5"
     >
       {entries.map((app, index) => {
         const meta = componentFor(app.id)

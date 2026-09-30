@@ -14,8 +14,9 @@ import {
 import type { NotificationItem } from '@/store/notification-store'
 
 /**
- * 通知中心（PRD §16.2）：任务栏铃铛 + 历史面板——查看、标记已读、全部已读、
- * 单条删除、清空。未读数以徽标呈现。
+ * 通知中心（PRD §16.2）：铃铛 + 历史面板——查看、标记已读、全部已读、
+ * 单条删除、清空。未读数以徽标呈现。2026-09-30 起挂顶部菜单栏（§19），
+ * 面板自顶栏向下展开（top-10）。
  */
 
 function timeOf(createdAt: number, locale: 'zh-CN' | 'en'): string {
@@ -107,7 +108,7 @@ export function NotificationCenter() {
           role="region"
           aria-label={t('notification.center')}
           data-testid="notification-panel"
-          className={`surface-glass absolute bottom-10 right-0 z-50 flex max-h-96 w-80 flex-col rounded-lg border border-border p-2 shadow-window ${popoverMotionClass(panelPhase.exiting)}`}
+          className={`surface-glass absolute top-10 right-0 z-50 flex max-h-96 w-80 flex-col rounded-lg border border-border p-2 shadow-window ${popoverMotionClass(panelPhase.exiting)}`}
         >
           <div className="flex items-center justify-between px-1 pb-2">
             <p className="text-xs font-semibold text-text">{t('notification.center')}</p>

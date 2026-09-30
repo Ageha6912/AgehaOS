@@ -71,8 +71,15 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
   const minimized = win.state === 'minimized'
   const app = componentFor(win.appId)
 
+  // 最大化占满顶栏之下的工作区（§19）：顶栏常驻 z-40，窗口层 z-30 永远垫底。
   const style: CSSProperties = maximized
-    ? { left: 0, top: 0, width: '100%', height: '100%', zIndex: win.zIndex }
+    ? {
+        left: 0,
+        top: 'var(--ag-menubar-height)',
+        width: '100%',
+        height: 'calc(100% - var(--ag-menubar-height))',
+        zIndex: win.zIndex,
+      }
     : { left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.zIndex }
 
   const onTitlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {

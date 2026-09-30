@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 
 import { launchApp } from '@/apps/launch'
 import { AtmosphereLayer } from '@/desktop/atmosphere/AtmosphereLayer'
+import { MenuBar } from '@/desktop/menu-bar/MenuBar'
 import { Taskbar } from '@/desktop/taskbar/Taskbar'
 import { WindowLayer } from '@/desktop/window/WindowLayer'
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
@@ -10,6 +11,7 @@ import { SearchPalette } from '@/desktop/search/SearchPalette'
 import { ContextMenu, type ContextMenuPosition } from '@/desktop/ContextMenu'
 import { DesktopIcons } from '@/desktop/DesktopIcons'
 import { openRandomGame } from '@/desktop/game-rotation'
+import { MENUBAR_HEIGHT_PX } from '@/desktop/window/viewport'
 import { useClickRipple } from '@/desktop/motion/use-click-ripple'
 import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
@@ -53,7 +55,8 @@ export function Desktop() {
     const width = getAppManifest(AUTO_OPEN_APP_ID)?.window?.width ?? 360
     launchApp(AUTO_OPEN_APP_ID, {
       x: Math.max(8, window.innerWidth - width - 24),
-      y: 24,
+      // 顶栏常驻（§19）：面板标题栏不得钻进菜单栏底下。
+      y: MENUBAR_HEIGHT_PX + 24,
     })
   }, [])
 
@@ -85,6 +88,8 @@ export function Desktop() {
       <DesktopIcons />
       <WindowLayer />
       <NotificationToasts />
+      {/* 顶部菜单栏（§19）：常驻 chrome，z-40 与任务栏同级；通知/用户/时钟挂此。 */}
+      <MenuBar />
       <Taskbar />
       <SearchPalette />
       <ContextMenu position={contextPos} onClose={() => setContextPos(null)} />

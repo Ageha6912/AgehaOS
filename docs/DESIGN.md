@@ -522,3 +522,29 @@ clientHeight 396`）——后续按坑 44 迁移 `ScrollFadeList` 或调高默�
   （.tmp 脚本，坑 66）。
 - visual-judge 像素验收：无色带（纯壁纸区最大梯度步进 ~1.3/255）、无暗框
   感、浅色无泥黄、深色不糊黑；壁纸仍是视觉主角。
+
+## 19. 顶部菜单栏（Phase 1 Slice 3，2026-09-30）
+
+升级提示词 §15 的 AgehaOS 式顶栏（借鉴 OS 菜单栏的空间逻辑，非 macOS 复刻）：
+`src/desktop/menu-bar/MenuBar.tsx`，常驻 `fixed inset-x-0 top-0 z-40`，高
+`--ag-menubar-height`（32px，与 `viewport.ts` 的 `MENUBAR_HEIGHT_PX` 双常量
+互指钉扎）。视觉：白/墨玻璃 + `border-border-subtle` 发丝底边 + shadow-soft，
+克制不抢焦点。
+
+- **左侧**：BrandLogo(16) + AgehaOS 字标 + 菜单——只放有真实动作的项：
+  文件（打开文件管理器 / 搜索…=Ctrl+K）、视图（更换壁纸 / 浅色/深色/跟随系统
+  带勾选）、窗口（最小化全部 / 关闭全部 / 打开窗口清单点击聚焦还原）、
+  帮助（关于=打开设置）。「编辑」无真实目标，缓办；「网络/云同步」等无真实
+  信号的状态图标不做（拒绝装饰性谎言，待有真数据再挂）。
+- **右侧（Q3 裁决自任务栏迁移）**：通知铃（面板向下展开 top-10）+ 用户菜单
+  + 时钟。任务栏回归纯应用 Dock；E2E 全局 testid/role 定位不受挂载点影响。
+- **键盘/可达性**：触发器 `aria-haspopup/aria-expanded`、下拉 `role=menu`、
+  项 `role=menuitem`（禁用态半透明）；Tab/Enter/Esc 可完整操作，外部
+  pointerdown/Esc 关闭（与右键菜单同语义）；悬停切换菜单（有菜单打开时）；
+  箭头遍历缓办。
+- **工作区契约**：`getWorkspaceViewport()` 高度扣减顶栏（拖拽/缩放钳制）；
+  最大化窗口 `top: var(--ag-menubar-height)` 只占顶栏之下的工作区；桌面图标
+  列、动态面板自动停靠、小游戏轮换弹出的 y 基线全部避开顶栏；toast 栈
+  顶偏移 `calc(var(--ag-menubar-height)+0.75rem)`。
+- **动效**：下拉复用 §14 弹层语言（进 200ms / 退 120ms，jsdom 无 WAAPI 即时
+  卸载语义不变）。

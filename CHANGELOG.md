@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### UI 全面视觉升级 Slice 3：顶部菜单栏（DESIGN.md §19）
+
+- 新增常驻 32px 玻璃顶栏 `src/desktop/menu-bar/MenuBar.tsx`：左 = 品牌 + 四菜单（文件/视图/窗口/帮助，只放真实动作：开文件管理器/Ctrl+K 搜索/更换壁纸/三档主题带勾选/最小化全部/关闭全部/窗口清单聚焦还原/关于）；「编辑」与网络/云同步装饰图标缓办（无真实目标/信号）
+- **Q3 裁决落地**：通知铃（面板向下展开）、用户菜单、时钟自任务栏迁移至顶栏右侧；任务栏回归纯应用 Dock；i18n 新增 10 键（zh/en 双写，主题/壁纸文案复用既有键）
+- **工作区契约**：`getWorkspaceViewport()` 扣减顶栏高度（`MENUBAR_HEIGHT_PX=32` 与 `--ag-menubar-height` 双常量钉扎）；最大化窗口只占顶栏之下；桌面图标列/动态面板自动停靠/小游戏弹出 y 基线避开顶栏；toast 栈下移
+- 测试：MenuBar +8（渲染/四菜单动作/勾选态/禁用态/Esc+外部关闭/悬停切换/aria-expanded）、viewport +2、Desktop +1、Taskbar 更新（时钟测试迁移至 MenuBar；键盘焦点链改用窗口项）；CSS 契约钉 32px；E2E 新增 menu-bar.spec（窗口管理/主题切换/通知中心）；前端 97 文件全绿 + 80 后端；E2E 14/14；visual-judge 6/6
+
 ### UI 全面视觉升级 Slice 2：桌面氛围层（DESIGN.md §18）
 
 - 壁纸/画布之上新增极轻环境层：顶部环境光 + 暗角（随主题翻转；浅色边角实测 ~4-5% 增深、顶光 +5.3%），纯静态 CSS 渐变（`--ag-atmosphere-ambient/-vignette` + `.atmosphere-layer`），零动画零 rAF

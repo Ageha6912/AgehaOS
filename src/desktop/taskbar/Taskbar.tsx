@@ -4,9 +4,6 @@ import { AppIcon } from '@/apps/app-icon'
 import { useWindowStore } from '@/store/window-store'
 
 import { AppLauncher } from './AppLauncher'
-import { NotificationCenter } from './NotificationCenter'
-import { useClock } from './use-clock'
-import { UserMenu } from './UserMenu'
 import { WindowPreview } from './WindowPreview'
 import { useDockWave } from './use-dock-wave'
 
@@ -22,7 +19,6 @@ const HIDE_DELAY_MS = 400
  * 视觉上「透明」地融进壁纸，同时保住深浅壁纸下的文字可读性。
  */
 export function Taskbar() {
-  const clock = useClock()
   const windows = useWindowStore((s) => s.windows)
   const focus = useWindowStore((s) => s.focus)
   const minimize = useWindowStore((s) => s.minimize)
@@ -164,9 +160,8 @@ export function Taskbar() {
           })}
         </div>
 
-        <NotificationCenter />
-        <UserMenu />
-        <time className="shrink-0 px-2 text-xs text-text-muted">{clock}</time>
+        {/* 尾部系统状态（通知/用户/时钟）已随顶栏上线迁移至 MenuBar
+            （docs/DESIGN.md §19，2026-09-30 Q3 裁决）——任务栏回归纯应用 Dock。 */}
       </footer>
     </>
   )

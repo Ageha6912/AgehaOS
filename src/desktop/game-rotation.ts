@@ -1,6 +1,8 @@
 import { launchApp } from '@/apps/launch'
 import { getAppManifest, useAppStore } from '@/store/app-store'
 
+import { MENUBAR_HEIGHT_PX } from './window/viewport'
+
 /** 参与轮换的小游戏（商店目录条目；未安装的自动跳过）。 */
 export const GAME_APP_IDS: readonly string[] = [
   'com.ageha.games.snake',
@@ -46,7 +48,8 @@ export function openRandomGame(): string | null {
   const height = manifest?.window?.height ?? 480
   launchApp(picked, {
     x: Math.max(8, Math.round((window.innerWidth - width) / 2)),
-    y: Math.max(8, Math.round((window.innerHeight - height) / 2 - 40)),
+    // 顶栏常驻（§19）：居中弹出不得钻进菜单栏底下。
+    y: Math.max(MENUBAR_HEIGHT_PX + 8, Math.round((window.innerHeight - height) / 2 - 40)),
   })
   try {
     localStorage.setItem(LAST_GAME_KEY, picked)

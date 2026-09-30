@@ -201,7 +201,7 @@ export function NotificationToasts() {
     // 布局容器仅承担定位与腾位排布（演示模块的「定位层」）；可达性语义
     // 由每张卡片的 role=status 承担。
     <div
-      className="pointer-events-none absolute right-3 top-3 z-50 w-72"
+      className="pointer-events-none absolute right-3 top-[calc(var(--ag-menubar-height)+0.75rem)] z-50 w-72"
       style={{ height: stackHeight > 0 ? stackHeight : undefined }}
     >
       {visible.map((item) => (
