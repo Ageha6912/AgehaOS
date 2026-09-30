@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Phase 2 · P2-6：应用纸面 92% 轻半透明（§2.1/§21 终裁，用户拍板）
+
+- 预览工作台（`.tmp/paper-preview`，双主题 × 100/92/85 三档、含叠窗场景）+ visual-judge 像素实测：**92% 渗字为零（rms 0.48≈噪声）、对比度不变（主文 14-16:1 / 次级 5.3-6.6:1）**；85% 出现微弱字形残影（不可读但可见）。用户裁决取 92%
+- 落地：`.surface-panel` 底色与 `--ag-panel` 双主题渐变按 92% alpha（color-mix）；纯 alpha 合成零 GPU 成本、不带 blur；`prefers-reduced-transparency` 回退实色
+- 测试：CSS 契约 +1（92% 与回退钉扎）；前端 100 文件全绿 + 80 后端；E2E 17/17；visual-judge 2/2（双主题纸面可读性无差、无渗字、深度感成立）
+
 ### Phase 2 · P2-5：最近使用（DESIGN.md §22）
 
 - 新增 `usage-store`（设备本地 `agehaos.usage.recent.v1`，上限 8、appId 去重置顶）；`launchApp` 第三参 `source: 'user' | 'system'`——桌面自动开窗与小游戏轮换传 `'system'` 不计入

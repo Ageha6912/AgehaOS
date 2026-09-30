@@ -112,6 +112,13 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(css).toMatch(/\.popover-panel\s*\{[\s\S]*?--ag-radius-lg/)
   })
 
+  it('keeps app paper at the ruled 92% translucency (sec 21 P2-6)', () => {
+    expect(root).toMatch(/--ag-panel:\s*[\s\S]*92%/)
+    expect(dark).toMatch(/--ag-panel:\s*[\s\S]*92%/)
+    expect(css).toMatch(/\.surface-panel\s*\{[\s\S]*?var\(--ag-surface\) 92%/)
+    expect(css).toContain('prefers-reduced-transparency')
+  })
+
   it('defines theme-independent traffic light tokens mapped to utilities', () => {
     for (const name of ['ag-wl-close', 'ag-wl-min', 'ag-wl-max']) {
       expect(has(root, name), `${name} in :root`).toBe(true)

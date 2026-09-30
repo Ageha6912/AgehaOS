@@ -46,8 +46,11 @@
 玻璃材质（chrome 专用：Dock/开始菜单/窗口标题区/顶栏）：浅 `rgb(255 255 255 / 72%)`
 / 深 `rgb(16 23 40 / 66%)`，蓝白调，blur 28px（`--ag-blur-lg`）；应用内部一律
 不透明渐变面板——**玻璃归 chrome，纸面归应用**，材质分层即层级。
-（§21 裁决：窗体纸面维持不透明——主题池配色明暗同侧，半透明纸面对比度
-收益为负；全应用纸面半透明留待后续应用套件单独评审。）
+（§21 P2-6 终裁 2026-09-30：**应用纸面 92% 轻半透明**——预览工作台 +
+像素实测（92% 渗字为零、对比度不变；85% 出现微弱字形残影）后用户拍板。
+`.surface-panel` 底色与 `--ag-panel` 渐变均按 92% alpha（color-mix），
+纯 alpha 合成零 GPU 成本、不带 blur；`prefers-reduced-transparency`
+回退实色。）
 
 ### 2.1.1 Token 2.0 扩展（2026-09-30 起，ADR 24）
 
@@ -598,8 +601,9 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   （group-hover，Phosphor 8px），命中区 24px；非激活窗口整组 opacity-60。
   可访问名契约不变（`window.close/minimize/maximize/restore`——测试与
   E2E 按名点击）；按钮 `onPointerDown` stopPropagation 保留（拖拽不吞点击）。
-- **窗体纸面**：维持不透明（§2.1 裁决见上）；动效契约（§12 WAAPI 常量/
-  ghost/genie）与窗口状态语义零改动。
+- **窗体纸面**：§2.1 P2-6 终裁 92% 轻半透明（见上；预览工作台存档
+  `.tmp/shots/paper-preview.png`）；动效契约（§12 WAAPI 常量/ghost/
+  genie）与窗口状态语义零改动。
 - 测试：WindowFrame +1（三灯左置顺序/点色 Token/头 44/圆角 xl）；CSS 契约
   +1（wl token 双侧存在）。
 

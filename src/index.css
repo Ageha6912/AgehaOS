@@ -112,7 +112,13 @@
 
   /* ---- Large-surface gradients（渐变只属于大面；控件实色）---- */
   --ag-canvas: linear-gradient(168deg, #ffffff 0%, #ecf3fd 55%, #ddebfb 100%);
-  --ag-panel: linear-gradient(180deg, #fdfeff 0%, #f3f8ff 100%);
+  /* 纸面 92% 轻半透明（§21 P2-6 用户裁决 2026-09-30：实测渗字为零、
+     对比度不变；纯 alpha 合成零 GPU 成本，不带 blur）。 */
+  --ag-panel: linear-gradient(
+    180deg,
+    color-mix(in srgb, #fdfeff 92%, transparent) 0%,
+    color-mix(in srgb, #f3f8ff 92%, transparent) 100%
+  );
 
   /* ---- Motion baseline (MOTION 2: restrained, transform/opacity only). ---- */
   --ag-motion-fast: 120ms;
@@ -209,7 +215,11 @@
 
   /* ---- Large-surface gradients（藏蓝墨渐变）---- */
   --ag-canvas: linear-gradient(168deg, #131e36 0%, #0d1526 60%, #0a0f1c 100%);
-  --ag-panel: linear-gradient(180deg, #172130 0%, #121828 100%);
+  --ag-panel: linear-gradient(
+    180deg,
+    color-mix(in srgb, #172130 92%, transparent) 0%,
+    color-mix(in srgb, #121828 92%, transparent) 100%
+  );
 
   /* ---- v1 别名 ---- */
   --ag-surface-raised: var(--ag-surface-soft);
@@ -328,8 +338,15 @@ body {
  * Controls inside panels stay solid — gradients belong to big areas only.
  */
 .surface-panel {
-  background-color: var(--ag-surface);
+  /* 92% 纸面（§21 P2-6）：底色同步半透明；reduced-transparency 回退实色。 */
+  background-color: color-mix(in srgb, var(--ag-surface) 92%, transparent);
   background-image: var(--ag-panel);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .surface-panel {
+    background-color: var(--ag-surface);
+    background-image: none;
+  }
 }
 
 /** Full-bleed canvas gradient (login/boot/desktop when wallpaper is off). */
