@@ -545,8 +545,11 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   + 时钟。任务栏回归纯应用 Dock；E2E 全局 testid/role 定位不受挂载点影响。
 - **键盘/可达性**：触发器 `aria-haspopup/aria-expanded`、下拉 `role=menu`、
   项 `role=menuitem`（禁用态半透明）；Tab/Enter/Esc 可完整操作，外部
-  pointerdown/Esc 关闭（与右键菜单同语义）；悬停切换菜单（有菜单打开时）；
-  箭头遍历缓办。
+  pointerdown/Esc 关闭（与右键菜单同语义）；悬停切换菜单（有菜单打开时）。
+  **箭头遍历（P2-4，2026-09-30 补全）**：触发器 ←/→ 环游（菜单打开时
+  顺带切换）、↓/↑ 开菜单并聚焦首/末项；菜单内 ↑/↓ 循环（跳过禁用项）、
+  ←/→ 切换相邻菜单、Home/End 首末项、Esc 关闭并回焦触发器——真实 DOM
+  focus（Tab 语义不变），真浏览器键盘链冒烟钉住。
 - **工作区契约**：`getWorkspaceViewport()` 高度扣减顶栏（拖拽/缩放钳制）；
   最大化窗口 `top: var(--ag-menubar-height)` 只占顶栏之下的工作区；桌面图标
   列、动态面板自动停靠、小游戏轮换弹出的 y 基线全部避开顶栏；toast 栈

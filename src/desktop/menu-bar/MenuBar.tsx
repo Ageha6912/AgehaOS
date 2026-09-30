@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 
 import { Check } from '@phosphor-icons/react'
 
@@ -15,6 +15,9 @@ import { useSettingsStore } from '@/store/settings-store'
 import { useWindowStore } from '@/store/window-store'
 
 type MenuId = 'file' | 'view' | 'window' | 'help'
+
+/** 触发器顺序（键盘左右遍历的环）。 */
+const MENU_IDS: MenuId[] = ['file', 'view', 'window', 'help']
 
 /**
  * 顶部菜单栏（docs/DESIGN.md §19，升级提示词 §15）：左 = 品牌 + 菜单，
@@ -60,6 +63,83 @@ export function MenuBar() {
     run()
   }
 
+  // —— 键盘模型（§19 P2-4）：触发器左右切换、菜单内上下循环/左右换菜单、
+  // Esc 回焦触发器、Home/End 首末项。焦点用真实 DOM focus（Tab 语义不变）。 ——
+  const triggerRefs = useRef<Partial<Record<MenuId, HTMLButtonElement | null>>>({})
+  const dropdownRefs = useRef<Partial<Record<MenuId, HTMLDivElement | null>>>({})
+  const [pendingItemFocus, setPendingItemFocus] = useState<{
+    id: MenuId
+    delta: 1 | -1
+  } | null>(null)
+
+  const enabledItems = (id: MenuId): HTMLButtonElement[] => {
+    const dropdown = dropdownRefs.current[id]
+    if (!dropdown) return []
+    return Array.from(
+      dropdown.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([disabled])'),
+    )
+  }
+  const stepMenuItem = (id: MenuId, delta: 1 | -1): void => {
+    const items = enabledItems(id)
+    if (items.length === 0) return
+    const index = items.indexOf(document.activeElement as HTMLButtonElement)
+    const next =
+      index === -1
+        ? delta === 1
+          ? 0
+          : items.length - 1
+        : (index + delta + items.length) % items.length
+    items[next]?.focus()
+  }
+
+  useEffect(() => {
+    if (!pendingItemFocus) return
+    stepMenuItem(pendingItemFocus.id, pendingItemFocus.delta)
+    setPendingItemFocus(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingItemFocus])
+
+  const focusTrigger = (id: MenuId, open: boolean): void => {
+    if (open) setOpenMenu(id)
+    triggerRefs.current[id]?.focus()
+  }
+  const stepTrigger = (id: MenuId, delta: 1 | -1): void => {
+    const index = MENU_IDS.indexOf(id)
+    const next = MENU_IDS[(index + delta + MENU_IDS.length) % MENU_IDS.length]
+    focusTrigger(next, openMenu !== null)
+  }
+  const closeAndRefocus = (id: MenuId): void => {
+    setOpenMenu(null)
+    triggerRefs.current[id]?.focus()
+  }
+
+  const onTriggerKeyDown = (id: MenuId) => (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+      event.preventDefault()
+      stepTrigger(id, event.key === 'ArrowRight' ? 1 : -1)
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      setOpenMenu(id)
+      setPendingItemFocus({ id, delta: event.key === 'ArrowDown' ? 1 : -1 })
+    }
+  }
+  const onDropdownKeyDown = (id: MenuId) => (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      stepMenuItem(id, event.key === 'ArrowDown' ? 1 : -1)
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+      event.preventDefault()
+      stepTrigger(id, event.key === 'ArrowRight' ? 1 : -1)
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      const items = enabledItems(id)
+      items[event.key === 'Home' ? 0 : items.length - 1]?.focus()
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      closeAndRefocus(id)
+    }
+  }
+
   return (
     <header
       ref={rootRef}
@@ -78,6 +158,14 @@ export function MenuBar() {
         open={openMenu === 'file'}
         onToggle={() => setOpenMenu(openMenu === 'file' ? null : 'file')}
         onHoverSwitch={() => openMenu !== null && setOpenMenu('file')}
+        onTriggerKeyDown={onTriggerKeyDown('file')}
+        onDropdownKeyDown={onDropdownKeyDown('file')}
+        triggerRef={(element) => {
+          triggerRefs.current['file'] = element
+        }}
+        dropdownRef={(element) => {
+          dropdownRefs.current['file'] = element
+        }}
       >
         <MenuItem label={t('menubar.file.files')} onSelect={() => act(() => launchApp('com.ageha.files'))} />
         <MenuItem
@@ -91,6 +179,14 @@ export function MenuBar() {
         open={openMenu === 'view'}
         onToggle={() => setOpenMenu(openMenu === 'view' ? null : 'view')}
         onHoverSwitch={() => openMenu !== null && setOpenMenu('view')}
+        onTriggerKeyDown={onTriggerKeyDown('view')}
+        onDropdownKeyDown={onDropdownKeyDown('view')}
+        triggerRef={(element) => {
+          triggerRefs.current['view'] = element
+        }}
+        dropdownRef={(element) => {
+          dropdownRefs.current['view'] = element
+        }}
       >
         <MenuItem
           label={t('contextmenu.renewWallpaper')}
@@ -119,6 +215,14 @@ export function MenuBar() {
         open={openMenu === 'window'}
         onToggle={() => setOpenMenu(openMenu === 'window' ? null : 'window')}
         onHoverSwitch={() => openMenu !== null && setOpenMenu('window')}
+        onTriggerKeyDown={onTriggerKeyDown('window')}
+        onDropdownKeyDown={onDropdownKeyDown('window')}
+        triggerRef={(element) => {
+          triggerRefs.current['window'] = element
+        }}
+        dropdownRef={(element) => {
+          dropdownRefs.current['window'] = element
+        }}
       >
         <MenuItem
           label={t('menubar.window.minimizeAll')}
@@ -156,6 +260,14 @@ export function MenuBar() {
         open={openMenu === 'help'}
         onToggle={() => setOpenMenu(openMenu === 'help' ? null : 'help')}
         onHoverSwitch={() => openMenu !== null && setOpenMenu('help')}
+        onTriggerKeyDown={onTriggerKeyDown('help')}
+        onDropdownKeyDown={onDropdownKeyDown('help')}
+        triggerRef={(element) => {
+          triggerRefs.current['help'] = element
+        }}
+        dropdownRef={(element) => {
+          dropdownRefs.current['help'] = element
+        }}
       >
         <MenuItem
           label={t('menubar.help.about')}
@@ -218,12 +330,20 @@ function MenuEntry({
   open,
   onToggle,
   onHoverSwitch,
+  onTriggerKeyDown,
+  onDropdownKeyDown,
+  triggerRef,
+  dropdownRef,
   children,
 }: {
   label: string
   open: boolean
   onToggle: () => void
   onHoverSwitch: () => void
+  onTriggerKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void
+  onDropdownKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void
+  triggerRef: (element: HTMLButtonElement | null) => void
+  dropdownRef: (element: HTMLDivElement | null) => void
   children: ReactNode
 }) {
   return (
@@ -232,23 +352,43 @@ function MenuEntry({
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
+        ref={triggerRef}
         className="flex h-8 items-center rounded-md px-2.5 text-xs font-medium text-text-muted hover:bg-surface-raised hover:text-text aria-expanded:bg-surface-raised aria-expanded:text-text"
         onClick={onToggle}
         onPointerEnter={onHoverSwitch}
+        onKeyDown={onTriggerKeyDown}
       >
         {label}
       </button>
-      <MenuDropdown open={open}>{children}</MenuDropdown>
+      <MenuDropdown
+        open={open}
+        onKeyDown={onDropdownKeyDown}
+        dropdownRef={dropdownRef}
+      >
+        {children}
+      </MenuDropdown>
     </div>
   )
 }
 
-function MenuDropdown({ open, children }: { open: boolean; children: ReactNode }) {
+function MenuDropdown({
+  open,
+  onKeyDown,
+  dropdownRef,
+  children,
+}: {
+  open: boolean
+  onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void
+  dropdownRef: (element: HTMLDivElement | null) => void
+  children: ReactNode
+}) {
   const phase = useExitPhase(open)
   if (!phase.render) return null
   return (
     <div
       role="menu"
+      ref={dropdownRef}
+      onKeyDown={onKeyDown}
       className={`popover-panel surface-glass absolute left-0 top-full z-50 mt-1 flex min-w-48 flex-col p-1.5 ${popoverMotionClass(phase.exiting)}`}
     >
       {children}

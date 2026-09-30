@@ -137,6 +137,42 @@ describe('MenuBar', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
+  it('supports arrow-key traversal across triggers, items and menus (§19)', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<MenuBar />)
+
+    // 触发器左右环游。
+    const file = screen.getByRole('button', { name: '文件' })
+    const view = screen.getByRole('button', { name: '视图' })
+    file.focus()
+    fireEvent.keyDown(file, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(view)
+    fireEvent.keyDown(view, { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(file)
+
+    // ArrowDown 开菜单并聚焦首项；菜单内上下循环（始终驱动当前焦点元素）。
+    const active = () => document.activeElement as HTMLElement
+    fireEvent.keyDown(file, { key: 'ArrowDown' })
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: '打开文件管理器' }))
+    fireEvent.keyDown(active(), { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: '搜索…' }))
+    fireEvent.keyDown(active(), { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: '打开文件管理器' }))
+    fireEvent.keyDown(active(), { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: '搜索…' }))
+
+    // 菜单内右键头 → 切到下一个菜单（视图，已打开）。
+    fireEvent.keyDown(active(), { key: 'ArrowRight' })
+    expect(screen.getByRole('button', { name: '视图' }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('menuitem', { name: '更换壁纸' })).toBeInTheDocument()
+
+    // Esc 回焦触发器并关闭。
+    fireEvent.keyDown(active(), { key: 'Escape' })
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '视图' }))
+  })
+
   it('exposes aria-expanded on menu triggers', () => {
     render(<MenuBar />)
 
