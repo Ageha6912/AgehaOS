@@ -12,6 +12,34 @@ beforeEach(() => {
 })
 
 describe('WindowFrame (via WindowLayer)', () => {
+  it('renders macOS-style traffic lights on the left (§21, Q4 ruling)', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+
+    const region = screen.getByRole('region', { name: '记事' })
+    // 头部 44px + 窗体 radius-xl（非最大化）。
+    const header = region.querySelector('header') as HTMLElement
+    expect(header.classList.contains('h-11')).toBe(true)
+    expect(region.classList.contains('rounded-xl')).toBe(true)
+
+    // 三灯左置且顺序固定：关闭 → 最小化 → 最大化；点色走 Token。
+    const close = screen.getByRole('button', { name: '关闭窗口' })
+    const minimize = screen.getByRole('button', { name: '最小化窗口' })
+    const maximize = screen.getByRole('button', { name: '最大化窗口' })
+    expect(header.contains(close)).toBe(true)
+    expect(close.compareDocumentPosition(minimize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(minimize.compareDocumentPosition(maximize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(close.querySelector('.bg-wl-close')).not.toBeNull()
+    expect(minimize.querySelector('.bg-wl-min')).not.toBeNull()
+    expect(maximize.querySelector('.bg-wl-max')).not.toBeNull()
+    // 灯在 AppIcon/标题之前（左置）：灯组是 header 第一个子元素。
+    const firstGroup = header.firstElementChild as HTMLElement
+    expect(firstGroup.contains(close)).toBe(true)
+    expect(firstGroup.contains(maximize)).toBe(true)
+    expect(firstGroup.compareDocumentPosition(header.querySelector('span.truncate') as Node)
+      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('renders the title bar and app body', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事', x: 100, y: 100 })
 

@@ -74,6 +74,14 @@
   --ag-radius-xl: 20px;
   --ag-radius-pill: 9999px;
 
+  /* ---- Window traffic lights（左置三灯，主题无关常量，如同 boot 系）---- */
+  --ag-wl-close: #ff5f57;
+  --ag-wl-close-glyph: #7d0906;
+  --ag-wl-min: #febc2e;
+  --ag-wl-min-glyph: #7d5110;
+  --ag-wl-max: #28c840;
+  --ag-wl-max-glyph: #0d5a17;
+
   /* ---- Shell geometry（顶栏/Dock；由后续 Slice 消费）---- */
   --ag-menubar-height: 32px;
   --ag-dock-height: 68px;
@@ -237,6 +245,12 @@
   --color-border-strong: var(--ag-border-strong);
   --color-scrim: var(--ag-scrim);
   --color-scrim-strong: var(--ag-scrim-strong);
+  --color-wl-close: var(--ag-wl-close);
+  --color-wl-close-glyph: var(--ag-wl-close-glyph);
+  --color-wl-min: var(--ag-wl-min);
+  --color-wl-min-glyph: var(--ag-wl-min-glyph);
+  --color-wl-max: var(--ag-wl-max);
+  --color-wl-max-glyph: var(--ag-wl-max-glyph);
 
   --radius-sm: var(--ag-radius-sm);
   --radius-md: var(--ag-radius-md);

@@ -43,11 +43,11 @@
 | `--ag-border` | `#d9e3f4` | `#263149` | 分隔线 |
 | danger / success / warning | `#dc2626` / `#059669` / `#b45309` | `#f87171` / `#34d399` / `#fbbf24` | 语义色，按主题两档 |
 
-玻璃材质（chrome 专用：任务栏/开始菜单/窗口标题区）：浅 `rgb(255 255 255 / 72%)`
+玻璃材质（chrome 专用：Dock/开始菜单/窗口标题区/顶栏）：浅 `rgb(255 255 255 / 72%)`
 / 深 `rgb(16 23 40 / 66%)`，蓝白调，blur 28px（`--ag-blur-lg`）；应用内部一律
 不透明渐变面板——**玻璃归 chrome，纸面归应用**，材质分层即层级。
-（窗体纸面是否按升级提示词 §18 改半透明，属 Phase 1 Slice 6 决策点，
-未决前维持本契约。）
+（§21 裁决：窗体纸面维持不透明——主题池配色明暗同侧，半透明纸面对比度
+收益为负；全应用纸面半透明留待后续应用套件单独评审。）
 
 ### 2.1.1 Token 2.0 扩展（2026-09-30 起，ADR 24）
 
@@ -579,3 +579,24 @@ clientHeight 396`）——后续按坑 44 迁移 `ScrollFadeList` 或调高默�
 - 测试契约更新：Taskbar.test 的「渐变纱而非玻璃」断言翻转为「透明运动层 +
   玻璃胶囊」新契约（合法翻转，本节为权威）；E2E taskbar-autohide 几何
   断言（隐藏时物理出屏）原样通过。
+
+## 21. 窗口 chrome（Phase 1 Slice 6，2026-09-30）
+
+窗口视觉升级（升级提示词 §18/§19，Q4 裁决交通灯左置）：
+
+- **窗体**：`rounded-xl`（20px，最大化 `rounded-none`）；`surface-glass` 框 +
+  细边（激活 `border-primary/50 shadow-window` / 非激活 `border-border
+  shadow-window-flat`）——激活/非激活差异保持「细腻五感」：边框/阴影/标题
+  清晰度/表面/交通灯不透明度。
+- **头部**：`h-11`（44px）玻璃材质（弃 `bg-surface-raised` 实色，让框体玻璃
+  连续），底边 `border-border-subtle` 发丝线；AppIcon 16 + 标题（激活
+  text-text / 非激活 text-text-muted）。
+- **交通灯**（主题无关常量 `--ag-wl-{close,min,max}(-glyph)`）：左置三枚
+  12px 圆点（close #ff5f57 / min #febc2e / max #28c840），hover 显字形
+  （group-hover，Phosphor 8px），命中区 24px；非激活窗口整组 opacity-60。
+  可访问名契约不变（`window.close/minimize/maximize/restore`——测试与
+  E2E 按名点击）；按钮 `onPointerDown` stopPropagation 保留（拖拽不吞点击）。
+- **窗体纸面**：维持不透明（§2.1 裁决见上）；动效契约（§12 WAAPI 常量/
+  ghost/genie）与窗口状态语义零改动。
+- 测试：WindowFrame +1（三灯左置顺序/点色 Token/头 44/圆角 xl）；CSS 契约
+  +1（wl token 双侧存在）。

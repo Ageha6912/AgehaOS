@@ -155,7 +155,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       aria-label={win.title}
       aria-hidden={ghost || undefined}
       className={`surface-glass absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
-        maximized ? 'rounded-none' : 'rounded-lg'
+        maximized ? 'rounded-none' : 'rounded-xl'
       } ${
         win.focused
           ? 'border-primary/50 shadow-window'
@@ -165,7 +165,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       onPointerDown={() => focus(win.id)}
     >
       <header
-        className={`flex h-9 shrink-0 select-none items-center gap-2 border-b border-border bg-surface-raised px-3 ${
+        className={`flex h-11 shrink-0 select-none items-center gap-2 border-b border-border-subtle px-3 ${
           maximized ? 'cursor-default' : 'cursor-move'
         }`}
         onPointerDown={onTitlePointerDown}
@@ -175,43 +175,71 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
           if (win.resizable) toggleMaximize(win.id)
         }}
       >
-        <AppIcon appId={win.appId} size={16} />
-        <span className={`truncate text-sm ${win.focused ? 'text-text' : 'text-text-muted'}`}>
-          {win.title}
-        </span>
-        <div className="ml-auto flex items-center gap-1">
+        {/* 交通灯（Q4 裁决，左置；非激活时整体降不透明度，§21）。 */}
+        <div className={`flex items-center gap-2 ${win.focused ? 'opacity-100' : 'opacity-60'}`}>
+          {win.closable && (
+            <button
+              type="button"
+              aria-label={t('window.close')}
+              className="group/light flex h-6 w-6 items-center justify-center"
+              onPointerDown={swallowPointerDown}
+              onClick={requestClose}
+            >
+              <span
+                aria-hidden="true"
+                className="flex h-3 w-3 items-center justify-center rounded-full bg-wl-close"
+              >
+                <X
+                  size={8}
+                  weight="bold"
+                  className="text-wl-close-glyph opacity-0 transition-opacity group-hover/light:opacity-100"
+                />
+              </span>
+            </button>
+          )}
           <button
             type="button"
             aria-label={t('window.minimize')}
-            className="flex h-6 w-6 items-center justify-center rounded-sm text-text-muted hover:bg-surface-raised hover:text-text"
+            className="group/light flex h-6 w-6 items-center justify-center"
             onPointerDown={swallowPointerDown}
             onClick={() => minimize(win.id)}
           >
-            <Minus size={12} weight="bold" />
+            <span
+              aria-hidden="true"
+              className="flex h-3 w-3 items-center justify-center rounded-full bg-wl-min"
+            >
+              <Minus
+                size={8}
+                weight="bold"
+                className="text-wl-min-glyph opacity-0 transition-opacity group-hover/light:opacity-100"
+              />
+            </span>
           </button>
           {win.resizable && (
             <button
               type="button"
               aria-label={maximized ? t('window.restore') : t('window.maximize')}
-              className="flex h-6 w-6 items-center justify-center rounded-sm text-text-muted hover:bg-surface-raised hover:text-text"
+              className="group/light flex h-6 w-6 items-center justify-center"
               onPointerDown={swallowPointerDown}
               onClick={() => toggleMaximize(win.id)}
             >
-              <Square size={10} weight={maximized ? 'fill' : 'bold'} />
-            </button>
-          )}
-          {win.closable && (
-            <button
-              type="button"
-              aria-label={t('window.close')}
-              className="flex h-6 w-6 items-center justify-center rounded-sm text-text-muted hover:bg-surface-raised hover:text-white"
-              onPointerDown={swallowPointerDown}
-              onClick={requestClose}
-            >
-              <X size={12} weight="bold" />
+              <span
+                aria-hidden="true"
+                className="flex h-3 w-3 items-center justify-center rounded-full bg-wl-max"
+              >
+                <Square
+                  size={7}
+                  weight={maximized ? 'fill' : 'bold'}
+                  className="text-wl-max-glyph opacity-0 transition-opacity group-hover/light:opacity-100"
+                />
+              </span>
             </button>
           )}
         </div>
+        <AppIcon appId={win.appId} size={16} />
+        <span className={`truncate text-sm ${win.focused ? 'text-text' : 'text-text-muted'}`}>
+          {win.title}
+        </span>
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto">

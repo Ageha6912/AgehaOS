@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### UI 全面视觉升级 Slice 6：窗口 chrome（DESIGN.md §21）
+
+- 窗体 `rounded-lg(12)` → `rounded-xl(20)`（最大化 rounded-none 不变）；头部 `h-9(36)` → `h-11(44)` 并弃实色底改为玻璃连续 + `border-border-subtle` 发丝线——「玻璃归 chrome、纸面归应用」分层更清晰
+- **Q4 裁决落地**：右置图标三钮 → 左置 macOS 式交通灯（12px 圆点 close/min/max 主题无关 Token `--ag-wl-*`，hover 显字形，命中区 24px，非激活整组 60%）；可访问名契约（关闭窗口/最小化窗口/最大化窗口/还原窗口）与 stopPropagation 拖拽隔离原样
+- **§2.1.1 悬置决策收口**：窗体纸面维持不透明（主题池明暗同侧，半透明纸面对比度收益为负）；全应用纸面半透明留待应用套件单独评审
+- 动效（§12 WAAPI 常量/ghost/genie）与窗口状态语义零改动
+- 测试：WindowFrame +1（三灯左置顺序/点色/头高/圆角）；CSS 契约 +1；前端 97 文件全绿 + 80 后端；E2E 14/14；visual-judge 2/2（双主题圆角/玻璃头/悬浮感/无裁切）
+
 ### UI 全面视觉升级 Slice 5：桌面图标视觉升级（DESIGN.md §10）
 
 - 图标 40→52、格宽 w-20→w-24、行距 gap-0.5→gap-1；悬停白纱收编 Token（`--ag-desktop-icon-hover` + `.desktop-icon-button`，替换硬编码 `hover:bg-white/10`）；标签沿用 §17 主题 Token；选中态保持轻盈（图标外圈 + 标签底色）；交互契约（单击/双击/Enter/外点清除/商店自动增删）零改动

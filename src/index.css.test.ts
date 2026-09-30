@@ -103,6 +103,15 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(css).toContain('.desktop-icon-button:hover')
   })
 
+  it('defines theme-independent traffic light tokens mapped to utilities', () => {
+    for (const name of ['ag-wl-close', 'ag-wl-min', 'ag-wl-max']) {
+      expect(has(root, name), `${name} in :root`).toBe(true)
+    }
+    for (const name of ['color-wl-close', 'color-wl-min', 'color-wl-max']) {
+      expect(has(theme, name), `${name} in @theme inline`).toBe(true)
+    }
+  })
+
   it('themes the desktop atmosphere layer (ambient light + vignette)', () => {
     expect(has(root, 'ag-atmosphere-ambient')).toBe(true)
     expect(has(dark, 'ag-atmosphere-ambient')).toBe(true)
