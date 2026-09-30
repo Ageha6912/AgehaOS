@@ -10,6 +10,7 @@ import {
   useDynamicDesktopStore,
 } from '@/store/dynamic-desktop-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
+import { resetUsageStore } from '@/store/usage-store'
 
 import { Desktop } from './Desktop'
 
@@ -22,6 +23,7 @@ beforeEach(() => {
   resetWindowStore()
   resetAppStore()
   resetDynamicDesktopStore()
+  resetUsageStore()
 })
 
 function launchFromStartMenu(appName: RegExp) {

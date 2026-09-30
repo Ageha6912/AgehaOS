@@ -28,7 +28,12 @@ test('core path: register, work with a note, restore session, sign out', async (
     // 任务栏自动隐藏：先唤出再点开始菜单（docs/DESIGN.md §9）。
     await revealTaskbar(page)
     await startButton.click()
-    await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: appName }).click()
+    // P2-5 起「最近」区会让同名瓦片出现两次（最近 + 全部网格），取全部网格项。
+    await page
+      .getByRole('list', { name: /开始/ })
+      .getByRole('button', { name: appName })
+      .last()
+      .click()
   }
 
   // Open the Notes app and create a note.

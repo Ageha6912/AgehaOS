@@ -80,6 +80,7 @@ export const dictionaries = {
 
     'taskbar.start': '开始',
     'launcher.searchPlaceholder': '搜索应用…',
+    'launcher.recent': '最近',
     'taskbar.preview.minimized': '窗口已最小化',
 
     'window.close': '关闭窗口',
@@ -456,6 +457,7 @@ export const dictionaries = {
 
     'taskbar.start': 'Start',
     'launcher.searchPlaceholder': 'Search apps…',
+    'launcher.recent': 'Recent',
     'taskbar.preview.minimized': 'Window minimized',
 
     'window.close': 'Close window',

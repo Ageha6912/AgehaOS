@@ -43,7 +43,11 @@ test('keeps the desktop responsive with 20 open windows (PRD §29.2)', async ({ 
   const startButton = taskbarStartButton(page)
   await expect(startButton).toBeVisible()
 
-  const notesItem = page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /记事/ })
+  // P2-5 起启动器有「最近」区——记事会同时出现在最近与全部网格，取后者。
+  const notesItem = page
+    .getByRole('list', { name: /开始/ })
+    .getByRole('button', { name: /记事/ })
+    .last()
   for (let index = 0; index < 20; index++) {
     // 任务栏自动隐藏：每次启动前唤出（docs/DESIGN.md §9）。
     await revealTaskbar(page)

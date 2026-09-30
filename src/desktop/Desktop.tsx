@@ -61,11 +61,15 @@ export function Desktop() {
     const width = getAppManifest(AUTO_OPEN_APP_ID)?.window?.width ?? 360
     // 右侧小组件栏（§27）≥1280px 常驻：面板停靠让位。
     const railRight = window.innerWidth >= RAIL_RIGHT_BREAKPOINT_PX ? RAIL_RIGHT_WIDTH_PX : 0
-    launchApp(AUTO_OPEN_APP_ID, {
-      x: Math.max(8, window.innerWidth - railRight - width - 24),
-      // 顶栏常驻（§19）：面板标题栏不得钻进菜单栏底下。
-      y: MENUBAR_HEIGHT_PX + 24,
-    })
+    launchApp(
+      AUTO_OPEN_APP_ID,
+      {
+        x: Math.max(8, window.innerWidth - railRight - width - 24),
+        // 顶栏常驻（§19）：面板标题栏不得钻进菜单栏底下。
+        y: MENUBAR_HEIGHT_PX + 24,
+      },
+      'system',
+    )
   }, [])
 
   // 小游戏轮换（2026-09-26 用户裁决「每次进入桌面都是不一样的小游戏」）：

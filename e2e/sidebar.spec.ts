@@ -29,4 +29,15 @@ test('sidebar: launches apps and opens the shared notification center', async ({
 
   // 本地模式（E2E 净构建无后端）：云同步禁用。
   await expect(page.getByTestId('sidebar-sync')).toBeDisabled()
+
+  // 最近区（§22 P2-5）：用户启动出现在启动器「最近」。
+  await page.mouse.move(640, 717)
+  await page.waitForFunction(
+    () => document.querySelector('footer[data-state]')?.getAttribute('data-state') === 'revealed',
+    undefined,
+    { timeout: 5000 },
+  )
+  await page.getByRole('contentinfo').getByRole('button', { name: /开始/ }).click()
+  await expect(page.getByText('最近')).toBeVisible()
+  await expect(page.getByTestId('launcher-recent-item').first()).toBeVisible()
 })

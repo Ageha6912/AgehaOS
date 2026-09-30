@@ -12,6 +12,7 @@ import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { LAYOUT_PROTECTED_APP_IDS, pruneLayoutSuggestion } from '@/core/dynamic/layout/engine'
 import { useAppStore } from '@/store/app-store'
+import { useUsageStore } from '@/store/usage-store'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
 const PROTECTED_IDS = new Set(LAYOUT_PROTECTED_APP_IDS)
@@ -31,6 +32,12 @@ export function AppLauncher() {
   const apps = useAppStore((s) => s.apps)
   const appliedLayout = useDynamicDesktopStore((s) => s.appliedLayout)
   const resetAppliedLayout = useDynamicDesktopStore((s) => s.resetAppliedLayout)
+  const recent = useUsageStore((s) => s.recent)
+  // 最近区（§22 P2-5）：只显示仍安装的应用，前 3；仅扁平形态。
+  const recentApps = recent
+    .map((entry) => apps.find((app) => app.id === entry.appId))
+    .filter((app) => app !== undefined)
+    .slice(0, 3)
 
   const launch = (appId: string) => {
     launchApp(appId)
@@ -102,14 +109,34 @@ export function AppLauncher() {
           {flatApps.length === 0 ? (
             emptyRow
           ) : (
-            <li>
-              {/* 图标优先的紧凑网格（§22）：AppIcon 明显、文字精简。 */}
-              <ul className="grid grid-cols-4 gap-1">
-                {flatApps.map((app) => (
-                  <LauncherTile key={app.id} appId={app.id} onLaunch={launch} />
-                ))}
-              </ul>
-            </li>
+            <>
+              {recentApps.length > 0 && !needle && (
+                <li>
+                  <p className="px-1 pb-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+                    {t('launcher.recent')}
+                  </p>
+                  <ul className="grid grid-cols-3 gap-1">
+                    {recentApps.map((app) => (
+                      <LauncherTile
+                        key={`recent-${app.id}`}
+                        appId={app.id}
+                        onLaunch={launch}
+                        testId="launcher-recent-item"
+                      />
+                    ))}
+                  </ul>
+                  <div aria-hidden="true" className="my-2 h-px bg-border-subtle" />
+                </li>
+              )}
+              <li>
+                {/* 图标优先的紧凑网格（§22）：AppIcon 明显、文字精简。 */}
+                <ul className="grid grid-cols-4 gap-1">
+                  {flatApps.map((app) => (
+                    <LauncherTile key={app.id} appId={app.id} onLaunch={launch} />
+                  ))}
+                </ul>
+              </li>
+            </>
           )}
         </menu>
       )}
@@ -184,7 +211,15 @@ export function AppLauncher() {
 }
 
 /** 图标瓦片（§22 扁平形态）：AppIcon 40 + 11px 标签，点击启动。 */
-function LauncherTile({ appId, onLaunch }: { appId: string; onLaunch: (appId: string) => void }) {
+function LauncherTile({
+  appId,
+  onLaunch,
+  testId,
+}: {
+  appId: string
+  onLaunch: (appId: string) => void
+  testId?: string
+}) {
   const { t } = useTranslation()
   const app = useAppStore((s) => s.apps.find((candidate) => candidate.id === appId))
   if (!app) return null
@@ -195,6 +230,7 @@ function LauncherTile({ appId, onLaunch }: { appId: string; onLaunch: (appId: st
       <button
         type="button"
         title={name}
+        data-testid={testId}
         className="flex flex-col items-center gap-1.5 rounded-lg px-1 py-2.5 text-center hover:bg-surface-raised"
         onClick={() => onLaunch(app.id)}
       >

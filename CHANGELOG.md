@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Phase 2 · P2-5：最近使用（DESIGN.md §22）
+
+- 新增 `usage-store`（设备本地 `agehaos.usage.recent.v1`，上限 8、appId 去重置顶）；`launchApp` 第三参 `source: 'user' | 'system'`——桌面自动开窗与小游戏轮换传 `'system'` 不计入
+- 启动器扁平形态新增「最近」区：搜索框下 3 枚瓦片（过滤已卸载、搜索态隐藏、分隔线下接全部网格）；布局建议形态不接（建议驱动层级）
+- 测试：usage-store +4（记录/去重封顶/持久化/system 不记）、Taskbar +1（最近区显示与搜索隐藏）；game-rotation/Desktop 断言合法更新（新签名/跨用例记录隔离）；core-path/desktop-stress 启动器定位器取全部网格项（同名瓦片避撞）；前端 100 文件全绿 + 80 后端；**E2E 17/17**（sidebar.spec 扩展真实流）；烟雾验证最近=[文件,终端]
+- 修复：E2E 选择器 `footer` 会命中应用窗口内的语义页脚（Files 状态栏）——唤出断言改用 `footer[data-state]`
+
 ### Phase 2 · P2-4：顶栏菜单箭头键遍历（§19 补全）
 
 - menubar 键盘模型落地：触发器 ←/→ 环游（菜单打开时顺带切换）、↓/↑ 开菜单聚焦首/末项；菜单内 ↑/↓ 循环（跳过禁用项）、←/→ 切相邻菜单、Home/End 首末、Esc 关闭回焦触发器；真实 DOM focus，Tab 语义不变

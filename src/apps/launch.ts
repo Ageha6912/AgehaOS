@@ -2,6 +2,7 @@ import { systemBus } from '@/core/events'
 import { permissionManager } from '@/core/permissions'
 import { getLocale, translate } from '@/core/i18n'
 import { getAppManifest } from '@/store/app-store'
+import { useUsageStore } from '@/store/usage-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { componentFor } from './builtin'
@@ -16,8 +17,15 @@ import { componentFor } from './builtin'
  * Dynamic Panel docks to the desktop's right edge); size still comes from
  * the manifest unless overridden here. 小视口钳制（§25）：初始尺寸不超过
  * 视口（桌面优先 1280+，此为窄屏兜底，不改变核心窗口管理器语义）。
+ *
+ * `source='user'` 记入「最近使用」（usage-store，§22 P2-5）；桌面自动开窗
+ * 等系统行为传 'system' 不记录。
  */
-export function launchApp(appId: string, geometry?: { x?: number; y?: number }): string | null {
+export function launchApp(
+  appId: string,
+  geometry?: { x?: number; y?: number },
+  source: 'user' | 'system' = 'user',
+): string | null {
   const manifest = getAppManifest(appId)
   if (!manifest) return null
 
@@ -42,11 +50,15 @@ export function launchApp(appId: string, geometry?: { x?: number; y?: number }):
   const height =
     manifest.window?.height !== undefined ? Math.min(manifest.window.height, maxHeight) : undefined
 
-  return useWindowStore.getState().open({
+  const windowId = useWindowStore.getState().open({
     appId,
     title,
     width,
     height,
     ...geometry,
   })
+  if (windowId !== null && source === 'user') {
+    useUsageStore.getState().recordRecentApp(appId)
+  }
+  return windowId
 }

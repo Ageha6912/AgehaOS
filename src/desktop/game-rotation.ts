@@ -46,11 +46,15 @@ export function openRandomGame(): string | null {
   const manifest = getAppManifest(picked)
   const width = manifest?.window?.width ?? 380
   const height = manifest?.window?.height ?? 480
-  launchApp(picked, {
-    x: Math.max(8, Math.round((window.innerWidth - width) / 2)),
-    // 顶栏常驻（§19）：居中弹出不得钻进菜单栏底下。
-    y: Math.max(MENUBAR_HEIGHT_PX + 8, Math.round((window.innerHeight - height) / 2 - 40)),
-  })
+  launchApp(
+    picked,
+    {
+      x: Math.max(8, Math.round((window.innerWidth - width) / 2)),
+      // 顶栏常驻（§19）：居中弹出不得钻进菜单栏底下。
+      y: Math.max(MENUBAR_HEIGHT_PX + 8, Math.round((window.innerHeight - height) / 2 - 40)),
+    },
+    'system',
+  )
   try {
     localStorage.setItem(LAST_GAME_KEY, picked)
   } catch {

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
+import { resetUsageStore, useUsageStore } from '@/store/usage-store'
 import { resetAppStore } from '@/store/app-store'
 import { resetDynamicDesktopStore, useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
@@ -13,6 +14,7 @@ beforeEach(() => {
   resetWindowStore()
   resetAppStore()
   resetDynamicDesktopStore()
+  resetUsageStore()
 })
 
 describe('Taskbar', () => {
@@ -152,6 +154,25 @@ describe('Taskbar', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
     expect(screen.getByTestId('launcher-search')).toHaveValue('')
+  })
+
+  it('shows the recent section in the flat launcher and hides it while searching (§22)', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().close(useWindowStore.getState().windows[0]!.id)
+    useUsageStore.getState().recordRecentApp('com.ageha.notes')
+    render(<Taskbar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+    expect(screen.getByText('最近')).toBeInTheDocument()
+    // 最近区瓦片可启动。
+    fireEvent.click(screen.getByTestId('launcher-recent-item'))
+    expect(useWindowStore.getState().windows.some((win) => win.appId === 'com.ageha.notes')).toBe(true)
+
+    // 搜索态隐藏最近区（结果即目标，最近是浏览辅助）。
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+    useUsageStore.getState().recordRecentApp('com.ageha.notes')
+    fireEvent.change(screen.getByTestId('launcher-search'), { target: { value: '文件' } })
+    expect(screen.queryByText('最近')).not.toBeInTheDocument()
   })
 
   it('shows the empty state when the launcher search misses', () => {

@@ -59,9 +59,11 @@ describe('openRandomGame', () => {
 
     expect(GAME_APP_IDS).toContain(opened)
     expect(localStorage.getItem('agehaos.game.rotation.v1')).toBe(opened)
+    // P2-5：系统自动开窗传 source='system'（不记「最近」）。
     expect(launchMock).toHaveBeenCalledWith(
       opened,
       expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }),
+      'system',
     )
   })
 
