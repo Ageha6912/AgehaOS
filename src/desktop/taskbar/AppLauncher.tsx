@@ -50,7 +50,7 @@ export function AppLauncher() {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium text-text hover:bg-surface-raised"
+        className="flex h-12 items-center gap-2 rounded-full px-3.5 text-sm font-medium text-text hover:bg-surface-raised"
         onClick={() => setOpen((value) => !value)}
       >
         <BrandLogo size={18} />
@@ -60,7 +60,7 @@ export function AppLauncher() {
       {menuPhase.render && !layout && (
         <menu
           aria-label={t('taskbar.start')}
-          className={`surface-glass absolute bottom-10 left-0 z-50 w-56 rounded-lg border border-border p-1.5 shadow-window ${popoverMotionClass(menuPhase.exiting)}`}
+          className={`surface-glass absolute bottom-full left-0 mb-3 z-50 w-56 rounded-lg border border-border p-1.5 shadow-window ${popoverMotionClass(menuPhase.exiting)}`}
         >
           {apps.map((app) => (
             <LauncherItem key={app.id} appId={app.id} onLaunch={launch} />
@@ -72,7 +72,7 @@ export function AppLauncher() {
         <menu
           aria-label={t('taskbar.start')}
           data-testid={`launcher-layout-${layout.tier}`}
-          className={`surface-glass absolute bottom-10 left-0 z-50 ${
+          className={`surface-glass absolute bottom-full left-0 mb-3 z-50 ${
             TIER_WIDTH_CLASS[layout.tier] ?? 'w-56'
           } rounded-lg border border-border p-1.5 shadow-window ${popoverMotionClass(menuPhase.exiting)}`}
         >

@@ -5,14 +5,14 @@ import { useTranslation } from '@/core/i18n'
 import type { WindowInstance } from '@/core/window/types'
 
 /**
- * 任务栏悬停预览（Windows 风格）：标题栏（图标 + 标题 + 关闭）+ 预览体。
+ * Dock 悬停预览（Windows 风格）：标题栏（图标 + 标题 + 关闭）+ 预览体。
  * 点击预览体切换到该窗口（最小化则还原）；关闭按钮直接关窗。
  *
  * 定位用 fixed：父链上有 overflow-x-auto 的滚动容器，absolute 预览会被裁剪；
- * footer（backdrop-filter）是 fixed 的包含块且横贯视口底部，因此
- * bottom-12 恰好落在任务栏上沿，left 由调用方按图标位置钳制后传入。
- * 预览体是风格化示意（应用图标水印 + 窗口状态）——DOM 无法廉价地同屏
- * 二次呈现活动窗口内容，真实缩略截图属后续增强。
+ * footer（常驻 transform）是 fixed 的包含块且横贯视口底部，因此
+ * bottom-full + mb-2 恰好悬在胶囊 Dock 上方（§20），left 由调用方按图标
+ * 位置钳制后传入。预览体是风格化示意（应用图标水印 + 窗口状态）——DOM
+ * 无法廉价地同屏二次呈现活动窗口内容，真实缩略截图属后续增强。
  */
 export function WindowPreview({
   win,
@@ -34,7 +34,7 @@ export function WindowPreview({
     <div
       data-testid="window-preview"
       style={{ left }}
-      className="surface-glass animate-os-pop-in fixed bottom-12 z-50 w-64 rounded-lg border border-border p-2 shadow-window"
+      className="surface-glass animate-os-pop-in fixed bottom-full z-50 mb-2 w-64 rounded-lg border border-border p-2 shadow-window"
       onClick={(event) => {
         event.stopPropagation()
         onSwitch()

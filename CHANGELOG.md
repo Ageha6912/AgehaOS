@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### UI 全面视觉升级 Slice 4：悬浮 Dock（DESIGN.md §20）
+
+- 任务栏视觉本体升级为居中悬浮玻璃胶囊：全宽 footer 降级为透明运动层（`pointer-events-none` 不截胡两侧窗口点击；`contentinfo`/`data-state`/内联 `translateY`/`taskbar-item-*` 锚点契约原样），胶囊 `surface-glass` + `rounded-full` + hairline + `shadow-popover`，h-16 + pb-3 悬浮底隙（总高 ≈76px ∈ 提示词 64~76），限宽溢出滚动
+- 细节：激活指示 2×20px 胶囊条 → 极小圆点（保留 `bg-primary` 类契约）；图标 20→24；启动器按钮 h-12 胶囊形；启动器与窗口区 hairline 分隔；悬停预览/启动器菜单改 `bottom-full` 悬于胶囊上方
+- 几何铁律：按钮节距恒 48px（w-11+gap-1，σ44 波浪前提）；波浪/自动隐藏/预览/ghost/genie 行为零改动（Q7：完全出屏不变）
+- 测试：Taskbar.test「渐变纱」断言合法翻转为「透明运动层+玻璃胶囊」新契约；前端 97 文件全绿 + 80 后端；E2E 14/14；visual-judge 5/5（悬浮感/波浪不出框/预览与启动器悬于上方/双主题）
+
 ### UI 全面视觉升级 Slice 3：顶部菜单栏（DESIGN.md §19）
 
 - 新增常驻 32px 玻璃顶栏 `src/desktop/menu-bar/MenuBar.tsx`：左 = 品牌 + 四菜单（文件/视图/窗口/帮助，只放真实动作：开文件管理器/Ctrl+K 搜索/更换壁纸/三档主题带勾选/最小化全部/关闭全部/窗口清单聚焦还原/关于）；「编辑」与网络/云同步装饰图标缓办（无真实目标/信号）

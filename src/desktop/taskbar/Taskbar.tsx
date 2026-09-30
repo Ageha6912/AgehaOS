@@ -12,11 +12,11 @@ const HOVER_DELAY_MS = 350
 const HIDE_DELAY_MS = 400
 
 /**
- * 自动隐藏任务栏（docs/DESIGN.md §9）：默认藏于屏幕底缘之外，指针触底
- * （或键盘焦点进入任务栏控件）后 300ms 缓滑入场；指针离开任务栏子树
- * （含菜单/预览等浮层，它们都是 footer 的 DOM 子孙）400ms 后滑出。
- * 背景不再使用玻璃面板——只有一条随主题的底部渐变纱（from-bg/85），
- * 视觉上「透明」地融进壁纸，同时保住深浅壁纸下的文字可读性。
+ * 自动隐藏 Dock（docs/DESIGN.md §9/§20）：默认藏于屏幕底缘之外，指针触底
+ * （或键盘焦点进入 Dock 控件）后 300ms 缓滑入场；指针离开 Dock 子树（含
+ * 菜单/预览等浮层，它们都是 footer 的 DOM 子孙）400ms 后滑出。
+ * 全宽 footer 只是透明运动层；视觉本体是居中悬浮玻璃胶囊（Calm Future，
+ * 2026-09-30 Slice 4）。行为契约（reveal/hide/波浪/锚点）与 §9 完全一致。
  */
 export function Taskbar() {
   const windows = useWindowStore((s) => s.windows)
@@ -97,67 +97,74 @@ export function Taskbar() {
           if (next instanceof Node && event.currentTarget.contains(next)) return
           scheduleHide()
         }}
-        className="absolute inset-x-0 bottom-0 z-40 flex h-12 items-center gap-2 bg-gradient-to-t from-bg/85 via-bg/45 to-transparent px-2 transition-transform duration-300 ease-out"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex h-[calc(var(--ag-dock-height)+0.75rem)] items-end justify-center px-3 pb-3 transition-transform duration-300 ease-out"
         style={{ transform: revealed ? 'translateY(0)' : 'translateY(100%)' }}
       >
-        <AppLauncher />
+        {/* 悬浮胶囊 Dock（DESIGN.md §20）：全宽 footer 只是运动层（透明、
+            pointer-events-none 不截胡两侧窗口点击，坑 40）；玻璃胶囊本体
+            接指针。自动隐藏/波浪/预览/锚点契约全部不变（§9/§13）。 */}
+        <div className="surface-glass pointer-events-auto flex h-16 max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-full border border-border px-2 shadow-popover">
+          <AppLauncher />
+          <div aria-hidden="true" className="h-8 w-px shrink-0 bg-border" />
 
-        {/* self-stretch：裁剪盒抬到整条任务栏高（48px），波浪放大不出框（坑 13 的
-            overflow 隐式裁剪）；波浪引擎挂这里，只动图标不动按钮。 */}
-        <div
-          ref={waveRowRef}
-          className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-x-auto"
-        >
-          {windows.map((win) => {
-            const active = win.focused && win.state !== 'minimized'
-            return (
-              <div
-                key={win.id}
-                className="relative"
-                onMouseEnter={(event) => {
-                  setAnchorLeft(event.currentTarget.getBoundingClientRect().left)
-                  startHover(win.id)
-                }}
-                onMouseLeave={endHover}
-              >
-                <button
-                  type="button"
-                  aria-label={win.title}
-                  data-testid={`taskbar-item-${win.id}`}
-                  className={`relative flex h-9 w-11 items-center justify-center rounded-md text-sm ${
-                    active
-                      ? 'bg-surface-raised text-text'
-                      : win.state === 'minimized'
-                        ? 'text-text-muted/70 hover:bg-surface-raised hover:text-text'
-                        : 'text-text-muted hover:bg-surface-raised hover:text-text'
-                  }`}
-                  onClick={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
+          {/* self-stretch：裁剪盒抬到整条胶囊高（64px），波浪放大不出框
+              （坑 13 的 overflow 隐式裁剪）；按钮节距恒 48px（w-11 + gap-1），
+              是 σ44 波浪几何的前提（§13）。 */}
+          <div
+            ref={waveRowRef}
+            className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-x-auto"
+          >
+            {windows.map((win) => {
+              const active = win.focused && win.state !== 'minimized'
+              return (
+                <div
+                  key={win.id}
+                  className="relative"
+                  onMouseEnter={(event) => {
+                    setAnchorLeft(event.currentTarget.getBoundingClientRect().left)
+                    startHover(win.id)
+                  }}
+                  onMouseLeave={endHover}
                 >
-                  <span aria-hidden="true" data-wave-icon className="flex">
-                    <AppIcon appId={win.appId} size={20} />
-                  </span>
-                  {active && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute bottom-0.5 left-1/2 h-0.5 w-5 -translate-x-1/2 rounded-full bg-primary"
+                  <button
+                    type="button"
+                    aria-label={win.title}
+                    data-testid={`taskbar-item-${win.id}`}
+                    className={`relative flex h-10 w-11 items-center justify-center rounded-lg text-sm ${
+                      active
+                        ? 'bg-surface-raised text-text'
+                        : win.state === 'minimized'
+                          ? 'text-text-muted/70 hover:bg-surface-raised hover:text-text'
+                          : 'text-text-muted hover:bg-surface-raised hover:text-text'
+                    }`}
+                    onClick={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
+                  >
+                    <span aria-hidden="true" data-wave-icon className="flex">
+                      <AppIcon appId={win.appId} size={24} />
+                    </span>
+                    {active && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary"
+                      />
+                    )}
+                  </button>
+
+                  {hoveredId === win.id && (
+                    <WindowPreview
+                      win={win}
+                      anchorLeft={anchorLeft}
+                      onSwitch={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
+                      onClose={() => {
+                        useWindowStore.getState().close(win.id)
+                        endHover()
+                      }}
                     />
                   )}
-                </button>
-
-                {hoveredId === win.id && (
-                  <WindowPreview
-                    win={win}
-                    anchorLeft={anchorLeft}
-                    onSwitch={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
-                    onClose={() => {
-                      useWindowStore.getState().close(win.id)
-                      endHover()
-                    }}
-                  />
-                )}
-              </div>
-            )
-          })}
+                </div>
+              )
+            })}
+          </div>
         </div>
 
         {/* 尾部系统状态（通知/用户/时钟）已随顶栏上线迁移至 MenuBar

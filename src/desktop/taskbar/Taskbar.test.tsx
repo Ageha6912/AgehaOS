@@ -150,12 +150,21 @@ describe('Taskbar', () => {
     expect(bar.style.transform).toBe('translateY(0)')
   })
 
-  it('uses a transparent scrim instead of a glass panel', () => {
+  it('renders as a centered floating glass dock (§20: full-width footer is a transparent motion layer)', () => {
     render(<Taskbar />)
 
     const bar = screen.getByRole('contentinfo') as HTMLElement
-    expect(bar.className).not.toContain('surface-glass')
-    expect(bar.className).toContain('from-bg/')
+    // 运动层全宽透明：渐变纱退场，pointer-events-none 不截胡两侧窗口点击（坑 40）。
+    expect(bar.className).not.toContain('from-bg/')
+    expect(bar.classList.contains('pointer-events-none')).toBe(true)
+
+    // 胶囊本体：玻璃 + pill + hairline + popover 影 + 接指针。
+    const pill = bar.firstElementChild as HTMLElement
+    expect(pill.classList.contains('surface-glass')).toBe(true)
+    expect(pill.classList.contains('rounded-full')).toBe(true)
+    expect(pill.classList.contains('border')).toBe(true)
+    expect(pill.classList.contains('shadow-popover')).toBe(true)
+    expect(pill.classList.contains('pointer-events-auto')).toBe(true)
   })
 
   it('hides again after the pointer leaves, and re-entering cancels the hide', async () => {

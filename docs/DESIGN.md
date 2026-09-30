@@ -220,19 +220,20 @@ mark 稿——登录屏 56 / 开始按钮 18 / 设置关于 40·侧栏 14；
 开机屏 96 用 **full 稿**（含字标，圆角裁切关闭，见 §11）；
 favicon 在明暗标签栏下均无底色方块。
 
-尺寸约定：搜索 16 / 窗口标题栏 16 / 任务栏 20 / 悬停预览 20（体 48）/
-开始菜单 24 / 桌面 40 / 商店列表 36。字形占徽章边长 58%。
+尺寸约定：搜索 16 / 窗口标题栏 16 / Dock 24（2026-09-30 起，原 20）/
+悬停预览 20（体 48）/ 开始菜单 24 / 桌面 40 / 商店列表 36。字形占徽章边长 58%。
 
 桌面图标层（`DesktopIcons`）：内置 7 应用按固定顺序常驻；**商店安装的
 应用（含远程目录发布）自动追加其后，卸载即从桌面消失**。单击选中
 （钴蓝外圈 + 标签底色）、双击/回车启动、图标外任意指针按下清除选中。
 标签白字 + 深投影，明暗照片壁纸均可读。
 
-## 9. 自动隐藏任务栏
+## 9. 自动隐藏 Dock（原「自动隐藏任务栏」，§20 浮动化修订）
 
-任务栏默认完全藏于屏幕底缘之外（`translateY(100%)`），背景弃用玻璃
-面板，只留一条随主题的底部渐变纱（`from-bg/85 via-bg/45 to-transparent`，
-无描边）——视觉上透明融进壁纸，深浅壁纸下文字均可读。
+Dock 默认完全藏于屏幕底缘之外（`translateY(100%)`）。视觉本体是居中
+悬浮玻璃胶囊（§20）；承载它的全宽 footer 只是透明运动层
+（`pointer-events-none`，不截胡两侧窗口点击——2026-09-30 起渐变纱
+退役）。
 
 - **唤出**：指针进入底缘 6px 唤出区（`taskbar-reveal-zone`，z-40 压在
   窗口层之上、弹层之下）或键盘焦点进入任务栏任意控件；300ms ease-out
@@ -356,8 +357,9 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   （中心 x 不随缩放漂移）；变化阈值内的静止帧零写入。
 - **收敛停帧（改进于演示模块）**：包络满格且指针静止即停表，pointermove
   唤醒；离开后 200ms 收敛归位并摘 will-change（SPEC §3.5 只在动效期挂载）。
-- **归档参数**：maxScale 1.5 + lift 3px（48px 裁剪盒内 20px 图标不出框）、
-  σ 44px（图标间距 48px 的 ≤1.2×）、enter 120ms = `--ag-motion-fast`、
+- **归档参数**：maxScale 1.5 + lift 3px（§20 后裁剪盒 64px、图标 24px，
+  1.5×=36px 不出框；按钮节距恒 48px = w-11 + gap-1，是 σ44 的几何前提）、
+  σ 44px（节距 48px 的 ≤1.2×）、enter 120ms = `--ag-motion-fast`、
   settle 200ms = `--ag-motion-base`、ease = `--ag-motion-ease` 同值声明。
 - **降级**：触屏（pointerType=touch）与 prefers-reduced-motion 整体不启动，
   按钮 CSS 悬停变色 / `:active` 按压保留（演示模块的 pressScale 不迁入——
@@ -548,3 +550,28 @@ clientHeight 396`）——后续按坑 44 迁移 `ScrollFadeList` 或调高默�
   顶偏移 `calc(var(--ag-menubar-height)+0.75rem)`。
 - **动效**：下拉复用 §14 弹层语言（进 200ms / 退 120ms，jsdom 无 WAAPI 即时
   卸载语义不变）。
+
+## 20. 悬浮 Dock（Phase 1 Slice 4，2026-09-30）
+
+任务栏视觉本体升级为**居中悬浮玻璃胶囊**（升级提示词 §16 的 Floating Dock，
+权威图同款）：
+
+- **结构分层**：全宽 `<footer>`（contentinfo + `data-state` + 内联
+  `translateY` 契约不变）降级为**透明运动层**（`pointer-events-none`，
+  坑 40——两侧不截胡窗口点击）；胶囊本体 `pointer-events-auto`
+  `surface-glass` + `rounded-full` + hairline 边 + `shadow-popover`，
+  高 `h-16`（64px，footer `pb-3` 悬浮出 12px 底隙，总高 ≈76 ∈ 提示词
+  64~76 目标），`max-w-[calc(100%-1.5rem)]` 溢出时图标行滚动。
+- **几何契约（勿动）**：窗口按钮 `w-11 + gap-1` = **节距恒 48px**
+  （σ44 波浪前提，§13）；波浪裁剪盒由 self-stretch 抬到整条胶囊高；
+  `taskbar-item-*` testid 与可测量按钮保留（窗口动效锚点）。
+- **组件**：激活指示改**极小圆点**（h-1 w-1，保留 `bg-primary` 类契约，
+  弃 2×20px 胶囊条）；图标 20→24；启动器按钮 `h-12 rounded-full`；
+  启动按钮与窗口区之间 hairline 分隔；悬停预览 `bottom-full mb-2`
+  悬于胶囊上方；启动器菜单 `bottom-full mb-3` 同理。
+- **行为零改动**：唤出区 6px / 300ms 进 400ms 出 / 键盘焦点唤出 /
+  悬停预览 350ms / 波浪引擎 / ghost 关闭 / genie 锚点钳制——全部原样
+  （Q7 裁决：自动隐藏保持完全出屏）。
+- 测试契约更新：Taskbar.test 的「渐变纱而非玻璃」断言翻转为「透明运动层 +
+  玻璃胶囊」新契约（合法翻转，本节为权威）；E2E taskbar-autohide 几何
+  断言（隐藏时物理出屏）原样通过。
