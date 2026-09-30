@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Phase 2 · P2-1：动态面板滚动收口（§17 遗留修复，坑 44 归一）
+
+- 动态面板卡片列表 `overflow-y-auto` 裸列表 → `ScrollFadeList`（常驻 6px 主题色细滚动条 + 折叠线底部 28px 渐隐双通道）——第 4 卡滚动折叠不再是无提示的生裁；外层 flex 列提供确定高度（ScrollFadeList 已知约束）
+- 验证：程序化断言滚动中状态（overflowing + scrollbar thin + scroll-fade 可见）+ 截图归档；面板 13 测试全绿，四门禁绿
+- 文档：DESIGN.md §17 遗留项就此关闭
+
 ### UI 全面视觉升级 Slice 10：响应式兜底（DESIGN.md §25）
 
 - 顶栏 <640px 收起菜单标签（品牌 mark + 铃/用户/时钟保留，字标隐藏）；启动器菜单锚定改为 footer 包含块 `fixed`（与悬停预览同机制，修复窄屏右溢）+ `max-w-[calc(100vw-1.5rem)]` 限宽；`launchApp` 初始窗口尺寸钳制到视口（桌面级视口无感知，窄屏不再出界）

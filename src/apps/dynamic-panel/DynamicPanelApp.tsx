@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowClockwise, Sparkle } from '@phosphor-icons/react'
 
 import { useTranslation } from '@/core/i18n'
+
+import { ScrollFadeList } from '@/components/scroll-fade-list'
 import type { MessageKey } from '@/core/i18n'
 import { systemBus } from '@/core/events'
 import { buildContextSnapshot } from '@/core/dynamic/context/snapshot'
@@ -195,7 +197,10 @@ export function DynamicPanelApp() {
         </button>
       </div>
 
-      <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" data-testid="dynamic-panel-cards">
+      {/* 坑 44：滚动列表一律 ScrollFadeList（常驻细滚动条 + 底部渐隐双通道，
+          修 §17 遗留的第 4 卡折叠线生裁）。外层 flex 列提供确定高度。 */}
+      <div className="flex min-h-0 flex-1 flex-col">
+      <ScrollFadeList className="space-y-2 p-3" testId="dynamic-panel-cards">
         {layoutSuggestion && (
           <li
             className="rounded-lg border border-border bg-surface-raised/50 p-3"
@@ -323,7 +328,8 @@ export function DynamicPanelApp() {
             </p>
           </li>
         ))}
-      </ul>
+      </ScrollFadeList>
+      </div>
 
       {pendingSample !== null && (
         <ConfirmDialog
