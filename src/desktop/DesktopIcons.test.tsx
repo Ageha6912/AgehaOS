@@ -23,6 +23,17 @@ beforeEach(() => {
 })
 
 describe('DesktopIcons', () => {
+  it('carries the token-driven hover class and the enlarged cell (§10, Slice 5)', () => {
+    render(<DesktopIcons />)
+
+    const button = screen.getByTestId('desktop-icon-com.ageha.files')
+    expect(button.classList.contains('desktop-icon-button')).toBe(true)
+    expect(button.classList.contains('w-24')).toBe(true)
+    // 徽章升到 52：图标瓦片内联尺寸跟随。
+    const tile = button.querySelector('span[class*=rounded]') as HTMLElement
+    expect(tile.style.width).toBe('52px')
+  })
+
   it('pins every built-in app with its localized name', () => {
     render(<DesktopIcons />)
 

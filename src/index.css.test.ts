@@ -97,7 +97,10 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(has(dark, 'ag-desktop-label')).toBe(true)
     expect(has(root, 'ag-desktop-label-shadow')).toBe(true)
     expect(has(dark, 'ag-desktop-label-shadow')).toBe(true)
+    expect(has(root, 'ag-desktop-icon-hover')).toBe(true)
+    expect(has(dark, 'ag-desktop-icon-hover')).toBe(true)
     expect(css).toContain('.desktop-icon-label')
+    expect(css).toContain('.desktop-icon-button:hover')
   })
 
   it('themes the desktop atmosphere layer (ambient light + vignette)', () => {

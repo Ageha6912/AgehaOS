@@ -83,6 +83,8 @@
   /* ---- Desktop icon labels（壁纸之上，随主题翻色的唯一样式）---- */
   --ag-desktop-label: #1c2a45;
   --ag-desktop-label-shadow: drop-shadow(0 1px 1px rgb(255 255 255 / 60%));
+  /* 图标格悬停纱（壁纸之上，明暗同用白纱极轻一档） */
+  --ag-desktop-icon-hover: rgb(255 255 255 / 12%);
 
   /* ---- Desktop atmosphere（极轻氛围层：顶部环境光 + 暗角，静态零动画）---- */
   --ag-atmosphere-ambient: linear-gradient(
@@ -179,6 +181,7 @@
   /* ---- Desktop icon labels ---- */
   --ag-desktop-label: #f4f7fd;
   --ag-desktop-label-shadow: drop-shadow(0 1px 2px rgb(9 16 32 / 85%));
+  --ag-desktop-icon-hover: rgb(255 255 255 / 10%);
 
   /* ---- Desktop atmosphere（暗色基线：冷墨暗角更沉一档，顶光偏靛）---- */
   --ag-atmosphere-ambient: linear-gradient(
@@ -455,6 +458,11 @@ body {
 .desktop-icon-label {
   color: var(--ag-desktop-label);
   filter: var(--ag-desktop-label-shadow);
+}
+
+/* 图标格悬停（§10）：极轻白纱（原 hover:bg-white/10 收编为 Token）。 */
+.desktop-icon-button:hover {
+  background-color: var(--ag-desktop-icon-hover);
 }
 
 /*

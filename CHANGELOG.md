@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### UI 全面视觉升级 Slice 5：桌面图标视觉升级（DESIGN.md §10）
+
+- 图标 40→52、格宽 w-20→w-24、行距 gap-0.5→gap-1；悬停白纱收编 Token（`--ag-desktop-icon-hover` + `.desktop-icon-button`，替换硬编码 `hover:bg-white/10`）；标签沿用 §17 主题 Token；选中态保持轻盈（图标外圈 + 标签底色）；交互契约（单击/双击/Enter/外点清除/商店自动增删）零改动
+- 测试：DesktopIcons +1（token 悬停类 + w-24 + 52px 瓦片内联尺寸）；CSS 契约扩展 hover Token 双主题；前端 97 文件全绿 + 80 后端；E2E 14/14；visual-judge 2/2（双主题列距/可读性/克制）
+
 ### UI 全面视觉升级 Slice 4：悬浮 Dock（DESIGN.md §20）
 
 - 任务栏视觉本体升级为居中悬浮玻璃胶囊：全宽 footer 降级为透明运动层（`pointer-events-none` 不截胡两侧窗口点击；`contentinfo`/`data-state`/内联 `translateY`/`taskbar-item-*` 锚点契约原样），胶囊 `surface-glass` + `rounded-full` + hairline + `shadow-popover`，h-16 + pb-3 悬浮底隙（总高 ≈76px ∈ 提示词 64~76），限宽溢出滚动
