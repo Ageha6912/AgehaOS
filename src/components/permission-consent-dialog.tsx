@@ -39,7 +39,7 @@ export function PermissionConsentDialog({
     <div
       role="dialog"
       aria-label={t('permission.dialog.title')}
-      className="animate-os-fade-in fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm"
+      className="animate-os-fade-in fixed inset-0 z-[60] flex items-center justify-center bg-scrim-strong p-6 backdrop-blur-sm"
     >
       <div className="surface-glass animate-os-pop-in w-full max-w-md rounded-lg border border-border p-5 shadow-window">
         <h2 className="text-base font-semibold text-text">{t('permission.dialog.title')}</h2>

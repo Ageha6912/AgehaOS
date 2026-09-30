@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### UI 全面视觉升级 Slice 9：弹层统一材质与遮罩 Token（DESIGN.md §24）
+
+- 新增 `.popover-panel`（玻璃搭用 + radius-lg + hairline + shadow-popover），统一右键菜单/通知中心/用户菜单/Dock 悬停预览/Toast/顶栏下拉六处三件套模板；三处对话框遮罩 `bg-black/50` → `bg-scrim-strong`（遮罩自此全走 Token）
+- 契约不变：全部 testid/role/动效类原样（含 ContextMenu `animate-os-pop-in` 断言）
+- 测试：CSS 契约 +1（popover-panel 存在与 radius 引用）；前端 97 文件全绿 + 80 后端；E2E 14/14；visual-judge 2/2（通知面板与预览卡材质一致/间隙/层次/对比度）
+
 ### UI 全面视觉升级 Slice 8：Ctrl+K 搜索面板（DESIGN.md §23）
 
 - 面板改视口正中（弃顶部 12vh 悬挂）；`w-[32rem]` → `w-[38rem]`（608px）+ `shadow-popover` 浮层档影；遮罩 `bg-black/30` → `bg-scrim` Token（退场 bg-scrim/0）；分组头/路径行/提示条 10px → 11px（§5 收口）

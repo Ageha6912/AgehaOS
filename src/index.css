@@ -359,6 +359,17 @@ body {
 }
 
 /*
+ * 弹层统一材质（DESIGN.md §24）：与 surface-glass 搭用，收编
+ * 「rounded-lg + border-border + shadow」三件套模板（消 6 处重复）。
+ * 动效类由 pop-motion 叠加，定位/尺寸留给调用点。
+ */
+.popover-panel {
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius-lg);
+  box-shadow: var(--ag-shadow-popover);
+}
+
+/*
  * Scroll thin: always-visible slim scrollbar for list chrome (DESIGN.md §3).
  * Windows「自动隐藏滚动条」让悬浮条在悬停前不可见——末行被截断时用户无从
    判断列表可滚。样式化经典滚动条常驻可见（宽 6px、主题色、透明轨道）；

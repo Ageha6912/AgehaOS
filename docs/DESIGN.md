@@ -629,3 +629,15 @@ clientHeight 396`）——后续按坑 44 迁移 `ScrollFadeList` 或调高默�
 - **字号纪律**：分组头/文件路径行/底部提示条 10px → 11px（§5 收口）。
 - **契约不变**：搜索逻辑（rankApps/VFS 搜索）、键盘导航（↑↓/Enter/Esc）、
   testid（search-*）、激活行 `bg-primary/10`、§14 动效全部原样。
+
+## 24. 弹层统一材质与遮罩 Token（Phase 1 Slice 9，2026-09-30）
+
+- **`.popover-panel`**（与 `surface-glass` 搭用）：收编「rounded-lg +
+  border-border + shadow」三件套模板，统一落在右键菜单 / 通知中心面板 /
+  用户菜单 / Dock 悬停预览 / Toast 卡片 / 顶栏下拉六处（消解散落重复）；
+  动效类仍由 pop-motion 叠加，定位与尺寸归调用点。
+- **对话框遮罩 Token 化**：confirm/prompt/permission-consent 三处
+  `bg-black/50` → `bg-scrim-strong`（Token 2.0 遮罩族），配合 §23 的
+  `bg-scrim`——遮罩自此全部走 Token，无散落 black。
+- **契约不变**：全部 testid/role/动效类（含 ContextMenu 的
+  `animate-os-pop-in` 断言）原样。

@@ -123,7 +123,7 @@ function ToastCard({
     >
       <button
         type="button"
-        className="flex w-full items-start gap-2.5 rounded-lg border border-border p-3 text-left shadow-window surface-glass"
+        className="popover-panel surface-glass flex w-full items-start gap-2.5 p-3 text-left"
         onClick={() => {
           markRead(item.id)
           onDismissed(item.id)

@@ -39,7 +39,7 @@ export function UserMenu() {
       {menuPhase.render && (
         <menu
           aria-label={user.username}
-          className={`surface-glass absolute top-10 right-0 z-50 w-40 rounded-lg border border-border p-1.5 shadow-window ${popoverMotionClass(menuPhase.exiting)}`}
+          className={`popover-panel surface-glass absolute top-10 right-0 z-50 w-40 p-1.5 ${popoverMotionClass(menuPhase.exiting)}`}
         >
           <li>
             <button

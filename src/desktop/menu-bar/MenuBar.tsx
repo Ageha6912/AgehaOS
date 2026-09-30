@@ -245,7 +245,7 @@ function MenuDropdown({ open, children }: { open: boolean; children: ReactNode }
   return (
     <div
       role="menu"
-      className={`surface-glass absolute left-0 top-full z-50 mt-1 flex min-w-48 flex-col rounded-lg border border-border p-1.5 shadow-popover ${popoverMotionClass(phase.exiting)}`}
+      className={`popover-panel surface-glass absolute left-0 top-full z-50 mt-1 flex min-w-48 flex-col p-1.5 ${popoverMotionClass(phase.exiting)}`}
     >
       {children}
     </div>

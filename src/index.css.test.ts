@@ -103,6 +103,11 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(css).toContain('.desktop-icon-button:hover')
   })
 
+  it('defines the unified popover-panel material (sec 24)', () => {
+    expect(css).toContain('.popover-panel')
+    expect(css).toMatch(/\.popover-panel\s*\{[\s\S]*?--ag-radius-lg/)
+  })
+
   it('defines theme-independent traffic light tokens mapped to utilities', () => {
     for (const name of ['ag-wl-close', 'ag-wl-min', 'ag-wl-max']) {
       expect(has(root, name), `${name} in :root`).toBe(true)

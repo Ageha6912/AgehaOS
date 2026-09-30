@@ -90,7 +90,7 @@ export function ContextMenu({
       ref={menuRef}
       aria-label={t('contextmenu.label')}
       data-testid="context-menu"
-      className={`surface-glass fixed z-50 w-48 rounded-lg border border-border p-1.5 shadow-window ${popoverMotionClass(phase.exiting)}`}
+      className={`popover-panel surface-glass fixed z-50 w-48 p-1.5 ${popoverMotionClass(phase.exiting)}`}
       style={{ left: x, top: y }}
     >
       <li>

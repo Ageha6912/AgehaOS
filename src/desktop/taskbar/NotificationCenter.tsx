@@ -108,7 +108,7 @@ export function NotificationCenter() {
           role="region"
           aria-label={t('notification.center')}
           data-testid="notification-panel"
-          className={`surface-glass absolute top-10 right-0 z-50 flex max-h-96 w-80 flex-col rounded-lg border border-border p-2 shadow-window ${popoverMotionClass(panelPhase.exiting)}`}
+          className={`popover-panel surface-glass absolute top-10 right-0 z-50 flex max-h-96 w-80 flex-col p-2 ${popoverMotionClass(panelPhase.exiting)}`}
         >
           <div className="flex items-center justify-between px-1 pb-2">
             <p className="text-xs font-semibold text-text">{t('notification.center')}</p>

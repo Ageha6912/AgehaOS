@@ -34,7 +34,7 @@ export function WindowPreview({
     <div
       data-testid="window-preview"
       style={{ left }}
-      className="surface-glass animate-os-pop-in fixed bottom-full z-50 mb-2 w-64 rounded-lg border border-border p-2 shadow-window"
+      className="popover-panel surface-glass animate-os-pop-in fixed bottom-full z-50 mb-2 w-64 p-2"
       onClick={(event) => {
         event.stopPropagation()
         onSwitch()
