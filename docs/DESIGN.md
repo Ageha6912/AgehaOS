@@ -618,3 +618,14 @@ clientHeight 396`）——后续按坑 44 迁移 `ScrollFadeList` 或调高默�
 - **缓办（无真实数据源不做装饰）**：Recent Apps（无用量统计）、独立
   Categories（动态布局建议的分组已覆盖该语义）、560-680 全宽档（现有
   应用数量下 384-544 更克制；数量增长后再评估）。
+
+## 23. Ctrl+K 搜索面板（Phase 1 Slice 8，2026-09-30）
+
+- **居中**：`items-center justify-center` 视口正中（Spotlight/Raycast 比喻，
+  升级提示词 §21），弃顶部 12vh 悬挂；遮罩 `bg-black/30` → **`bg-scrim`
+  Token**（退场 `bg-scrim/0`，Token 2.0 收编散落遮罩）。
+- **面板**：`w-[32rem]` → `w-[38rem]`（608 ∈ 600-720）+ `rounded-xl` +
+  `shadow-popover`（浮层档影，高于窗口档）。
+- **字号纪律**：分组头/文件路径行/底部提示条 10px → 11px（§5 收口）。
+- **契约不变**：搜索逻辑（rankApps/VFS 搜索）、键盘导航（↑↓/Enter/Esc）、
+  testid（search-*）、激活行 `bg-primary/10`、§14 动效全部原样。

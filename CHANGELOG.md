@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### UI 全面视觉升级 Slice 8：Ctrl+K 搜索面板（DESIGN.md §23）
+
+- 面板改视口正中（弃顶部 12vh 悬挂）；`w-[32rem]` → `w-[38rem]`（608px）+ `shadow-popover` 浮层档影；遮罩 `bg-black/30` → `bg-scrim` Token（退场 bg-scrim/0）；分组头/路径行/提示条 10px → 11px（§5 收口）
+- 契约不变：搜索逻辑/键盘导航/testid/`bg-primary/10` 激活行/§14 动效
+- 测试：SearchPalette +1（居中 + scrim Token + 宽度/影档）；前端 97 文件全绿 + 80 后端；E2E 14/14；visual-judge 1/1（中心点像素核实 719.5/449.5 vs 视口 720/450，608px 宽，遮罩无色带）
+
 ### UI 全面视觉升级 Slice 7：启动器（DESIGN.md §22）
 
 - 开始菜单升级为图标优先面板：`w-[24rem]` + `rounded-xl` 玻璃 + 顶部本地搜索框（`launcher-search`，本地化名称过滤，启动即清空，未命中复用 `search.empty`）+ 4 列图标瓦片网格（AppIcon 40 + 11px 标签）；布局建议形态保留分组行式、宽度调至 384/480/544、分组标题 10→11px（§5 纪律收口）

@@ -30,6 +30,21 @@ function openPalette(): void {
 }
 
 describe('SearchPalette (PRD §15)', () => {
+  it('renders viewport-centered with the scrim token (§23)', () => {
+    useSearchStore.setState({ open: true })
+    render(<SearchPalette />)
+
+    const backdrop = screen.getByTestId('search-backdrop')
+    expect(backdrop.classList.contains('items-center')).toBe(true)
+    expect(backdrop.classList.contains('justify-center')).toBe(true)
+    expect(backdrop.classList.contains('bg-scrim')).toBe(true)
+
+    const palette = screen.getByTestId('search-palette')
+    expect(palette.classList.contains('w-[38rem]')).toBe(true)
+    expect(palette.classList.contains('shadow-popover')).toBe(true)
+    expect(palette.classList.contains('rounded-xl')).toBe(true)
+  })
+
   it('is hidden until opened and shows app results while typing', async () => {
     render(<SearchPalette />)
     expect(screen.queryByTestId('search-palette')).toBeNull()

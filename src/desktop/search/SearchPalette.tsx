@@ -90,8 +90,8 @@ export function SearchPalette() {
 
   return (
     <div
-      className={`absolute inset-0 z-50 flex items-start justify-center pt-[12vh] transition-opacity duration-[120ms] ${
-        phase.exiting ? 'bg-black/0 opacity-0' : 'bg-black/30 opacity-100'
+      className={`absolute inset-0 z-50 flex items-center justify-center transition-opacity duration-[120ms] ${
+        phase.exiting ? 'bg-scrim/0 opacity-0' : 'bg-scrim opacity-100'
       }`}
       data-testid="search-backdrop"
       onClick={close}
@@ -100,7 +100,7 @@ export function SearchPalette() {
         role="dialog"
         aria-label={t('search.placeholder')}
         data-testid="search-palette"
-        className={`surface-glass w-[32rem] max-w-[90%] rounded-xl border border-border p-3 shadow-window ${popoverMotionClass(phase.exiting)}`}
+        className={`surface-glass w-[38rem] max-w-[90%] rounded-xl border border-border p-3 shadow-popover ${popoverMotionClass(phase.exiting)}`}
         onClick={(event) => event.stopPropagation()}
       >
         <input
@@ -137,7 +137,7 @@ export function SearchPalette() {
           )}
 
           {appHits.length > 0 && (
-            <p className="px-2 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+            <p className="px-2 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
               {t('search.apps')}
             </p>
           )}
@@ -162,7 +162,7 @@ export function SearchPalette() {
           </ul>
 
           {fileHits.length > 0 && (
-            <p className="px-2 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+            <p className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">
               {t('search.files')}
             </p>
           )}
@@ -183,7 +183,7 @@ export function SearchPalette() {
                     <File size={15} weight="regular" aria-hidden="true" />
                     <span className="min-w-0">
                       <span className="block truncate text-text">{hit.node.name}</span>
-                      <span className="block truncate text-[10px] text-text-muted">{hit.path}</span>
+                      <span className="block truncate text-[11px] text-text-muted">{hit.path}</span>
                     </span>
                   </button>
                 </li>
@@ -192,7 +192,7 @@ export function SearchPalette() {
           </ul>
         </div>
 
-        <p className="mt-2 border-t border-border px-2 pt-2 text-[10px] text-text-muted">
+        <p className="mt-2 border-t border-border px-2 pt-2 text-[11px] text-text-muted">
           {t('search.hint')}
         </p>
       </div>
