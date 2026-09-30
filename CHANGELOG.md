@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### UI 全面视觉升级 Slice 1：Design Token 2.0 + 深色默认基线（ADR 24）
+
+- **Token 2.0 扩展（不推翻 v1）**：`src/index.css` 新增 v2 语义层——surface 层级（soft/elevated/popover/modal）、text-tertiary/disabled、border-subtle/strong、brand 语义别名、accent 五色族（数据/徽章专用）、`--ag-info`、阴影五档（soft/panel/popover/modal + 既有 window/window-flat）、blur 三档（12/20/28px）、scrim/scrim-strong、radius 升档（sm8/md12/lg16/xl20/pill）、menubar/dock 几何契约值（pitch 48 = 波浪 σ44 前提）；v1 名（surface-raised/brand 等）保留为别名，新代码用 v2 名
+- **玻璃材质按视觉权威图重调**：浅 `rgb(255 255 255/72%)`、深 `rgb(16 23 40/66%)`、blur 24→28px；`.surface-glass` 实色回退改挂 `--ag-surface-popover`
+- **默认主题 `light → dark`**（贴合权威图暗曙光彩；存量已保存偏好一律不动，含 light——单测钉住）；壁纸引擎沿用 gradient-field 10 构图不新增
+- **桌面图标标签收编主题 Token**：原硬编码白字 + 深投影在浅色池壁纸上实测 3.3:1 不可读，新 `.desktop-icon-label`（`--ag-desktop-label/-shadow` 双主题），修复后浅色 10.7:1+（visual-judge 复审判定）
+- **测试**：新增 `src/index.css.test.ts` Token 契约（v2 层级双主题存在性、别名关系、radius 刻度、@theme 映射、玻璃回退、桌面标签主题化）；settings-store +1（存量 light 偏好首载保留）+ 默认值断言更新 ×3 处；前端 95 文件全绿 + 80 后端；E2E 13/13；双主题 6 截图过 visual-judge（暗色 4/4、浅色修复后通过；动态面板滚动折叠线裁切经 git HEAD 复现确认非本片回归，记录 DESIGN.md §17 遗留）
+
 ### Files 上传入口：本机文件 → 二进制落盘（Phase 3 第一片 UI 面）
 
 - 工具栏新增「上传文件」（回收站视图隐藏）：隐藏 `<input type="file">` → `writeFileBytes` 落入当前目录，事件驱动刷新（其他窗口即时可见）；input 值每次选择后清空，允许连续重选同一文件

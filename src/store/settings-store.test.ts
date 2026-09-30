@@ -15,8 +15,17 @@ beforeEach(() => {
 })
 
 describe('settings-store theme', () => {
-  it('defaults to light (2026-09 设计基线，docs/DESIGN.md)', () => {
-    expect(useSettingsStore.getState().theme).toBe('light')
+  it('defaults to dark (2026-09-30「Calm Future」设计基线，docs/DESIGN.md)', () => {
+    expect(useSettingsStore.getState().theme).toBe('dark')
+    expect(htmlClasses().contains('dark')).toBe(true)
+  })
+
+  it('keeps a persisted legacy light preference on first load', async () => {
+    localStorage.setItem('agehaos.settings.v1', JSON.stringify({ theme: 'light' }))
+    vi.resetModules()
+    const { useSettingsStore: freshStore } = await import('./settings-store')
+
+    expect(freshStore.getState().theme).toBe('light')
     expect(htmlClasses().contains('dark')).toBe(false)
   })
 

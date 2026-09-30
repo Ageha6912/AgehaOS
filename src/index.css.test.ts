@@ -1,0 +1,130 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+/*
+ * Token 2.0 契约（docs/DESIGN.md §2 唯一权威）：钉住 src/index.css 必须
+ * 提供的设计 Token 集合与关键别名，防止后续重构静默丢 Token 或破坏
+ * v1 兼容别名。样式值本身不在本测试断言范围（属 DESIGN.md 表格）。
+ */
+const css = readFileSync(join(process.cwd(), 'src', 'index.css'), 'utf8')
+
+function block(open: string): string {
+  const start = css.indexOf(open)
+  const end = css.indexOf('\n}', start)
+  return start >= 0 && end > start ? css.slice(start, end) : ''
+}
+
+const root = block(':root {')
+const dark = block('.dark {')
+const theme = block('@theme inline {')
+
+function has(scope: string, name: string): boolean {
+  return new RegExp(`--${name}:`).test(scope)
+}
+
+describe('index.css token contract (Token 2.0)', () => {
+  it('defines the v2 semantic surface/text/border tiers in both themes', () => {
+    for (const name of [
+      'ag-surface-soft',
+      'ag-surface-elevated',
+      'ag-surface-popover',
+      'ag-surface-modal',
+      'ag-text-tertiary',
+      'ag-text-disabled',
+      'ag-border-subtle',
+      'ag-border-strong',
+    ]) {
+      expect(has(root, name), `${name} in :root`).toBe(true)
+      expect(has(dark, name), `${name} in .dark`).toBe(true)
+    }
+  })
+
+  it('defines the shadow/blur/scrim scales and shell geometry', () => {
+    for (const name of [
+      'ag-shadow-soft',
+      'ag-shadow-panel',
+      'ag-shadow-popover',
+      'ag-shadow-modal',
+      'ag-blur-sm',
+      'ag-blur-md',
+      'ag-blur-lg',
+      'ag-scrim',
+      'ag-scrim-strong',
+      'ag-radius-pill',
+      'ag-menubar-height',
+      'ag-dock-height',
+      'ag-dock-item-pitch',
+      'ag-dock-icon',
+    ]) {
+      expect(has(root, name), `${name} in :root`).toBe(true)
+    }
+  })
+
+  it('defines the accent family and info state', () => {
+    for (const name of [
+      'ag-accent-blue',
+      'ag-accent-indigo',
+      'ag-accent-violet',
+      'ag-accent-cyan',
+      'ag-accent-pink',
+      'ag-info',
+    ]) {
+      expect(has(root, name), `${name} in :root`).toBe(true)
+      expect(has(dark, name), `${name} in .dark`).toBe(true)
+    }
+  })
+
+  it('keeps v1 tokens as live aliases (not removed, not hardcoded duplicates)', () => {
+    expect(root).toMatch(/--ag-surface-raised:\s*var\(--ag-surface-soft\)/)
+    expect(dark).toMatch(/--ag-surface-raised:\s*var\(--ag-surface-soft\)/)
+    expect(root).toMatch(/--ag-brand:\s*var\(--ag-primary\)/)
+    expect(dark).toMatch(/--ag-brand:\s*var\(--ag-primary\)/)
+  })
+
+  it('anchors the radius scale and glass blur to raw tokens', () => {
+    expect(root).toMatch(/--ag-radius-sm:\s*8px/)
+    expect(root).toMatch(/--ag-radius-md:\s*12px/)
+    expect(root).toMatch(/--ag-radius-lg:\s*16px/)
+    expect(root).toMatch(/--ag-radius-xl:\s*20px/)
+    expect(root).toMatch(/--ag-glass-blur:\s*var\(--ag-blur-lg\)/)
+  })
+
+  it('themes the desktop icon labels (wallpaper-over labels flip with theme)', () => {
+    expect(has(root, 'ag-desktop-label')).toBe(true)
+    expect(has(dark, 'ag-desktop-label')).toBe(true)
+    expect(has(root, 'ag-desktop-label-shadow')).toBe(true)
+    expect(has(dark, 'ag-desktop-label-shadow')).toBe(true)
+    expect(css).toContain('.desktop-icon-label')
+  })
+
+  it('exposes the v2 tiers and scales through @theme inline utilities', () => {
+    for (const name of [
+      'color-surface-soft',
+      'color-surface-elevated',
+      'color-surface-popover',
+      'color-surface-modal',
+      'color-text-tertiary',
+      'color-text-disabled',
+      'color-border-subtle',
+      'color-border-strong',
+      'color-brand',
+      'color-info',
+      'color-scrim',
+      'color-scrim-strong',
+      'color-accent-violet',
+      'radius-xl',
+      'shadow-soft',
+      'shadow-panel',
+      'shadow-popover',
+      'shadow-modal',
+    ]) {
+      expect(has(theme, name), `${name} in @theme inline`).toBe(true)
+    }
+  })
+
+  it('keeps the glass material fallbacks on the popover surface token', () => {
+    const glass = css.slice(css.indexOf('.surface-glass'), css.indexOf('/*\n * Scroll thin'))
+    expect(glass).toContain('var(--ag-surface-popover)')
+  })
+})

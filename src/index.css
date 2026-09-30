@@ -1,101 +1,227 @@
 @import 'tailwindcss';
 
 /* Theme strategy (PRD §27): raw tokens flip on `.dark`, utilities stay stable.
-   Direction (2026-09, docs/DESIGN.md): 「精密仪表」revised to a blue-white
-   gradient palette (user verdict 2026-09-26) — white→light-blue gradient
-   surfaces in the baseline theme, navy-ink gradients in the adapted dark
-   theme, one cobalt accent for focus/selection/primary actions, mono
-   metadata tier for paths/counts/timestamps. Gradients live on large
-   surfaces only (canvas + app panels); controls stay solid. */
+   Direction (2026-09-30, docs/DESIGN.md 「Calm Future」视觉升级): Japanese
+   Futuristic × Modern SaaS — 中性冷白/冷墨基底 + 白玻璃 chrome + 单一品牌强调；
+   蓝靛紫青 accent 族仅作数据/徽章语义。层次靠 surface/shadow/blur 刻度，
+   不靠发光。视觉权威 = 仓库根《AgehaOS UI 全面视觉升级.png》（永不提交）。
+   深色为默认基线（用户裁决 2026-09-30），浅色对称适配；玻璃归 chrome、
+   纸面归应用的材质分工不变。 */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  /* ---- Base surfaces（v2 语义层；v1 旧名见文末别名区）---- */
   --ag-bg: #eef4fd;
   --ag-surface: #fbfdff;
-  --ag-surface-raised: #edf3fc;
+  --ag-surface-soft: #edf3fc; /* 凹槽、悬停、内嵌区 */
+  --ag-surface-elevated: #ffffff; /* 悬浮卡片/菜单的实色兜底 */
+  --ag-surface-popover: #f9fbff; /* 弹层玻璃的实色兜底 */
+  --ag-surface-modal: #ffffff; /* 模态对话框 */
+
+  /* ---- Text tiers ---- */
   --ag-text: #18202c;
   --ag-text-muted: #5a6b82;
-  --ag-primary: #2f5fe8; /* cobalt */
-  --ag-primary-contrast: #f7f9ff;
+  --ag-text-tertiary: #8394ad; /* 辅助说明（非关键） */
+  --ag-text-disabled: #aab6c9;
+
+  /* ---- Borders ---- */
   --ag-border: #d9e3f4;
+  --ag-border-subtle: #e9f0fa;
+  --ag-border-strong: #b9cbe6;
+
+  /* ---- Brand / accents ---- */
+  --ag-primary: #2f5fe8; /* cobalt：唯一主动作/焦点/选中 */
+  --ag-primary-contrast: #f7f9ff;
+  --ag-accent-blue: #2f6fed;
+  --ag-accent-indigo: #4f46e5;
+  --ag-accent-violet: #8b5cf6;
+  --ag-accent-cyan: #0891b2;
+  --ag-accent-pink: #c026d3;
+
+  /* ---- State ---- */
   --ag-danger: #dc2626;
   --ag-success: #059669;
   --ag-warning: #b45309;
-  --ag-shadow-window:
-    0 16px 48px rgb(18 32 62 / 16%), 0 2px 8px rgb(18 32 62 / 8%);
-  --ag-shadow-window-flat: 0 8px 24px rgb(18 32 62 / 10%);
+  --ag-info: #0369a1;
 
-  /* Blue-white gradient surfaces (large areas only; controls stay solid). */
+  /* ---- Shadow scale（柔和、弥散、低透明；「浮起来」而非「压下去」）---- */
+  --ag-shadow-soft: 0 1px 2px rgb(18 32 62 / 6%), 0 2px 8px rgb(18 32 62 / 5%);
+  --ag-shadow-panel: 0 4px 16px rgb(18 32 62 / 8%), 0 1px 3px rgb(18 32 62 / 6%);
+  --ag-shadow-window: 0 16px 48px rgb(18 32 62 / 16%), 0 2px 8px rgb(18 32 62 / 8%);
+  --ag-shadow-window-flat: 0 8px 24px rgb(18 32 62 / 10%);
+  --ag-shadow-popover: 0 24px 64px rgb(18 32 62 / 18%), 0 4px 12px rgb(18 32 62 / 8%);
+  --ag-shadow-modal: 0 32px 80px rgb(18 32 62 / 24%), 0 8px 20px rgb(18 32 62 / 10%);
+
+  /* ---- Blur scale（玻璃只属于 chrome：Dock/窗口/启动器/搜索/弹层/通知/系统中心）---- */
+  --ag-blur-sm: 12px;
+  --ag-blur-md: 20px;
+  --ag-blur-lg: 28px;
+
+  /* ---- Glass material（白玻璃；实色兜底见 .surface-glass 回退）---- */
+  --ag-glass-bg: rgb(255 255 255 / 72%);
+  --ag-glass-border: rgb(18 32 62 / 8%);
+  --ag-glass-highlight: rgb(255 255 255 / 70%);
+  --ag-glass-blur: var(--ag-blur-lg);
+
+  /* ---- Scrim（遮罩：搜索背板/模态）---- */
+  --ag-scrim: rgb(15 23 42 / 32%);
+  --ag-scrim-strong: rgb(15 23 42 / 50%);
+
+  /* ---- Radius scale ---- */
+  --ag-radius-sm: 8px;
+  --ag-radius-md: 12px;
+  --ag-radius-lg: 16px;
+  --ag-radius-xl: 20px;
+  --ag-radius-pill: 9999px;
+
+  /* ---- Shell geometry（顶栏/Dock；由后续 Slice 消费）---- */
+  --ag-menubar-height: 32px;
+  --ag-dock-height: 68px;
+  --ag-dock-item-pitch: 48px; /* 波浪 σ44 的几何前提，勿动 */
+  --ag-dock-icon: 24px;
+
+  /* ---- Desktop icon labels（壁纸之上，随主题翻色的唯一样式）---- */
+  --ag-desktop-label: #1c2a45;
+  --ag-desktop-label-shadow: drop-shadow(0 1px 1px rgb(255 255 255 / 60%));
+
+  /* ---- Large-surface gradients（渐变只属于大面；控件实色）---- */
   --ag-canvas: linear-gradient(168deg, #ffffff 0%, #ecf3fd 55%, #ddebfb 100%);
   --ag-panel: linear-gradient(180deg, #fdfeff 0%, #f3f8ff 100%);
 
-  /* Glass material (web glassmorphism approximation; solid fallback below). */
-  --ag-glass-bg: rgb(248 251 255 / 84%);
-  --ag-glass-border: rgb(18 32 62 / 10%);
-  --ag-glass-highlight: rgb(255 255 255 / 60%);
-  --ag-glass-blur: 24px;
-
-  /* Motion baseline (MOTION 2: restrained, transform/opacity only). */
+  /* ---- Motion baseline (MOTION 2: restrained, transform/opacity only). ---- */
   --ag-motion-fast: 120ms;
   --ag-motion-base: 200ms;
   /* 开机退场豁免档（唯一 >300ms；motion-lab --ml-dur-boot 归档，DESIGN.md §11）。 */
   --ag-motion-boot: 400ms;
   /* 退场加速曲线（菜单/通知/窗口关闭共用；motion-lab --ml-ease-in 同值声明）。 */
   --ag-motion-ease-in: cubic-bezier(0.55, 0, 1, 0.45);
-  --ag-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --ag-motion-ease: cubic-bezier(0.2, 0, 1);
 
-  /* Boot screen (theme-independent dark reveal canvas; does not flip on .dark). */
+  /* ---- Boot screen (theme-independent dark reveal canvas; does not flip on .dark). ---- */
   --ag-boot-canvas: radial-gradient(130% 100% at 50% 42%, #131e36 0%, #0a0f1c 52%, #000 100%);
   --ag-boot-track: rgb(255 255 255 / 14%);
   --ag-boot-fill: #82a3ff;
   --ag-boot-text: #e4ecfa;
   --ag-boot-text-dim: rgb(228 236 250 / 56%);
+
+  /* ---- v1 别名（Token 2.0 兼容层；新代码请用新名，见 DESIGN.md §2）---- */
+  --ag-surface-raised: var(--ag-surface-soft);
+  --ag-brand: var(--ag-primary);
+  --ag-brand-strong: #2450cf;
+  --ag-brand-soft: color-mix(in srgb, var(--ag-primary) 10%, transparent);
 }
 
 .dark {
+  /* ---- Base surfaces ---- */
   --ag-bg: #0c1220;
   --ag-surface: #141b2b;
-  --ag-surface-raised: #1b2438;
+  --ag-surface-soft: #1b2438;
+  --ag-surface-elevated: #1e2a42;
+  --ag-surface-popover: #16213a;
+  --ag-surface-modal: #1a2540;
+
+  /* ---- Text tiers ---- */
   --ag-text: #e6ecf7;
   --ag-text-muted: #94a3bf;
+  --ag-text-tertiary: #6e7f9e;
+  --ag-text-disabled: #4b5b7a;
+
+  /* ---- Borders ---- */
+  --ag-border: #263149;
+  --ag-border-subtle: #1e2a41;
+  --ag-border-strong: #38496e;
+
+  /* ---- Brand / accents ---- */
   --ag-primary: #82a3ff;
   --ag-primary-contrast: #0d1220;
-  --ag-border: #263149;
+  --ag-accent-blue: #60a5fa;
+  --ag-accent-indigo: #818cf8;
+  --ag-accent-violet: #a78bfa;
+  --ag-accent-cyan: #22d3ee;
+  --ag-accent-pink: #e879f9;
+
+  /* ---- State ---- */
   --ag-danger: #f87171;
   --ag-success: #34d399;
   --ag-warning: #fbbf24;
-  --ag-shadow-window:
-    0 16px 48px rgb(0 0 0 / 45%), 0 2px 8px rgb(0 0 0 / 30%);
-  --ag-shadow-window-flat: 0 8px 24px rgb(0 0 0 / 28%);
+  --ag-info: #38bdf8;
 
-  /* Navy-ink gradient (the dark reading of the blue-white gradient). */
+  /* ---- Shadow scale ---- */
+  --ag-shadow-soft: 0 1px 2px rgb(0 0 0 / 24%), 0 2px 8px rgb(0 0 0 / 16%);
+  --ag-shadow-panel: 0 4px 16px rgb(0 0 0 / 28%), 0 1px 3px rgb(0 0 0 / 20%);
+  --ag-shadow-window: 0 16px 48px rgb(0 0 0 / 45%), 0 2px 8px rgb(0 0 0 / 30%);
+  --ag-shadow-window-flat: 0 8px 24px rgb(0 0 0 / 28%);
+  --ag-shadow-popover: 0 24px 64px rgb(0 0 0 / 52%), 0 4px 12px rgb(0 0 0 / 32%);
+  --ag-shadow-modal: 0 32px 80px rgb(0 0 0 / 60%), 0 8px 20px rgb(0 0 0 / 36%);
+
+  /* ---- Glass material（深色冷墨玻璃）---- */
+  --ag-glass-bg: rgb(16 23 40 / 66%);
+  --ag-glass-border: rgb(255 255 255 / 10%);
+  --ag-glass-highlight: rgb(255 255 255 / 8%);
+  --ag-glass-blur: var(--ag-blur-lg);
+
+  /* ---- Scrim ---- */
+  --ag-scrim: rgb(2 6 16 / 48%);
+  --ag-scrim-strong: rgb(2 6 16 / 60%);
+
+  /* ---- Desktop icon labels ---- */
+  --ag-desktop-label: #f4f7fd;
+  --ag-desktop-label-shadow: drop-shadow(0 1px 2px rgb(9 16 32 / 85%));
+
+  /* ---- Large-surface gradients（藏蓝墨渐变）---- */
   --ag-canvas: linear-gradient(168deg, #131e36 0%, #0d1526 60%, #0a0f1c 100%);
   --ag-panel: linear-gradient(180deg, #172130 0%, #121828 100%);
 
-  --ag-glass-bg: rgb(20 27 43 / 78%);
-  --ag-glass-border: rgb(255 255 255 / 9%);
-  --ag-glass-highlight: rgb(255 255 255 / 7%);
+  /* ---- v1 别名 ---- */
+  --ag-surface-raised: var(--ag-surface-soft);
+  --ag-brand: var(--ag-primary);
+  --ag-brand-strong: #a7bcff;
+  --ag-brand-soft: color-mix(in srgb, var(--ag-primary) 14%, transparent);
 }
 
 @theme inline {
   --color-bg: var(--ag-bg);
   --color-surface: var(--ag-surface);
   --color-surface-raised: var(--ag-surface-raised);
+  --color-surface-soft: var(--ag-surface-soft);
+  --color-surface-elevated: var(--ag-surface-elevated);
+  --color-surface-popover: var(--ag-surface-popover);
+  --color-surface-modal: var(--ag-surface-modal);
   --color-text: var(--ag-text);
   --color-text-muted: var(--ag-text-muted);
+  --color-text-tertiary: var(--ag-text-tertiary);
+  --color-text-disabled: var(--ag-text-disabled);
   --color-primary: var(--ag-primary);
   --color-primary-contrast: var(--ag-primary-contrast);
+  --color-brand: var(--ag-brand);
+  --color-brand-strong: var(--ag-brand-strong);
+  --color-brand-soft: var(--ag-brand-soft);
+  --color-accent-blue: var(--ag-accent-blue);
+  --color-accent-indigo: var(--ag-accent-indigo);
+  --color-accent-violet: var(--ag-accent-violet);
+  --color-accent-cyan: var(--ag-accent-cyan);
+  --color-accent-pink: var(--ag-accent-pink);
   --color-danger: var(--ag-danger);
   --color-success: var(--ag-success);
   --color-warning: var(--ag-warning);
+  --color-info: var(--ag-info);
   --color-border: var(--ag-border);
+  --color-border-subtle: var(--ag-border-subtle);
+  --color-border-strong: var(--ag-border-strong);
+  --color-scrim: var(--ag-scrim);
+  --color-scrim-strong: var(--ag-scrim-strong);
 
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: var(--ag-radius-sm);
+  --radius-md: var(--ag-radius-md);
+  --radius-lg: var(--ag-radius-lg);
+  --radius-xl: var(--ag-radius-xl);
 
+  --shadow-soft: var(--ag-shadow-soft);
+  --shadow-panel: var(--ag-shadow-panel);
   --shadow-window: var(--ag-shadow-window);
   --shadow-window-flat: var(--ag-shadow-window-flat);
+  --shadow-popover: var(--ag-shadow-popover);
+  --shadow-modal: var(--ag-shadow-modal);
 
   --ease-os: var(--ag-motion-ease);
 }
@@ -122,9 +248,10 @@ body {
 }
 
 /*
- * Shape consistency rule (skill §4.4): buttons/inputs/list rows use radius-md,
- * floating panels (windows, menus, dialogs, cards) use radius-lg, tiny chrome
- * (title-bar buttons) uses radius-sm.
+ * Shape consistency rule (DESIGN.md §2.2, Token 2.0): 控件与行 = radius-md，
+ * 浮层（窗口/菜单/对话框）= radius-lg，主入口大面（启动器/搜索/Dock）=
+ * radius-xl，微小 chrome（标题栏按钮）= radius-sm，胶囊（Dock 容器/指示点）
+ * = rounded-full。
  */
 
 /* Keyboard focus visibility: one consistent ring, keyboard-only (:focus-visible). */
@@ -179,22 +306,22 @@ body {
 }
 @media (prefers-reduced-transparency: reduce) {
   .surface-glass {
-    background: var(--ag-surface);
+    background: var(--ag-surface-popover);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
 }
 @supports not (backdrop-filter: blur(1px)) {
   .surface-glass {
-    background: var(--ag-surface);
+    background: var(--ag-surface-popover);
   }
 }
 
 /*
  * Scroll thin: always-visible slim scrollbar for list chrome (DESIGN.md §3).
  * Windows「自动隐藏滚动条」让悬浮条在悬停前不可见——末行被截断时用户无从
- * 判断列表可滚。样式化经典滚动条常驻可见（宽 6px、主题色、透明轨道）；
- * Firefox 走 scrollbar-width: thin 同语义。
+   判断列表可滚。样式化经典滚动条常驻可见（宽 6px、主题色、透明轨道）；
+   Firefox 走 scrollbar-width: thin 同语义。
  */
 .scroll-thin {
   scrollbar-width: thin;
@@ -258,7 +385,7 @@ body {
 /*
  * 桌面增强动效（DESIGN.md §15，motion-lab enhance 档）。
  * 点击涟漪：JS 注入 .os-ripple（定位/尺寸/透明度走变量），扩散由 keyframes
- * 一次完成，animationend 自清理。 */
+   一次完成，animationend 自清理。 */
 .os-ripple {
   position: absolute;
   left: var(--cr-x);
@@ -297,6 +424,13 @@ body {
 }
 .os-stagger-item {
   animation: os-stagger-in 250ms var(--ag-motion-ease) both;
+}
+
+/* 桌面图标标签：直接落在壁纸上，颜色/投影随主题（Token 2.0 收编原
+   text-white + 硬编码投影——浅色池壁纸近白，白字不可读，实测 3.3:1）。 */
+.desktop-icon-label {
+  color: var(--ag-desktop-label);
+  filter: var(--ag-desktop-label-shadow);
 }
 
 /*

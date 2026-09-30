@@ -106,8 +106,8 @@ export function DesktopIcons() {
               className={isSelected ? 'outline-2 outline-primary' : undefined}
             />
             <span
-              className={`max-w-full truncate rounded px-1 text-[11px] leading-4 drop-shadow-[0_1px_2px_rgba(9,16,32,0.85)] ${
-                isSelected ? 'bg-primary text-primary-contrast' : 'text-white'
+              className={`desktop-icon-label max-w-full truncate rounded px-1 text-[11px] leading-4 ${
+                isSelected ? 'bg-primary text-primary-contrast' : ''
               }`}
             >
               {name}

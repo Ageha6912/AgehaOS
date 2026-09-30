@@ -1,10 +1,18 @@
-# AgehaOS 应用套件设计方向 · 蓝白渐变「精密仪表」
+# AgehaOS 设计方向 · 「Calm Future」玻璃语言（Token 2.0）
 
-> 2026-09 设计裁决（grilling 共识）：taste-skill 自由方向、浅色基线、全局 Token
-> 跟随、CSS-only 动效。**2026-09-26 用户裁决修订：整体配色改为蓝白渐变，
-> 方向其余不变。**本文是方向的唯一权威定义；试点页（Files）实现即本文件
-> 的可视化。拨盘：VARIANCE 3 / MOTION 2 / DENSITY 5-6（产品 UI 要可预期性，
-> 不是营销页的表现力）。
+> 2026-09-30 用户裁决（grilling 共识，ADR 24）：启动 UI 全面视觉升级 Phase 1，
+> 视觉权威 = 仓库根《AgehaOS UI 全面视觉升级.png》（永不提交，只可缩放裁切）；
+> 布局骨架以升级提示词 §45 为准（顶栏 + 浮动窗口 + 底部 Dock）。方向由
+> 「蓝白渐变·精密仪表」升级为 **「Calm Future」玻璃语言**：Japanese Futuristic
+> × Modern SaaS——中性冷白/冷墨基底 + 白玻璃 chrome + 单一品牌强调，
+> 层次靠 surface/shadow/blur 刻度而非发光；95% 中性、5% Ageha 强调。
+> 默认主题翻转为**深色**（贴合权威图暗曙光彩；存量偏好一律不动）。
+> 七项开工裁决与既有用户裁决的覆盖关系见 §17。
+>
+> 历史裁决存档：2026-09 grilling（taste-skill 自由方向、全局 Token 跟随、
+> CSS-only 动效）；2026-09-26 配色改蓝白渐变。本文仍是方向的唯一权威定义；
+> 拨盘：VARIANCE 3 / MOTION 2 / DENSITY 5-6（产品 UI 要可预期性，不是营销页
+> 的表现力）。
 
 ## 1. 一句话方向
 
@@ -35,14 +43,39 @@
 | `--ag-border` | `#d9e3f4` | `#263149` | 分隔线 |
 | danger / success / warning | `#dc2626` / `#059669` / `#b45309` | `#f87171` / `#34d399` / `#fbbf24` | 语义色，按主题两档 |
 
-玻璃材质（chrome 专用：任务栏/开始菜单/窗口标题区）：浅 `rgb(248 251 255 / 84%)`
-/ 深 `rgb(20 27 43 / 78%)`，蓝白调；应用内部一律不透明渐变面板——**玻璃归
-chrome，纸面归应用**，材质分层即层级。
+玻璃材质（chrome 专用：任务栏/开始菜单/窗口标题区）：浅 `rgb(255 255 255 / 72%)`
+/ 深 `rgb(16 23 40 / 66%)`，蓝白调，blur 28px（`--ag-blur-lg`）；应用内部一律
+不透明渐变面板——**玻璃归 chrome，纸面归应用**，材质分层即层级。
+（窗体纸面是否按升级提示词 §18 改半透明，属 Phase 1 Slice 6 决策点，
+未决前维持本契约。）
 
-### 2.2 形状（一档收紧）
+### 2.1.1 Token 2.0 扩展（2026-09-30 起，ADR 24）
 
-`radius: sm 4 / md 8 / lg 12`（原 6/12/16）。规则不变：控件与行 = md，浮层
-（窗口/菜单/对话框/卡片）= lg，微件 chrome（标题栏按钮）= sm。
+在 v1 Token 之上**扩展**（v1 名保留为别名，`--ag-surface-raised →
+--ag-surface-soft`、`--ag-brand → --ag-primary`；新代码一律用 v2 名）：
+
+| 组 | Token | 说明 |
+| --- | --- | --- |
+| Surface 层级 | `--ag-surface-soft / -elevated / -popover / -modal` | 凹槽悬停 / 悬浮卡 / 弹层玻璃实色兜底 / 模态；浅 `#edf3fc·#ffffff·#f9fbff·#ffffff`，深 `#1b2438·#1e2a42·#16213a·#1a2540` |
+| 文字层级 | `--ag-text-tertiary / -disabled` | 辅助说明 / 禁用 |
+| 边框层级 | `--ag-border-subtle / -strong` | 弱分隔 / 强分隔 |
+| 强调族 | `--ag-brand(-strong/-soft)` | v1 primary 的语义别名（主动作/焦点/选中） |
+| Accent 族 | `--ag-accent-blue/indigo/violet/cyan/pink` | 数据/徽章语义专用，不作 UI 主色（95/5 原则） |
+| 状态 | `--ag-info` | 与 danger/success/warning 同列 |
+| 阴影五档 | `--ag-shadow-soft/panel/window/popover/modal` | 柔和弥散低透明，「浮起来」而非「压下去」；`window-flat` 保留 |
+| 模糊三档 | `--ag-blur-sm/md/lg`（12/20/28px） | 玻璃只属于 chrome（Dock/窗口/启动器/搜索/弹层/通知/系统中心） |
+| 遮罩 | `--ag-scrim / -strong` | 搜索背板 / 模态遮罩，替换散落的 `bg-black/*` |
+| Shell 几何 | `--ag-menubar-height(32) / --ag-dock-height(68) / --ag-dock-item-pitch(48) / --ag-dock-icon(24)` | 顶栏与浮动 Dock 的契约值；pitch 48 = 波浪 σ44 的几何前提，勿动 |
+| 桌面图标标签 | `--ag-desktop-label / -label-shadow` | 壁纸上唯一样式，随主题翻色（原白字硬编码收编，见 §17） |
+
+Token 存在性与别名关系由 `src/index.css.test.ts` 契约测试钉住。
+
+### 2.2 形状（Token 2.0 刻度，2026-09-30）
+
+`radius: sm 8 / md 12 / lg 16 / xl 20 / pill 9999`（v1 的 4/8/12 就地升级）。
+规则：控件与行 = md，浮层（窗口/菜单/对话框）= lg，主入口大面（启动器/
+搜索/Dock 容器）= xl，微小 chrome（标题栏按钮）= sm，胶囊（Dock 外壳/
+指示点）= rounded-full。
 
 ### 2.3 排版（三层 + 等宽数据层）
 
@@ -113,9 +146,12 @@ Phosphor 单族（既有依赖），四种标准尺寸：**14**（行内/列表�
 
 - 新用户默认主题 `dark` → `light`（`DEFAULT_THEME`）；存量用户已保存偏好
   一律不动；`system` 仍可选。
+- **2026-09-30（ADR 24）：默认主题再翻转为 `dark`**——「Calm Future」基线
+  贴合视觉权威图的暗曙光彩；存量已保存偏好依旧一律不动（含 light）。
 - 壁纸引擎 INK/SURFACE 质量门常量随 Token 同步（冷墨值），山水调色板对比
-  度门禁复跑验证。
-- E2E 在 Playwright 中钉住 `colorScheme: 'light'` 保证确定性。
+  度门禁复跑验证。Token 2.0 未动 `--ag-text/bg` 基准色，INK 常量本轮无需跟随。
+- E2E 在 Playwright 中钉住 `colorScheme: 'light'` 保证确定性（浏览器渲染
+  偏好，与应用主题默认值无关，维持不动）。
 
 ## 7. 铺开顺序（试点后）
 
@@ -444,3 +480,26 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
 自动轮换档位（15/10/6/3 分钟/固定）、「换一张」5s 节流、决策反馈回路、
 交叉淡入（600ms）、壁纸默认开（主开关 = 退出项）、视差与光晕设置项——
 全部不变，只换生成域。
+
+## 17. Phase 1「Calm Future」开工裁决（2026-09-30，ADR 24）
+
+七项 grilling 裁决与既有用户裁决（HANDOFF 坑 35）的覆盖关系：
+
+| # | 裁决 | 与既有裁决的关系 |
+| --- | --- | --- |
+| 1 | 图定材质风格，提示词 §45 定布局骨架；图中左侧导航栏/右侧小组件为 Phase 2 候选，本期不建 | 新增（不影响既有裁决） |
+| 2 | 方向升级「Calm Future」写入本文 + ADR 24；**默认主题 light → dark**（存量偏好不动）；壁纸沿用 gradient-field 10 构图，不新增构图 | 修订 ADR 19 的「浅色基线」段；坑 35「浅色默认」就被此条有意覆盖 |
+| 3 | 顶栏承载系统状态（网络/云同步/通知/用户/时钟），Dock 纯应用 + 运行指示 | 坑 35「图标任务栏 + 悬停预览」行为保留，部件归属调整在 Slice 3/4 落地 |
+| 4 | 窗口控制采用左置交通灯（小、克制、精确），aria-label 契约不变 | 新增 |
+| 5 | v1 Token 名保留为别名（surface-raised→surface-soft 等），新代码用 v2 名；全量迁移留 Phase 2 | 新增 |
+| 6 | 应用图标保留彩色徽章体系（app-badges + AppIcon），仅升级容器视觉 | 重申坑 35/坑 41 |
+| 7 | Dock 自动隐藏保持「完全出屏」（translateY(100%) 契约与 E2E 几何不变） | 重申坑 35/坑 42 |
+
+另：坑 35「桌面图标标签白字 + 深投影（照片壁纸可读）」随照片域退役失去前提，
+已于 Token 2.0 收编为 `--ag-desktop-label(-shadow)`（浅色池壁纸上白字实测
+3.3:1 不及格；现浅色 10.7:1+ / 深色白字 + 墨影不变）。
+
+已知遗留（非本片回归，git HEAD 复现确认）：动态面板卡片列表内容超出窗口
+高度时滚动折叠线裁切（`overflow-y-auto`，HEAD 即 `scrollHeight 588 >
+clientHeight 396`）——后续按坑 44 迁移 `ScrollFadeList` 或调高默认窗口，
+随应用侧收口片处理。
