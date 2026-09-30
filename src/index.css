@@ -84,6 +84,18 @@
   --ag-desktop-label: #1c2a45;
   --ag-desktop-label-shadow: drop-shadow(0 1px 1px rgb(255 255 255 / 60%));
 
+  /* ---- Desktop atmosphere（极轻氛围层：顶部环境光 + 暗角，静态零动画）---- */
+  --ag-atmosphere-ambient: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 42%) 0%,
+    rgb(255 255 255 / 0%) 22%
+  );
+  --ag-atmosphere-vignette: radial-gradient(
+    125% 95% at 50% 42%,
+    rgb(18 32 62 / 0%) 58%,
+    rgb(18 32 62 / 13%) 100%
+  );
+
   /* ---- Large-surface gradients（渐变只属于大面；控件实色）---- */
   --ag-canvas: linear-gradient(168deg, #ffffff 0%, #ecf3fd 55%, #ddebfb 100%);
   --ag-panel: linear-gradient(180deg, #fdfeff 0%, #f3f8ff 100%);
@@ -167,6 +179,18 @@
   /* ---- Desktop icon labels ---- */
   --ag-desktop-label: #f4f7fd;
   --ag-desktop-label-shadow: drop-shadow(0 1px 2px rgb(9 16 32 / 85%));
+
+  /* ---- Desktop atmosphere（暗色基线：冷墨暗角更沉一档，顶光偏靛）---- */
+  --ag-atmosphere-ambient: linear-gradient(
+    180deg,
+    rgb(133 160 255 / 10%) 0%,
+    rgb(133 160 255 / 0%) 24%
+  );
+  --ag-atmosphere-vignette: radial-gradient(
+    125% 95% at 50% 42%,
+    rgb(2 6 16 / 0%) 52%,
+    rgb(2 6 16 / 30%) 100%
+  );
 
   /* ---- Large-surface gradients（藏蓝墨渐变）---- */
   --ag-canvas: linear-gradient(168deg, #131e36 0%, #0d1526 60%, #0a0f1c 100%);
@@ -431,6 +455,15 @@ body {
 .desktop-icon-label {
   color: var(--ag-desktop-label);
   filter: var(--ag-desktop-label-shadow);
+}
+
+/*
+ * 桌面氛围层（DESIGN.md §18）：壁纸/画布之上的环境光 + 暗角，纯静态
+ * CSS 渐变（零动画、零 rAF），pointer-events-none 不截胡任何交互。
+ * 层序：壁纸(无 z) < 氛围 z-[2] < 光晕 z-[5] < 图标 z-10 < 窗口 z-30。
+ */
+.atmosphere-layer {
+  background-image: var(--ag-atmosphere-ambient), var(--ag-atmosphere-vignette);
 }
 
 /*

@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### UI 全面视觉升级 Slice 2：桌面氛围层（DESIGN.md §18）
+
+- 壁纸/画布之上新增极轻环境层：顶部环境光 + 暗角（随主题翻转；浅色边角实测 ~4-5% 增深、顶光 +5.3%），纯静态 CSS 渐变（`--ag-atmosphere-ambient/-vignette` + `.atmosphere-layer`），零动画零 rAF
+- 新组件 `src/desktop/atmosphere/AtmosphereLayer.tsx`：`pointer-events-none`（涟漪/右键菜单目标判定不受影响，交互冒烟钉住）、`aria-hidden`、层序 壁纸 < 氛围 z-[2] < 光晕 z-[5] < 图标 z-10 < 窗口 z-30；壁纸关闭时依然渲染
+- 测试：AtmosphereLayer +1（被动层契约）、Desktop +1（壁纸开/关两种状态下均挂载）、CSS 契约 +1（氛围 token 双主题）；前端 95 文件全绿 + 80 后端；E2E 13/13；双主题 6 截图 visual-judge 6/6（无色带/无暗框/窗口居上/壁纸仍是主角）
+
 ### UI 全面视觉升级 Slice 1：Design Token 2.0 + 深色默认基线（ADR 24）
 
 - **Token 2.0 扩展（不推翻 v1）**：`src/index.css` 新增 v2 语义层——surface 层级（soft/elevated/popover/modal）、text-tertiary/disabled、border-subtle/strong、brand 语义别名、accent 五色族（数据/徽章专用）、`--ag-info`、阴影五档（soft/panel/popover/modal + 既有 window/window-flat）、blur 三档（12/20/28px）、scrim/scrim-strong、radius 升档（sm8/md12/lg16/xl20/pill）、menubar/dock 几何契约值（pitch 48 = 波浪 σ44 前提）；v1 名（surface-raised/brand 等）保留为别名，新代码用 v2 名

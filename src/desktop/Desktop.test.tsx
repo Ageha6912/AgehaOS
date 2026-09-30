@@ -153,4 +153,18 @@ describe('Desktop × dynamic wallpaper (验收 ⑨)', () => {
     rerender(<Desktop />)
     expect(screen.queryByTestId('wallpaper-layer')).toBeNull()
   })
+
+  it('mounts the atmosphere layer over wallpaper and fallback canvas alike (§18)', () => {
+    // 壁纸关闭：氛围层落在 surface-canvas 渐变上。
+    const { rerender } = render(<Desktop />)
+    expect(screen.getByTestId('atmosphere-layer')).toBeInTheDocument()
+
+    // 壁纸开启：氛围层照常渲染且不进可达树、不截胡指针。
+    enableDynamicDesktop()
+    rerender(<Desktop />)
+    const layer = screen.getByTestId('atmosphere-layer')
+    expect(screen.getByTestId('wallpaper-layer')).toBeInTheDocument()
+    expect(layer.getAttribute('aria-hidden')).toBe('true')
+    expect(layer.classList.contains('pointer-events-none')).toBe(true)
+  })
 })

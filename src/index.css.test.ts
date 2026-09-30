@@ -98,6 +98,14 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(css).toContain('.desktop-icon-label')
   })
 
+  it('themes the desktop atmosphere layer (ambient light + vignette)', () => {
+    expect(has(root, 'ag-atmosphere-ambient')).toBe(true)
+    expect(has(dark, 'ag-atmosphere-ambient')).toBe(true)
+    expect(has(root, 'ag-atmosphere-vignette')).toBe(true)
+    expect(has(dark, 'ag-atmosphere-vignette')).toBe(true)
+    expect(css).toContain('.atmosphere-layer')
+  })
+
   it('exposes the v2 tiers and scales through @theme inline utilities', () => {
     for (const name of [
       'color-surface-soft',

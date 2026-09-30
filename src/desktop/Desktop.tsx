@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 
 import { launchApp } from '@/apps/launch'
+import { AtmosphereLayer } from '@/desktop/atmosphere/AtmosphereLayer'
 import { Taskbar } from '@/desktop/taskbar/Taskbar'
 import { WindowLayer } from '@/desktop/window/WindowLayer'
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
@@ -72,6 +73,8 @@ export function Desktop() {
       onContextMenu={onCanvasContextMenu}
     >
       {showWallpaper && <WallpaperLayer />}
+      {/* 氛围层（DESIGN.md §18）：环境光 + 暗角，静态零动画，垫在光晕/图标/窗口之下。 */}
+      <AtmosphereLayer />
       {/* 指针光晕层（默认关）：pointer-events-none，压壁纸、垫窗口与图标。 */}
       <div
         aria-hidden="true"
