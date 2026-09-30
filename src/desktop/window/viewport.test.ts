@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { getWorkspaceViewport, MENUBAR_HEIGHT_PX } from './viewport'
+import {
+  getWorkspaceViewport,
+  MENUBAR_HEIGHT_PX,
+  RAIL_LEFT_WIDTH_PX,
+} from './viewport'
 
 describe('getWorkspaceViewport', () => {
   const originalWidth = window.innerWidth
@@ -15,7 +19,19 @@ describe('getWorkspaceViewport', () => {
     Object.defineProperty(window, 'innerWidth', { value: 1000, configurable: true })
     Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true })
 
-    expect(getWorkspaceViewport()).toEqual({ width: 1000, height: 800 - MENUBAR_HEIGHT_PX })
+    // 1000 ≥ sm 断点：宽度同时扣减左侧系统导航栏（§26）。
+    expect(getWorkspaceViewport()).toEqual({
+      width: 1000 - RAIL_LEFT_WIDTH_PX,
+      height: 800 - MENUBAR_HEIGHT_PX,
+    })
+  })
+
+  it('deducts the left system rail at >=640px and keeps full width below (§26)', () => {
+    Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+    expect(getWorkspaceViewport().width).toBe(800 - RAIL_LEFT_WIDTH_PX)
+
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true })
+    expect(getWorkspaceViewport().width).toBe(375)
   })
 
   it('keeps the TS constant in lockstep with the CSS token (--ag-menubar-height)', () => {

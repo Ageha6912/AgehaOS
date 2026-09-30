@@ -90,6 +90,8 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(root).toMatch(/--ag-glass-blur:\s*var\(--ag-blur-lg\)/)
     // 顶栏高度与 viewport.ts 的 MENUBAR_HEIGHT_PX 常量互指（§19）。
     expect(root).toMatch(/--ag-menubar-height:\s*32px/)
+    // 左侧系统导航栏宽度与 RAIL_LEFT_WIDTH_PX 常量互指（§26）。
+    expect(root).toMatch(/--ag-rail-left-width:\s*80px/)
   })
 
   it('themes the desktop icon labels (wallpaper-over labels flip with theme)', () => {

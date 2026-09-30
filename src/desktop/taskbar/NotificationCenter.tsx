@@ -1,5 +1,3 @@
-import { useState } from 'react'
-
 import { Bell, Check, X } from '@phosphor-icons/react'
 
 import { useLocaleStore, useTranslation } from '@/core/i18n'
@@ -73,7 +71,9 @@ function NotificationRow({ item }: { item: NotificationItem }) {
 
 export function NotificationCenter() {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
+  // 面板开合入 store（P2-2）：左侧系统导航栏与铃铛共享同一面板。
+  const open = useNotificationStore((s) => s.panelOpen)
+  const togglePanel = useNotificationStore((s) => s.togglePanel)
   const panelPhase = useExitPhase(open)
   const items = useNotificationStore((s) => s.items)
   const markAllRead = useNotificationStore((s) => s.markAllRead)
@@ -89,7 +89,7 @@ export function NotificationCenter() {
         aria-label={t('notification.center')}
         data-testid="notification-bell"
         className="relative flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-raised hover:text-text"
-        onClick={() => setOpen((value) => !value)}
+        onClick={togglePanel}
       >
         <Bell size={15} weight="regular" />
         {unread > 0 && (

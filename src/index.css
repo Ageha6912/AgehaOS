@@ -82,8 +82,10 @@
   --ag-wl-max: #28c840;
   --ag-wl-max-glyph: #0d5a17;
 
-  /* ---- Shell geometry（顶栏/Dock；由后续 Slice 消费）---- */
+  /* ---- Shell geometry（顶栏/Dock/侧栏；由后续 Slice 消费）---- */
   --ag-menubar-height: 32px;
+  /* 左侧系统导航栏（§26）：<640px 隐藏（与 Sidebar hidden sm:flex 同步）。 */
+  --ag-rail-left-width: 80px;
   --ag-dock-height: 68px;
   --ag-dock-item-pitch: 48px; /* 波浪 σ44 的几何前提，勿动 */
   --ag-dock-icon: 24px;

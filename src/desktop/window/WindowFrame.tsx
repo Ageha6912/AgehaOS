@@ -71,15 +71,10 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
   const minimized = win.state === 'minimized'
   const app = componentFor(win.appId)
 
-  // 最大化占满顶栏之下的工作区（§19）：顶栏常驻 z-40，窗口层 z-30 永远垫底。
+  // 最大化占满顶栏之下、左栏之右的工作区（§19/§26）：几何改类驱动
+  // （断点条件无法走内联样式）；calc 任意值用下划线空格形式（坑 §25）。
   const style: CSSProperties = maximized
-    ? {
-        left: 0,
-        top: 'var(--ag-menubar-height)',
-        width: '100%',
-        height: 'calc(100% - var(--ag-menubar-height))',
-        zIndex: win.zIndex,
-      }
+    ? { zIndex: win.zIndex }
     : { left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.zIndex }
 
   const onTitlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
@@ -155,7 +150,9 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       aria-label={win.title}
       aria-hidden={ghost || undefined}
       className={`surface-glass absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
-        maximized ? 'rounded-none' : 'rounded-xl'
+        maximized
+          ? 'left-0 top-[var(--ag-menubar-height)] h-[calc(100%_-_var(--ag-menubar-height))] w-full rounded-none sm:left-[var(--ag-rail-left-width)] sm:w-[calc(100%_-_var(--ag-rail-left-width))]'
+          : 'rounded-xl'
       } ${
         win.focused
           ? 'border-primary/50 shadow-window'

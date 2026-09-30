@@ -658,3 +658,23 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   不右溢 ✓；桌面图标列 flex-wrap 限高 ✓。
 - **E2E**：`e2e/responsive.spec.ts`（375×812：无横向 overflow、顶栏完整、
   自动开窗不超视口、启动器在视口内）。
+
+## 26. 左侧系统导航栏（Phase 2 P2-2，2026-09-30）
+
+权威图左侧竖排导航的落地形态：**系统快捷操作轨**（`src/desktop/sidebar/
+Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌面图标职责正交。
+
+- **七项真实动作**（拒绝装饰性谎言）：桌面=最小化全部 / 文件·终端·商店·
+  设置=启动器 / 云同步=真实开关（`settings-sync`，开启态主色圆点；本地
+  模式禁用 40% + 提示「远程模式登录后可用」）/ 通知=唤起通知中心（面板
+  开合入 `notification-store.panelOpen`，顶栏铃铛与侧栏共享同一面板）。
+  图中「用户中心」不建（与顶栏用户菜单重复）。
+- **几何**：`fixed left-0 top-[var(--ag-menubar-height)] bottom-0`，
+  宽 `--ag-rail-left-width`（80px，= CASCADE_BASE 80——级联窗口恰从栏右
+  缘起）；工作区宽度扣减（`viewport.ts`，<640px 隐藏不扣减）；最大化窗口
+  `sm:left-[var(--ag-rail-left-width)]` 只占栏右；桌面图标列 `sm:` 右移
+  让位；z-40 chrome（窗口可从栏下滑过，同顶栏）。
+- **项视觉**：Phosphor 18px 图标 + 11px 标签、hover surface-raised 高亮、
+  禁用 40%；通知未读徽标复用铃铛样式（`sidebar-unread`）。
+- **缓办**：侧栏项当前无「激活态」概念（无持久选中语义——轨是动作不是
+  导航上下文）；若未来加应用分区需先定义信息架构。

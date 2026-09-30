@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Phase 2 · P2-2：左侧系统导航栏（DESIGN.md §26）
+
+- 新增常驻 80px 玻璃系统导航轨（<640px 隐藏）：七项真实动作——桌面(最小化全部)/文件/终端/商店/设置(启动器)、云同步真实开关（本地模式禁用+提示）、通知（唤起共享面板）；图中「用户中心」不建（与顶栏重复）
+- 通知面板开合入 `notification-store.panelOpen`（顶栏铃铛与侧栏共享；顺带修复 zustand action 误传 React 更新函数的隐患）；工作区宽度扣减 80px（<640 不扣）；最大化窗口类驱动避开侧栏（calc 下划线形式）；桌面图标列 sm: 右移；i18n +11 键
+- 测试：Sidebar +5、viewport +1 断点用例、Desktop 扩展、CSS 契约钉 80px；前端 98 文件全绿 + 80 后端；**E2E 16/16**（新增 sidebar.spec）；visual-judge 2/2（七项排布/禁用态/图标列让位/hover 克制）
+
 ### Phase 2 · P2-1：动态面板滚动收口（§17 遗留修复，坑 44 归一）
 
 - 动态面板卡片列表 `overflow-y-auto` 裸列表 → `ScrollFadeList`（常驻 6px 主题色细滚动条 + 折叠线底部 28px 渐隐双通道）——第 4 卡滚动折叠不再是无提示的生裁；外层 flex 列提供确定高度（ScrollFadeList 已知约束）

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import { launchApp } from '@/apps/launch'
 import { AtmosphereLayer } from '@/desktop/atmosphere/AtmosphereLayer'
 import { MenuBar } from '@/desktop/menu-bar/MenuBar'
+import { Sidebar } from '@/desktop/sidebar/Sidebar'
 import { Taskbar } from '@/desktop/taskbar/Taskbar'
 import { WindowLayer } from '@/desktop/window/WindowLayer'
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
@@ -90,6 +91,8 @@ export function Desktop() {
       <NotificationToasts />
       {/* 顶部菜单栏（§19）：常驻 chrome，z-40 与任务栏同级；通知/用户/时钟挂此。 */}
       <MenuBar />
+      {/* 左侧系统导航栏（§26）：系统快捷操作轨，与 Dock/启动器职责正交。 */}
+      <Sidebar />
       <Taskbar />
       <SearchPalette />
       <ContextMenu position={contextPos} onClose={() => setContextPos(null)} />

@@ -51,6 +51,10 @@ export interface NotificationItem extends NotificationInput {
 
 interface NotificationState {
   items: NotificationItem[]
+  /** 面板开合入 store（P2-2）：顶栏铃铛与左侧系统导航栏共享同一面板。 */
+  panelOpen: boolean
+  setPanelOpen: (open: boolean) => void
+  togglePanel: () => void
   push: (input: NotificationInput) => string
   markRead: (id: string) => void
   markAllRead: () => void
@@ -62,6 +66,10 @@ let sequence = 0
 
 export const useNotificationStore = create<NotificationState>()((set, get) => ({
   items: [],
+  panelOpen: false,
+
+  setPanelOpen: (open) => set({ panelOpen: open }),
+  togglePanel: () => set({ panelOpen: !get().panelOpen }),
 
   push: (input) => {
     sequence += 1
@@ -99,5 +107,5 @@ export function unreadCount(items: NotificationItem[]): number {
 
 /** 测试间隔离。 */
 export function resetNotificationStore(): void {
-  useNotificationStore.setState({ items: [] })
+  useNotificationStore.setState({ items: [], panelOpen: false })
 }
