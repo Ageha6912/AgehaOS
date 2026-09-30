@@ -12,14 +12,24 @@ export const MENUBAR_HEIGHT_PX = 32
 export const RAIL_LEFT_WIDTH_PX = 80
 /** Tailwind sm 断点：侧栏 <640px 隐藏（Sidebar 的 hidden sm:flex 同值）。 */
 export const RAIL_LEFT_BREAKPOINT_PX = 640
+export const RAIL_RIGHT_WIDTH_PX = 272
+/** Tailwind xl 断点：小组件栏 <1280px 隐藏（WidgetRail 的 hidden xl:flex 同值）。 */
+export const RAIL_RIGHT_BREAKPOINT_PX = 1280
 
 function railLeftActive(): boolean {
   return window.innerWidth >= RAIL_LEFT_BREAKPOINT_PX
 }
 
+function railRightActive(): boolean {
+  return window.innerWidth >= RAIL_RIGHT_BREAKPOINT_PX
+}
+
 export function getWorkspaceViewport(): Viewport {
   return {
-    width: window.innerWidth - (railLeftActive() ? RAIL_LEFT_WIDTH_PX : 0),
+    width:
+      window.innerWidth -
+      (railLeftActive() ? RAIL_LEFT_WIDTH_PX : 0) -
+      (railRightActive() ? RAIL_RIGHT_WIDTH_PX : 0),
     height: window.innerHeight - MENUBAR_HEIGHT_PX,
   }
 }

@@ -12,7 +12,12 @@ import { SearchPalette } from '@/desktop/search/SearchPalette'
 import { ContextMenu, type ContextMenuPosition } from '@/desktop/ContextMenu'
 import { DesktopIcons } from '@/desktop/DesktopIcons'
 import { openRandomGame } from '@/desktop/game-rotation'
-import { MENUBAR_HEIGHT_PX } from '@/desktop/window/viewport'
+import { WidgetRail } from '@/desktop/widgets/WidgetRail'
+import {
+  MENUBAR_HEIGHT_PX,
+  RAIL_RIGHT_BREAKPOINT_PX,
+  RAIL_RIGHT_WIDTH_PX,
+} from '@/desktop/window/viewport'
 import { useClickRipple } from '@/desktop/motion/use-click-ripple'
 import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
@@ -54,8 +59,10 @@ export function Desktop() {
     const { windows } = useWindowStore.getState()
     if (windows.some((win) => win.appId === AUTO_OPEN_APP_ID)) return
     const width = getAppManifest(AUTO_OPEN_APP_ID)?.window?.width ?? 360
+    // 右侧小组件栏（§27）≥1280px 常驻：面板停靠让位。
+    const railRight = window.innerWidth >= RAIL_RIGHT_BREAKPOINT_PX ? RAIL_RIGHT_WIDTH_PX : 0
     launchApp(AUTO_OPEN_APP_ID, {
-      x: Math.max(8, window.innerWidth - width - 24),
+      x: Math.max(8, window.innerWidth - railRight - width - 24),
       // 顶栏常驻（§19）：面板标题栏不得钻进菜单栏底下。
       y: MENUBAR_HEIGHT_PX + 24,
     })
@@ -89,10 +96,12 @@ export function Desktop() {
       <DesktopIcons />
       <WindowLayer />
       <NotificationToasts />
+      {/* 轨道栏（§26/§27）先于顶栏/Dock 渲染：同为 z-40 chrome，DOM 序靠前者
+          垫底——顶栏右挂面板（用户菜单/通知中心）与 Dock 浮层必须能点到。 */}
+      <Sidebar />
+      <WidgetRail />
       {/* 顶部菜单栏（§19）：常驻 chrome，z-40 与任务栏同级；通知/用户/时钟挂此。 */}
       <MenuBar />
-      {/* 左侧系统导航栏（§26）：系统快捷操作轨，与 Dock/启动器职责正交。 */}
-      <Sidebar />
       <Taskbar />
       <SearchPalette />
       <ContextMenu position={contextPos} onClose={() => setContextPos(null)} />

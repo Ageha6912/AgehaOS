@@ -15,8 +15,9 @@ test('desktop context menu: open at pointer, clamp to viewport, run actions', as
   await page.getByRole('button', { name: '注册' }).click()
   await page.getByTestId('desktop-icon-com.ageha.files').waitFor()
 
-  // 右键视口右下角空白（远离图标列/面板/窗口）：菜单必须收进视口内
-  await page.mouse.click(1265, 700, { button: 'right' })
+  // 右键工作区右下角空白：P2-3 起右侧小组件栏占 1008-1280、动态面板占
+  // 624-984×24-544——(990, 700) 是右缘附近稳定空白；菜单底边须收进视口。
+  await page.mouse.click(990, 700, { button: 'right' })
   const menu = page.getByTestId('context-menu')
   await expect(menu).toBeVisible()
   const box = await menu.boundingBox()

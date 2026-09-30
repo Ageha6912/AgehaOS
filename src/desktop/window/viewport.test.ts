@@ -4,6 +4,7 @@ import {
   getWorkspaceViewport,
   MENUBAR_HEIGHT_PX,
   RAIL_LEFT_WIDTH_PX,
+  RAIL_RIGHT_WIDTH_PX,
 } from './viewport'
 
 describe('getWorkspaceViewport', () => {
@@ -26,9 +27,12 @@ describe('getWorkspaceViewport', () => {
     })
   })
 
-  it('deducts the left system rail at >=640px and keeps full width below (§26)', () => {
+  it('deducts the left rail at >=640px, the right widget rail at >=1280px (§26/§27)', () => {
     Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
     expect(getWorkspaceViewport().width).toBe(800 - RAIL_LEFT_WIDTH_PX)
+
+    Object.defineProperty(window, 'innerWidth', { value: 1440, configurable: true })
+    expect(getWorkspaceViewport().width).toBe(1440 - RAIL_LEFT_WIDTH_PX - RAIL_RIGHT_WIDTH_PX)
 
     Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true })
     expect(getWorkspaceViewport().width).toBe(375)

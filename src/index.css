@@ -86,6 +86,8 @@
   --ag-menubar-height: 32px;
   /* 左侧系统导航栏（§26）：<640px 隐藏（与 Sidebar hidden sm:flex 同步）。 */
   --ag-rail-left-width: 80px;
+  /* 右侧小组件栏（§27）：<1280px 隐藏（与 WidgetRail hidden xl:flex 同步）。 */
+  --ag-rail-right-width: 272px;
   --ag-dock-height: 68px;
   --ag-dock-item-pitch: 48px; /* 波浪 σ44 的几何前提，勿动 */
   --ag-dock-icon: 24px;

@@ -151,7 +151,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       aria-hidden={ghost || undefined}
       className={`surface-glass absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
         maximized
-          ? 'left-0 top-[var(--ag-menubar-height)] h-[calc(100%_-_var(--ag-menubar-height))] w-full rounded-none sm:left-[var(--ag-rail-left-width)] sm:w-[calc(100%_-_var(--ag-rail-left-width))]'
+          ? 'left-0 top-[var(--ag-menubar-height)] h-[calc(100%_-_var(--ag-menubar-height))] w-full rounded-none sm:left-[var(--ag-rail-left-width)] sm:w-[calc(100%_-_var(--ag-rail-left-width))] xl:w-[calc(100%_-_var(--ag-rail-left-width)_-_var(--ag-rail-right-width))]'
           : 'rounded-xl'
       } ${
         win.focused

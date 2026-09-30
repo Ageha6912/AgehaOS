@@ -33,11 +33,12 @@ function launchFromStartMenu(appName: RegExp) {
 }
 
 describe('Desktop', () => {
-  it('mounts the top menu bar and the left system rail (§19/§26)', () => {
+  it('mounts the top menu bar and both rails (§19/§26/§27)', () => {
     render(<Desktop />)
 
     expect(screen.getByTestId('menu-bar')).toBeInTheDocument()
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
+    expect(screen.getByTestId('widget-rail')).toBeInTheDocument()
   })
 
   it('auto-opens the dynamic panel once per desktop session, docked to the right', () => {
