@@ -641,3 +641,21 @@ clientHeight 396`）——后续按坑 44 迁移 `ScrollFadeList` 或调高默�
   `bg-scrim`——遮罩自此全部走 Token，无散落 black。
 - **契约不变**：全部 testid/role/动效类（含 ContextMenu 的
   `animate-os-pop-in` 断言）原样。
+
+## 25. 响应式兜底（Phase 1 Slice 10，2026-09-30）
+
+桌面优先（PRD §28，1280+）；窄视口只保「不崩」，完整移动端 UX 属后续 Phase
+（升级提示词 §26 同口径）：
+
+- **顶栏**：<640px 收起菜单标签（`hidden sm:flex`，品牌 + 系统状态保留；
+  品牌字标 <640px 隐藏只留 mark）。
+- **启动器**：菜单锚定改为 **footer 包含块 `fixed`**（与悬停预览同机制，
+  `bottom-[calc(100%+0.75rem)] left-2`）——不再随触发按钮位置右溢；
+  `max-w-[calc(100vw-1.5rem)]` 限宽（Tailwind calc 任意值需下划线空格形式）。
+- **窗口**：`launchApp` 初始尺寸钳制（`min(manifest, viewport-16/-48)`，
+  下限 320×240）——manifest 默认尺寸不再超过窄视口（桌面级视口下无感知）。
+- **既有兜底复核**：Dock 胶囊 `max-w + overflow-x-auto` ✓；搜索面板
+  `max-w-[90%]` 居中 ✓；右键菜单 8px 视口钳制 ✓；通知面板/用户菜单右锚
+  不右溢 ✓；桌面图标列 flex-wrap 限高 ✓。
+- **E2E**：`e2e/responsive.spec.ts`（375×812：无横向 overflow、顶栏完整、
+  自动开窗不超视口、启动器在视口内）。

@@ -96,7 +96,7 @@ export function AppLauncher() {
       {menuPhase.render && !layout && (
         <menu
           aria-label={t('taskbar.start')}
-          className={`surface-glass absolute bottom-full left-0 mb-3 z-50 w-[24rem] rounded-xl border border-border p-2.5 shadow-window ${popoverMotionClass(menuPhase.exiting)}`}
+          className={`popover-panel surface-glass fixed bottom-[calc(100%_+_0.75rem)] left-2 z-50 w-[24rem] max-w-[calc(100vw-1.5rem)] p-2.5 ${popoverMotionClass(menuPhase.exiting)}`}
         >
           {searchBox}
           {flatApps.length === 0 ? (
@@ -118,9 +118,9 @@ export function AppLauncher() {
         <menu
           aria-label={t('taskbar.start')}
           data-testid={`launcher-layout-${layout.tier}`}
-          className={`surface-glass absolute bottom-full left-0 mb-3 z-50 ${
+          className={`popover-panel surface-glass fixed bottom-[calc(100%_+_0.75rem)] left-2 z-50 ${
             TIER_WIDTH_CLASS[layout.tier] ?? 'w-[24rem]'
-          } rounded-xl border border-border p-2.5 shadow-window ${popoverMotionClass(menuPhase.exiting)}`}
+          } max-w-[calc(100vw-1.5rem)] p-2.5 ${popoverMotionClass(menuPhase.exiting)}`}
         >
           {searchBox}
           {!hasResults ? (

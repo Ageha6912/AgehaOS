@@ -68,9 +68,11 @@ export function MenuBar() {
     >
       <div className="flex items-center gap-1.5 pr-1">
         <BrandLogo size={16} />
-        <span className="text-xs font-semibold text-text">{t('menubar.brand')}</span>
+        <span className="hidden text-xs font-semibold text-text sm:inline">{t('menubar.brand')}</span>
       </div>
 
+      {/* 窄屏（<640px）收起菜单标签，只留品牌 + 系统状态（§25）。 */}
+      <nav className="hidden items-center gap-1 sm:flex">
       <MenuEntry
         label={t('menubar.file')}
         open={openMenu === 'file'}
@@ -160,6 +162,8 @@ export function MenuBar() {
           onSelect={() => act(() => launchApp('com.ageha.settings'))}
         />
       </MenuEntry>
+
+      </nav>
 
       {/* 系统状态区（Q3 裁决自任务栏迁移）：通知中心 + 用户菜单 + 时钟。 */}
       <div className="ml-auto flex items-center gap-0.5">

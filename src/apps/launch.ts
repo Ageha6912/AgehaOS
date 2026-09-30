@@ -14,7 +14,8 @@ import { componentFor } from './builtin'
  *
  * `geometry` lets callers pin the window position (e.g. the auto-opened
  * Dynamic Panel docks to the desktop's right edge); size still comes from
- * the manifest unless overridden here.
+ * the manifest unless overridden here. 小视口钳制（§25）：初始尺寸不超过
+ * 视口（桌面优先 1280+，此为窄屏兜底，不改变核心窗口管理器语义）。
  */
 export function launchApp(appId: string, geometry?: { x?: number; y?: number }): string | null {
   const manifest = getAppManifest(appId)
@@ -33,11 +34,19 @@ export function launchApp(appId: string, geometry?: { x?: number; y?: number }):
   const meta = componentFor(appId)
   const title = meta ? translate(getLocale(), meta.titleKey) : manifest.name
 
+  // 窄屏兜底：manifest 默认尺寸可能超过视口（如 375px 手机宽度 < 900px 窗口）。
+  const maxWidth = Math.max(320, window.innerWidth - 16)
+  const maxHeight = Math.max(240, window.innerHeight - 48)
+  const width =
+    manifest.window?.width !== undefined ? Math.min(manifest.window.width, maxWidth) : undefined
+  const height =
+    manifest.window?.height !== undefined ? Math.min(manifest.window.height, maxHeight) : undefined
+
   return useWindowStore.getState().open({
     appId,
     title,
-    width: manifest.window?.width,
-    height: manifest.window?.height,
+    width,
+    height,
     ...geometry,
   })
 }

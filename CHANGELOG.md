@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### UI 全面视觉升级 Slice 10：响应式兜底（DESIGN.md §25）
+
+- 顶栏 <640px 收起菜单标签（品牌 mark + 铃/用户/时钟保留，字标隐藏）；启动器菜单锚定改为 footer 包含块 `fixed`（与悬停预览同机制，修复窄屏右溢）+ `max-w-[calc(100vw-1.5rem)]` 限宽；`launchApp` 初始窗口尺寸钳制到视口（桌面级视口无感知，窄屏不再出界）
+- 既有兜底复核：Dock 限宽滚动/搜索 max-w-90%/右键菜单钳制/通知面板右锚/图标列限高全部成立
+- 测试：新增 e2e/responsive.spec（375×812 四断言）；前端 97 文件全绿 + 80 后端；**E2E 15/15**；visual-judge 2/2（375px 无溢出/菜单栏单行/启动器内嵌/层次正确）
+
 ### UI 全面视觉升级 Slice 9：弹层统一材质与遮罩 Token（DESIGN.md §24）
 
 - 新增 `.popover-panel`（玻璃搭用 + radius-lg + hairline + shadow-popover），统一右键菜单/通知中心/用户菜单/Dock 悬停预览/Toast/顶栏下拉六处三件套模板；三处对话框遮罩 `bg-black/50` → `bg-scrim-strong`（遮罩自此全走 Token）
