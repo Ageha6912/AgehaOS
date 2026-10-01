@@ -21,12 +21,18 @@ export function WindowLayer() {
   // 同 key 复用组件实例与 DOM（内容连续），aria-hidden 不与后续定位器抢可达树。
   const withGhosts = [...stableOrder, ...ghosts.map((entry) => entry.win)]
 
+  // 独立层叠上下文：窗口 zIndex 只在层内比较。常态 z-30——压不过任务栏 /
+  // 顶栏 / 左右浮层栏（z-40 chrome）与 toast / 搜索面板（z-50）；容器本身
+  // 不吃指针事件（桌面图标 z-10 在其下方需可点），每个窗口自行恢复
+  // pointer-events-auto。存在最大化窗口时整层抬到 z-[45]（2026-10-01 用户
+  // 裁决：最大化窗口必须盖过左栏/小组件栏等全部桌面组件）——抬整层而非单
+  // 窗口，因为层叠上下文内无法逾越容器的 z；ghost 一并计入（关窗退场期间
+  // 不回落，避免层闪）。最大化几何止于菜单栏下界与 Dock 边界，与两者无
+  // 空间重叠，Dock/顶栏照常可用。
+  const maximizedActive = withGhosts.some((win) => win.state === 'maximized')
+
   return (
-    // 独立层叠上下文（z-30）：窗口 zIndex 只在层内比较，永远压不过任务栏
-    // （z-40，自动隐藏悬浮层）、toast / 搜索面板（z-50）。容器本身不吃指针
-    // 事件（桌面图标 z-10 在其下方需可点）；每个窗口自行恢复
-    // pointer-events-auto。任务栏不再占高，窗口层铺满整个视口。
-    <div className="pointer-events-none absolute inset-0 z-30">
+    <div className={`pointer-events-none absolute inset-0 ${maximizedActive ? 'z-[45]' : 'z-30'}`}>
       {withGhosts.map((win: WindowInstance) => (
         <WindowFrame key={win.id} win={win} ghost={!windows.some((w) => w.id === win.id)} />
       ))}
