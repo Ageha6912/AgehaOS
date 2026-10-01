@@ -19,23 +19,25 @@ export function DesktopBranding() {
     <div
       aria-hidden="true"
       data-testid="desktop-branding"
-      className={`desktop-chrome pointer-events-none absolute left-[44%] top-[29%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 transition-opacity duration-300 ease-out ${
+      className={`desktop-chrome pointer-events-none absolute left-[44%] top-[46%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 transition-opacity duration-300 ease-out [filter:drop-shadow(0_1px_3px_rgba(21,48,112,0.6))_drop-shadow(0_4px_18px_rgba(21,48,112,0.35))] ${
         idle ? 'opacity-100' : 'opacity-0'
       }`}
     >
       {/* 字标豁免 chrome 级 text-shadow（阴影会透过 bg-clip-text 压暗渐变）；
-          「OS」用 drop-shadow 做分离度（跟随裁剪后字形 alpha，不污染渐变填充）。 */}
-      <p className="text-7xl font-semibold tracking-tight [text-shadow:none]">
+          「OS」用 drop-shadow 做分离度（跟随裁剪后字形 alpha，不污染渐变填充）。
+          §32 修订 7：字重/字号/纵向位置对齐用户指定样式——细字重 + 下移至
+          壁纸蝴蝶同一高度（块中心 ≈ 46% y）。 */}
+      <p className="text-7xl font-light tracking-tight [text-shadow:none]">
         <span className="text-text [text-shadow:none]">Ageha</span>
         {/* 「OS」淡冰蓝→粉渐变（参考图取色）。 */}
         <span className="bg-gradient-to-r from-[#cfe0ff] via-[#dcd0ff] to-[#f4bde4] bg-clip-text text-transparent [text-shadow:none] [filter:drop-shadow(0_1px_2px_rgb(70_60_130/38%))]">
           OS
         </span>
       </p>
-      <p className="text-[26px] font-light tracking-wide text-text">
+      <p className="text-xl font-light tracking-wide text-text">
         {t('desktop.brandTagline')}
       </p>
-      <p className="text-[15px] text-text-muted">{t('desktop.brandTaglineSub')}</p>
+      <p className="text-[13px] text-text-muted">{t('desktop.brandTaglineSub')}</p>
       <div
         aria-hidden="true"
         className="mt-1 h-px w-28 bg-gradient-to-r from-transparent via-border-strong to-transparent"
