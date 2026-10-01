@@ -19,20 +19,39 @@ import {
   RAIL_RIGHT_WIDTH_PX,
 } from '@/desktop/window/viewport'
 import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
+import { useAurora } from '@/desktop/motion/use-aurora'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
+import { useSettingsStore, type ThemePreference } from '@/store/settings-store'
 import { getAppManifest } from '@/store/app-store'
 import { useWindowStore } from '@/store/window-store'
 
 /** 动态面板默认开启（2026-09-26 用户裁决）：进入桌面自动打开的仪表盘。 */
 const AUTO_OPEN_APP_ID = 'com.ageha.dynamic.panel'
 
+function resolveDark(preference: ThemePreference): boolean {
+  if (preference === 'dark') return true
+  if (preference === 'system') {
+    return (
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+    )
+  }
+  return false
+}
+
 export function Desktop() {
   // 壁纸层常驻（§32）：照片基底出厂默认，field 覆盖层由层内按动态桌面
   // 状态渲染——桌面关闭动态桌面时回落照片（不再回落纯画布渐变）。
-  // 桌面增强动效（DESIGN.md §15）：可选指针光晕（默认关）。
+  // 桌面增强动效（DESIGN.md §15/§32.5 修订 10）：光晕 + 进阶炫技档，
+  // 2026-10-01 用户裁决默认全开（设备本地开关在设置「外观」）。
   const glow = useMotionPrefsStore((s) => s.glow)
+  const aurora = useMotionPrefsStore((s) => s.aurora)
+  const themeGlow = useMotionPrefsStore((s) => s.themeGlow)
+  const themePreference = useSettingsStore((s) => s.theme)
   const canvasRef = useRef<HTMLDivElement | null>(null)
+  const auroraRef = useRef<HTMLCanvasElement | null>(null)
+  useAurora(auroraRef, aurora, resolveDark(themePreference))
   // 桌面右键上下文菜单（DESIGN.md §14）：仅空白画布（含壁纸层）。
   const [contextPos, setContextPos] = useState<ContextMenuPosition | null>(null)
   const onCanvasContextMenu = (event: ReactMouseEvent): void => {
@@ -87,6 +106,19 @@ export function Desktop() {
       {/* 氛围层（DESIGN.md §18）：环境光 + 暗角，静态零动画，垫在光晕/图标/窗口之下。
           点击涟漪已于 2026-10-01 用户裁决移除（§15）。 */}
       <AtmosphereLayer />
+      {/* 主题氛围光晕（§32.5 修订 10）：主题色大光斑呼吸，垫窗口/图标。 */}
+      <div
+        aria-hidden="true"
+        data-testid="ambient-glow"
+        className={`ambient-glow ${themeGlow ? 'is-on' : ''}`}
+      />
+      {/* 流光渐变氛围画布（§32.5 修订 10）：光斑合成层，淡入淡出由 CSS 消费。 */}
+      <canvas
+        aria-hidden="true"
+        ref={auroraRef}
+        data-testid="aurora-canvas"
+        className="aurora-canvas pointer-events-none absolute inset-0 h-full w-full opacity-0"
+      />
       {/* 指针光晕层（默认关）：pointer-events-none，压壁纸、垫窗口与图标。 */}
       <div
         aria-hidden="true"

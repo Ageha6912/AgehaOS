@@ -5,6 +5,7 @@ import { version } from '../../../package.json'
 import type { User } from '@/core/auth/types'
 import { useLocaleStore } from '@/core/i18n'
 import { resetAppStore } from '@/store/app-store'
+import { resetMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetSettingsStore, useSettingsStore } from '@/store/settings-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 
@@ -12,6 +13,7 @@ import { SettingsApp } from './SettingsApp'
 
 beforeEach(() => {
   resetAppStore()
+  resetMotionPrefsStore()
   resetSettingsStore()
   resetSessionStore()
   useLocaleStore.setState(useLocaleStore.getInitialState())
@@ -38,6 +40,28 @@ describe('SettingsApp', () => {
     fireEvent.click(darkButton)
     expect(darkButton).toHaveAttribute('aria-pressed', 'true')
     expect(document.documentElement.classList.contains('dark')).toBe(true)
+  })
+
+  it('exposes the five motion-lab toggles defaulting on (§32.5 修订 10)', () => {
+    render(<SettingsApp />)
+
+    const testIds = [
+      'motion-glow-toggle',
+      'motion-aurora-toggle',
+      'motion-window-tilt-toggle',
+      'motion-dock-sheen-toggle',
+      'motion-theme-glow-toggle',
+    ]
+    for (const testId of testIds) {
+      expect(screen.getByTestId(testId).getAttribute('aria-checked')).toBe('true')
+    }
+
+    // 关掉流光氛围 → 偏好落库（设备本地）。
+    fireEvent.click(screen.getByTestId('motion-aurora-toggle'))
+    expect(screen.getByTestId('motion-aurora-toggle').getAttribute('aria-checked')).toBe('false')
+    expect(JSON.parse(localStorage.getItem('agehaos.motion.prefs.v1') ?? '{}')).toMatchObject({
+      aurora: false,
+    })
   })
 
   it('changes the font size', () => {

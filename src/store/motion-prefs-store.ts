@@ -1,29 +1,50 @@
 import { create } from 'zustand'
 
 /**
- * 动效增强偏好（docs/DESIGN.md §15）：设备本地存储，不进云端同步——
- * 这些是性能相关的本机开关（跟随类常驻 rAF 的开销因机器而异）。
- * 开关面：指针光晕（默认关，常驻合成层）。壁纸指针视差已随
- * 2026-10-01 用户裁决移除（壁纸静止），prefers 字段一并退役。
+ * 动效增强偏好（docs/DESIGN.md §15/§32.5 修订 10）：设备本地存储，不进
+ * 云端同步——这些是性能相关的本机开关（跟随类常驻 rAF 的开销因机器而异）。
+ * 2026-10-01 用户裁决：跟随光晕默认开，进阶炫技档四项（流光渐变氛围/
+ * 窗口切换转场/Dock 高光滑过/主题氛围光晕）一并默认开；壁纸指针视差已随
+ * 同日裁决移除（壁纸静止），prefers 字段一并退役。
  */
 
 const STORAGE_KEY = 'agehaos.motion.prefs.v1'
 
 export interface MotionPrefs {
-  /** 桌面指针跟随光晕（enhance-basic cursor-glow，默认关）。 */
+  /** 桌面指针跟随光晕（enhance-basic cursor-glow）。 */
   glow: boolean
+  /** 流光渐变氛围（enhance-advanced aurora，壁纸层上的 canvas 光斑）。 */
+  aurora: boolean
+  /** 窗口切换转场（enhance-advanced window-tilt，聚焦小起立 + 失焦微退后）。 */
+  windowTilt: boolean
+  /** Dock 高光滑过（enhance-advanced dock-sheen，低频釉面扫光）。 */
+  dockSheen: boolean
+  /** 主题氛围光晕（enhance-advanced theme-glow，主题色光斑呼吸）。 */
+  themeGlow: boolean
 }
+
+export type MotionPrefKey = keyof MotionPrefs
 
 interface MotionPrefsState extends MotionPrefs {
-  setGlow: (value: boolean) => void
+  setPref: (key: MotionPrefKey, value: boolean) => void
 }
 
-const DEFAULTS: MotionPrefs = { glow: false }
+const DEFAULTS: MotionPrefs = {
+  glow: true,
+  aurora: true,
+  windowTilt: true,
+  dockSheen: true,
+  themeGlow: true,
+}
 
 function sanitize(raw: unknown): MotionPrefs {
   const value = (raw ?? {}) as Partial<MotionPrefs>
   return {
     glow: typeof value.glow === 'boolean' ? value.glow : DEFAULTS.glow,
+    aurora: typeof value.aurora === 'boolean' ? value.aurora : DEFAULTS.aurora,
+    windowTilt: typeof value.windowTilt === 'boolean' ? value.windowTilt : DEFAULTS.windowTilt,
+    dockSheen: typeof value.dockSheen === 'boolean' ? value.dockSheen : DEFAULTS.dockSheen,
+    themeGlow: typeof value.themeGlow === 'boolean' ? value.themeGlow : DEFAULTS.themeGlow,
   }
 }
 
@@ -49,11 +70,16 @@ const initial = load()
 
 export const useMotionPrefsStore = create<MotionPrefsState>()((set, get) => ({
   ...initial,
-  setGlow: (value) => {
-    set({ glow: value })
+  setPref: (key, value) => {
+    set({ [key]: value })
     persist(get())
   },
 }))
+
+/** 模拟新页面加载：保留持久化数据重读（区别于 wipe 语义的 reset）。 */
+export function reloadMotionPrefsStore(): void {
+  useMotionPrefsStore.setState(load())
+}
 
 /** 测试隔离出口。 */
 export function resetMotionPrefsStore(): void {

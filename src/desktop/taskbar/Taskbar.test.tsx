@@ -271,6 +271,15 @@ describe('Taskbar', () => {
     }
     expect(screen.getByTestId('dock-trash').className).not.toContain('bg-surface-raised')
 
+    // 波浪域覆盖瓷贴（2026-10-01 用户报告「波浪没有了」）：瓷贴图标 span
+    // 挂 data-wave-icon，与运行中窗口同引擎。
+    expect(
+      screen.getByTestId('dock-pin-com.ageha.files').querySelector('[data-wave-icon]'),
+    ).not.toBeNull()
+
+    // Dock 高光滑过覆盖层随偏好默认开（§32.5 修订 10）。
+    expect(screen.getByTestId('dock-sheen')).toBeInTheDocument()
+
     // 单实例激活：点击瓷贴启动，再点聚焦窗口最小化，再点还原。
     fireEvent.click(screen.getByTestId('dock-pin-com.ageha.files'))
     const filesWindow = useWindowStore.getState().windows.find((w) => w.appId === 'com.ageha.files')

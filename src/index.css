@@ -678,3 +678,113 @@ body {
 .os-cursor-glow:not(.is-visible) {
   opacity: 0;
 }
+
+/* ===== 进阶炫技档（motion-lab enhance-advanced → 产品归档，§32.5 修订 10）=====
+   四项全部只动 transform/opacity（合成器接管）；reduced-motion 由上方全局
+   0.01ms 兜底 + 各自的静态降级。 */
+
+/* 主题氛围光晕（theme-glow）：主题色大光斑在壁纸深处缓慢呼吸。 */
+.ambient-glow {
+  position: absolute;
+  left: 50%;
+  top: 32%;
+  width: 72vmax;
+  height: 72vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, rgb(47 95 232 / 32%) 0%, transparent 72%);
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity var(--ag-motion-base) var(--ag-motion-ease);
+}
+.dark .ambient-glow {
+  background: radial-gradient(circle closest-side, rgb(130 163 255 / 42%) 0%, transparent 72%);
+  opacity: 0.5;
+}
+.ambient-glow.is-on {
+  animation: ag-glow-breathe 9000ms ease-in-out infinite;
+}
+@keyframes ag-glow-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: translate(-50%, -50%) scale(1.12);
+  }
+}
+.dark .ambient-glow.is-on {
+  animation-name: ag-glow-breathe-dark;
+}
+@keyframes ag-glow-breathe-dark {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(1.12);
+  }
+}
+
+/* 流光渐变氛围（aurora）画布：透明度由引擎按主题写入，这里只管淡入淡出。 */
+.aurora-canvas {
+  transition: opacity var(--ag-motion-base) var(--ag-motion-ease);
+}
+
+/* Dock 高光滑过（dock-sheen）：低频釉面扫光；高光带只在覆盖层内裁剪，
+   不裁 Dock 本体（波浪放大的图标要探出胶囊）。 */
+.dock-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+.dock-sheen::after {
+  content: '';
+  position: absolute;
+  top: -80%;
+  bottom: -80%;
+  left: 0;
+  width: 30%;
+  background: linear-gradient(
+    105deg,
+    transparent 8%,
+    rgb(255 255 255 / var(--ag-sheen-peak, 0.5)) 50%,
+    transparent 92%
+  );
+  transform: translate3d(-190%, 0, 0) rotate(-16deg);
+  opacity: 0;
+}
+.dark .dock-sheen {
+  --ag-sheen-peak: 0.65;
+}
+.dock-sheen.is-on::after {
+  opacity: 1;
+  animation: ag-sheen-sweep 9000ms linear infinite;
+  animation-delay: 1500ms;
+}
+@keyframes ag-sheen-sweep {
+  0%,
+  76% {
+    transform: translate3d(-190%, 0, 0) rotate(-16deg);
+    animation-timing-function: cubic-bezier(0.4, 0.05, 0.25, 1);
+  }
+  100% {
+    transform: translate3d(430%, 0, 0) rotate(-16deg);
+  }
+}
+
+/* 窗口切换转场（window-tilt）失焦态：轻微降透明 + 微缩退后（聚焦入场
+   由 use-focus-tilt 的 WAAPI 一次性动画承担）。 */
+.is-tilt-dim {
+  opacity: 0.86;
+  transform: scale(0.995);
+  transition:
+    opacity 200ms var(--ag-motion-ease),
+    transform 200ms var(--ag-motion-ease);
+}

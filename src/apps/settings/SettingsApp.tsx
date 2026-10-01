@@ -4,7 +4,7 @@ import { consumeSettingsSection } from '@/apps/app-deep-link'
 
 import { BrandLogo } from '@/components/brand-logo'
 import { ToggleSwitch } from '@/components/toggle-switch'
-import { useMotionPrefsStore } from '@/store/motion-prefs-store'
+import { useMotionPrefsStore, type MotionPrefKey } from '@/store/motion-prefs-store'
 import { GlobeHemisphereWest, ListChecks, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
 
 import { useTranslation, useLocaleStore } from '@/core/i18n'
@@ -138,14 +138,35 @@ function OptionRow({
   )
 }
 
+/** 动效实验室开关组（§32.5 修订 10）：设备本地偏好，默认全开。 */
+const MOTION_TOGGLES: Array<{
+  key: MotionPrefKey
+  labelKey: MessageKey
+  testId: string
+}> = [
+  { key: 'glow', labelKey: 'settings.motionGlow', testId: 'motion-glow-toggle' },
+  { key: 'aurora', labelKey: 'settings.motionAurora', testId: 'motion-aurora-toggle' },
+  {
+    key: 'windowTilt',
+    labelKey: 'settings.motionWindowTilt',
+    testId: 'motion-window-tilt-toggle',
+  },
+  { key: 'dockSheen', labelKey: 'settings.motionDockSheen', testId: 'motion-dock-sheen-toggle' },
+  {
+    key: 'themeGlow',
+    labelKey: 'settings.motionThemeGlow',
+    testId: 'motion-theme-glow-toggle',
+  },
+]
+
 function AppearanceSection() {
   const { t } = useTranslation()
   const theme = useSettingsStore((s) => s.theme)
   const fontSize = useSettingsStore((s) => s.fontSize)
   const setTheme = useSettingsStore((s) => s.setTheme)
   const setFontSize = useSettingsStore((s) => s.setFontSize)
-  const glow = useMotionPrefsStore((s) => s.glow)
-  const setGlow = useMotionPrefsStore((s) => s.setGlow)
+  const motion = useMotionPrefsStore()
+  const setPref = useMotionPrefsStore((s) => s.setPref)
 
   return (
     <section aria-label={t('settings.appearance')}>
@@ -168,18 +189,25 @@ function AppearanceSection() {
         currentValue={fontSize}
         onSelect={(value) => setFontSize(value as FontSize)}
       />
-      <div className="flex items-center justify-between gap-3 py-2">
-        <span className="min-w-0">
-          <span className="block text-sm text-text">{t('settings.motionGlow')}</span>
-          <span className="mt-0.5 block text-xs text-text-muted">{t('settings.motionGlowHint')}</span>
-        </span>
-        <ToggleSwitch
-          checked={glow}
-          label={t('settings.motionGlow')}
-          testId="motion-glow-toggle"
-          onClick={() => setGlow(!glow)}
-        />
-      </div>
+      <p className="pb-1 pt-2 text-xs text-text-muted">{t('settings.motionGroupHint')}</p>
+      {MOTION_TOGGLES.map(({ key, labelKey, testId }) => (
+        <div key={key} className="flex items-center justify-between gap-3 py-2">
+          <span className="min-w-0">
+            <span className="block text-sm text-text">{t(labelKey)}</span>
+            {key === 'glow' && (
+              <span className="mt-0.5 block text-xs text-text-muted">
+                {t('settings.motionGlowHint')}
+              </span>
+            )}
+          </span>
+          <ToggleSwitch
+            checked={motion[key]}
+            label={t(labelKey)}
+            testId={testId}
+            onClick={() => setPref(key, !motion[key])}
+          />
+        </div>
+      ))}
     </section>
   )
 }

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetClosingGhosts } from './closing-ghosts'
+import { resetMotionPrefsStore, useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
 import { WindowLayer } from './WindowLayer'
@@ -9,6 +10,9 @@ import { WindowLayer } from './WindowLayer'
 beforeEach(() => {
   resetWindowStore()
   resetClosingGhosts()
+  // §12 动效机械测试不掺窗口切换转场（额外 animate 调用会混进飞行序列）。
+  resetMotionPrefsStore()
+  useMotionPrefsStore.setState({ windowTilt: false })
 })
 
 describe('WindowFrame (via WindowLayer)', () => {
@@ -125,6 +129,25 @@ describe('WindowFrame (via WindowLayer)', () => {
     expect(
       useWindowStore.getState().windows.find((win) => win.appId === 'com.ageha.notes')?.focused,
     ).toBe(true)
+  })
+
+  it('dims unfocused windows while the focus-switch transition is on (§32.5 修订 10)', () => {
+    useMotionPrefsStore.setState({ windowTilt: true })
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+
+    render(<WindowLayer />)
+
+    // 失焦窗口微退后（CSS 类），聚焦窗口不带。
+    expect(screen.getByRole('region', { name: '记事' }).className).toContain('is-tilt-dim')
+    expect(screen.getByRole('region', { name: '文件' }).className).not.toContain('is-tilt-dim')
+
+    // 焦点迁移后退后标记随之移动；最小化窗口不退后（本来隐藏）。
+    act(() => {
+      useWindowStore.getState().focus(useWindowStore.getState().windows.find((w) => w.appId === 'com.ageha.notes')?.id ?? '')
+    })
+    expect(screen.getByRole('region', { name: '记事' }).className).not.toContain('is-tilt-dim')
+    expect(screen.getByRole('region', { name: '文件' }).className).toContain('is-tilt-dim')
   })
 
   it('keeps a minimized window mounted but hidden', () => {

@@ -11,10 +11,12 @@ import { isAllowedWebAppEntry } from '@/core/apps/web-app'
 import { AppErrorBoundary } from '@/components/app-error-boundary'
 import { WebAppFrame } from '@/components/web-app-frame'
 import { getAppManifest } from '@/store/app-store'
+import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { getWorkspaceViewport } from './viewport'
 import { useWindowMotion } from './use-window-motion'
+import { useFocusTilt } from '@/desktop/motion/use-focus-tilt'
 
 interface DragOrigin {
   pointerX: number
@@ -70,6 +72,9 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
   const maximized = win.state === 'maximized'
   const minimized = win.state === 'minimized'
   const app = componentFor(win.appId)
+  // 窗口切换转场（§32.5 修订 10）：聚焦小起立（一次性 WAAPI）+ 失焦微退后。
+  const tiltOn = useMotionPrefsStore((s) => s.windowTilt)
+  useFocusTilt(sectionRef, win.focused, minimized, tiltOn)
 
   // 最大化（2026-10-01 用户裁决）：横向全幅贴左右屏幕边缘、上贴菜单栏下界、
   // 下贴 Dock 边界（footer 高 = --ag-dock-height + 0.75rem），不留空白边框；
@@ -160,7 +165,9 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
         win.focused
           ? 'border-primary/50 shadow-window'
           : 'border-border shadow-window-flat'
-      } ${ghost ? 'pointer-events-none' : 'pointer-events-auto'}`}
+      } ${tiltOn && !win.focused && !minimized ? 'is-tilt-dim' : ''} ${
+        ghost ? 'pointer-events-none' : 'pointer-events-auto'
+      }`}
       style={style}
       onPointerDown={() => focus(win.id)}
     >

@@ -12,6 +12,7 @@ import { useWindowStore } from '@/store/window-store'
 import { AppLauncher } from './AppLauncher'
 import { WindowPreview } from './WindowPreview'
 import { useDockWave } from './use-dock-wave'
+import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 
 const HOVER_DELAY_MS = 350
 
@@ -43,9 +44,12 @@ export function Taskbar() {
   const [anchorLeft, setAnchorLeft] = useState(0)
   const hoverTimer = useRef<number | null>(null)
   // 任务栏波浪（DESIGN.md §13）：高斯距离衰减放大，只写 data-wave-icon 的
-  // transform，不碰按钮与 reveal/hide 的 pointerenter/leave 链。
+  // transform，不碰按钮与 reveal/hide 的 pointerenter/leave 链。范围 = 瓷贴
+  // + 运行中整段图标带（2026-10-01 用户报告「波浪没有了」——瓷贴此前不在
+  // 波浪域，§32 后 Dock 主体恰是瓷贴）。
   const waveRowRef = useRef<HTMLDivElement | null>(null)
   useDockWave(waveRowRef)
+  const dockSheen = useMotionPrefsStore((s) => s.dockSheen)
 
   const toggleWindow = (id: string, focused: boolean, minimized: boolean) => {
     if (minimized) restore(id)
@@ -94,15 +98,20 @@ export function Taskbar() {
       >
         {/* 悬浮胶囊 Dock（§20/§32）：启动器 + 常驻瓷贴 + 运行中 + 回收站。
             自动隐藏/波浪/预览/锚点行为契约全部不变（§9/§13/§12）。 */}
-        <div className="desktop-chrome surface-glass pointer-events-auto flex h-16 max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-full border border-border px-2 shadow-popover">
+        <div className="desktop-chrome surface-glass pointer-events-auto relative flex h-16 max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-full border border-border px-2 shadow-popover">
+          {/* Dock 高光滑过（§32.5 修订 10）：低频釉面扫光，覆盖层内裁剪，
+              不裁波浪放大的图标；盖在图标上做「玻璃反光」（pointer-events-none）。 */}
+          {dockSheen && <div aria-hidden="true" data-testid="dock-sheen" className="dock-sheen is-on" />}
           <AppLauncher />
           <div aria-hidden="true" className="h-8 w-px shrink-0 bg-border" />
 
+          {/* 波浪域：瓷贴 + 运行中共享一个引擎容器（§13）。 */}
+          <div ref={waveRowRef} className="flex min-w-0 flex-1 items-center self-stretch">
           {/* 常驻瓷贴（§32 参考图 Dock 位；单实例激活语义 + 悬停预览同契约）。
               按钮不画 hover/active 底色（2026-10-01 用户裁决：44px 图标坐在
               48px 按钮里，浅底在玻璃胶囊上显成图标四周的白边）——悬停反馈
-              走悬停预览，激活态只剩指示点。 */}
-          <div className="flex items-center gap-1 self-stretch">
+              走悬停预览与波浪，激活态只剩指示点。 */}
+          <div className="flex shrink-0 items-center gap-1 self-stretch">
             {PINNED_APP_IDS.map((appId) => {
               const appWindows = windows.filter((win) => win.appId === appId)
               const latest = appWindows[appWindows.length - 1]
@@ -129,7 +138,7 @@ export function Taskbar() {
                     className="relative flex h-12 w-12 items-center justify-center rounded-xl"
                     onClick={() => activatePinned(appId)}
                   >
-                    <span aria-hidden="true" className="flex">
+                    <span aria-hidden="true" data-wave-icon className="flex">
                       <AppIcon appId={appId} size={44} />
                     </span>
                     {active && (
@@ -162,10 +171,7 @@ export function Taskbar() {
           {windows.some(
             (win) => !PINNED_APP_IDS.includes(win.appId as (typeof PINNED_APP_IDS)[number]),
           ) && <div aria-hidden="true" className="mx-0.5 h-8 w-px shrink-0 bg-border" />}
-          <div
-            ref={waveRowRef}
-            className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-x-auto"
-          >
+          <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-x-auto">
             {windows.map((win) => {
               if (PINNED_APP_IDS.includes(win.appId as (typeof PINNED_APP_IDS)[number])) return null
               const active = win.focused && win.state !== 'minimized'
@@ -217,6 +223,7 @@ export function Taskbar() {
                 </div>
               )
             })}
+          </div>
           </div>
 
           {/* 回收站（§32 参考图 Dock 末位）：Files 回收站视图深链。 */}
