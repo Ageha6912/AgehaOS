@@ -36,3 +36,50 @@ test('taskbar 常驻：默认可见、不自动隐藏、开始菜单与瓷贴直
   await page.getByTestId('dock-pin-com.ageha.files').click()
   await expect(page.getByRole('region', { name: '文件' })).toBeVisible()
 })
+
+/**
+ * Dock 悬停预览锚定（§12/§32，2026-10-01 用户报告回归）：预览必须悬在
+ * 图标正上方。玻璃胶囊的 backdrop-filter 会成为 fixed 后代的包含块，
+ * 视口坐标 left 被加上胶囊偏移、预览被推到屏幕右缘——修复后预览经
+ * createPortal 挂 body，包含块回归视口。
+ */
+test('taskbar 悬停预览：锚定图标上方、不偏移到屏幕右缘', async ({ page }) => {
+  await page.goto('/')
+
+  const loginForm = page.getByRole('form', { name: '登录 AgehaOS' })
+  await expect(loginForm).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: '没有账户？创建一个' }).click()
+  await page.getByLabel('用户名').fill(`preview-e2e-${Date.now().toString(36)}`)
+  await page.getByLabel('密码').fill('secret123')
+  await page.getByRole('button', { name: '注册' }).click()
+  await page.getByTestId('sidebar-desktop').waitFor({ timeout: 15_000 })
+
+  // 有运行中窗口的瓷贴才有预览：先点瓷贴启动文件管理。
+  const pin = page.getByTestId('dock-pin-com.ageha.files')
+  await pin.click()
+  await expect(page.getByRole('region', { name: '文件' })).toBeVisible()
+
+  // 移开再悬停（窗口打开后 mouseEnter 处理器才带窗口语义）。
+  await page.mouse.move(640, 200)
+  await pin.hover()
+  const preview = page.getByTestId('window-preview')
+  await expect(preview).toBeVisible({ timeout: 5_000 })
+  await page.waitForTimeout(450) // 弹入动画落定后再测量。
+
+  // 预览经 portal 挂在 body 上，不在 footer 子树内。
+  expect(await preview.evaluate((el) => el.parentElement === document.body)).toBe(true)
+  expect(await preview.evaluate((el) => el.closest('footer'))).toBeNull()
+
+  // 几何契约：横向覆盖图标中心、纵向悬在图标上方、完整在视口内。
+  const icon = await pin.boundingBox()
+  const box = await preview.boundingBox()
+  expect(icon).not.toBeNull()
+  expect(box).not.toBeNull()
+  const vw = page.viewportSize()?.width ?? 0
+  const iconCenterX = icon!.x + icon!.width / 2
+  expect(box!.x).toBeLessThanOrEqual(iconCenterX)
+  expect(box!.x + box!.width).toBeGreaterThanOrEqual(iconCenterX)
+  expect(box!.y + box!.height).toBeLessThanOrEqual(icon!.y + 2)
+  expect(box!.x).toBeGreaterThanOrEqual(0)
+  expect(box!.x + box!.width).toBeLessThanOrEqual(vw)
+})

@@ -82,6 +82,12 @@ describe('Taskbar', () => {
     })
     expect(screen.getByTestId('window-preview')).toBeInTheDocument()
     expect(screen.getByTestId('window-preview').textContent).toContain('记事')
+    // 预览经 createPortal 挂在 body 上：玻璃胶囊的 backdrop-filter 会劫持
+    // fixed 包含块，把视口坐标的 left 推到屏幕右缘（坑 13 变体）。
+    const preview = screen.getByTestId('window-preview')
+    expect(preview.parentElement).toBe(document.body)
+    expect(preview.closest('footer')).toBeNull()
+    expect(preview.className).toContain('fixed')
 
     // 点击预览体切回窗口；再次悬停后用关闭按钮关窗。
     fireEvent.click(screen.getByTestId('window-preview'))

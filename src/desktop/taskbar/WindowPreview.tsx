@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom'
+
 import { X } from '@phosphor-icons/react'
 
 import { AppIcon } from '@/apps/app-icon'
@@ -8,9 +10,11 @@ import type { WindowInstance } from '@/core/window/types'
  * Dock 悬停预览（Windows 风格）：标题栏（图标 + 标题 + 关闭）+ 预览体。
  * 点击预览体切换到该窗口（最小化则还原）；关闭按钮直接关窗。
  *
- * 定位用 fixed：父链上有 overflow-x-auto 的滚动容器，absolute 预览会被裁剪；
- * footer（常驻 transform）是 fixed 的包含块且横贯视口底部，因此
- * bottom-full + mb-2 恰好悬在胶囊 Dock 上方（§20），left 由调用方按图标
+ * 定位用 createPortal 至 body + fixed：玻璃 Dock 胶囊带 backdrop-filter，
+ * 会成为 fixed 后代的包含块（坑 13 变体），anchorLeft（视口坐标）会被
+ * 加上胶囊左缘偏移，把预览推到屏幕右缘（2026-10-01 用户报告）。传送出
+ * 胶囊后包含块回归视口，bottom 以 --ag-dock-height 显式悬在 Dock 上方
+ * （≈旧 footer-CB 下 bottom-full + mb-2 的几何），left 由调用方按图标
  * 位置钳制后传入。预览体是风格化示意（应用图标水印 + 窗口状态）——DOM
  * 无法廉价地同屏二次呈现活动窗口内容，真实缩略截图属后续增强。
  */
@@ -30,11 +34,11 @@ export function WindowPreview({
   const minimized = win.state === 'minimized'
   const left = Math.max(8, Math.min(anchorLeft, window.innerWidth - 272))
 
-  return (
+  return createPortal(
     <div
       data-testid="window-preview"
       style={{ left }}
-      className="popover-panel surface-glass animate-os-pop-in fixed bottom-full z-50 mb-2 w-64 p-2"
+      className="popover-panel surface-glass animate-os-pop-in fixed bottom-[calc(var(--ag-dock-height)+1.25rem)] z-50 w-64 p-2"
       onClick={(event) => {
         event.stopPropagation()
         onSwitch()
@@ -64,6 +68,7 @@ export function WindowPreview({
           <AppIcon appId={win.appId} size={48} className="opacity-40" />
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
