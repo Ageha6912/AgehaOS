@@ -90,7 +90,7 @@ function ClockCard() {
           </div>
         </div>
         <img
-          src="/wallpapers/ageha-clock-thumb.jpg?v=3"
+          src="/wallpapers/ageha-clock-thumb.jpg?v=4"
           alt=""
           data-testid="widgets-clock-thumb"
           className="h-[88px] w-[88px] shrink-0 rounded-xl object-cover shadow-soft"

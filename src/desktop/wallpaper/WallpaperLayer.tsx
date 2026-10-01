@@ -8,7 +8,7 @@ import { cssGradient, drawPlan } from './render'
 /**
  * 壁纸层（设计文档 §4.5 + §32 参考图对齐）：**照片基底常驻**（出厂默认
  * 壁纸 = 用户提供的无 UI 原版画作，全构图仅转码，public/wallpapers/，
- * 顶部锚定保证蝴蝶/天空在宽屏不被裁），生成式
+ * 满屏 cover 居中），生成式
  * field 计划在启用动态桌面时以 canvas 层交叉淡入覆盖其上——关闭动态桌面
  * （§32 新出厂默认）即回落照片。品牌字标由 DOM 品牌层承载（§31 R2-2 恢复）。
  * 场层过渡规则不变：新壁纸在上层 0→1 交叉淡入；
@@ -24,7 +24,7 @@ const MOUNT_DELAY_MS = 20
 
 /** 出厂照片壁纸（§32 修订）：用户提供的无 UI 原版画作（仅转码，全构图），
  *  路径公开稳定。URL 带版本号：内容更新替换同名文件时防浏览器陈旧缓存。 */
-export const DEFAULT_WALLPAPER_SRC = '/wallpapers/ageha-dreamland.jpg?v=3'
+export const DEFAULT_WALLPAPER_SRC = '/wallpapers/ageha-dreamland.jpg?v=4'
 
 function prefersReducedMotion(): boolean {
   try {
@@ -98,45 +98,20 @@ export function WallpaperLayer() {
 }
 
 /**
- * 照片基底（§32 修订 5）：**满屏壁纸 + 画面内容等比缩小**（用户裁决：
- * 解决「过大/过近」但壁纸必须始终满屏，不得退化为居中浮层/留白边框）。
- * 双层结构：
- * - 衬底层（wallpaper-surface-ambient）：同素材 cover 满屏 + 大半径模糊
- *   压暗轻微放大——负责屏幕边缘区域的自然衔接补足（模糊仅用于边缘）。
- * - 内容层（wallpaper-surface-photo）：同素材等比缩至
- *   --ag-wallpaper-content-scale（默认 85%，可 5% 步长 80-85 微调），
- *   居中、保持原始宽高比、全清晰（无模糊无圆角无边框），四周以双向
- *   线性渐变软 mask 渐进融入衬底——整体观感仍是一张满屏壁纸。
- * 指针视差已移除（壁纸静止，动效缩放上限同步消解）。
+ * 照片基底（§32 修订 6）：**满屏 cover 单层**——壁纸 = 用户提供的无 UI
+ * 原版画作（public/wallpapers/，仅转码），铺满全视口（等比 cover，
+ * 居中），静止无动效。修订 5 的「内容等比缩小 + 边缘模糊补足」方案随
+ * 新原片（用户裁决：此图不适用缩小方案）移除。
+ * 图片加载失败时静默透出画布渐变。
  */
 function PhotoSurface() {
-  const contentMask =
-    'linear-gradient(90deg, transparent 4%, #000 16%, #000 84%, transparent 96%), ' +
-    'linear-gradient(180deg, transparent 6%, #000 20%, #000 80%, transparent 94%)'
   return (
-    <>
-      <div
-        aria-hidden="true"
-        data-testid="wallpaper-surface-ambient"
-        className="absolute inset-0 scale-[1.06] bg-cover bg-center"
-        style={{
-          backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})`,
-          filter: 'blur(64px) brightness(0.9) saturate(1.15)',
-        }}
-      />
-      <div
-        aria-hidden="true"
-        data-testid="wallpaper-surface-photo"
-        className="absolute inset-0 bg-no-repeat"
-        style={{
-          backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})`,
-          backgroundSize: 'var(--ag-wallpaper-content-scale) auto',
-          backgroundPosition: 'center',
-          maskImage: contentMask,
-          maskComposite: 'intersect',
-        }}
-      />
-    </>
+    <div
+      aria-hidden="true"
+      data-testid="wallpaper-surface-photo"
+      className="absolute inset-0 bg-cover bg-center"
+      style={{ backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})` }}
+    />
   )
 }
 
