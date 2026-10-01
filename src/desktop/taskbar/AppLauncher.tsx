@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import {
   Briefcase,
@@ -206,13 +207,7 @@ export function AppLauncher() {
     ) : null
 
   return (
-    <div
-      className="relative"
-      onKeyDown={(event) => {
-        // 弹层契约（§24）：Esc 关闭并清空搜索。
-        if (event.key === 'Escape') closeMenu()
-      }}
-    >
+    <div className="relative">
       <button
         type="button"
         aria-haspopup="menu"
@@ -231,55 +226,64 @@ export function AppLauncher() {
         </span>
       </button>
 
-      {menuPhase.render && (
-        <menu
-          aria-label={t('taskbar.start')}
-          data-testid={layout ? `launcher-layout-${layout.tier}` : undefined}
-          className={`popover-panel desktop-chrome surface-glass fixed bottom-[calc(var(--ag-dock-height)+1.75rem)] left-3 z-50 flex max-h-[calc(100vh-var(--ag-dock-height)-3rem)] flex-col overflow-hidden rounded-2xl p-3 sm:left-[calc(var(--ag-rail-left-width)+1.125rem)] ${
-            TIER_WIDTH_CLASS[layout?.tier ?? 'single'] ?? 'w-[410px]'
-          } max-w-[calc(100vw-1.5rem)] ${popoverMotionClass(menuPhase.exiting)}`}
-        >
-          {searchBox}
-          <div className="flex min-h-0 flex-1 gap-2.5 overflow-y-auto scroll-thin">
-            {categoryRail}
-            <div className="min-w-0 flex-1">
-              {emptyHint}
-              {gridAppIds.length > 0 && (
-                <ul
-                  className="grid grid-cols-4 gap-0.5"
-                  data-testid={layout ? undefined : 'launcher-grid'}
-                >
-                  {gridAppIds.map((appId) => (
-                    <LauncherTile
-                      key={appId}
-                      appId={appId}
-                      onLaunch={launch}
-                      testId={
-                        category === 'recent' &&
-                        recentApps.some((app) => app.id === appId)
-                          ? 'launcher-recent-item'
-                          : undefined
-                      }
-                    />
-                  ))}
-                </ul>
-              )}
-              {!needle && gridAppIds.length > 0 && (
-                <div className="mt-2 border-t border-border-subtle pt-2">
-                  <p className="px-1 pb-1 text-[11px] font-medium text-text-muted">
-                    {t('launcher.recommend')}
-                  </p>
-                  <ul className="space-y-0.5">
-                    {recommendationIds.map((appId) => (
-                      <RecommendRow key={`rec-${appId}`} appId={appId} onLaunch={launch} />
+      {/* §32 修订 8：弹层传送至 body——胶囊的 backdrop-filter 会成为 fixed
+          弹层的包含块（坑 13 变体），窄视口下弹层随被钳制的胶囊偏移溢出；
+          portal 到 body 后包含块恒为视口，Esc 契约移到弹层自身。 */}
+      {menuPhase.render &&
+        createPortal(
+          <menu
+            aria-label={t('taskbar.start')}
+            data-testid={layout ? `launcher-layout-${layout.tier}` : undefined}
+            onKeyDown={(event) => {
+              // 弹层契约（§24）：Esc 关闭并清空搜索。
+              if (event.key === 'Escape') closeMenu()
+            }}
+            className={`popover-panel desktop-chrome surface-glass fixed bottom-[calc(var(--ag-dock-height)+1.75rem)] left-3 z-50 flex max-h-[calc(100vh-var(--ag-dock-height)-3rem)] flex-col overflow-hidden rounded-2xl p-3 sm:left-[calc(var(--ag-rail-left-width)+1.125rem)] ${
+              TIER_WIDTH_CLASS[layout?.tier ?? 'single'] ?? 'w-[410px]'
+            } max-w-[calc(100vw-1.5rem)] ${popoverMotionClass(menuPhase.exiting)}`}
+          >
+            {searchBox}
+            <div className="flex min-h-0 flex-1 gap-2.5 overflow-y-auto scroll-thin">
+              {categoryRail}
+              <div className="min-w-0 flex-1">
+                {emptyHint}
+                {gridAppIds.length > 0 && (
+                  <ul
+                    className="grid grid-cols-4 gap-0.5"
+                    data-testid={layout ? undefined : 'launcher-grid'}
+                  >
+                    {gridAppIds.map((appId) => (
+                      <LauncherTile
+                        key={appId}
+                        appId={appId}
+                        onLaunch={launch}
+                        testId={
+                          category === 'recent' &&
+                          recentApps.some((app) => app.id === appId)
+                            ? 'launcher-recent-item'
+                            : undefined
+                        }
+                      />
                     ))}
                   </ul>
-                </div>
-              )}
+                )}
+                {!needle && gridAppIds.length > 0 && (
+                  <div className="mt-2 border-t border-border-subtle pt-2">
+                    <p className="px-1 pb-1 text-[11px] font-medium text-text-muted">
+                      {t('launcher.recommend')}
+                    </p>
+                    <ul className="space-y-0.5">
+                      {recommendationIds.map((appId) => (
+                        <RecommendRow key={`rec-${appId}`} appId={appId} onLaunch={launch} />
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </menu>
-      )}
+          </menu>,
+          document.body,
+        )}
     </div>
   )
 }

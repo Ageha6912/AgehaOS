@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { Trash } from '@phosphor-icons/react'
 
@@ -14,8 +14,6 @@ import { WindowPreview } from './WindowPreview'
 import { useDockWave } from './use-dock-wave'
 
 const HOVER_DELAY_MS = 350
-/** 移出后到收起的缓冲，给「滑到悬停预览/菜单」留路径。 */
-const HIDE_DELAY_MS = 400
 
 /** 常驻瓷贴（§32 参考图 Dock 位；全部真实应用）。 */
 const PINNED_APP_IDS = [
@@ -28,12 +26,11 @@ const PINNED_APP_IDS = [
 ] as const
 
 /**
- * 自动隐藏 Dock（docs/DESIGN.md §9/§20 + §32 参考图对齐）：默认藏于屏幕
- * 底缘之外，指针触底（或键盘焦点进入 Dock 控件）后 300ms 缓滑入场；指针
- * 离开 Dock 子树（含菜单/预览等浮层，它们都是 footer 的 DOM 子孙）400ms
- * 后滑出。全宽 footer 只是透明运动层；视觉本体 = 居中悬浮玻璃胶囊，内容 =
- * 启动器 + 常驻瓷贴（files/notes/calculator/terminal/store/settings）+
- * 运行中窗口（波浪/悬停预览契约不变 §13/§12）+ 回收站（Files 深链）。
+ * 常驻 Dock（docs/DESIGN.md §9/§20 + §32 修订 8，2026-10-01 用户裁决）：
+ * **常驻显示**——自动隐藏机制随本裁决移除（此前默认藏于底缘、指针触底
+ * 唤出、离开 400ms 收起的行为全部退役），Dock 恒为可见状态。内容 = 启动器
+ * + 常驻瓷贴（files/notes/calculator/terminal/store/settings，单实例激活
+ * 语义）+ 运行中窗口（波浪/悬停预览契约不变 §13/§12）+ 回收站（Files 深链）。
  */
 export function Taskbar() {
   const { t } = useTranslation()
@@ -42,37 +39,13 @@ export function Taskbar() {
   const minimize = useWindowStore((s) => s.minimize)
   const restore = useWindowStore((s) => s.restore)
 
-  const [revealed, setRevealed] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [anchorLeft, setAnchorLeft] = useState(0)
   const hoverTimer = useRef<number | null>(null)
-  const hideTimer = useRef<number | null>(null)
   // 任务栏波浪（DESIGN.md §13）：高斯距离衰减放大，只写 data-wave-icon 的
   // transform，不碰按钮与 reveal/hide 的 pointerenter/leave 链。
   const waveRowRef = useRef<HTMLDivElement | null>(null)
   useDockWave(waveRowRef)
-
-  useEffect(
-    () => () => {
-      if (hideTimer.current !== null) window.clearTimeout(hideTimer.current)
-    },
-    [],
-  )
-
-  const cancelHide = (): void => {
-    if (hideTimer.current !== null) {
-      window.clearTimeout(hideTimer.current)
-      hideTimer.current = null
-    }
-  }
-  const reveal = (): void => {
-    cancelHide()
-    setRevealed(true)
-  }
-  const scheduleHide = (): void => {
-    cancelHide()
-    hideTimer.current = window.setTimeout(() => setRevealed(false), HIDE_DELAY_MS)
-  }
 
   const toggleWindow = (id: string, focused: boolean, minimized: boolean) => {
     if (minimized) restore(id)
@@ -112,31 +85,12 @@ export function Taskbar() {
 
   return (
     <>
-      {/* 底缘唤出区：压在窗口层之上（z-40）但让位于弹层（z-50）。
-          离开唤出区也要安排收起——指针静止时滑入的 footer 不会收到
-          pointerenter（hover 链只在指针移动时刷新），直接跳走时只有
-          唤出区的 leave 可靠触发隐藏；footer 的 enter 会取消它。 */}
-      <div
-        aria-hidden="true"
-        data-testid="taskbar-reveal-zone"
-        className="fixed inset-x-0 bottom-0 z-40 h-1.5"
-        onPointerEnter={reveal}
-        onPointerLeave={scheduleHide}
-      />
-
       <footer
-        data-state={revealed ? 'revealed' : 'hidden'}
-        onPointerEnter={reveal}
-        onPointerLeave={scheduleHide}
-        onFocusCapture={reveal}
-        onBlurCapture={(event) => {
-          // 焦点仍在任务栏子树内（进入菜单项等）不收起。
-          const next = event.relatedTarget
-          if (next instanceof Node && event.currentTarget.contains(next)) return
-          scheduleHide()
-        }}
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex h-[calc(var(--ag-dock-height)+0.75rem)] items-end justify-center px-3 pb-3 transition-transform duration-300 ease-out"
-        style={{ transform: revealed ? 'translateY(0)' : 'translateY(100%)' }}
+        data-state="revealed"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex h-[calc(var(--ag-dock-height)+0.75rem)] items-end justify-center px-3 pb-3"
+        /* 内联 transform 恒存在：footer 是启动器弹层（fixed）的包含块
+           （坑 13），移除会让包含块落到被钳制居中的胶囊上，窄视口溢出。 */
+        style={{ transform: 'translateY(0)' }}
       >
         {/* 悬浮胶囊 Dock（§20/§32）：启动器 + 常驻瓷贴 + 运行中 + 回收站。
             自动隐藏/波浪/预览/锚点行为契约全部不变（§9/§13/§12）。 */}
