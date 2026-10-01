@@ -110,6 +110,18 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(scope).toMatch(/--ag-surface-popover:\s*#2c3a63/)
   })
 
+  it('defines the widget Acrylic knobs (sec 32, 用户可调模糊/遮罩)', () => {
+    // 模糊半径（20-40px 建议区间）+ 深色半透明遮罩（30%-50% 建议区间，
+    // 白字配深遮罩）；.widget-card 消费双旋钮，降透明回落实色。
+    expect(root).toMatch(/--ag-widget-blur:\s*32px/)
+    expect(root).toMatch(/--ag-widget-tint:\s*linear-gradient\(/)
+    // 主规则是文件中最后一个 .widget-card（前面是降透明/@supports 兜底块）。
+    const widget = css.slice(css.lastIndexOf('.widget-card'), css.lastIndexOf('.widget-card') + 400)
+    expect(widget).toMatch(/backdrop-filter:\s*blur\(var\(--ag-widget-blur\)\)/)
+    expect(widget).toMatch(/background:\s*var\(--ag-widget-tint\)/)
+    expect(css).toMatch(/prefers-reduced-transparency[\s\S]{0,400}\.widget-card\s*\{[^}]*#2c3a63/)
+  })
+
   it('defines the unified popover-panel material (sec 24)', () => {
     expect(css).toContain('.popover-panel')
     expect(css).toMatch(/\.popover-panel\s*\{[\s\S]*?--ag-radius-lg/)
