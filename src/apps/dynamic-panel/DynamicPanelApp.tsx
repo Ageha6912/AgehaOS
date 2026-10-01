@@ -198,9 +198,14 @@ export function DynamicPanelApp() {
       </div>
 
       {/* 坑 44：滚动列表一律 ScrollFadeList（常驻细滚动条 + 底部渐隐双通道，
-          修 §17 遗留的第 4 卡折叠线生裁）。外层 flex 列提供确定高度。 */}
+          修 §17 遗留的第 4 卡折叠线生裁）。外层 flex 列提供确定高度。
+          §30 横版默认：窗口 ≥560px 宽时卡片双列（app 内媒体查询作用域是
+          iframe 视口 = 窗口内容区），拉窄回竖版自动回落单列。 */}
       <div className="flex min-h-0 flex-1 flex-col">
-      <ScrollFadeList className="space-y-2 p-3" testId="dynamic-panel-cards">
+      <ScrollFadeList
+        className="grid grid-cols-1 content-start gap-2 p-3 min-[560px]:grid-cols-2"
+        testId="dynamic-panel-cards"
+      >
         {layoutSuggestion && (
           <li
             className="rounded-lg border border-border bg-surface-raised/50 p-3"

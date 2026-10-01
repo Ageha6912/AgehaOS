@@ -53,7 +53,7 @@ export const BUILTIN_APP_MANIFESTS: readonly unknown[] = [
     version: '0.2.0',
     entry: '/apps/dynamic-panel/index.html',
     permissions: [],
-    window: { width: 360, height: 520, resizable: true },
+    window: { width: 680, height: 420, resizable: true },
   },
   {
     id: 'com.ageha.terminal',

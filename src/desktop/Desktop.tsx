@@ -55,7 +55,7 @@ export function Desktop() {
     autoOpened.current = true
     const { windows } = useWindowStore.getState()
     if (windows.some((win) => win.appId === AUTO_OPEN_APP_ID)) return
-    const width = getAppManifest(AUTO_OPEN_APP_ID)?.window?.width ?? 360
+    const width = getAppManifest(AUTO_OPEN_APP_ID)?.window?.width ?? 680
     // 右侧小组件栏（§27）≥1280px 常驻：面板停靠让位。
     const railRight = window.innerWidth >= RAIL_RIGHT_BREAKPOINT_PX ? RAIL_RIGHT_WIDTH_PX : 0
     launchApp(

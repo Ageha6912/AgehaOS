@@ -107,6 +107,12 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
     await waitFor(() => expect(readySpy.mock.calls.length).toBe(countBefore + 1))
   })
 
+  it('lays cards out in a two-column grid for the landscape default (§30)', async () => {
+    render(<DynamicPanelApp />)
+    await waitFor(() => expect(screen.getByTestId('dynamic-panel-cards').children.length).toBeGreaterThan(0))
+    expect(screen.getByTestId('dynamic-panel-cards').className).toContain('min-[560px]:grid-cols-2')
+  })
+
   it('offers no layout card while the dynamic desktop is off', async () => {
     useDynamicDesktopStore.setState({
       prefs: { enabled: false, randomness: 40, hideBadge: false, pinned: null, blockedStyles: [], llmEnhance: false },

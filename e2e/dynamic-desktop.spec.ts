@@ -30,9 +30,9 @@ test('dynamic desktop: generated wallpaper on by default, opt-out restores the p
   await expect(page.getByTestId('ai-badge')).toHaveCount(0)
 
   // 右键菜单「更换壁纸」：seed 变化驱动 canvas 重绘（同款构图或新构图都合法）。
-  // P2-3 起右侧小组件栏（≥1280）使动态面板左移，(660,560) 已落进面板窗口——
-  // 移到稳定空白区（契约不变：空白画布右键出菜单）。
-  await page.mouse.click(400, 400, { button: 'right' })
+  // §30 横版面板占 344-1024×52-472，(400,400) 已落进面板窗口——
+  // 移到面板左侧稳定空白区（左栏 0-80；契约不变：空白画布右键出菜单）。
+  await page.mouse.click(200, 400, { button: 'right' })
   const menu = page.getByTestId('context-menu')
   await expect(menu).toBeVisible()
   await page.getByTestId('context-menu-renew-wallpaper').click()

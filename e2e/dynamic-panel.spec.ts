@@ -17,12 +17,14 @@ test('dynamic panel: auto-opens on the desktop with local cards and AI attributi
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
 
-  // 自动打开：桌面就绪后面板窗口直接出现，且停靠屏幕右半侧。
+  // 自动打开：桌面就绪后面板窗口直接出现，且停靠屏幕右半侧；
+  // §30 横版默认：默认窗口宽 > 高。
   const panel = page.getByRole('region', { name: '动态面板' })
   await expect(panel).toBeVisible({ timeout: 20_000 })
   const size = page.viewportSize() ?? { width: 1280, height: 720 }
-  const box = (await panel.boundingBox()) ?? { x: 0, width: 0 }
+  const box = (await panel.boundingBox()) ?? { x: 0, width: 0, height: 0 }
   expect(box.x + box.width / 2).toBeGreaterThan(size.width / 2)
+  expect(box.width).toBeGreaterThan(box.height)
 
   // 问候卡恒在；AI 生成标识逐卡存在；决策来源 = 本地规则。
   await expect(panel.getByTestId('panel-card-greeting')).toBeVisible()
