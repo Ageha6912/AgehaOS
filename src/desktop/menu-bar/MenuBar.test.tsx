@@ -34,18 +34,35 @@ beforeEach(() => {
 })
 
 describe('MenuBar', () => {
-  it('renders brand, four menus, and the migrated system status (bell/user/clock)', () => {
+  it('renders brand, five menus, and the migrated system status (bell/user/clock)', () => {
     render(<MenuBar />)
 
     expect(screen.getByText('AgehaOS')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
+    // §32：参考图五菜单（新增「编辑」）。
+    expect(screen.getByRole('button', { name: '编辑' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '视图' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '窗口' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '帮助' })).toBeInTheDocument()
-    // 系统状态自任务栏迁移（Q3 裁决）。
+    // 系统状态自任务栏迁移（Q3 裁决）；§32 时钟含日期。
     expect(screen.getByTestId('notification-bell')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /alice/ })).toBeInTheDocument()
-    expect(screen.getByTestId('menu-bar-clock').textContent).toBe('10:30')
+    expect(screen.getByTestId('menu-bar-clock').textContent).toContain('10:30')
+  })
+
+  it('edit menu issues document-level commands (undo/redo/cut/copy/paste/selectAll)', () => {
+    render(<MenuBar />)
+
+    // jsdom 未定义 execCommand——直接桩一个可断言的实现。
+    const execCommand = vi.fn(() => true)
+    Object.defineProperty(document, 'execCommand', { value: execCommand, configurable: true })
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '撤销' }))
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '全选' }))
+    expect(execCommand).toHaveBeenCalledWith('undo', false, undefined)
+    expect(execCommand).toHaveBeenCalledWith('selectAll', false, undefined)
+    delete (document as unknown as Record<string, unknown>).execCommand
   })
 
   it('file menu opens the file manager and the search palette', () => {
@@ -69,14 +86,14 @@ describe('MenuBar', () => {
     expect(systemDynamicDesktop.refresh).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: '视图' }))
-    const darkItem = screen.getByRole('menuitem', { name: '深色' })
-    // 当前为深色默认（ADR 24）——深色项带勾，浅色不带。
-    expect(darkItem.querySelector('svg')).not.toBeNull()
-    expect(screen.getByRole('menuitem', { name: '浅色' }).querySelector('svg')).toBeNull()
+    const lightItem = screen.getByRole('menuitem', { name: '浅色' })
+    // §32 起浅色为出厂默认（参考图明亮基线）——浅色项带勾，深色不带。
+    expect(lightItem.querySelector('svg')).not.toBeNull()
+    expect(screen.getByRole('menuitem', { name: '深色' }).querySelector('svg')).toBeNull()
 
-    fireEvent.click(screen.getByRole('menuitem', { name: '浅色' }))
-    expect(useSettingsStore.getState().theme).toBe('light')
-    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    fireEvent.click(screen.getByRole('menuitem', { name: '深色' }))
+    expect(useSettingsStore.getState().theme).toBe('dark')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
   })
 
   it('window menu lists open windows, focuses on click, and minimizes all', () => {
@@ -141,13 +158,17 @@ describe('MenuBar', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     render(<MenuBar />)
 
-    // 触发器左右环游。
+    // 触发器左右环游（§32 五菜单：文件 → 编辑 → 视图）。
     const file = screen.getByRole('button', { name: '文件' })
     const view = screen.getByRole('button', { name: '视图' })
     file.focus()
     fireEvent.keyDown(file, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '编辑' }))
+    fireEvent.keyDown(screen.getByRole('button', { name: '编辑' }), { key: 'ArrowRight' })
     expect(document.activeElement).toBe(view)
     fireEvent.keyDown(view, { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '编辑' }))
+    fireEvent.keyDown(screen.getByRole('button', { name: '编辑' }), { key: 'ArrowLeft' })
     expect(document.activeElement).toBe(file)
 
     // ArrowDown 开菜单并聚焦首项；菜单内上下循环（始终驱动当前焦点元素）。
@@ -162,15 +183,15 @@ describe('MenuBar', () => {
     fireEvent.keyDown(active(), { key: 'ArrowUp' })
     expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: '搜索…' }))
 
-    // 菜单内右键头 → 切到下一个菜单（视图，已打开）。
+    // 菜单内右键头 → 切到下一个菜单（编辑，已打开）。
     fireEvent.keyDown(active(), { key: 'ArrowRight' })
-    expect(screen.getByRole('button', { name: '视图' }).getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByRole('menuitem', { name: '更换壁纸' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '编辑' }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('menuitem', { name: '撤销' })).toBeInTheDocument()
 
     // Esc 回焦触发器并关闭。
     fireEvent.keyDown(active(), { key: 'Escape' })
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: '视图' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '编辑' }))
   })
 
   it('exposes aria-expanded on menu triggers', () => {

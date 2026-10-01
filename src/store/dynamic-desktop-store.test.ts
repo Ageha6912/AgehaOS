@@ -31,10 +31,10 @@ beforeEach(() => {
   resetDynamicDesktopStore()
 })
 
-describe('dynamic-desktop-store defaults (照片壁纸出厂即开)', () => {
-  it('starts enabled with the balanced slider default', () => {
+describe('dynamic-desktop-store defaults (§32 照片基底出厂默认，动态桌面默认关)', () => {
+  it('starts disabled with the balanced slider default', () => {
     const state = useDynamicDesktopStore.getState()
-    expect(state.prefs.enabled).toBe(true)
+    expect(state.prefs.enabled).toBe(false)
     expect(state.prefs.randomness).toBe(40)
     expect(state.prefs.pinned).toBeNull()
     expect(state.currentPlan).toBeNull()
@@ -58,17 +58,17 @@ describe('per-user hydration and persistence (§2.3 按 userId 分键)', () => {
 
   it('keeps users isolated from each other', () => {
     useDynamicDesktopStore.getState().hydrateForUser('alice')
-    useDynamicDesktopStore.getState().setEnabled(false)
+    useDynamicDesktopStore.getState().setEnabled(true)
     useDynamicDesktopStore.getState().hydrateForUser('bob')
-    expect(useDynamicDesktopStore.getState().prefs.enabled).toBe(true)
-    useDynamicDesktopStore.getState().hydrateForUser('alice')
     expect(useDynamicDesktopStore.getState().prefs.enabled).toBe(false)
+    useDynamicDesktopStore.getState().hydrateForUser('alice')
+    expect(useDynamicDesktopStore.getState().prefs.enabled).toBe(true)
   })
 
   it('falls back to defaults on corrupted payloads (§2.3 脏数据不破坏启动)', () => {
     localStorage.setItem(`${DYNAMIC_DESKTOP_KEY_PREFIX}carol`, '{bad json')
     useDynamicDesktopStore.getState().hydrateForUser('carol')
-    expect(useDynamicDesktopStore.getState().prefs).toMatchObject({ enabled: true, randomness: 40 })
+    expect(useDynamicDesktopStore.getState().prefs).toMatchObject({ enabled: false, randomness: 40 })
   })
 })
 
@@ -162,8 +162,8 @@ describe('clear and logout (§8.5 / §6.5)', () => {
     store.applyOutcome({ outcome: outcomeOf('p1'), trigger: 'login', atMs: 1, tier: 'low' })
     useDynamicDesktopStore.getState().clearAllData()
     const state = useDynamicDesktopStore.getState()
-    // 恢复默认 = 出厂偏好（照片壁纸出厂即开）。
-    expect(state.prefs.enabled).toBe(true)
+    // 恢复默认 = 出厂偏好（§32 动态桌面默认关，照片基底常驻）。
+    expect(state.prefs.enabled).toBe(false)
     expect(state.currentPlan).toBeNull()
     expect(state.history).toHaveLength(0)
     expect(localStorage.getItem(`${DYNAMIC_DESKTOP_KEY_PREFIX}u1`)).toBeNull()
@@ -192,7 +192,7 @@ describe('resetDynamicDesktopStore isolation (验收 ⑥)', () => {
     resetDynamicDesktopStore()
 
     const state = useDynamicDesktopStore.getState()
-    expect(state.prefs.enabled).toBe(true)
+    expect(state.prefs.enabled).toBe(false)
     expect(state.currentPlan).toBeNull()
     expect(state.tier).toBe('mid')
     expect(localStorage.getItem(`${DYNAMIC_DESKTOP_KEY_PREFIX}u1`)).toBeNull()

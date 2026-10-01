@@ -15,26 +15,26 @@ beforeEach(() => {
 })
 
 describe('settings-store theme', () => {
-  it('defaults to dark (2026-09-30「Calm Future」设计基线，docs/DESIGN.md)', () => {
-    expect(useSettingsStore.getState().theme).toBe('dark')
-    expect(htmlClasses().contains('dark')).toBe(true)
+  it('defaults to light (§32 参考图明亮基线，docs/DESIGN.md)', () => {
+    expect(useSettingsStore.getState().theme).toBe('light')
+    expect(htmlClasses().contains('dark')).toBe(false)
   })
 
-  it('keeps a persisted legacy light preference on first load', async () => {
-    localStorage.setItem('agehaos.settings.v1', JSON.stringify({ theme: 'light' }))
+  it('keeps a persisted legacy dark preference on first load', async () => {
+    localStorage.setItem('agehaos.settings.v1', JSON.stringify({ theme: 'dark' }))
     vi.resetModules()
     const { useSettingsStore: freshStore } = await import('./settings-store')
 
-    expect(freshStore.getState().theme).toBe('light')
-    expect(htmlClasses().contains('dark')).toBe(false)
+    expect(freshStore.getState().theme).toBe('dark')
+    expect(htmlClasses().contains('dark')).toBe(true)
   })
 
   it('applies and removes the dark class on light/dark switches', () => {
-    useSettingsStore.getState().setTheme('light')
-    expect(htmlClasses().contains('dark')).toBe(false)
-
     useSettingsStore.getState().setTheme('dark')
     expect(htmlClasses().contains('dark')).toBe(true)
+
+    useSettingsStore.getState().setTheme('light')
+    expect(htmlClasses().contains('dark')).toBe(false)
   })
 
   it('resolves system preference through matchMedia', () => {

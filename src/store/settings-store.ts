@@ -13,8 +13,9 @@ export const FONT_SIZE_PX: Record<FontSize, string> = {
 }
 
 const STORAGE_KEY = 'agehaos.settings.v1'
-// 设计基线 2026-09-30「Calm Future」起为深色（docs/DESIGN.md）；存量用户已保存偏好不受影响。
-const DEFAULT_THEME: ThemePreference = 'dark'
+// §32（2026-10-01 参考图对齐）：出厂默认浅色（参考图明亮基线）；存量用户已
+// 保存偏好不受影响。2026-09-30 的深色出厂默认由本轮像素级还原裁决替代。
+const DEFAULT_THEME: ThemePreference = 'light'
 const DEFAULT_FONT_SIZE: FontSize = 'medium'
 
 interface PersistedSettings {

@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from 'react'
 
+import { consumeSettingsSection } from '@/apps/app-deep-link'
+
 import { BrandLogo } from '@/components/brand-logo'
 import { ToggleSwitch } from '@/components/toggle-switch'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
@@ -38,7 +40,8 @@ const LOCALE_OPTIONS: Array<{ value: 'zh-CN' | 'en'; label: string }> = [
 
 export function SettingsApp() {
   const { t } = useTranslation()
-  const [section, setSection] = useState<SectionId>('appearance')
+  // §32 深链：左栏「用户中心」请求本次启动直接落在账户分区（取走即清）。
+  const [section, setSection] = useState<SectionId>(() => consumeSettingsSection() ?? 'appearance')
   // ADR 20：目录管理仅对 admin 角色可见（远程模式才有 admin）。
   const isAdmin = useSessionStore((s) => s.user?.role === 'admin')
 

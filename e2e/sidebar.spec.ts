@@ -38,6 +38,7 @@ test('sidebar: launches apps and opens the shared notification center', async ({
     { timeout: 5000 },
   )
   await page.getByRole('contentinfo').getByRole('button', { name: /开始/ }).click()
-  await expect(page.getByText('最近')).toBeVisible()
+  // §32 分类轨（组件卡「最近通知」/推荐行副标同含「最近」，testid 取位）。
+  await expect(page.getByTestId('launcher-category-recent')).toBeVisible()
   await expect(page.getByTestId('launcher-recent-item').first()).toBeVisible()
 })

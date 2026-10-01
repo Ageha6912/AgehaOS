@@ -16,9 +16,10 @@ test('desktop context menu: open at pointer, clamp to viewport, run actions', as
   // 桌面图标层已移除（2026-10-01）：以侧栏就绪为桌面就绪信号。
   await page.getByTestId('sidebar-files').waitFor()
 
-  // 右键工作区右下角空白：P2-3 起右侧小组件栏占 1008-1280、动态面板横版后占
-  // 344-1024×52-472（§30）——(990, 700) 是右缘附近稳定空白；菜单底边须收进视口。
-  await page.mouse.click(990, 700, { button: 'right' })
+  // 右键工作区右缘附近空白：§32 右侧小组件栏占 944-1272×56-712（品牌横幅
+  // 卡压到 y≈712）、动态面板横版占 240-920×64-484——(935, 660) 是面板/侧栏/
+  // 小组件栏之间的稳定空白；菜单底边须收进视口。
+  await page.mouse.click(935, 660, { button: 'right' })
   const menu = page.getByTestId('context-menu')
   await expect(menu).toBeVisible()
   const box = await menu.boundingBox()

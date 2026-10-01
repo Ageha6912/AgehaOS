@@ -8,14 +8,21 @@ import { useWallpaperParallax } from '@/desktop/motion/use-wallpaper-parallax'
 import { cssGradient, drawPlan } from './render'
 
 /**
- * 壁纸层（设计文档 §4.5）：常驻两层，新壁纸在上层 0→1 交叉淡入；
- * 过渡中再次触发生成时，直接替换上层目标并从当前不透明度继续过渡（不回弹、不排队）。
- * prefers-reduced-motion 时 150ms；canvas 不可用时回落 CSS 渐变（能力探测，PRD §31）。
+ * 壁纸层（设计文档 §4.5 + §32 参考图对齐）：**照片基底常驻**（出厂默认
+ * 壁纸 = 参考图同源素材 dreamland，仅缩放/裁切，public/wallpapers/），
+ * 生成式 field 计划在启用动态桌面时以 canvas 层交叉淡入覆盖其上——
+ * 关闭动态桌面（§32 新出厂默认）即回落照片。场层过渡规则不变：
+ * 新壁纸在上层 0→1 交叉淡入；过渡中再次触发生成时，直接替换上层目标
+ * 并从当前不透明度继续过渡（不回弹、不排队）。prefers-reduced-motion
+ * 时 150ms；canvas 不可用时回落 CSS 渐变（能力探测，PRD §31）。
  */
 
 const FADE_MS_NORMAL = 600
 const FADE_MS_REDUCED = 150
 const MOUNT_DELAY_MS = 20
+
+/** 出厂照片壁纸（§32）：参考图净空区裁切（只缩放/裁切），路径公开稳定。 */
+export const DEFAULT_WALLPAPER_SRC = '/wallpapers/ageha-dreamland.jpg'
 
 function prefersReducedMotion(): boolean {
   try {
@@ -27,6 +34,7 @@ function prefersReducedMotion(): boolean {
 
 export function WallpaperLayer() {
   const plan = useDynamicDesktopStore((s) => s.currentPlan)
+  const enabled = useDynamicDesktopStore((s) => s.prefs.enabled)
   const tier = useDynamicDesktopStore((s) => s.tier)
 
   const [front, setFront] = useState<WallpaperPlan | null>(plan)
@@ -65,10 +73,12 @@ export function WallpaperLayer() {
   }, [fading, back])
 
   // 「AI 生成」徽标随照片域退役（2026-09-27 用户裁决：生成式壁纸不显示徽标）。
+  // 场层双重门控：计划存在 且 动态桌面开启——开关关闭立即回落照片基底。
   return (
     <div className="absolute inset-0" data-testid="wallpaper-layer">
-      {front && <WallpaperSurface plan={front} tier={tier} active={back === null} />}
-      {back && (
+      <PhotoSurface covered={enabled && (front !== null || back !== null)} />
+      {enabled && front && <WallpaperSurface plan={front} tier={tier} active={back === null} />}
+      {enabled && back && (
         <div
           className="absolute inset-0 transition-opacity ease-in-out"
           style={{
@@ -82,6 +92,26 @@ export function WallpaperLayer() {
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * 照片基底（§32）：单层位图 + 指针视差（§15 单层照片档）。场层覆盖期间
+ * 停用视差（不可见层零 rAF 成本）；图片加载失败时静默透出画布渐变。
+ */
+function PhotoSurface({ covered }: { covered: boolean }) {
+  const photoRef = useRef<HTMLDivElement | null>(null)
+  const parallax = useMotionPrefsStore((s) => s.parallax)
+  useWallpaperParallax(photoRef, parallax && !covered)
+
+  return (
+    <div
+      ref={photoRef}
+      aria-hidden="true"
+      data-testid="wallpaper-surface-photo"
+      className="absolute inset-0 bg-cover bg-center"
+      style={{ backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})` }}
+    />
   )
 }
 

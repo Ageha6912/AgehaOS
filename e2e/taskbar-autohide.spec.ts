@@ -41,6 +41,11 @@ test('taskbar auto-hides and slides in from the bottom edge', async ({ page }) =
   // 唤出后从开始菜单启动应用照常工作。
   await revealTaskbar(page)
   await taskbarStartButton(page).click()
-  await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /记事/ }).click()
+  // §32 双栏启动器：网格作用域取瓦片（推荐行可同名）。
+  await page
+    .getByRole('list', { name: /开始/ })
+    .getByTestId('launcher-grid')
+    .getByRole('button', { name: /记事/ })
+    .click()
   await expect(page.getByRole('region', { name: '记事' })).toBeVisible()
 })

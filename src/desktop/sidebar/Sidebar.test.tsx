@@ -15,12 +15,41 @@ beforeEach(() => {
 })
 
 describe('Sidebar', () => {
-  it('renders the seven real-action items (§26)', () => {
+  it('renders the eight real-action items in reference order (§26/§32)', () => {
     render(<Sidebar />)
 
-    for (const name of ['桌面', '文件', '终端', '应用商店', '设置', '云同步', '通知']) {
+    for (const name of ['桌面', '应用商店', '文件管理', '终端', '设置', '云同步', '通知中心', '用户中心']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
+    // 参考图顺序：桌面 → 应用商店 → 文件管理 → 终端 → 设置 → 云同步 → 通知中心 → 用户中心。
+    const order = ['desktop', 'store', 'files', 'terminal', 'settings', 'sync', 'notifications', 'user-center']
+      .map((id) => screen.getByTestId(`sidebar-${id}`))
+    expect(order.indexOf(screen.getByTestId('sidebar-desktop'))).toBeLessThan(
+      order.indexOf(screen.getByTestId('sidebar-store')),
+    )
+    expect(order.indexOf(screen.getByTestId('sidebar-store'))).toBeLessThan(
+      order.indexOf(screen.getByTestId('sidebar-files')),
+    )
+  })
+
+  it('renders icon tiles left of labels (§32 reference layout)', () => {
+    render(<Sidebar />)
+
+    const item = screen.getByTestId('sidebar-files')
+    // 行内布局：瓷贴（渐变圆角方块）在标签之前。
+    expect(item.className).toContain('items-center')
+    expect(item.className).not.toContain('flex-col')
+    const tile = item.firstElementChild as HTMLElement
+    expect(tile.style.backgroundImage).toContain('linear-gradient')
+    expect(tile.className).toContain('rounded-lg')
+  })
+
+  it('user center deep-links Settings to the account partition (§32)', () => {
+    render(<Sidebar />)
+
+    fireEvent.click(screen.getByTestId('sidebar-user-center'))
+    const settings = useWindowStore.getState().windows.find((win) => win.appId === 'com.ageha.settings')
+    expect(settings).toBeDefined()
   })
 
   it('show-desktop minimizes every open window', () => {
@@ -68,7 +97,7 @@ describe('Sidebar', () => {
     expect(sync.querySelector('.bg-primary')).toBeNull()
   })
 
-  it('floats as a rounded glass card detached from the viewport edges (§31)', () => {
+  it('floats as a rounded glass card detached from the viewport edges (§31/§32)', () => {
     render(<Sidebar />)
 
     const nav = screen.getByTestId('sidebar')
@@ -76,8 +105,9 @@ describe('Sidebar', () => {
     expect(nav.className).toContain('rounded-2xl')
     expect(nav.className).toContain('surface-glass')
     expect(nav.className).toContain('shadow-popover')
-    expect(nav.className).toContain('bottom-3')
+    expect(nav.className).toContain('bottom-6')
     expect(nav.className).toContain('left-2')
+    expect(nav.className).toContain('desktop-chrome')
     expect(nav.className).not.toContain('border-r')
     expect(nav.className).not.toContain('bottom-0')
     expect(nav.className).not.toContain('left-0')

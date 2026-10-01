@@ -23,7 +23,8 @@ test('dynamic panel: auto-opens on the desktop with local cards and AI attributi
   await expect(panel).toBeVisible({ timeout: 20_000 })
   const size = page.viewportSize() ?? { width: 1280, height: 720 }
   const box = (await panel.boundingBox()) ?? { x: 0, width: 0, height: 0 }
-  expect(box.x + box.width / 2).toBeGreaterThan(size.width / 2)
+  // §32 右栏 336px：面板停靠在右栏左侧（右缘不越入小组件栏）。
+  expect(box.x + box.width).toBeLessThanOrEqual(size.width - 336 + 1)
   expect(box.width).toBeGreaterThan(box.height)
 
   // 问候卡恒在；AI 生成标识逐卡存在；决策来源 = 本地规则。

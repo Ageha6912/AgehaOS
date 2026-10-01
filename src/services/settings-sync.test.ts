@@ -59,7 +59,8 @@ describe('settings-sync service (PRD §35 用户配置同步)', () => {
     setSyncEnabled(true)
     fetchMock.mockResolvedValue(jsonResponse({ data: null }))
     await pullOnce()
-    expect(useSettingsStore.getState().theme).toBe('dark')
+    // 空 blob 不动本地偏好（§32 起出厂默认浅色）。
+    expect(useSettingsStore.getState().theme).toBe('light')
   })
 
   it('skips invalid values inside the blob', async () => {
@@ -71,7 +72,8 @@ describe('settings-sync service (PRD §35 用户配置同步)', () => {
     await pullOnce()
 
     const settings = useSettingsStore.getState()
-    expect(settings.theme).toBe('dark')
+    // 非法值逐字段回落本地现状（§32 起出厂默认浅色）。
+    expect(settings.theme).toBe('light')
     expect(settings.fontSize).toBe('medium')
     expect(getLocale()).toBe('zh-CN')
   })
@@ -108,6 +110,7 @@ describe('settings-sync service (PRD §35 用户配置同步)', () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
 
     await expect(pullOnce()).resolves.toBeUndefined()
-    expect(useSettingsStore.getState().theme).toBe('dark')
+    // 拉取失败不动本地偏好（§32 起出厂默认浅色）。
+    expect(useSettingsStore.getState().theme).toBe('light')
   })
 })

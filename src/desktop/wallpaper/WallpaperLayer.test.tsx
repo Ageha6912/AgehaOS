@@ -26,6 +26,10 @@ const PLAN_C = planOf('plan-c', 'deep-ocean')
 beforeEach(() => {
   vi.useFakeTimers()
   resetDynamicDesktopStore()
+  // §32 场层双门控（计划 + 开关）：本文件测场渲染契约，统一开启。
+  useDynamicDesktopStore.setState({
+    prefs: { ...useDynamicDesktopStore.getState().prefs, enabled: true },
+  })
 })
 
 afterEach(() => {
@@ -122,7 +126,7 @@ describe('WallpaperLayer gradient-field surfaces (2026-09-27 生成域)', () => 
     })
   }
 
-  it('renders a gradient-field plan with the canvas or css fallback surface (照片面已退役)', () => {
+  it('renders a gradient-field plan with the canvas or css fallback surface (§32 照片基底之上)', () => {
     // jsdom 无 2d context → 走 CSS 回退分支；canvas 分支由浏览器烟雾覆盖。
     useDynamicDesktopStore.setState({ currentPlan: fieldPlan('p1', 'dawn-white') })
     const { container } = render(<WallpaperLayer />)
@@ -130,8 +134,16 @@ describe('WallpaperLayer gradient-field surfaces (2026-09-27 生成域)', () => 
     const canvas = container.querySelector('[data-testid="wallpaper-surface-canvas"]')
     const css = container.querySelector('[data-testid="wallpaper-surface-css"]')
     expect(canvas !== null || css !== null).toBe(true)
-    expect(container.querySelector('[data-testid="wallpaper-surface-photo"]')).toBeNull()
+    // §32：照片基底常驻（出厂默认壁纸），场计划覆盖其上。
+    expect(container.querySelector('[data-testid="wallpaper-surface-photo"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="wallpaper-surface-photo-fallback"]')).toBeNull()
+  })
+
+  it('keeps the photo base mounted with the shipped dreamland asset (§32)', () => {
+    const { container } = render(<WallpaperLayer />)
+    const photo = container.querySelector<HTMLElement>('[data-testid="wallpaper-surface-photo"]')
+    expect(photo).not.toBeNull()
+    expect(photo?.style.backgroundImage).toContain('/wallpapers/ageha-dreamland.jpg')
   })
 
   it('keeps the surface mounted across plan transitions of the same style', () => {

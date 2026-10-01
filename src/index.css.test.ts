@@ -88,16 +88,25 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(root).toMatch(/--ag-radius-lg:\s*16px/)
     expect(root).toMatch(/--ag-radius-xl:\s*20px/)
     expect(root).toMatch(/--ag-glass-blur:\s*var\(--ag-blur-lg\)/)
-    // 顶栏高度与 viewport.ts 的 MENUBAR_HEIGHT_PX 常量互指（§19）。
-    expect(root).toMatch(/--ag-menubar-height:\s*28px/)
-    // 左侧系统导航栏宽度与 RAIL_LEFT_WIDTH_PX 常量互指（§26）。
-    expect(root).toMatch(/--ag-rail-left-width:\s*80px/)
-    // 右侧小组件栏宽度与 RAIL_RIGHT_WIDTH_PX 常量互指（§27）。
-    expect(root).toMatch(/--ag-rail-right-width:\s*232px/)
-    // §31 Round 2：Dock 提升存在感（footer 68 / 节距 52 / 图标 40）。
+    // 顶栏高度与 viewport.ts 的 MENUBAR_HEIGHT_PX 常量互指（§19；§32 对齐参考图 40px）。
+    expect(root).toMatch(/--ag-menubar-height:\s*40px/)
+    // 左侧系统导航栏宽度与 RAIL_LEFT_WIDTH_PX 常量互指（§26；§32 对齐参考图 132px）。
+    expect(root).toMatch(/--ag-rail-left-width:\s*132px/)
+    // 右侧小组件栏宽度与 RAIL_RIGHT_WIDTH_PX 常量互指（§27；§32 对齐参考图 336px）。
+    expect(root).toMatch(/--ag-rail-right-width:\s*336px/)
+    // §31 Round 2：Dock 提升存在感；§32 图标 44px（节距 52 不变，σ ≤ 1.2×节距成立）。
     expect(root).toMatch(/--ag-dock-height:\s*68px/)
     expect(root).toMatch(/--ag-dock-item-pitch:\s*52px/)
-    expect(root).toMatch(/--ag-dock-icon:\s*40px/)
+    expect(root).toMatch(/--ag-dock-icon:\s*44px/)
+  })
+
+  it('scopes the desktop chrome white-on-glass material (sec 32)', () => {
+    expect(css).toContain('.desktop-chrome')
+    const scope = css.slice(css.indexOf('.desktop-chrome'), css.indexOf('.surface-panel'))
+    // 白字 Token 阶 + 低透白玻璃 + 降透明实色兜底三件套。
+    expect(scope).toMatch(/--ag-text:\s*#ffffff/)
+    expect(scope).toMatch(/--ag-glass-bg:\s*rgb\(255 255 255 \/ 14%\)/)
+    expect(scope).toMatch(/--ag-surface-popover:\s*#2c3a63/)
   })
 
   it('defines the unified popover-panel material (sec 24)', () => {

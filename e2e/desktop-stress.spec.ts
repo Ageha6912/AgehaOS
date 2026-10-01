@@ -56,12 +56,16 @@ test('keeps the desktop responsive with 20 open windows (PRD §29.2)', async ({ 
   }
 
   await expect(page.getByRole('region', { name: '记事' })).toHaveCount(20)
+  // §32 Dock 参考图形态：常驻瓷贴按应用聚合（macOS 语义）——20 个记事窗口
+  // 聚合为单枚瓷贴，悬停预览/点击激活契约不变。
   const taskbar = page.getByRole('contentinfo')
-  await expect(taskbar.getByRole('button', { name: /记事/ })).toHaveCount(20)
+  const notesPin = taskbar.getByTestId('dock-pin-com.ageha.notes')
+  await expect(notesPin).toHaveCount(1)
+  await expect(notesPin).toHaveAttribute('aria-label', '记事')
 
-  // The desktop still reacts: focusing another window and opening the menu.
+  // The desktop still reacts: activating the pinned tile and opening the menu.
   await revealTaskbar(page)
-  await taskbar.getByRole('button', { name: /记事/ }).first().click()
+  await notesPin.click()
   await startButton.click()
   await expect(page.getByRole('list', { name: /开始/ })).toBeVisible()
 })

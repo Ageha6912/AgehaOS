@@ -82,16 +82,16 @@
   --ag-wl-max: #28c840;
   --ag-wl-max-glyph: #0d5a17;
 
-  /* ---- Shell geometry（顶栏/Dock/侧栏；由后续 Slice 消费）---- */
-  --ag-menubar-height: 28px;
-  /* 左侧系统导航栏（§26）：<640px 隐藏（与 Sidebar hidden sm:flex 同步）。 */
-  --ag-rail-left-width: 80px;
-  /* 右侧小组件栏（§27）：<1280px 隐藏（与 WidgetRail hidden xl:flex 同步）。 */
-  --ag-rail-right-width: 232px;
+  /* ---- Shell geometry（顶栏/Dock/侧栏；§32 参考图像素级对齐）---- */
+  --ag-menubar-height: 40px;
+  /* 左侧系统导航栏（§26/§32）：<640px 隐藏（与 Sidebar hidden sm:flex 同步）。 */
+  --ag-rail-left-width: 132px;
+  /* 右侧小组件栏（§27/§32）：<1280px 隐藏（与 WidgetRail hidden xl:flex 同步）。 */
+  --ag-rail-right-width: 336px;
   --ag-dock-height: 68px;
   /* 节距 52（w-12 + gap-1）：波浪 σ44 前提 σ ≤ 1.2×节距仍成立（§31 Round 2）。 */
   --ag-dock-item-pitch: 52px;
-  --ag-dock-icon: 40px;
+  --ag-dock-icon: 44px;
 
   /* ---- Desktop atmosphere（极轻氛围层：顶部环境光 + 暗角，静态零动画）---- */
   --ag-atmosphere-ambient: linear-gradient(
@@ -320,6 +320,68 @@ body {
 }
 :where(button):active {
   transform: scale(0.98);
+}
+
+/*
+ * Desktop chrome material (DESIGN.md §32, 参考图像素级对齐): 菜单栏/侧栏/
+ * 小组件栏/Dock/启动器/品牌层等悬浮于 vivid 壁纸之上的 chrome，统一为
+ * 「低透白玻璃 + 白字」材质（参考图取色：玻璃 ≈ white/14，文字白阶）。
+ * 通过在 chrome 子树重语义 Token 实现主题无关（apps 纸面窗口不在此作用域，
+ * 仍走既有主题体系）。Token 别名（--ag-surface-raised 等）按元素继承重解析，
+ * 无需重复声明。
+ */
+.desktop-chrome {
+  --ag-text: #ffffff;
+  --ag-text-muted: rgb(255 255 255 / 78%);
+  --ag-text-tertiary: rgb(255 255 255 / 62%);
+  --ag-text-disabled: rgb(255 255 255 / 40%);
+  --ag-border: rgb(255 255 255 / 30%);
+  --ag-border-subtle: rgb(255 255 255 / 18%);
+  --ag-border-strong: rgb(255 255 255 / 42%);
+  --ag-surface: rgb(255 255 255 / 12%);
+  --ag-surface-soft: rgb(255 255 255 / 16%);
+  --ag-surface-elevated: rgb(255 255 255 / 22%);
+  --ag-surface-popover: rgb(255 255 255 / 12%);
+  --ag-glass-bg: rgb(255 255 255 / 14%);
+  --ag-glass-border: rgb(255 255 255 / 30%);
+  --ag-glass-highlight: rgb(255 255 255 / 42%);
+  --ag-primary: #5b8def;
+  --ag-primary-contrast: #ffffff;
+  /* 白字在亮部湖面上的可读性兜底（参考图同款轻微暗色晕影；小字号收紧
+     阴影避免发糊）。 */
+  text-shadow: 0 1px 1px rgb(15 23 42 / 30%);
+}
+
+/* 降透明/无 backdrop-filter 环境：chrome 回落实色藏青玻璃，白字对比不变。 */
+@media (prefers-reduced-transparency: reduce) {
+  .desktop-chrome {
+    --ag-surface: #2c3a63;
+    --ag-surface-soft: #33426e;
+    --ag-surface-elevated: #3a4a7a;
+    --ag-surface-popover: #2c3a63;
+    --ag-glass-bg: rgb(44 58 99 / 92%);
+  }
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .desktop-chrome {
+    --ag-surface: #2c3a63;
+    --ag-surface-popover: #2c3a63;
+    --ag-glass-bg: rgb(44 58 99 / 92%);
+  }
+}
+
+/*
+ * §32 材质微调（对照参考图取色）：
+ * - 顶栏 = 暗藏蓝半透条（参考图顶栏较天空更暗一档，白字反白）。
+ * - 右栏小组件卡 = 白→蓝紫玻璃渐变（参考图卡片带蓝紫倾向；右栏所压壁纸
+ *   区域偏亮，纯白玻璃会隐入背景，蓝紫调同时保证白字可读）。
+ * 均叠加在 .surface-glass 之上（同特异性、源顺序靠后生效），blur 保留。
+ */
+.menubar-glass {
+  background: rgb(24 34 64 / 38%);
+}
+.widget-card {
+  background: linear-gradient(165deg, rgb(255 255 255 / 28%) 0%, rgb(106 127 190 / 42%) 100%);
 }
 
 /*

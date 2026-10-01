@@ -20,7 +20,6 @@ import {
 } from '@/desktop/window/viewport'
 import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
-import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { getAppManifest } from '@/store/app-store'
 import { useWindowStore } from '@/store/window-store'
@@ -29,9 +28,8 @@ import { useWindowStore } from '@/store/window-store'
 const AUTO_OPEN_APP_ID = 'com.ageha.dynamic.panel'
 
 export function Desktop() {
-  // 动态桌面关闭（或尚无生成结果）时回落到系统画布渐变（docs/DESIGN.md §2.1，
-  // 蓝白/藏蓝随主题；v0.1 的暖色硬编码渐变已随 2026-09 方向翻新退场）。
-  const showWallpaper = useDynamicDesktopStore((s) => s.prefs.enabled && s.currentPlan !== null)
+  // 壁纸层常驻（§32）：照片基底出厂默认，field 覆盖层由层内按动态桌面
+  // 状态渲染——桌面关闭动态桌面时回落照片（不再回落纯画布渐变）。
   // 桌面增强动效（DESIGN.md §15）：可选指针光晕（默认关）。
   const glow = useMotionPrefsStore((s) => s.glow)
   const canvasRef = useRef<HTMLDivElement | null>(null)
@@ -85,7 +83,7 @@ export function Desktop() {
       className="surface-canvas relative h-full overflow-hidden"
       onContextMenu={onCanvasContextMenu}
     >
-      {showWallpaper && <WallpaperLayer />}
+      <WallpaperLayer />
       {/* 氛围层（DESIGN.md §18）：环境光 + 暗角，静态零动画，垫在光晕/图标/窗口之下。
           点击涟漪已于 2026-10-01 用户裁决移除（§15）。 */}
       <AtmosphereLayer />

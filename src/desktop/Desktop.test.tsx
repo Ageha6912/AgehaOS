@@ -28,9 +28,9 @@ beforeEach(() => {
 
 function launchFromStartMenu(appName: RegExp) {
   fireEvent.click(screen.getByRole('button', { name: /开始/ }))
-  // <menu> exposes the ARIA role "list".
+  // 网格作用域（推荐行也用应用名，避免同名撞车；§32 双栏启动器）。
   fireEvent.click(
-    within(screen.getByRole('list', { name: /开始/ })).getByRole('button', { name: appName }),
+    within(screen.getByTestId('launcher-grid')).getByRole('button', { name: appName }),
   )
 }
 
@@ -133,11 +133,15 @@ describe('Desktop × dynamic wallpaper (验收 ⑨)', () => {
     })
   }
 
-  it('keeps the v0.1 desktop untouched when the dynamic desktop is off', () => {
+  it('keeps the photo base wallpaper with no field surface when the dynamic desktop is off (§32)', () => {
     render(<Desktop />)
 
-    expect(screen.queryByTestId('wallpaper-layer')).toBeNull()
-    // v0.1 行为不变：启动器照常工作（自动面板之外多出一个窗口）。
+    // §32：壁纸层常驻（照片基底），关动态桌面 = 无场渲染面。
+    expect(screen.getByTestId('wallpaper-layer')).toBeInTheDocument()
+    expect(screen.getByTestId('wallpaper-surface-photo')).toBeInTheDocument()
+    expect(screen.queryByTestId('wallpaper-surface-canvas')).toBeNull()
+    expect(screen.queryByTestId('wallpaper-surface-css')).toBeNull()
+    // 启动器照常工作（自动面板之外多出一个窗口）。
     launchFromStartMenu(/记事/)
     expect(useWindowStore.getState().windows).toHaveLength(2)
   })
@@ -151,14 +155,18 @@ describe('Desktop × dynamic wallpaper (验收 ⑨)', () => {
     expect(screen.queryByTestId('ai-badge')).toBeNull()
   })
 
-  it('unmounts the wallpaper layer again when the user switches the feature off', () => {
+  it('drops the field surface back to the photo base when the user switches the feature off (§32)', () => {
     enableDynamicDesktop()
     const { rerender } = render(<Desktop />)
     expect(screen.getByTestId('wallpaper-layer')).toBeInTheDocument()
 
     useDynamicDesktopStore.getState().setEnabled(false)
     rerender(<Desktop />)
-    expect(screen.queryByTestId('wallpaper-layer')).toBeNull()
+    expect(screen.getByTestId('wallpaper-layer')).toBeInTheDocument()
+    expect(screen.queryByTestId('wallpaper-surface-canvas')).toBeNull()
+    expect(screen.queryByTestId('wallpaper-surface-css')).toBeNull()
+    // 照片基底回归。
+    expect(screen.getByTestId('wallpaper-surface-photo')).toBeInTheDocument()
   })
 
   it('mounts the atmosphere layer over wallpaper and fallback canvas alike (§18)', () => {

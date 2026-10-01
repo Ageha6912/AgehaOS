@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 
-import { Check } from '@phosphor-icons/react'
+import { BatteryHigh, Bluetooth, Check, WifiHigh } from '@phosphor-icons/react'
 
 import { launchApp } from '@/apps/launch'
 import { BrandLogo } from '@/components/brand-logo'
@@ -14,20 +14,53 @@ import { useSearchStore } from '@/store/search-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useWindowStore } from '@/store/window-store'
 
-type MenuId = 'file' | 'view' | 'window' | 'help'
+type MenuId = 'file' | 'edit' | 'view' | 'window' | 'help'
 
-/** 触发器顺序（键盘左右遍历的环）。 */
-const MENU_IDS: MenuId[] = ['file', 'view', 'window', 'help']
+/** 触发器顺序（键盘左右遍历的环；§32 对齐参考图五菜单）。 */
+const MENU_IDS: MenuId[] = ['file', 'edit', 'view', 'window', 'help']
+
+/** Battery Status API 的最小形状（Chromium 可用；其余环境 null 即隐藏）。 */
+interface BatteryLike {
+  level: number
+  addEventListener: (type: string, listener: () => void) => void
+  removeEventListener: (type: string, listener: () => void) => void
+}
+
+/** 电池电量（真实数据源：navigator.getBattery；不支持的环境返回 null 不渲染）。 */
+function useBatteryLevel(): number | null {
+  const [level, setLevel] = useState<number | null>(null)
+  useEffect(() => {
+    const nav = navigator as Navigator & { getBattery?: () => Promise<BatteryLike> }
+    let battery: BatteryLike | null = null
+    let cancelled = false
+    const sync = (): void => setLevel(Math.round((battery?.level ?? 0) * 100))
+    nav.getBattery
+      ?.()
+      .then((value) => {
+        if (cancelled) return
+        battery = value
+        sync()
+        value.addEventListener('levelchange', sync)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      battery?.removeEventListener('levelchange', sync)
+    }
+  }, [])
+  return level
+}
 
 /**
- * 顶部菜单栏（docs/DESIGN.md §19，升级提示词 §15）：左 = 品牌 + 菜单，
- * 右 = 系统状态（通知/用户/时钟——2026-09-30 Q3 裁决自任务栏迁移）。
- * 只放有真实动作的菜单项（「编辑」无真实目标，缓办）；键盘走 Tab/Enter/
- * Esc（箭头遍历留后续），关闭语义与右键菜单一致（项点击/Esc/外部按下）。
+ * 顶部菜单栏（docs/DESIGN.md §19 + §32 参考图对齐）：左 = 品牌 + 五菜单
+ * （文件/编辑/视图/窗口/帮助——「编辑」为文档级 execCommand 真实动作），
+ * 右 = 状态簇（Wi-Fi/蓝牙指示、电池电量、日期 + 时钟）+ 通知 + 用户。
+ * 键盘走 Tab/Enter/Esc/箭头（§19 P2-4），关闭语义与右键菜单一致。
  */
 export function MenuBar() {
-  const { t } = useTranslation()
+  const { t, locale } = useTranslation()
   const clock = useClock()
+  const battery = useBatteryLevel()
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null)
   const rootRef = useRef<HTMLElement | null>(null)
 
@@ -61,6 +94,32 @@ export function MenuBar() {
   const act = (run: () => void): void => {
     close()
     run()
+  }
+  // 「编辑」菜单 = 文档级命令（聚焦可编辑处生效；权限拒绝静默——浏览器
+  // 不放行剪贴板写入时按钮退化为无操作，与桌面 OS 菜单语义一致）。
+  const execEdit = (command: string, value?: string): void => {
+    act(() => {
+      try {
+        document.execCommand(command, false, value)
+      } catch {
+        /* 命令不可用：静默 */
+      }
+    })
+  }
+  const pasteFromClipboard = (): void => {
+    act(() => {
+      navigator.clipboard
+        ?.readText()
+        .then((text) => {
+          if (!text) return
+          try {
+            document.execCommand('insertText', false, text)
+          } catch {
+            /* 目标不可编辑：静默 */
+          }
+        })
+        .catch(() => {})
+    })
   }
 
   // —— 键盘模型（§19 P2-4）：触发器左右切换、菜单内上下循环/左右换菜单、
@@ -140,19 +199,28 @@ export function MenuBar() {
     }
   }
 
+  // 日期（参考图右侧「9月29日 周一」）；时钟每秒重渲染，无需独立计时。
+  const dateLabel = new Intl.DateTimeFormat(locale, {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  }).format(new Date())
+
   return (
     <header
       ref={rootRef}
       data-testid="menu-bar"
-      className="surface-glass fixed inset-x-0 top-0 z-40 flex h-[var(--ag-menubar-height)] items-center gap-1 border-b border-border-subtle px-2 shadow-soft"
+      className="desktop-chrome menubar-glass surface-glass fixed inset-x-0 top-0 z-40 flex h-[var(--ag-menubar-height)] items-center gap-1 border-b border-border-subtle px-2.5 shadow-soft"
     >
       <div className="flex items-center gap-1.5 pr-1">
-        <BrandLogo size={16} />
-        <span className="hidden text-xs font-semibold text-text sm:inline">{t('menubar.brand')}</span>
+        <BrandLogo size={18} />
+        <span className="hidden text-[13px] font-semibold text-text sm:inline">
+          {t('menubar.brand')}
+        </span>
       </div>
 
       {/* 窄屏（<640px）收起菜单标签，只留品牌 + 系统状态（§25）。 */}
-      <nav className="hidden items-center gap-1 sm:flex">
+      <nav className="hidden items-center gap-0.5 sm:flex">
       <MenuEntry
         label={t('menubar.file')}
         open={openMenu === 'file'}
@@ -172,6 +240,30 @@ export function MenuBar() {
           label={t('menubar.file.search')}
           onSelect={() => act(() => useSearchStore.getState().setOpen(true))}
         />
+      </MenuEntry>
+
+      <MenuEntry
+        label={t('menubar.edit')}
+        open={openMenu === 'edit'}
+        onToggle={() => setOpenMenu(openMenu === 'edit' ? null : 'edit')}
+        onHoverSwitch={() => openMenu !== null && setOpenMenu('edit')}
+        onTriggerKeyDown={onTriggerKeyDown('edit')}
+        onDropdownKeyDown={onDropdownKeyDown('edit')}
+        triggerRef={(element) => {
+          triggerRefs.current['edit'] = element
+        }}
+        dropdownRef={(element) => {
+          dropdownRefs.current['edit'] = element
+        }}
+      >
+        <MenuItem label={t('menubar.edit.undo')} onSelect={() => execEdit('undo')} />
+        <MenuItem label={t('menubar.edit.redo')} onSelect={() => execEdit('redo')} />
+        <MenuSeparator />
+        <MenuItem label={t('menubar.edit.cut')} onSelect={() => execEdit('cut')} />
+        <MenuItem label={t('menubar.edit.copy')} onSelect={() => execEdit('copy')} />
+        <MenuItem label={t('menubar.edit.paste')} onSelect={() => pasteFromClipboard()} />
+        <MenuSeparator />
+        <MenuItem label={t('menubar.edit.selectAll')} onSelect={() => execEdit('selectAll')} />
       </MenuEntry>
 
       <MenuEntry
@@ -277,13 +369,37 @@ export function MenuBar() {
 
       </nav>
 
-      {/* 系统状态区（Q3 裁决自任务栏迁移）：通知中心 + 用户菜单 + 时钟。 */}
-      <div className="ml-auto flex items-center gap-0.5">
+      {/* 系统状态区（§32 参考图）：指示图标 + 电池 + 日期时钟 + 通知/用户。 */}
+      <div className="ml-auto flex items-center gap-1.5">
+        <span
+          aria-hidden="true"
+          title={t('menubar.status.wifi')}
+          className="flex h-6 items-center text-text-muted"
+        >
+          <WifiHigh size={14} weight="bold" />
+        </span>
+        <span
+          aria-hidden="true"
+          title={t('menubar.status.bluetooth')}
+          className="flex h-6 items-center text-text-muted"
+        >
+          <Bluetooth size={14} weight="bold" />
+        </span>
+        {battery !== null && (
+          <span
+            className="flex h-6 items-center gap-0.5 text-[11px] tabular-nums text-text-muted"
+            title={t('menubar.status.battery')}
+          >
+            <BatteryHigh size={15} weight="regular" />
+            {battery}%
+          </span>
+        )}
+        <time data-testid="menu-bar-clock" className="flex shrink-0 items-center gap-1.5 px-1 text-xs text-text-muted">
+          <span>{dateLabel}</span>
+          <span>{clock}</span>
+        </time>
         <NotificationCenter />
         <UserMenu />
-        <time data-testid="menu-bar-clock" className="shrink-0 px-2 text-xs text-text-muted">
-          {clock}
-        </time>
       </div>
     </header>
   )

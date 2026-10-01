@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
@@ -22,7 +22,10 @@ describe('Taskbar', () => {
     render(<Taskbar />)
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
-    fireEvent.click(screen.getByRole('button', { name: /记事/ }))
+    // 常驻瓷贴与启动器瓦片同名——网格作用域内取瓦片。
+    fireEvent.click(
+      within(screen.getByTestId('launcher-grid')).getByRole('button', { name: /记事/ }),
+    )
 
     const windows = useWindowStore.getState().windows
     expect(windows).toHaveLength(1)
@@ -110,7 +113,7 @@ describe('Taskbar', () => {
     expect(screen.queryByTestId('window-preview')).toBeNull()
   })
 
-  it('renders adopted layout groups in the start menu and can launch from them', () => {
+  it('renders adopted layout tier width, keeps ordering, and can reset (§22/§32)', () => {
     useDynamicDesktopStore.getState().applyLayout({
       layoutId: 'layout-taskbar-test',
       tier: 'double',
@@ -120,59 +123,65 @@ describe('Taskbar', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
 
-    // 采纳后的菜单：档位标识 + 分组标题 + 系统组（永不随机清单仍在顶部）。
+    // 采纳后的菜单：档位宽度 + 重置入口；分类轨照常。
     expect(screen.getByTestId('launcher-layout-double')).toBeInTheDocument()
-    expect(screen.getByText('工具')).toBeInTheDocument()
-    expect(screen.getByText('系统')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /设置/ })).toBeInTheDocument()
+    expect(screen.getByTestId('launcher-layout-reset')).toBeInTheDocument()
+    expect(screen.getByTestId('launcher-category-recent')).toBeInTheDocument()
 
-    // 从分组内启动应用照常工作。
-    fireEvent.click(screen.getByRole('button', { name: /计算器/ }))
+    // 从网格启动应用照常工作（建议成员排序在前列；限定网格 ul——推荐行也用应用名）。
+    const menu = screen.getByTestId('launcher-layout-double')
+    const grid = menu.querySelector('ul.grid') as HTMLElement
+    fireEvent.click(within(grid).getByRole('button', { name: /计算器/ }))
     expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.calculator')
   })
 
-  it('keeps the flat start menu when no layout is adopted', () => {
+  it('keeps the category rail with 最近使用 as the default selection (§32)', () => {
     render(<Taskbar />)
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
 
-    expect(screen.queryByText('工具')).not.toBeInTheDocument()
-    expect(screen.queryByText('系统')).not.toBeInTheDocument()
+    expect(screen.getByTestId('launcher-category-recent').getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('launcher-category-system')).toBeInTheDocument()
+    // 空最近回落全部应用：网格瓦片可见（作用域限定网格防常驻瓷贴同名）。
+    expect(
+      within(screen.getByTestId('launcher-grid')).getByRole('button', { name: /记事/ }),
+    ).toBeInTheDocument()
   })
 
   it('filters the flat launcher by the local search box (§22)', () => {
     render(<Taskbar />)
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+    const grid = within(screen.getByTestId('launcher-grid'))
     fireEvent.change(screen.getByTestId('launcher-search'), { target: { value: '记' } })
-    expect(screen.getByRole('button', { name: '记事' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '文件' })).not.toBeInTheDocument()
+    expect(grid.getByRole('button', { name: '记事' })).toBeInTheDocument()
+    expect(grid.queryByRole('button', { name: '文件' })).not.toBeInTheDocument()
 
     // 命中即启动；输入随菜单关闭清空。
-    fireEvent.click(screen.getByRole('button', { name: '记事' }))
+    fireEvent.click(grid.getByRole('button', { name: '记事' }))
     expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.notes')
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
     expect(screen.getByTestId('launcher-search')).toHaveValue('')
   })
 
-  it('shows the recent section in the flat launcher and hides it while searching (§22)', () => {
+  it('shows the recent category in the launcher and hides it while searching (§22/§32)', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     useWindowStore.getState().close(useWindowStore.getState().windows[0]!.id)
     useUsageStore.getState().recordRecentApp('com.ageha.notes')
     render(<Taskbar />)
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
-    expect(screen.getByText('最近')).toBeInTheDocument()
-    // 最近区瓦片可启动。
+    // 最近分类默认选中且承载最近瓦片。
+    expect(screen.getByTestId('launcher-category-recent').getAttribute('aria-pressed')).toBe('true')
     fireEvent.click(screen.getByTestId('launcher-recent-item'))
     expect(useWindowStore.getState().windows.some((win) => win.appId === 'com.ageha.notes')).toBe(true)
 
-    // 搜索态隐藏最近区（结果即目标，最近是浏览辅助）。
+    // 搜索态跨全应用，最近分类瓦片让位（结果即目标，最近是浏览辅助）。
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
     useUsageStore.getState().recordRecentApp('com.ageha.notes')
     fireEvent.change(screen.getByTestId('launcher-search'), { target: { value: '文件' } })
-    expect(screen.queryByText('最近')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('launcher-recent-item')).not.toBeInTheDocument()
   })
 
   it('shows the empty state when the launcher search misses', () => {
@@ -213,11 +222,11 @@ describe('Taskbar', () => {
     expect(pill.classList.contains('pointer-events-auto')).toBe(true)
   })
 
-  it('scales the dock up to the Round 2 reference prominence (§31)', () => {
-    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+  it('scales the dock up to the §32 reference prominence (68 capsule / 48 buttons / 44 icons)', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.dynamic.panel', title: '动态面板' })
     render(<Taskbar />)
 
-    // 胶囊 64px；运行项按钮 48×48（节距 52 = w-12 + gap-1，σ44 波浪前提）、图标 40。
+    // 胶囊 64px；运行项按钮 48×48（节距 52 = w-12 + gap-1，σ44 波浪前提）、图标 44。
     const pill = (screen.getByRole('contentinfo') as HTMLElement).firstElementChild as HTMLElement
     expect(pill.className).toContain('h-16')
     const button = screen.getByTestId(
@@ -226,21 +235,48 @@ describe('Taskbar', () => {
     expect(button.className).toContain('h-12')
     expect(button.className).toContain('w-12')
     const icon = button.querySelector('[data-wave-icon] span') as HTMLElement
-    expect(icon.style.width).toBe('40px')
-    expect(icon.style.height).toBe('40px')
+    expect(icon.style.width).toBe('44px')
+    expect(icon.style.height).toBe('44px')
   })
 
-  it('opens the launcher as a centered wide panel above the dock (§31/§17)', () => {
+  it('opens the launcher as a left-anchored two-pane panel above the dock (§32)', () => {
     render(<Taskbar />)
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
     const search = screen.getByTestId('launcher-search')
     const menu = search.closest('menu') as HTMLElement
-    // 水平居中（Spotlight 式），锚在 Dock 上方，宽 36rem、6 列网格。
-    expect(menu.className).toContain('left-1/2')
-    expect(menu.className).toContain('-translate-x-1/2')
-    expect(menu.className).toContain('bottom-[calc(var(--ag-dock-height)+1.5rem)]')
-    expect(menu.querySelector('ul.grid')?.className).toContain('grid-cols-6')
+    // 左侧锚定（贴左栏），锚在 Dock 上方，宽 410px、4 列网格。
+    expect(menu.className).toContain('left-[calc(var(--ag-rail-left-width)+1.125rem)]')
+    expect(menu.className).toContain('bottom-[calc(var(--ag-dock-height)+1.75rem)]')
+    expect(menu.className).toContain('w-[410px]')
+    expect(menu.querySelector('ul.grid')?.className).toContain('grid-cols-4')
+  })
+
+  it('pins the reference dock tiles with single-instance activation and a trash deep link', () => {
+    render(<Taskbar />)
+
+    // 常驻瓷贴在位（参考图 Dock 位）。
+    expect(screen.getByTestId('dock-pin-com.ageha.files')).toBeInTheDocument()
+    expect(screen.getByTestId('dock-pin-com.ageha.terminal')).toBeInTheDocument()
+
+    // 单实例激活：点击瓷贴启动，再点聚焦窗口最小化，再点还原。
+    fireEvent.click(screen.getByTestId('dock-pin-com.ageha.files'))
+    const filesWindow = useWindowStore.getState().windows.find((w) => w.appId === 'com.ageha.files')
+    expect(filesWindow).toBeDefined()
+    fireEvent.click(screen.getByTestId('dock-pin-com.ageha.files'))
+    expect(
+      useWindowStore.getState().windows.find((w) => w.appId === 'com.ageha.files')?.state,
+    ).toBe('minimized')
+    fireEvent.click(screen.getByTestId('dock-pin-com.ageha.files'))
+    expect(
+      useWindowStore.getState().windows.find((w) => w.appId === 'com.ageha.files')?.state,
+    ).toBe('normal')
+
+    // 回收站：Files 深链直达回收站视图。
+    fireEvent.click(screen.getByTestId('dock-trash'))
+    expect(
+      useWindowStore.getState().windows.some((win) => win.appId === 'com.ageha.files'),
+    ).toBe(true)
   })
 
   it('closes the launcher on Escape (§24 popover contract)', () => {

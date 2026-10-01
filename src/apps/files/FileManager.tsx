@@ -55,12 +55,14 @@ const QUICK_ACCESS_ROOTS: Array<{ name: string; icon: Icon }> = [
 export interface FileManagerProps {
   vfs: Vfs
   windowId: string
+  /** §32 深链：Dock「回收站」启动时直接进入回收站视图。 */
+  initialTrash?: boolean
 }
 
-export function FileManager({ vfs, windowId }: FileManagerProps) {
+export function FileManager({ vfs, windowId, initialTrash = false }: FileManagerProps) {
   const { t } = useTranslation()
   const [path, setPath] = useState('/')
-  const [trashMode, setTrashMode] = useState(false)
+  const [trashMode, setTrashMode] = useState(initialTrash)
   const [query, setQuery] = useState('')
   /** `null` while the first listing for the current view is in flight. */
   const [entries, setEntries] = useState<FileEntry[] | null>(null)

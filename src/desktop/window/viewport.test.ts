@@ -39,7 +39,7 @@ describe('getWorkspaceViewport', () => {
   })
 
   it('keeps the TS constant in lockstep with the CSS token (--ag-menubar-height)', () => {
-    // 与 src/index.css.test.ts 的 32px 值钉扎互为双保险——改任一侧都会红。
-    expect(MENUBAR_HEIGHT_PX).toBe(28)
+    // 与 src/index.css.test.ts 的 40px 值钉扎互为双保险——改任一侧都会红（§32）。
+    expect(MENUBAR_HEIGHT_PX).toBe(40)
   })
 })
