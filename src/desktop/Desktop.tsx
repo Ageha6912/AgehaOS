@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 
 import { launchApp } from '@/apps/launch'
 import { AtmosphereLayer } from '@/desktop/atmosphere/AtmosphereLayer'
-import { DesktopBranding } from '@/desktop/branding/DesktopBranding'
 import { MenuBar } from '@/desktop/menu-bar/MenuBar'
 import { Sidebar } from '@/desktop/sidebar/Sidebar'
 import { Taskbar } from '@/desktop/taskbar/Taskbar'
@@ -94,9 +93,8 @@ export function Desktop() {
         data-testid="cursor-glow-orb"
         className="os-cursor-glow pointer-events-none absolute left-0 top-0 z-[5] opacity-0"
       />
-      {/* 中央品牌层（§31 Round 2）：桌面空闲时的品牌焦点，窗口可见即淡出；
-          aria-hidden + pointer-events-none，不参与辅助树与指针契约。 */}
-      <DesktopBranding />
+      {/* 中央品牌层已随 §32 壁纸对齐退役：品牌字标/标语由出厂壁纸自带
+          （参考图同源画作烘焙文字），DOM 层会与之重影故移除。 */}
       <WindowLayer />
       <NotificationToasts />
       {/* 轨道栏（§26/§27）先于顶栏/Dock 渲染：同为 z-40 chrome，DOM 序靠前者

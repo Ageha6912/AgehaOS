@@ -9,12 +9,14 @@ import { cssGradient, drawPlan } from './render'
 
 /**
  * 壁纸层（设计文档 §4.5 + §32 参考图对齐）：**照片基底常驻**（出厂默认
- * 壁纸 = 参考图同源素材 dreamland，仅缩放/裁切，public/wallpapers/），
- * 生成式 field 计划在启用动态桌面时以 canvas 层交叉淡入覆盖其上——
- * 关闭动态桌面（§32 新出厂默认）即回落照片。场层过渡规则不变：
- * 新壁纸在上层 0→1 交叉淡入；过渡中再次触发生成时，直接替换上层目标
- * 并从当前不透明度继续过渡（不回弹、不排队）。prefers-reduced-motion
- * 时 150ms；canvas 不可用时回落 CSS 渐变（能力探测，PRD §31）。
+ * 壁纸 = 参考图同源素材 dreamland——含蝴蝶与品牌文字的净空裁切，仅缩放/
+ * 裁切，public/wallpapers/，顶部锚定保证字标/蝴蝶在宽屏不被裁），生成式
+ * field 计划在启用动态桌面时以 canvas 层交叉淡入覆盖其上——关闭动态桌面
+ * （§32 新出厂默认）即回落照片。品牌字标由壁纸自带（DOM 品牌层已随 §32
+ * 壁纸对齐移除，避免重影）。场层过渡规则不变：新壁纸在上层 0→1 交叉淡入；
+ * 过渡中再次触发生成时，直接替换上层目标并从当前不透明度继续过渡（不回
+ * 弹、不排队）。prefers-reduced-motion 时 150ms；canvas 不可用时回落 CSS
+ * 渐变（能力探测，PRD §31）。
  */
 
 const FADE_MS_NORMAL = 600
@@ -109,7 +111,7 @@ function PhotoSurface({ covered }: { covered: boolean }) {
       ref={photoRef}
       aria-hidden="true"
       data-testid="wallpaper-surface-photo"
-      className="absolute inset-0 bg-cover bg-center"
+      className="absolute inset-0 bg-cover bg-top"
       style={{ backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})` }}
     />
   )
