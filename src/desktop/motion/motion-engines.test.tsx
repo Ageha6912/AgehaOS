@@ -3,18 +3,11 @@ import { act, render } from '@testing-library/react'
 import { useRef } from 'react'
 
 import { GLOW_SIZE_PX, useCursorGlow } from './use-cursor-glow'
-import { PARALLAX_MAX_PX, PARALLAX_SCALE, useWallpaperParallax } from './use-wallpaper-parallax'
 
 /**
  * rAF/几何手动驱动测试台（与 boot-motion 同一手法的桌面增强版）：
  * fake timers 接管 rAF（16ms 帧距），rect 用 mock 注入。
  */
-
-function ParallaxHarness({ enabled }: { enabled: boolean }) {
-  const ref = useRef<HTMLImageElement | null>(null)
-  useWallpaperParallax(ref, enabled)
-  return <img ref={ref} data-testid="photo" alt="" />
-}
 
 function GlowHarness({ enabled }: { enabled: boolean }) {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -42,9 +35,6 @@ function mockRect(el: Element, rect: Partial<DOMRect>): void {
   } as DOMRect)
 }
 
-const pointerMove = (x: number, y: number) =>
-  new MouseEvent('pointermove', { clientX: x, clientY: y } as MouseEventInit)
-
 beforeEach(() => {
   vi.useFakeTimers()
 })
@@ -54,71 +44,6 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
-})
-
-describe('useWallpaperParallax（壁纸视差，DESIGN.md §15）', () => {
-  it('lerps the photo toward the pointer with scale masking and translate', () => {
-    const { getByTestId } = render(<ParallaxHarness enabled />)
-    const photo = getByTestId('photo')
-    expect(photo.style.transform).toBe('') // 启用未动：恒等
-
-    window.innerWidth = 1280
-    window.innerHeight = 720
-    act(() => {
-      window.dispatchEvent(pointerMove(1280, 720)) // 归一化 (1,1)
-    })
-    act(() => {
-      vi.advanceTimersByTime(3000) // 足够多帧收敛
-    })
-    // dir=-1：位移朝指针反方向；scale 掩边
-    expect(photo.style.transform).toBe(
-      `translate3d(${(-PARALLAX_MAX_PX).toFixed(2)}px, ${(-PARALLAX_MAX_PX * 0.55).toFixed(2)}px, 0) scale(${PARALLAX_SCALE})`,
-    )
-  })
-
-  it('stops scheduling frames once converged (converge-stop)', () => {
-    render(<ParallaxHarness enabled />)
-    const rafSpy = vi.spyOn(window, 'requestAnimationFrame')
-    act(() => {
-      window.dispatchEvent(pointerMove(1280, 720))
-      vi.advanceTimersByTime(3000) // 收敛
-    })
-    rafSpy.mockClear()
-    act(() => {
-      vi.advanceTimersByTime(200)
-    })
-    expect(rafSpy).not.toHaveBeenCalled()
-  })
-
-  it('converges back to identity after the pointer leaves the viewport', () => {
-    const { getByTestId } = render(<ParallaxHarness enabled />)
-    act(() => {
-      window.dispatchEvent(pointerMove(1280, 720))
-      vi.advanceTimersByTime(3000)
-    })
-    act(() => {
-      document.documentElement.dispatchEvent(new Event('pointerleave'))
-      vi.advanceTimersByTime(3000)
-    })
-    expect(getByTestId('photo').style.transform).toContain('translate3d(0.00px, 0.00px')
-  })
-
-  it('does nothing when disabled or under reduced motion', () => {
-    const { getByTestId, rerender } = render(<ParallaxHarness enabled={false} />)
-    act(() => {
-      window.dispatchEvent(pointerMove(1280, 720))
-      vi.advanceTimersByTime(500)
-    })
-    expect(getByTestId('photo').style.transform).toBe('')
-
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }))
-    rerender(<ParallaxHarness enabled />)
-    act(() => {
-      window.dispatchEvent(pointerMove(1280, 720))
-      vi.advanceTimersByTime(500)
-    })
-    expect(getByTestId('photo').style.transform).toBe('')
-  })
 })
 
 describe('useCursorGlow（指针光晕，DESIGN.md §15）', () => {

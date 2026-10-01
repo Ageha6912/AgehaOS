@@ -3,8 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 import { systemBus } from '@/core/events'
 import type { WallpaperPlan } from '@/core/dynamic/types'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
-import { useMotionPrefsStore } from '@/store/motion-prefs-store'
-import { useWallpaperParallax } from '@/desktop/motion/use-wallpaper-parallax'
 import { cssGradient, drawPlan } from './render'
 
 /**
@@ -17,6 +15,7 @@ import { cssGradient, drawPlan } from './render'
  * 过渡中再次触发生成时，直接替换上层目标并从当前不透明度继续过渡（不回
  * 弹、不排队）。prefers-reduced-motion 时 150ms；canvas 不可用时回落 CSS
  * 渐变（能力探测，PRD §31）。
+ * 壁纸指针视差已随 2026-10-01 用户裁决移除（§15 视差项退役，壁纸静止）。
  */
 
 const FADE_MS_NORMAL = 600
@@ -80,7 +79,7 @@ export function WallpaperLayer() {
   // 场层双重门控：计划存在 且 动态桌面开启——开关关闭立即回落照片基底。
   return (
     <div className="absolute inset-0" data-testid="wallpaper-layer">
-      <PhotoSurface covered={enabled && (front !== null || back !== null)} />
+      <PhotoSurface />
       {enabled && front && <WallpaperSurface plan={front} tier={tier} active={back === null} />}
       {enabled && back && (
         <div
@@ -100,17 +99,12 @@ export function WallpaperLayer() {
 }
 
 /**
- * 照片基底（§32）：单层位图 + 指针视差（§15 单层照片档）。场层覆盖期间
- * 停用视差（不可见层零 rAF 成本）；图片加载失败时静默透出画布渐变。
+ * 照片基底（§32）：单层位图，静止（指针视差已移除）。图片加载失败时
+ * 静默透出画布渐变。
  */
-function PhotoSurface({ covered }: { covered: boolean }) {
-  const photoRef = useRef<HTMLDivElement | null>(null)
-  const parallax = useMotionPrefsStore((s) => s.parallax)
-  useWallpaperParallax(photoRef, parallax && !covered)
-
+function PhotoSurface() {
   return (
     <div
-      ref={photoRef}
       aria-hidden="true"
       data-testid="wallpaper-surface-photo"
       className="absolute inset-0 bg-cover bg-top"
@@ -129,10 +123,6 @@ function WallpaperSurface({
   active: boolean
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const parallax = useMotionPrefsStore((s) => s.parallax)
-  // 照片位图单层视差（DESIGN.md §15）：仅照片计划启用；非激活层（交叉淡入
-  // 的下层）不参与，避免双层错位。
-  useWallpaperParallax(canvasRef, parallax && active)
   const [supportsCanvas] = useState(() => {
     try {
       return typeof document !== 'undefined' && document.createElement('canvas').getContext('2d') !== null

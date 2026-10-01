@@ -252,8 +252,8 @@ export const dictionaries = {
     'wallpaper.field.wineNight': '酒红夜',
     'wallpaper.field.graphite': '石墨',
     'wallpaper.field.copperNight': '铜夜',
-    'settings.motionParallax': '壁纸指针视差',
-    'settings.motionParallaxHint': '桌面壁纸随指针轻微移动，营造景深',
+    
+    
     'settings.motionGlow': '指针跟随光晕',
     'settings.motionGlowHint': '桌面空白处显示柔和的主题色光斑（常驻开销，默认关）',
     'theme.light': '浅色',
@@ -663,8 +663,6 @@ export const dictionaries = {
     'wallpaper.field.wineNight': 'Wine Night',
     'wallpaper.field.graphite': 'Graphite',
     'wallpaper.field.copperNight': 'Copper Night',
-    'settings.motionParallax': 'Wallpaper pointer parallax',
-    'settings.motionParallaxHint': 'The wallpaper drifts gently against the pointer for depth',
     'settings.motionGlow': 'Pointer glow',
     'settings.motionGlowHint': 'A soft accent glow follows the pointer on empty desktop (always-on cost, off by default)',
     'theme.light': 'Light',

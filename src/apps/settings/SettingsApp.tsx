@@ -144,9 +144,7 @@ function AppearanceSection() {
   const fontSize = useSettingsStore((s) => s.fontSize)
   const setTheme = useSettingsStore((s) => s.setTheme)
   const setFontSize = useSettingsStore((s) => s.setFontSize)
-  const parallax = useMotionPrefsStore((s) => s.parallax)
   const glow = useMotionPrefsStore((s) => s.glow)
-  const setParallax = useMotionPrefsStore((s) => s.setParallax)
   const setGlow = useMotionPrefsStore((s) => s.setGlow)
 
   return (
@@ -170,18 +168,6 @@ function AppearanceSection() {
         currentValue={fontSize}
         onSelect={(value) => setFontSize(value as FontSize)}
       />
-      <div className="flex items-center justify-between gap-3 py-2">
-        <span className="min-w-0">
-          <span className="block text-sm text-text">{t('settings.motionParallax')}</span>
-          <span className="mt-0.5 block text-xs text-text-muted">{t('settings.motionParallaxHint')}</span>
-        </span>
-        <ToggleSwitch
-          checked={parallax}
-          label={t('settings.motionParallax')}
-          testId="motion-parallax-toggle"
-          onClick={() => setParallax(!parallax)}
-        />
-      </div>
       <div className="flex items-center justify-between gap-3 py-2">
         <span className="min-w-0">
           <span className="block text-sm text-text">{t('settings.motionGlow')}</span>

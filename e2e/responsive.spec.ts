@@ -34,14 +34,18 @@ test('responsive: 375px viewport stays usable without horizontal overflow (§25)
   expect(bar!.x + bar!.width).toBeLessThanOrEqual(375.5)
 
   // ③ 自动打开的动态面板不超视口（launch 钳制 §25）。
-  // 坑（§30）：waitFor 可见 ≠ 开窗动画完成——弹性长出中 boundingBox 是
-  // 瞬时值，等几何落定（x 回到非负）再读数。
+  // 坑（§30/§32）：waitFor 可见 ≠ 开窗动画完成，且弹性飞行可能重放——
+  // 等「内联位姿已清除（落定）+ x≥0」再读数。
   const panel = page.getByRole('region', { name: '动态面板' })
   await expect(panel).toBeVisible()
   await page.waitForFunction(
-    () => (document.querySelector('[aria-label="动态面板"]')?.getBoundingClientRect().x ?? -1) >= 0,
+    () => {
+      const region = document.querySelector('[aria-label="动态面板"]')
+      const frame = region?.parentElement?.parentElement as HTMLElement | null
+      return !!frame && frame.style.transform === '' && frame.getBoundingClientRect().x >= 0
+    },
     undefined,
-    { timeout: 5000 },
+    { timeout: 10_000 },
   )
   const panelBox = await panel.boundingBox()
   expect(panelBox!.x).toBeGreaterThanOrEqual(0)
