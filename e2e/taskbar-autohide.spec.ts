@@ -70,15 +70,16 @@ test('taskbar 悬停预览：锚定图标上方、不偏移到屏幕右缘', asy
   expect(await preview.evaluate((el) => el.parentElement === document.body)).toBe(true)
   expect(await preview.evaluate((el) => el.closest('footer'))).toBeNull()
 
-  // 几何契约：横向覆盖图标中心、纵向悬在图标上方、完整在视口内。
+  // 几何契约：横向以图标中心居中（2026-10-01 用户裁决：左缘对齐会视觉
+  // 偏右）、纵向悬在图标上方、完整在视口内。
   const icon = await pin.boundingBox()
   const box = await preview.boundingBox()
   expect(icon).not.toBeNull()
   expect(box).not.toBeNull()
   const vw = page.viewportSize()?.width ?? 0
   const iconCenterX = icon!.x + icon!.width / 2
-  expect(box!.x).toBeLessThanOrEqual(iconCenterX)
-  expect(box!.x + box!.width).toBeGreaterThanOrEqual(iconCenterX)
+  const previewCenterX = box!.x + box!.width / 2
+  expect(Math.abs(previewCenterX - iconCenterX)).toBeLessThanOrEqual(2)
   expect(box!.y + box!.height).toBeLessThanOrEqual(icon!.y + 2)
   expect(box!.x).toBeGreaterThanOrEqual(0)
   expect(box!.x + box!.width).toBeLessThanOrEqual(vw)

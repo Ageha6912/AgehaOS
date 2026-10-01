@@ -6,17 +6,21 @@ import { AppIcon } from '@/apps/app-icon'
 import { useTranslation } from '@/core/i18n'
 import type { WindowInstance } from '@/core/window/types'
 
+/** 预览宽度（w-64）与 Dock 图标边长（h-12/w-12）：横向居中锚定用。 */
+const PREVIEW_WIDTH = 256
+const DOCK_ICON_SIZE = 48
+
 /**
  * Dock 悬停预览（Windows 风格）：标题栏（图标 + 标题 + 关闭）+ 预览体。
  * 点击预览体切换到该窗口（最小化则还原）；关闭按钮直接关窗。
  *
  * 定位用 createPortal 至 body + fixed：玻璃 Dock 胶囊带 backdrop-filter，
- * 会成为 fixed 后代的包含块（坑 13 变体），anchorLeft（视口坐标）会被
- * 加上胶囊左缘偏移，把预览推到屏幕右缘（2026-10-01 用户报告）。传送出
- * 胶囊后包含块回归视口，bottom 以 --ag-dock-height 显式悬在 Dock 上方
- * （≈旧 footer-CB 下 bottom-full + mb-2 的几何），left 由调用方按图标
- * 位置钳制后传入。预览体是风格化示意（应用图标水印 + 窗口状态）——DOM
- * 无法廉价地同屏二次呈现活动窗口内容，真实缩略截图属后续增强。
+ * 会成为 fixed 后代的包含块（坑 13 变体），把预览推到屏幕右缘（2026-10-01
+ * 用户报告）。传送出胶囊后包含块回归视口，bottom 以 --ag-dock-height 显式
+ * 悬在 Dock 上方；left 以图标中心为锚居中（2026-10-01 用户裁决「预览要在
+ * 图标正上方」——左缘对齐会视觉偏右），出屏时钳到视口内。预览体是风格化
+ * 示意（应用图标水印 + 窗口状态）——DOM 无法廉价地同屏二次呈现活动窗口
+ * 内容，真实缩略截图属后续增强。
  */
 export function WindowPreview({
   win,
@@ -32,7 +36,13 @@ export function WindowPreview({
 }) {
   const { t } = useTranslation()
   const minimized = win.state === 'minimized'
-  const left = Math.max(8, Math.min(anchorLeft, window.innerWidth - 272))
+  const left = Math.max(
+    8,
+    Math.min(
+      anchorLeft + DOCK_ICON_SIZE / 2 - PREVIEW_WIDTH / 2,
+      window.innerWidth - PREVIEW_WIDTH - 16,
+    ),
+  )
 
   return createPortal(
     <div
