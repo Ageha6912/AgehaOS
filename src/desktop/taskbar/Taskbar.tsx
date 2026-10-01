@@ -98,7 +98,10 @@ export function Taskbar() {
           <AppLauncher />
           <div aria-hidden="true" className="h-8 w-px shrink-0 bg-border" />
 
-          {/* 常驻瓷贴（§32 参考图 Dock 位；单实例激活语义 + 悬停预览同契约）。 */}
+          {/* 常驻瓷贴（§32 参考图 Dock 位；单实例激活语义 + 悬停预览同契约）。
+              按钮不画 hover/active 底色（2026-10-01 用户裁决：44px 图标坐在
+              48px 按钮里，浅底在玻璃胶囊上显成图标四周的白边）——悬停反馈
+              走悬停预览，激活态只剩指示点。 */}
           <div className="flex items-center gap-1 self-stretch">
             {PINNED_APP_IDS.map((appId) => {
               const appWindows = windows.filter((win) => win.appId === appId)
@@ -123,9 +126,7 @@ export function Taskbar() {
                     data-testid={`dock-pin-${appId}`}
                     aria-label={pinnedLabel(appId)}
                     title={pinnedLabel(appId)}
-                    className={`relative flex h-12 w-12 items-center justify-center rounded-xl ${
-                      active ? 'bg-surface-raised' : 'hover:bg-surface-raised'
-                    }`}
+                    className="relative flex h-12 w-12 items-center justify-center rounded-xl"
                     onClick={() => activatePinned(appId)}
                   >
                     <span aria-hidden="true" className="flex">
@@ -184,10 +185,10 @@ export function Taskbar() {
                     data-testid={`taskbar-item-${win.id}`}
                     className={`relative flex h-12 w-12 items-center justify-center rounded-xl text-sm ${
                       active
-                        ? 'bg-surface-raised text-text'
+                        ? 'text-text'
                         : win.state === 'minimized'
-                          ? 'text-text-muted/70 hover:bg-surface-raised hover:text-text'
-                          : 'text-text-muted hover:bg-surface-raised hover:text-text'
+                          ? 'text-text-muted/70 hover:text-text'
+                          : 'text-text-muted hover:text-text'
                     }`}
                     onClick={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
                   >
@@ -225,7 +226,7 @@ export function Taskbar() {
             data-testid="dock-trash"
             aria-label={t('dock.trash')}
             title={t('dock.trashHint')}
-            className="flex h-12 w-12 items-center justify-center rounded-xl hover:bg-surface-raised"
+            className="flex h-12 w-12 items-center justify-center rounded-xl"
             onClick={() => {
               requestFilesTrash()
               launchApp('com.ageha.files')

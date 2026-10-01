@@ -83,4 +83,9 @@ test('taskbar 悬停预览：锚定图标上方、不偏移到屏幕右缘', asy
   expect(box!.y + box!.height).toBeLessThanOrEqual(icon!.y + 2)
   expect(box!.x).toBeGreaterThanOrEqual(0)
   expect(box!.x + box!.width).toBeLessThanOrEqual(vw)
+
+  // 瓷贴按钮不画底色（2026-10-01 用户裁决：44px 图标坐在 48px 按钮里，
+  // hover/active 浅底在玻璃胶囊上显成图标四周的白边）——悬停时背景仍透明。
+  const hoverBg = await pin.evaluate((el) => getComputedStyle(el).backgroundColor)
+  expect(hoverBg).toBe('rgba(0, 0, 0, 0)')
 })

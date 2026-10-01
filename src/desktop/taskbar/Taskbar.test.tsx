@@ -263,6 +263,14 @@ describe('Taskbar', () => {
     expect(screen.getByTestId('dock-pin-com.ageha.files')).toBeInTheDocument()
     expect(screen.getByTestId('dock-pin-com.ageha.terminal')).toBeInTheDocument()
 
+    // 瓷贴按钮不画 hover/active 底色（2026-10-01 用户裁决：浅底在 44px
+    // 图标 + 48px 按钮的组合下显成图标四周的白边）。
+    for (const id of ['files', 'terminal', 'settings']) {
+      const pin = screen.getByTestId(`dock-pin-com.ageha.${id}`)
+      expect(pin.className).not.toContain('bg-surface-raised')
+    }
+    expect(screen.getByTestId('dock-trash').className).not.toContain('bg-surface-raised')
+
     // 单实例激活：点击瓷贴启动，再点聚焦窗口最小化，再点还原。
     fireEvent.click(screen.getByTestId('dock-pin-com.ageha.files'))
     const filesWindow = useWindowStore.getState().windows.find((w) => w.appId === 'com.ageha.files')

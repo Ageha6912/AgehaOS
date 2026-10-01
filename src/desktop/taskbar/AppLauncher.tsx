@@ -214,7 +214,7 @@ export function AppLauncher() {
         aria-expanded={open}
         aria-label={t('taskbar.start')}
         title={t('taskbar.start')}
-        className="flex h-12 w-12 items-center justify-center rounded-xl hover:bg-surface-raised"
+        className="flex h-12 w-12 items-center justify-center rounded-xl"
         onClick={() => setOpen((value) => !value)}
       >
         {/* 启动器瓷贴（§32 参考图 Launchpad 位）：浅底四宫格。 */}
