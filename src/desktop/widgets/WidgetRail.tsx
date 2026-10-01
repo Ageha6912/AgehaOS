@@ -40,7 +40,7 @@ export function WidgetRail() {
 }
 
 const CARD_CLASS =
-  'widget-card surface-glass pointer-events-auto rounded-2xl border border-border-subtle p-3.5 shadow-popover'
+  'widget-card surface-glass pointer-events-auto rounded-2xl border border-border-subtle p-4 shadow-popover'
 
 function ClockCard() {
   const locale = useLocaleStore((s) => s.locale)
@@ -67,7 +67,7 @@ function ClockCard() {
             aria-expanded={calendarOpen}
             data-testid="widgets-clock-calendar-toggle"
             title={calendarOpen ? t('widgets.clock.collapseCalendar') : t('widgets.clock.expandCalendar')}
-            className="mt-2 flex items-center gap-1 text-xs text-text-muted hover:text-text"
+            className="mt-2.5 flex items-center gap-1 text-xs text-text-muted hover:text-text"
             onClick={() => setCalendarOpen((value) => !value)}
           >
             {date}
@@ -79,7 +79,7 @@ function ClockCard() {
           </button>
           {/* 天气行：参考图版式的示例数据（无实时天气源，title 标注）。 */}
           <div
-            className="mt-2.5 flex items-center gap-1.5 text-text"
+            className="mt-3.5 flex items-center gap-1.5 text-text"
             title={t('widgets.weather.sampleHint')}
           >
             <CloudSun size={20} weight="fill" className="text-warning" aria-hidden="true" />
@@ -93,7 +93,7 @@ function ClockCard() {
           src="/wallpapers/ageha-clock-thumb.jpg?v=5"
           alt=""
           data-testid="widgets-clock-thumb"
-          className="h-[88px] w-[88px] shrink-0 rounded-xl object-cover shadow-soft"
+          className="h-[96px] w-[96px] shrink-0 rounded-xl object-cover shadow-soft"
         />
       </div>
       {calendarOpen && <MiniCalendar now={now} />}
@@ -228,12 +228,12 @@ function SystemCard() {
   return (
     <section className={CARD_CLASS} data-testid="widgets-system">
       <p className="text-[13px] font-semibold text-text">{t('widgets.system')}</p>
-      <div className="mt-2 grid grid-cols-3 gap-1.5">
+      <div className="mt-2.5 grid grid-cols-3 gap-1.5">
         {cells.map(({ key, label, icon: Icon, value }) => (
           <div
             key={key}
             data-testid={`widgets-system-${key}`}
-            className="rounded-xl bg-surface-soft px-1.5 py-2 text-center"
+            className="rounded-xl bg-surface-soft px-1.5 py-2.5 text-center"
           >
             <p className="flex items-center justify-center gap-1 text-[11px] text-text-muted">
               <Icon size={11} weight="fill" aria-hidden="true" />
@@ -285,7 +285,7 @@ function NotificationsCard() {
       {recent.length === 0 ? (
         <p className="mt-2 text-[11px] text-text-tertiary">{t('notification.empty')}</p>
       ) : (
-        <ul className="mt-2 space-y-2">
+        <ul className="mt-2.5 space-y-2.5">
           {recent.map((item) => (
             <li key={item.id} className="flex items-start gap-2">
               <AppIcon appId={item.appId} size={28} />

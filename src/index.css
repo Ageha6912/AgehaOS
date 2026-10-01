@@ -111,8 +111,8 @@
   --ag-widget-blur: 12px;
   --ag-widget-tint: linear-gradient(
     165deg,
-    rgb(150 170 220 / 3%) 0%,
-    rgb(80 100 150 / 6%) 100%
+    rgb(255 255 255 / 60%) 0%,
+    rgb(236 243 255 / 46%) 100%
   );
 
 
@@ -460,6 +460,14 @@ body {
 .widget-card {
   background: var(--ag-widget-tint);
   backdrop-filter: blur(var(--ag-widget-blur)) saturate(140%);
+  /* 白玻璃配深墨字（参考图组件为白纱+墨字）：在 chrome 白字作用域内
+     重映射文字/表面 Token；去白字投影（深字不需要）。 */
+  --ag-text: #1c2740;
+  --ag-text-muted: #4a5a75;
+  --ag-text-tertiary: #74839e;
+  --ag-surface-soft: rgb(228 238 252 / 60%);
+  --ag-border-subtle: rgb(120 145 200 / 35%);
+  text-shadow: none;
 }
 
 

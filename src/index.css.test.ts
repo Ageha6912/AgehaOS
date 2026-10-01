@@ -119,6 +119,9 @@ describe('index.css token contract (Token 2.0)', () => {
     const widget = css.slice(css.lastIndexOf('.widget-card'), css.lastIndexOf('.widget-card') + 400)
     expect(widget).toMatch(/backdrop-filter:\s*blur\(var\(--ag-widget-blur\)\)/)
     expect(widget).toMatch(/background:\s*var\(--ag-widget-tint\)/)
+    // 白玻璃配深墨字（chrome 白字作用域内重映射，参考图组件样式）。
+    expect(widget).toMatch(/--ag-text:\s*#1c2740/)
+    expect(widget).toMatch(/text-shadow:\s*none/)
     expect(css).toMatch(/prefers-reduced-transparency[\s\S]{0,400}\.widget-card\s*\{[^}]*#2c3a63/)
   })
 
