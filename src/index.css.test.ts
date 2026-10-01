@@ -111,9 +111,9 @@ describe('index.css token contract (Token 2.0)', () => {
   })
 
   it('defines the widget Acrylic knobs (sec 32, 用户可调模糊/遮罩)', () => {
-    // 模糊半径（2026-10-01 用户裁决四轮调淡后 20px）+ 淡蓝纱遮罩（
+    // 模糊半径（2026-10-01 用户裁决五轮调淡后 12px）+ 淡蓝纱遮罩（
     // 白字配深遮罩）；.widget-card 消费双旋钮，降透明回落实色。
-    expect(root).toMatch(/--ag-widget-blur:\s*20px/)
+    expect(root).toMatch(/--ag-widget-blur:\s*12px/)
     expect(root).toMatch(/--ag-widget-tint:\s*linear-gradient\(/)
     // 主规则是文件中最后一个 .widget-card（前面是降透明/@supports 兜底块）。
     const widget = css.slice(css.lastIndexOf('.widget-card'), css.lastIndexOf('.widget-card') + 400)
