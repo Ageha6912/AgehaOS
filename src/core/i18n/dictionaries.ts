@@ -76,7 +76,6 @@ export const dictionaries = {
     'search.empty': '无匹配结果',
     'search.hint': '↑↓ 选择 · Enter 打开 · Esc 关闭 · Ctrl+K 呼出',
 
-    'desktop.iconsLabel': '桌面应用',
 
     'taskbar.start': '开始',
     'launcher.searchPlaceholder': '搜索应用…',
@@ -453,7 +452,6 @@ export const dictionaries = {
     'search.empty': 'No results',
     'search.hint': '↑↓ navigate · Enter opens · Esc closes · Ctrl+K toggles',
 
-    'desktop.iconsLabel': 'Desktop apps',
 
     'taskbar.start': 'Start',
     'launcher.searchPlaceholder': 'Search apps…',

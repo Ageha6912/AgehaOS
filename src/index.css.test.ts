@@ -96,17 +96,6 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(root).toMatch(/--ag-rail-right-width:\s*232px/)
   })
 
-  it('themes the desktop icon labels (wallpaper-over labels flip with theme)', () => {
-    expect(has(root, 'ag-desktop-label')).toBe(true)
-    expect(has(dark, 'ag-desktop-label')).toBe(true)
-    expect(has(root, 'ag-desktop-label-shadow')).toBe(true)
-    expect(has(dark, 'ag-desktop-label-shadow')).toBe(true)
-    expect(has(root, 'ag-desktop-icon-hover')).toBe(true)
-    expect(has(dark, 'ag-desktop-icon-hover')).toBe(true)
-    expect(css).toContain('.desktop-icon-label')
-    expect(css).toContain('.desktop-icon-button:hover')
-  })
-
   it('defines the unified popover-panel material (sec 24)', () => {
     expect(css).toContain('.popover-panel')
     expect(css).toMatch(/\.popover-panel\s*\{[\s\S]*?--ag-radius-lg/)

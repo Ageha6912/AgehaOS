@@ -10,7 +10,6 @@ import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
 import { NotificationToasts } from '@/desktop/NotificationToasts'
 import { SearchPalette } from '@/desktop/search/SearchPalette'
 import { ContextMenu, type ContextMenuPosition } from '@/desktop/ContextMenu'
-import { DesktopIcons } from '@/desktop/DesktopIcons'
 import { openRandomGame } from '@/desktop/game-rotation'
 import { WidgetRail } from '@/desktop/widgets/WidgetRail'
 import {
@@ -96,7 +95,6 @@ export function Desktop() {
         data-testid="cursor-glow-orb"
         className="os-cursor-glow pointer-events-none absolute left-0 top-0 z-[5] opacity-0"
       />
-      <DesktopIcons />
       <WindowLayer />
       <NotificationToasts />
       {/* 轨道栏（§26/§27）先于顶栏/Dock 渲染：同为 z-40 chrome，DOM 序靠前者

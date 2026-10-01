@@ -92,12 +92,6 @@
   --ag-dock-item-pitch: 48px; /* 波浪 σ44 的几何前提，勿动 */
   --ag-dock-icon: 22px;
 
-  /* ---- Desktop icon labels（壁纸之上，随主题翻色的唯一样式）---- */
-  --ag-desktop-label: #1c2a45;
-  --ag-desktop-label-shadow: drop-shadow(0 1px 1px rgb(255 255 255 / 60%));
-  /* 图标格悬停纱（壁纸之上，明暗同用白纱极轻一档） */
-  --ag-desktop-icon-hover: rgb(255 255 255 / 12%);
-
   /* ---- Desktop atmosphere（极轻氛围层：顶部环境光 + 暗角，静态零动画）---- */
   --ag-atmosphere-ambient: linear-gradient(
     180deg,
@@ -195,11 +189,6 @@
   /* ---- Scrim ---- */
   --ag-scrim: rgb(2 6 16 / 48%);
   --ag-scrim-strong: rgb(2 6 16 / 60%);
-
-  /* ---- Desktop icon labels ---- */
-  --ag-desktop-label: #f4f7fd;
-  --ag-desktop-label-shadow: drop-shadow(0 1px 2px rgb(9 16 32 / 85%));
-  --ag-desktop-icon-hover: rgb(255 255 255 / 10%);
 
   /* ---- Desktop atmosphere（暗色基线：冷墨暗角更沉一档，顶光偏靛）---- */
   --ag-atmosphere-ambient: linear-gradient(
@@ -481,34 +470,6 @@ body {
     transform: scale(1);
     opacity: 0;
   }
-}
-
-/* 桌面图标错峰入场（enhance-basic stagger-enter）：一次性上浮淡入，
-   错峰间隔由每图标的 --stagger-delay 注入；播完停在自然态。 */
-@keyframes os-stagger-in {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.os-stagger-item {
-  animation: os-stagger-in 250ms var(--ag-motion-ease) both;
-}
-
-/* 桌面图标标签：直接落在壁纸上，颜色/投影随主题（Token 2.0 收编原
-   text-white + 硬编码投影——浅色池壁纸近白，白字不可读，实测 3.3:1）。 */
-.desktop-icon-label {
-  color: var(--ag-desktop-label);
-  filter: var(--ag-desktop-label-shadow);
-}
-
-/* 图标格悬停（§10）：极轻白纱（原 hover:bg-white/10 收编为 Token）。 */
-.desktop-icon-button:hover {
-  background-color: var(--ag-desktop-icon-hover);
 }
 
 /*

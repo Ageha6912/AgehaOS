@@ -13,7 +13,8 @@ test('desktop context menu: open at pointer, clamp to viewport, run actions', as
   await page.getByLabel('用户名').fill('ctxmenu2e')
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
-  await page.getByTestId('desktop-icon-com.ageha.files').waitFor()
+  // 桌面图标层已移除（2026-10-01）：以侧栏就绪为桌面就绪信号。
+  await page.getByTestId('sidebar-files').waitFor()
 
   // 右键工作区右下角空白：P2-3 起右侧小组件栏占 1008-1280、动态面板占
   // 624-984×24-544——(990, 700) 是右缘附近稳定空白；菜单底边须收进视口。

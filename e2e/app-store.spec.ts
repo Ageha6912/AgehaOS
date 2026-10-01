@@ -46,8 +46,13 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
 
   await expect(store.getByText('已安装').first()).toBeVisible()
 
-  // 安装的应用同步出现在桌面上（徽章图标 + 名称）。
-  await expect(page.getByTestId('desktop-icon-com.ageha.samples.clock')).toBeVisible()
+  // 桌面图标层已移除（2026-10-01）：安装的应用改在启动器网格现身。
+  await revealTaskbar(page)
+  await taskbarStartButton(page).click()
+  await expect(
+    page.getByRole('list', { name: /开始/ }).getByRole('button', { name: '时钟' }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
 
   // 从商店直接启动：出现沙箱 iframe（allow-scripts、同源站点）。
   await store.getByRole('button', { name: '打开' }).click()

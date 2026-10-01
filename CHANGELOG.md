@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 桌面图标层移除（2026-10-01 用户裁决，DESIGN.md §29）
+
+- 桌面不再摆放图标（权威图布局）：左系统导航栏 + Dock + 启动器承接全部应用入口，桌面回归纯壁纸空间
+- 清除范围：DesktopIcons 组件/测试、desktop-icons E2E spec、--ag-desktop-* Token 与 .desktop-icon-* 类、os-stagger 入场动效（唯一消费者）、desktop.iconsLabel i18n 键；app-store E2E「安装上桌面」断言改为「安装上启动器网格」；context-menu spec 就绪信号改侧栏
+- 测试：前端 99 文件全绿 + 80 后端；E2E 16/16（17 减 1 删除 spec）；visual-judge 1/1（零残留、构图平衡、无回归）
+
 ### 密度收紧档 + 移除点击涟漪（2026-10-01 用户裁决「组件太臃肿」，DESIGN.md §28）
 
 - **移除点击涟漪**：`use-click-ripple` hook、`.os-ripple`/keyframes、motion-engines 涟漪用例全清（§15 记裁决）
