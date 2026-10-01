@@ -213,6 +213,47 @@ describe('Taskbar', () => {
     expect(pill.classList.contains('pointer-events-auto')).toBe(true)
   })
 
+  it('scales the dock up to the Round 2 reference prominence (§31)', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<Taskbar />)
+
+    // 胶囊 64px；运行项按钮 48×48（节距 52 = w-12 + gap-1，σ44 波浪前提）、图标 40。
+    const pill = (screen.getByRole('contentinfo') as HTMLElement).firstElementChild as HTMLElement
+    expect(pill.className).toContain('h-16')
+    const button = screen.getByTestId(
+      `taskbar-item-${useWindowStore.getState().windows[0]!.id}`,
+    )
+    expect(button.className).toContain('h-12')
+    expect(button.className).toContain('w-12')
+    const icon = button.querySelector('[data-wave-icon] span') as HTMLElement
+    expect(icon.style.width).toBe('40px')
+    expect(icon.style.height).toBe('40px')
+  })
+
+  it('opens the launcher as a centered wide panel above the dock (§31/§17)', () => {
+    render(<Taskbar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+    const search = screen.getByTestId('launcher-search')
+    const menu = search.closest('menu') as HTMLElement
+    // 水平居中（Spotlight 式），锚在 Dock 上方，宽 36rem、6 列网格。
+    expect(menu.className).toContain('left-1/2')
+    expect(menu.className).toContain('-translate-x-1/2')
+    expect(menu.className).toContain('bottom-[calc(var(--ag-dock-height)+1.5rem)]')
+    expect(menu.querySelector('ul.grid')?.className).toContain('grid-cols-6')
+  })
+
+  it('closes the launcher on Escape (§24 popover contract)', () => {
+    render(<Taskbar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+    expect(screen.getByTestId('launcher-search')).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByTestId('launcher-search'), { key: 'Escape' })
+    // 无 WAAPI 运行时退场即时卸载（jsdom）。
+    expect(screen.queryByTestId('launcher-search')).not.toBeInTheDocument()
+  })
+
   it('hides again after the pointer leaves, and re-entering cancels the hide', async () => {
     const { act } = await import('@testing-library/react')
     render(<Taskbar />)

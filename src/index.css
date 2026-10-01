@@ -88,9 +88,10 @@
   --ag-rail-left-width: 80px;
   /* 右侧小组件栏（§27）：<1280px 隐藏（与 WidgetRail hidden xl:flex 同步）。 */
   --ag-rail-right-width: 232px;
-  --ag-dock-height: 60px;
-  --ag-dock-item-pitch: 48px; /* 波浪 σ44 的几何前提，勿动 */
-  --ag-dock-icon: 22px;
+  --ag-dock-height: 68px;
+  /* 节距 52（w-12 + gap-1）：波浪 σ44 前提 σ ≤ 1.2×节距仍成立（§31 Round 2）。 */
+  --ag-dock-item-pitch: 52px;
+  --ag-dock-icon: 40px;
 
   /* ---- Desktop atmosphere（极轻氛围层：顶部环境光 + 暗角，静态零动画）---- */
   --ag-atmosphere-ambient: linear-gradient(

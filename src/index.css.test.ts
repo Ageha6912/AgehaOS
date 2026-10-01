@@ -94,6 +94,10 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(root).toMatch(/--ag-rail-left-width:\s*80px/)
     // 右侧小组件栏宽度与 RAIL_RIGHT_WIDTH_PX 常量互指（§27）。
     expect(root).toMatch(/--ag-rail-right-width:\s*232px/)
+    // §31 Round 2：Dock 提升存在感（footer 68 / 节距 52 / 图标 40）。
+    expect(root).toMatch(/--ag-dock-height:\s*68px/)
+    expect(root).toMatch(/--ag-dock-item-pitch:\s*52px/)
+    expect(root).toMatch(/--ag-dock-icon:\s*40px/)
   })
 
   it('defines the unified popover-panel material (sec 24)', () => {

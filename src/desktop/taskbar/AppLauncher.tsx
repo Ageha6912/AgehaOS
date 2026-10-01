@@ -17,11 +17,11 @@ import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 
 const PROTECTED_IDS = new Set(LAYOUT_PROTECTED_APP_IDS)
 
-/** 采纳的布局档位 → 启动器宽度（§5.4 三档，离散不重叠；§22 视觉升级调宽）。 */
+/** 采纳的布局档位 → 启动器宽度（§5.4 三档，离散不重叠；§31 Round 2 对齐参考图 560-680px 档）。 */
 const TIER_WIDTH_CLASS: Record<string, string> = {
-  single: 'w-[24rem]',
-  double: 'w-[30rem]',
-  grid: 'w-[34rem]',
+  single: 'w-[36rem]',
+  double: 'w-[40rem]',
+  grid: 'w-[42.5rem]',
 }
 
 export function AppLauncher() {
@@ -29,6 +29,13 @@ export function AppLauncher() {
   const [query, setQuery] = useState('')
   const menuPhase = useExitPhase(open)
   const { t } = useTranslation()
+
+  // 弹层契约（§24）：Esc 关闭并回焦触发器（启动器此前缺这条——旧锚定在左下
+  // 角掩盖了它；居中后遮住窗口内容，Esc 必须真正生效）。
+  const closeMenu = (): void => {
+    setOpen(false)
+    setQuery('')
+  }
   const apps = useAppStore((s) => s.apps)
   const appliedLayout = useDynamicDesktopStore((s) => s.appliedLayout)
   const resetAppliedLayout = useDynamicDesktopStore((s) => s.resetAppliedLayout)
@@ -41,8 +48,7 @@ export function AppLauncher() {
 
   const launch = (appId: string) => {
     launchApp(appId)
-    setOpen(false)
-    setQuery('')
+    closeMenu()
   }
 
   // 本地过滤（§22）：按本地化名称匹配；清空输入即恢复全部。
@@ -88,7 +94,15 @@ export function AppLauncher() {
   )
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      onKeyDown={(event) => {
+        // 弹层契约（§24）：Esc 关闭并清空搜索。挂 wrapper 上——通过触发器打开时
+        // 焦点在按钮（menu 不是它的祖先），浏览菜单时焦点在菜单内，两者都会
+        // 冒泡到这里。
+        if (event.key === 'Escape') closeMenu()
+      }}
+    >
       <button
         type="button"
         aria-haspopup="menu"
@@ -103,7 +117,7 @@ export function AppLauncher() {
       {menuPhase.render && !layout && (
         <menu
           aria-label={t('taskbar.start')}
-          className={`popover-panel surface-glass fixed bottom-[calc(100%_+_0.75rem)] left-2 z-50 w-[24rem] max-w-[calc(100vw-1.5rem)] p-2.5 ${popoverMotionClass(menuPhase.exiting)}`}
+          className={`popover-panel surface-glass fixed bottom-[calc(var(--ag-dock-height)+1.5rem)] left-1/2 z-50 w-[36rem] max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-var(--ag-dock-height)-3rem)] -translate-x-1/2 overflow-y-auto scroll-thin p-3 ${popoverMotionClass(menuPhase.exiting)}`}
         >
           {searchBox}
           {flatApps.length === 0 ? (
@@ -129,8 +143,9 @@ export function AppLauncher() {
                 </li>
               )}
               <li>
-                {/* 图标优先的紧凑网格（§22）：AppIcon 明显、文字精简。 */}
-                <ul className="grid grid-cols-4 gap-1">
+                {/* 图标优先的紧凑网格（§22）：AppIcon 明显、文字精简；
+                    Round 2（§31）6 列对齐参考图启动器密度。 */}
+                <ul className="grid grid-cols-6 gap-1">
                   {flatApps.map((app) => (
                     <LauncherTile key={app.id} appId={app.id} onLaunch={launch} />
                   ))}
@@ -145,9 +160,9 @@ export function AppLauncher() {
         <menu
           aria-label={t('taskbar.start')}
           data-testid={`launcher-layout-${layout.tier}`}
-          className={`popover-panel surface-glass fixed bottom-[calc(100%_+_0.75rem)] left-2 z-50 ${
-            TIER_WIDTH_CLASS[layout.tier] ?? 'w-[24rem]'
-          } max-w-[calc(100vw-1.5rem)] p-2.5 ${popoverMotionClass(menuPhase.exiting)}`}
+          className={`popover-panel surface-glass fixed bottom-[calc(var(--ag-dock-height)+1.5rem)] left-1/2 z-50 max-h-[calc(100vh-var(--ag-dock-height)-3rem)] -translate-x-1/2 overflow-y-auto scroll-thin p-3 ${
+            TIER_WIDTH_CLASS[layout.tier] ?? 'w-[36rem]'
+          } max-w-[calc(100vw-1.5rem)] ${popoverMotionClass(menuPhase.exiting)}`}
         >
           {searchBox}
           {!hasResults ? (
@@ -197,8 +212,7 @@ export function AppLauncher() {
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text-muted hover:bg-surface-raised hover:text-text"
               onClick={() => {
                 resetAppliedLayout()
-                setOpen(false)
-                setQuery('')
+                closeMenu()
               }}
             >
               {t('dynamic.layout.reset')}
