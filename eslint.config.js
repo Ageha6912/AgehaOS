@@ -12,9 +12,18 @@ export default defineConfig([
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
-      reactHooks.configs.flat['recommended-latest'],
       reactRefresh.configs.vite,
     ],
+    plugins: { 'react-hooks': reactHooks },
+    // 仅启用经典两条核心规则（rules-of-hooks / exhaustive-deps）。不扩展
+    // 7.x 的 recommended / recommended-latest 预设：两者都捆绑了 React
+    // Compiler 静态分析（refs / set-state-in-effect / purity…），会对既有
+    // 的事件回调读 refs 模式（MenuBar 方向键遍历、窗口动效）整批误报，
+    // 且规则集随小版本漂移会突然打破门禁。
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+    },
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.browser,
