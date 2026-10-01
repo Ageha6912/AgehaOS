@@ -24,7 +24,7 @@ const MOUNT_DELAY_MS = 20
 
 /** 出厂照片壁纸（§32 修订）：用户提供的无 UI 原版画作（仅转码，全构图），
  *  路径公开稳定。URL 带版本号：内容更新替换同名文件时防浏览器陈旧缓存。 */
-export const DEFAULT_WALLPAPER_SRC = '/wallpapers/ageha-dreamland.jpg?v=4'
+export const DEFAULT_WALLPAPER_SRC = '/wallpapers/ageha-dreamland.jpg?v=5'
 
 function prefersReducedMotion(): boolean {
   try {

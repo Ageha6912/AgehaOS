@@ -144,7 +144,7 @@ describe('WallpaperLayer gradient-field surfaces (2026-09-27 生成域)', () => 
     const photo = container.querySelector<HTMLElement>('[data-testid="wallpaper-surface-photo"]')
     expect(photo).not.toBeNull()
     // 满屏 cover 单层（新原片不适用缩小方案），居中等比铺满。
-    expect(photo?.style.backgroundImage).toContain('/wallpapers/ageha-dreamland.jpg?v=4')
+    expect(photo?.style.backgroundImage).toContain('/wallpapers/ageha-dreamland.jpg?v=5')
     expect(photo?.className).toContain('bg-cover')
     expect(photo?.className).toContain('inset-0')
   })

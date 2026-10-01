@@ -19,14 +19,14 @@ export function DesktopBranding() {
     <div
       aria-hidden="true"
       data-testid="desktop-branding"
-      className={`desktop-chrome pointer-events-none absolute left-[44%] top-[46%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 transition-opacity duration-300 ease-out [filter:drop-shadow(0_1px_3px_rgba(21,48,112,0.6))_drop-shadow(0_4px_18px_rgba(21,48,112,0.35))] ${
+      className={`desktop-chrome pointer-events-none absolute left-[44%] top-[30%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 transition-opacity duration-300 ease-out [filter:drop-shadow(0_1px_3px_rgba(21,48,112,0.6))_drop-shadow(0_4px_18px_rgba(21,48,112,0.35))] ${
         idle ? 'opacity-100' : 'opacity-0'
       }`}
     >
       {/* 字标豁免 chrome 级 text-shadow（阴影会透过 bg-clip-text 压暗渐变）；
           「OS」用 drop-shadow 做分离度（跟随裁剪后字形 alpha，不污染渐变填充）。
           §32 修订 7：字重/字号/纵向位置对齐用户指定样式——细字重 + 下移至
-          壁纸蝴蝶同一高度（块中心 ≈ 46% y）。 */}
+          壁纸蝴蝶同一高度（块中心 ≈ 30% y，随 2026-10-01 新原片蝴蝶位置更新）。 */}
       <p className="text-7xl font-light tracking-tight [text-shadow:none]">
         <span className="text-text [text-shadow:none]">Ageha</span>
         {/* 「OS」淡冰蓝→粉渐变（参考图取色）。 */}
