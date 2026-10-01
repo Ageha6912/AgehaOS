@@ -96,4 +96,20 @@ describe('WidgetRail', () => {
     expect(screen.getByTestId('widgets-wallpaper').textContent).toContain('壁纸已关闭')
     expect(screen.queryByTestId('widgets-wallpaper-renew')).not.toBeInTheDocument()
   })
+
+  it('floats as separate glass cards: container passes pointers through, cards take them (§31)', () => {
+    render(<WidgetRail />)
+
+    const rail = screen.getByTestId('widget-rail')
+    // 容器只占位不画材质：空隙处指针穿透回桌面（右键空白契约）。
+    expect(rail.className).not.toContain('surface-glass')
+    expect(rail.className).toContain('pointer-events-none')
+    for (const testId of ['widgets-clock', 'widgets-calendar', 'widgets-system', 'widgets-wallpaper']) {
+      const card = screen.getByTestId(testId)
+      expect(card.className).toContain('surface-glass')
+      expect(card.className).toContain('pointer-events-auto')
+      expect(card.className).toContain('rounded-xl')
+      expect(card.className).toContain('shadow-popover')
+    }
+  })
 })

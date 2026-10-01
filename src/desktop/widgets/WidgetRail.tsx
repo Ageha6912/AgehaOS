@@ -15,7 +15,8 @@ import { useWindowStore } from '@/store/window-store'
  * 右侧小组件栏（docs/DESIGN.md §27，Phase 2 P2-3）：权威图右侧竖列的
  * 「真实数据源」落地——时钟/日历/系统状态/今日壁纸四卡；天气/音乐/照片
  * 无数据源不建（拒绝装饰性谎言，Phase 1 §19 同口径）。
- * ≥1280px（Tailwind xl）显示；卡片形态克制（hairline 瓦片，非 SaaS 大白卡）。
+ * ≥1280px（Tailwind xl）显示。Round 2（§31）浮动化：容器只占位不画材质，
+ * 四卡各自成为漂浮玻璃卡（指针穿透空隙回桌面，卡片本体接指针）。
  */
 export function WidgetRail() {
   const { t } = useTranslation()
@@ -24,7 +25,7 @@ export function WidgetRail() {
     <aside
       aria-label={t('widgets.label')}
       data-testid="widget-rail"
-      className="scroll-thin surface-glass fixed bottom-0 right-0 top-[var(--ag-menubar-height)] z-40 hidden w-[var(--ag-rail-right-width)] flex-col gap-2 overflow-y-auto border-l border-border-subtle p-2.5 xl:flex"
+      className="scroll-thin pointer-events-none fixed bottom-3 right-2 top-[calc(var(--ag-menubar-height)+0.75rem)] z-40 hidden w-[calc(var(--ag-rail-right-width)-0.5rem)] flex-col gap-2.5 overflow-y-auto xl:flex"
     >
       <ClockCard />
       <CalendarCard />
@@ -34,7 +35,8 @@ export function WidgetRail() {
   )
 }
 
-const CARD_CLASS = 'rounded-lg border border-border-subtle bg-surface-raised/50 p-2.5'
+const CARD_CLASS =
+  'surface-glass pointer-events-auto rounded-xl border border-border-subtle p-2.5 shadow-popover'
 
 function ClockCard() {
   const locale = useLocaleStore((s) => s.locale)

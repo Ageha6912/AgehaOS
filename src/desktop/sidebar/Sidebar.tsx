@@ -60,7 +60,7 @@ export function Sidebar() {
     <nav
       aria-label={t('sidebar.label')}
       data-testid="sidebar"
-      className="surface-glass fixed bottom-0 left-0 top-[var(--ag-menubar-height)] z-40 hidden w-[var(--ag-rail-left-width)] flex-col gap-0.5 border-r border-border-subtle px-2 py-3 sm:flex"
+      className="surface-glass fixed bottom-3 left-2 top-[calc(var(--ag-menubar-height)+0.75rem)] z-40 hidden w-[calc(var(--ag-rail-left-width)-0.5rem)] flex-col gap-1 rounded-2xl border border-border-subtle px-1.5 py-2.5 shadow-popover sm:flex"
     >
       <SidebarItem
         testid="sidebar-desktop"

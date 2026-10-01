@@ -67,4 +67,19 @@ describe('Sidebar', () => {
     // 状态圆点不出现（未开启）。
     expect(sync.querySelector('.bg-primary')).toBeNull()
   })
+
+  it('floats as a rounded glass card detached from the viewport edges (§31)', () => {
+    render(<Sidebar />)
+
+    const nav = screen.getByTestId('sidebar')
+    // 不再通顶贴边（Web Sidebar 形态退役）：圆角玻璃卡 + soft shadow + 边距。
+    expect(nav.className).toContain('rounded-2xl')
+    expect(nav.className).toContain('surface-glass')
+    expect(nav.className).toContain('shadow-popover')
+    expect(nav.className).toContain('bottom-3')
+    expect(nav.className).toContain('left-2')
+    expect(nav.className).not.toContain('border-r')
+    expect(nav.className).not.toContain('bottom-0')
+    expect(nav.className).not.toContain('left-0')
+  })
 })
