@@ -7,11 +7,11 @@ import { cssGradient, drawPlan } from './render'
 
 /**
  * 壁纸层（设计文档 §4.5 + §32 参考图对齐）：**照片基底常驻**（出厂默认
- * 壁纸 = 参考图同源素材 dreamland——含蝴蝶与品牌文字的净空裁切，仅缩放/
- * 裁切，public/wallpapers/，顶部锚定保证字标/蝴蝶在宽屏不被裁），生成式
+ * 壁纸 = 用户提供的无 UI 原版画作，全构图仅转码，public/wallpapers/，
+ * 顶部锚定保证蝴蝶/天空在宽屏不被裁），生成式
  * field 计划在启用动态桌面时以 canvas 层交叉淡入覆盖其上——关闭动态桌面
- * （§32 新出厂默认）即回落照片。品牌字标由壁纸自带（DOM 品牌层已随 §32
- * 壁纸对齐移除，避免重影）。场层过渡规则不变：新壁纸在上层 0→1 交叉淡入；
+ * （§32 新出厂默认）即回落照片。品牌字标由 DOM 品牌层承载（§31 R2-2 恢复）。
+ * 场层过渡规则不变：新壁纸在上层 0→1 交叉淡入；
  * 过渡中再次触发生成时，直接替换上层目标并从当前不透明度继续过渡（不回
  * 弹、不排队）。prefers-reduced-motion 时 150ms；canvas 不可用时回落 CSS
  * 渐变（能力探测，PRD §31）。
@@ -22,10 +22,9 @@ const FADE_MS_NORMAL = 600
 const FADE_MS_REDUCED = 150
 const MOUNT_DELAY_MS = 20
 
-/** 出厂照片壁纸（§32）：参考图净空区裁切（只缩放/裁切），路径公开稳定。
- *  URL 带版本号：壁纸内容随设计更新替换同名文件时，版本号防浏览器陈旧缓存
- *  （部署 ⑥ 教训——同名换内容导致用户端看到旧图）。 */
-export const DEFAULT_WALLPAPER_SRC = '/wallpapers/ageha-dreamland.jpg?v=2'
+/** 出厂照片壁纸（§32 修订）：用户提供的无 UI 原版画作（仅转码，全构图），
+ *  路径公开稳定。URL 带版本号：内容更新替换同名文件时防浏览器陈旧缓存。 */
+export const DEFAULT_WALLPAPER_SRC = '/wallpapers/ageha-dreamland.jpg?v=3'
 
 function prefersReducedMotion(): boolean {
   try {

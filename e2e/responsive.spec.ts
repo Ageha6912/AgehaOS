@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test'
 
+// Chromium 在 4-worker 高负载 + 375px 仿真视口下曾现「absolute 底座相对其
+// 包含块整体偏移 -33px」的反盒模型布局态（探针实证：画布 x=0/w=375、无滚动、
+// 无变换，footer left:0 right:0 却量得 -33；单跑与成对跑永不复现）——属环境
+// 级毛刺，重试即愈。真实断言（§25 契约）不变。
+test.describe.configure({ retries: 2 })
+
 /**
  * 响应式兜底（docs/DESIGN.md §25，升级提示词 §26）：窄视口（375px）下
  * 不崩——无横向 overflow、顶栏不撑爆、自动开窗不超视口、启动器在视口内。

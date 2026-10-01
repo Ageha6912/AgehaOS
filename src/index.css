@@ -277,6 +277,16 @@ body,
   height: 100%;
 }
 
+/* OS 外壳是满视口应用：文档级滚动（横/纵）一律禁止——窗口/底座等
+   absolute 层随文档滚动会造成 chrome 错位（§32 375px 竞态的根治）。
+   用 clip 而非 hidden：hidden 仍是可滚动容器（scrollIntoView 会滚它），
+   clip 才真正不可滚动。 */
+html,
+body {
+  overflow-x: clip;
+  overflow-y: clip;
+}
+
 body {
   margin: 0;
   background-color: var(--ag-bg);
