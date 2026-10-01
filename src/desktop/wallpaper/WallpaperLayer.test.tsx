@@ -139,15 +139,16 @@ describe('WallpaperLayer gradient-field surfaces (2026-09-27 生成域)', () => 
     expect(container.querySelector('[data-testid="wallpaper-surface-photo-fallback"]')).toBeNull()
   })
 
-  it('keeps the photo base mounted with the shipped asset and the 75% framed scale (§32 修订 4)', () => {
+  it('keeps the photo base mounted full-bleed with content at 85% scale (§32 修订 5)', () => {
     const { container } = render(<WallpaperLayer />)
     const photo = container.querySelector<HTMLElement>('[data-testid="wallpaper-surface-photo"]')
     expect(photo).not.toBeNull()
+    // 内容层：等比缩小（Token 可调 80-85%）、居中、满屏驻留 + 边缘软融合 mask。
     expect(photo?.style.backgroundImage).toContain('/wallpapers/ageha-dreamland.jpg')
-    // 居中浮层：75% 宽（--ag-wallpaper-width 可调）+ 原片宽高比零裁切。
-    expect(photo?.className).toContain('w-[var(--ag-wallpaper-width)]')
-    expect(photo?.className).toContain('aspect-[1721/914]')
-    // 环境衬底（同素材模糊压暗）铺满留白区，保证白字 chrome 对比度。
+    expect(photo?.style.backgroundSize).toBe('var(--ag-wallpaper-content-scale) auto')
+    expect(photo?.style.backgroundPosition).toBe('center center')
+    expect(photo?.style.maskImage).toContain('linear-gradient')
+    // 衬底层：同素材模糊压暗，负责屏幕边缘补足。
     const ambient = container.querySelector<HTMLElement>(
       '[data-testid="wallpaper-surface-ambient"]',
     )

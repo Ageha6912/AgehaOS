@@ -98,32 +98,43 @@ export function WallpaperLayer() {
 }
 
 /**
- * 照片基底（§32 修订 4）：**居中浮层 + 环境衬底**双层。
- * - 主画面：宽度 = 视口的 --ag-wallpaper-width（默认 75%，用户裁决缩小
- *   原图解决「过大/过近」），锁定原片宽高比零裁切，居中，圆角 + 大阴影
- *   与四周留白共同营造景深；超高/超宽视口 max-height 钳制下等比回缩。
- * - 环境衬底：同一素材大半径模糊 + 压暗铺满全屏（macOS 式环境色延伸，
- *   仅缩放/模糊）——留白区若直接露出近白画布，白字 chrome（侧栏/顶栏）
- *   会失去对比度；压暗衬底同时保证留白区的文字可读性与画面整体感。
- * 图片加载失败时静默透出画布渐变。指针视差已移除（壁纸静止）。
+ * 照片基底（§32 修订 5）：**满屏壁纸 + 画面内容等比缩小**（用户裁决：
+ * 解决「过大/过近」但壁纸必须始终满屏，不得退化为居中浮层/留白边框）。
+ * 双层结构：
+ * - 衬底层（wallpaper-surface-ambient）：同素材 cover 满屏 + 大半径模糊
+ *   压暗轻微放大——负责屏幕边缘区域的自然衔接补足（模糊仅用于边缘）。
+ * - 内容层（wallpaper-surface-photo）：同素材等比缩至
+ *   --ag-wallpaper-content-scale（默认 85%，可 5% 步长 80-85 微调），
+ *   居中、保持原始宽高比、全清晰（无模糊无圆角无边框），四周以双向
+ *   线性渐变软 mask 渐进融入衬底——整体观感仍是一张满屏壁纸。
+ * 指针视差已移除（壁纸静止，动效缩放上限同步消解）。
  */
 function PhotoSurface() {
+  const contentMask =
+    'linear-gradient(90deg, transparent 4%, #000 16%, #000 84%, transparent 96%), ' +
+    'linear-gradient(180deg, transparent 6%, #000 20%, #000 80%, transparent 94%)'
   return (
     <>
       <div
         aria-hidden="true"
         data-testid="wallpaper-surface-ambient"
-        className="absolute inset-0 scale-110 bg-cover bg-center"
+        className="absolute inset-0 scale-[1.06] bg-cover bg-center"
         style={{
           backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})`,
-          filter: 'blur(64px) brightness(0.86) saturate(1.25)',
+          filter: 'blur(64px) brightness(0.9) saturate(1.15)',
         }}
       />
       <div
         aria-hidden="true"
         data-testid="wallpaper-surface-photo"
-        className="absolute left-1/2 top-1/2 aspect-[1721/914] w-[var(--ag-wallpaper-width)] max-h-[88%] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-cover bg-center shadow-[0_24px_64px_rgba(18,32,62,0.35)] ring-1 ring-black/10"
-        style={{ backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})` }}
+        className="absolute inset-0 bg-no-repeat"
+        style={{
+          backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})`,
+          backgroundSize: 'var(--ag-wallpaper-content-scale) auto',
+          backgroundPosition: 'center',
+          maskImage: contentMask,
+          maskComposite: 'intersect',
+        }}
       />
     </>
   )
