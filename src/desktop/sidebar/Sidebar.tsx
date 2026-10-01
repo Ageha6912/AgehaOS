@@ -95,7 +95,7 @@ export function Sidebar() {
     <nav
       aria-label={t('sidebar.label')}
       data-testid="sidebar"
-      className="desktop-chrome surface-glass fixed bottom-6 left-2 top-[calc(var(--ag-menubar-height)+1rem)] z-40 hidden w-[calc(var(--ag-rail-left-width)-0.5rem)] flex-col gap-0.5 rounded-2xl border border-border-subtle px-2 py-3 shadow-popover sm:flex"
+      className="desktop-chrome surface-glass fixed bottom-6 left-2 top-[calc(var(--ag-menubar-height)+1rem)] z-40 hidden w-[calc(var(--ag-rail-left-width)-0.5rem)] flex-col gap-3 rounded-2xl border border-border-subtle px-2 py-3 shadow-popover sm:flex"
     >
       <SidebarItem
         testid="sidebar-desktop"
@@ -182,7 +182,7 @@ function SidebarItem({
       title={hint ?? label}
       disabled={disabled}
       onClick={onClick}
-      className="relative flex items-center gap-2.5 rounded-lg py-1.5 pl-1.5 pr-2 text-[12.5px] text-text hover:bg-surface-raised disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+      className="relative flex items-center gap-2.5 rounded-lg py-2 pl-1.5 pr-2 text-[12.5px] text-text hover:bg-surface-raised disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
     >
       {tile}
       <span className="min-w-0 truncate">{label}</span>
