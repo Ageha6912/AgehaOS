@@ -12,7 +12,7 @@ export const MENUBAR_HEIGHT_PX = 40
 export const RAIL_LEFT_WIDTH_PX = 132
 /** Tailwind sm 断点：侧栏 <640px 隐藏（Sidebar 的 hidden sm:flex 同值）。 */
 export const RAIL_LEFT_BREAKPOINT_PX = 640
-export const RAIL_RIGHT_WIDTH_PX = 336
+export const RAIL_RIGHT_WIDTH_PX = 296
 /** Tailwind xl 断点：小组件栏 <1280px 隐藏（WidgetRail 的 hidden xl:flex 同值）。 */
 export const RAIL_RIGHT_BREAKPOINT_PX = 1280
 

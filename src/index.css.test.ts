@@ -92,8 +92,9 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(root).toMatch(/--ag-menubar-height:\s*40px/)
     // 左侧系统导航栏宽度与 RAIL_LEFT_WIDTH_PX 常量互指（§26；§32 对齐参考图 132px）。
     expect(root).toMatch(/--ag-rail-left-width:\s*132px/)
-    // 右侧小组件栏宽度与 RAIL_RIGHT_WIDTH_PX 常量互指（§27；§32 对齐参考图 336px）。
-    expect(root).toMatch(/--ag-rail-right-width:\s*336px/)
+    // 右侧小组件栏宽度与 RAIL_RIGHT_WIDTH_PX 常量互指（§27；§32 参考图 336px，
+    // 2026-10-01 用户裁决收窄至 296px）。
+    expect(root).toMatch(/--ag-rail-right-width:\s*296px/)
     // §31 Round 2：Dock 提升存在感；§32 图标 44px（节距 52 不变，σ ≤ 1.2×节距成立）。
     expect(root).toMatch(/--ag-dock-height:\s*68px/)
     expect(root).toMatch(/--ag-dock-item-pitch:\s*52px/)
