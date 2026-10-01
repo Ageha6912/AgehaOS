@@ -23,8 +23,10 @@ const FADE_MS_NORMAL = 600
 const FADE_MS_REDUCED = 150
 const MOUNT_DELAY_MS = 20
 
-/** 出厂照片壁纸（§32）：参考图净空区裁切（只缩放/裁切），路径公开稳定。 */
-export const DEFAULT_WALLPAPER_SRC = '/wallpapers/ageha-dreamland.jpg'
+/** 出厂照片壁纸（§32）：参考图净空区裁切（只缩放/裁切），路径公开稳定。
+ *  URL 带版本号：壁纸内容随设计更新替换同名文件时，版本号防浏览器陈旧缓存
+ *  （部署 ⑥ 教训——同名换内容导致用户端看到旧图）。 */
+export const DEFAULT_WALLPAPER_SRC = '/wallpapers/ageha-dreamland.jpg?v=2'
 
 function prefersReducedMotion(): boolean {
   try {
