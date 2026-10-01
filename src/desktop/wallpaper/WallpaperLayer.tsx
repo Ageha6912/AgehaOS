@@ -98,17 +98,34 @@ export function WallpaperLayer() {
 }
 
 /**
- * 照片基底（§32）：单层位图，静止（指针视差已移除）。图片加载失败时
- * 静默透出画布渐变。
+ * 照片基底（§32 修订 4）：**居中浮层 + 环境衬底**双层。
+ * - 主画面：宽度 = 视口的 --ag-wallpaper-width（默认 75%，用户裁决缩小
+ *   原图解决「过大/过近」），锁定原片宽高比零裁切，居中，圆角 + 大阴影
+ *   与四周留白共同营造景深；超高/超宽视口 max-height 钳制下等比回缩。
+ * - 环境衬底：同一素材大半径模糊 + 压暗铺满全屏（macOS 式环境色延伸，
+ *   仅缩放/模糊）——留白区若直接露出近白画布，白字 chrome（侧栏/顶栏）
+ *   会失去对比度；压暗衬底同时保证留白区的文字可读性与画面整体感。
+ * 图片加载失败时静默透出画布渐变。指针视差已移除（壁纸静止）。
  */
 function PhotoSurface() {
   return (
-    <div
-      aria-hidden="true"
-      data-testid="wallpaper-surface-photo"
-      className="absolute inset-0 bg-cover bg-top"
-      style={{ backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})` }}
-    />
+    <>
+      <div
+        aria-hidden="true"
+        data-testid="wallpaper-surface-ambient"
+        className="absolute inset-0 scale-110 bg-cover bg-center"
+        style={{
+          backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})`,
+          filter: 'blur(64px) brightness(0.86) saturate(1.25)',
+        }}
+      />
+      <div
+        aria-hidden="true"
+        data-testid="wallpaper-surface-photo"
+        className="absolute left-1/2 top-1/2 aspect-[1721/914] w-[var(--ag-wallpaper-width)] max-h-[88%] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-cover bg-center shadow-[0_24px_64px_rgba(18,32,62,0.35)] ring-1 ring-black/10"
+        style={{ backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})` }}
+      />
+    </>
   )
 }
 

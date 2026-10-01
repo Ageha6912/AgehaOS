@@ -139,11 +139,20 @@ describe('WallpaperLayer gradient-field surfaces (2026-09-27 生成域)', () => 
     expect(container.querySelector('[data-testid="wallpaper-surface-photo-fallback"]')).toBeNull()
   })
 
-  it('keeps the photo base mounted with the shipped dreamland asset (§32)', () => {
+  it('keeps the photo base mounted with the shipped asset and the 75% framed scale (§32 修订 4)', () => {
     const { container } = render(<WallpaperLayer />)
     const photo = container.querySelector<HTMLElement>('[data-testid="wallpaper-surface-photo"]')
     expect(photo).not.toBeNull()
     expect(photo?.style.backgroundImage).toContain('/wallpapers/ageha-dreamland.jpg')
+    // 居中浮层：75% 宽（--ag-wallpaper-width 可调）+ 原片宽高比零裁切。
+    expect(photo?.className).toContain('w-[var(--ag-wallpaper-width)]')
+    expect(photo?.className).toContain('aspect-[1721/914]')
+    // 环境衬底（同素材模糊压暗）铺满留白区，保证白字 chrome 对比度。
+    const ambient = container.querySelector<HTMLElement>(
+      '[data-testid="wallpaper-surface-ambient"]',
+    )
+    expect(ambient?.style.backgroundImage).toContain('/wallpapers/ageha-dreamland.jpg')
+    expect(ambient?.style.filter).toContain('blur(64px)')
   })
 
   it('keeps the surface mounted across plan transitions of the same style', () => {
