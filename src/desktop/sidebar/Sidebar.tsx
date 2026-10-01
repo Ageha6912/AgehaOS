@@ -141,7 +141,7 @@ function SidebarItem({
       title={hint ?? label}
       disabled={disabled}
       onClick={onClick}
-      className="relative flex flex-col items-center gap-1 rounded-lg py-2 text-[11px] text-text-muted hover:bg-surface-raised hover:text-text disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-muted"
+      className="relative flex flex-col items-center gap-1 rounded-lg py-1.5 text-[11px] text-text-muted hover:bg-surface-raised hover:text-text disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-muted"
     >
       <span aria-hidden="true" className="flex">
         {icon}

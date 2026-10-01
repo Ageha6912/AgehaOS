@@ -353,7 +353,7 @@ function MenuEntry({
         aria-haspopup="menu"
         aria-expanded={open}
         ref={triggerRef}
-        className="flex h-8 items-center rounded-md px-2.5 text-xs font-medium text-text-muted hover:bg-surface-raised hover:text-text aria-expanded:bg-surface-raised aria-expanded:text-text"
+        className="flex h-7 items-center rounded-md px-2 text-xs font-medium text-text-muted hover:bg-surface-raised hover:text-text aria-expanded:bg-surface-raised aria-expanded:text-text"
         onClick={onToggle}
         onPointerEnter={onHoverSwitch}
         onKeyDown={onTriggerKeyDown}

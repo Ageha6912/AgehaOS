@@ -223,17 +223,17 @@ mark 稿——登录屏 56 / 开始按钮 18 / 设置关于 40·侧栏 14；
 开机屏 96 用 **full 稿**（含字标，圆角裁切关闭，见 §11）；
 favicon 在明暗标签栏下均无底色方块。
 
-尺寸约定：搜索 16 / 窗口标题栏 16 / Dock 24（2026-09-30 起，原 20）/
-悬停预览 20（体 48）/ 开始菜单 24 / 桌面 52（2026-09-30 起，原 40）/
+尺寸约定：搜索 16 / 窗口标题栏 16 / Dock 22（2026-10-01 密度档，原 24）/
+悬停预览 20（体 48）/ 开始菜单 24 / 桌面 44（2026-10-01 密度档，52 过臃）/
 商店列表 36。字形占徽章边长 58%。
 
 桌面图标层（`DesktopIcons`）：内置 7 应用按固定顺序常驻；**商店安装的
 应用（含远程目录发布）自动追加其后，卸载即从桌面消失**。单击选中
 （钴蓝外圈 + 标签底色）、双击/回车启动、图标外任意指针按下清除选中。
-2026-09-30 Slice 5：图标 40→52、格宽 w-24、行距 gap-1、悬停白纱收编
+2026-09-30 Slice 5：图标 40→52、悬停白纱收编
 `--ag-desktop-icon-hover`（`.desktop-icon-button`，原 hover:bg-white/10）；
 标签随主题翻色（`--ag-desktop-label/-shadow`，§17）；列顶起于顶栏之下
-（§19）。选中态保持轻盈（图标外圈 + 标签底色，非整格蓝框）。
+（§19）。选中态保持轻盈（图标外圈 + 标签底色，非整格蓝框）。**2026-10-01 密度档（用户裁决「太臃肿」）：图标 52→44、格 w-24→w-20、行距 gap-1→0.5、内距 py-2→1.5。**
 
 ## 9. 自动隐藏 Dock（原「自动隐藏任务栏」，§20 浮动化修订）
 
@@ -440,10 +440,8 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
 - **桌面图标错峰入场**（stagger-enter，默认开，每页面会话一次）：250ms
   上浮 14px 淡入 + 60ms 错峰（SPEC §1.4 的 40~60ms 档）；`os-stagger-item`
   类 + 每图标 animationDelay；模块级标记保证会话内重进不重播。
-- **点击涟漪**（click-ripple，默认开）：仅桌面空白画布（宿主自身或壁纸层；
-  图标/窗口/任务栏等交互元素不注入）——直径 = 点击点到最远角 ×2 ×1.15
-  （上限 720px），300ms 扩散（铁律上限档），animationend 自清理 + 超时兜底；
-  reduced-motion 不注入（反馈退化为 `:active` 微缩放）。
+- ~~点击涟漪~~（**2026-10-01 用户裁决移除**：hook/CSS/测试全清，
+  空白画布点击无注入效果）。
 - **指针跟随光晕**（cursor-glow，**默认关** + 设置项）：320px 主题色径向
   光斑（浅色 multiply / 深色 screen），平滑 0.18、收敛停帧、进出淡入淡出；
   光晕层 z-5 压壁纸垫窗口（不叠窗口内容），pointer-events-none。
@@ -535,8 +533,8 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
 
 升级提示词 §15 的 AgehaOS 式顶栏（借鉴 OS 菜单栏的空间逻辑，非 macOS 复刻）：
 `src/desktop/menu-bar/MenuBar.tsx`，常驻 `fixed inset-x-0 top-0 z-40`，高
-`--ag-menubar-height`（32px，与 `viewport.ts` 的 `MENUBAR_HEIGHT_PX` 双常量
-互指钉扎）。视觉：白/墨玻璃 + `border-border-subtle` 发丝底边 + shadow-soft，
+`--ag-menubar-height`（**28px**，2026-10-01 密度档原 32；与 `viewport.ts` 的
+`MENUBAR_HEIGHT_PX` 双常量互指钉扎）。视觉：白/墨玻璃 + `border-border-subtle` 发丝底边 + shadow-soft，
 克制不抢焦点。
 
 - **左侧**：BrandLogo(16) + AgehaOS 字标 + 菜单——只放有真实动作的项：
@@ -569,13 +567,13 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   `translateY` 契约不变）降级为**透明运动层**（`pointer-events-none`，
   坑 40——两侧不截胡窗口点击）；胶囊本体 `pointer-events-auto`
   `surface-glass` + `rounded-full` + hairline 边 + `shadow-popover`，
-  高 `h-16`（64px，footer `pb-3` 悬浮出 12px 底隙，总高 ≈76 ∈ 提示词
-  64~76 目标），`max-w-[calc(100%-1.5rem)]` 溢出时图标行滚动。
+  高 `h-14`（**56px**，2026-10-01 密度档原 64；`--ag-dock-height` 60，footer
+  `pb-3` 悬浮 12px 底隙，总高 ≈72 ∈ 64~76），`max-w-[calc(100%-1.5rem)]` 溢出时图标行滚动。
 - **几何契约（勿动）**：窗口按钮 `w-11 + gap-1` = **节距恒 48px**
   （σ44 波浪前提，§13）；波浪裁剪盒由 self-stretch 抬到整条胶囊高；
   `taskbar-item-*` testid 与可测量按钮保留（窗口动效锚点）。
 - **组件**：激活指示改**极小圆点**（h-1 w-1，保留 `bg-primary` 类契约，
-  弃 2×20px 胶囊条）；图标 20→24；启动器按钮 `h-12 rounded-full`；
+  弃 2×20px 胶囊条）；图标 22（密度档，曾 24）；启动器按钮 `h-10 rounded-full`；
   启动按钮与窗口区之间 hairline 分隔；悬停预览 `bottom-full mb-2`
   悬于胶囊上方；启动器菜单 `bottom-full mb-3` 同理。
 - **行为零改动**：唤出区 6px / 300ms 进 400ms 出 / 键盘焦点唤出 /
@@ -593,7 +591,7 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   细边（激活 `border-primary/50 shadow-window` / 非激活 `border-border
   shadow-window-flat`）——激活/非激活差异保持「细腻五感」：边框/阴影/标题
   清晰度/表面/交通灯不透明度。
-- **头部**：`h-11`（44px）玻璃材质（弃 `bg-surface-raised` 实色，让框体玻璃
+- **头部**：`h-9`（**36px**，2026-10-01 密度档原 44）玻璃材质（弃 `bg-surface-raised` 实色，让框体玻璃
   连续），底边 `border-border-subtle` 发丝线；AppIcon 16 + 标题（激活
   text-text / 非激活 text-text-muted）。
 - **交通灯**（主题无关常量 `--ag-wl-{close,min,max}(-glyph)`）：左置三枚
@@ -686,7 +684,7 @@ Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌�
   缘起）；工作区宽度扣减（`viewport.ts`，<640px 隐藏不扣减）；最大化窗口
   `sm:left-[var(--ag-rail-left-width)]` 只占栏右；桌面图标列 `sm:` 右移
   让位；z-40 chrome（窗口可从栏下滑过，同顶栏）。
-- **项视觉**：Phosphor 18px 图标 + 11px 标签、hover surface-raised 高亮、
+- **项视觉**：Phosphor 18px 图标 + 11px 标签（密度档 py-1.5）、hover surface-raised 高亮、
   禁用 40%；通知未读徽标复用铃铛样式（`sidebar-unread`）。
 - **缓办**：侧栏项当前无「激活态」概念（无持久选中语义——轨是动作不是
   导航上下文）；若未来加应用分区需先定义信息架构。
@@ -694,8 +692,9 @@ Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌�
 ## 27. 右侧小组件栏（Phase 2 P2-3，2026-09-30）
 
 权威图右侧竖列的「真实数据源」落地：`src/desktop/widgets/WidgetRail.tsx`，
-≥1280px（Tailwind xl）显示，272px 玻璃栏（`--ag-rail-right-width`，与
-`viewport.ts` 常量互指钉扎），hairline 瓦片卡片（克制，非 SaaS 大白卡）。
+≥1280px（Tailwind xl）显示，**232px** 玻璃栏（2026-10-01 密度档原 272；
+`--ag-rail-right-width` 与 `viewport.ts` 常量互指钉扎），hairline 瓦片卡片
+（p-2.5/gap-2 密度档，克制非 SaaS 大白卡）。
 
 - **四卡**：时钟（等宽数据层 2xl + 日期）/ 日历（周一开头月网格，今日
   主色圆块，纯日期数学）/ 系统状态（版本·语言·性能档·窗口数·未读，5 行
@@ -708,3 +707,21 @@ Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌�
   的指针事件（E2E core-path 抓出）。
 - E2E：`e2e/widgets.spec.ts`（四卡可见 + 面板不重叠）；右键菜单与
   dynamic-desktop 两条 spec 的空白点位随面板左移更新（契约不变）。
+
+
+## 28. 密度收紧档（2026-10-01 用户裁决「组件太臃肿」）
+
+全局收一档、契约数字随迁（视觉权威 PNG 的意象不变，尺寸以本档为准）：
+
+| 部位 | 原 | 现档 |
+| --- | --- | --- |
+| 顶栏高 | 32 | **28**（触发器/铃/用户钮 h-7） |
+| 桌面图标 | 52 / w-24 / gap-1 | **44 / w-20 / gap-0.5**（py-1.5） |
+| 窗口头 | 44（h-11） | **36（h-9）** |
+| Dock 胶囊 | 64（h-16） | **56（h-14）**，`--ag-dock-height` 68→60，图标 24→22；**窗口钮节距恒 48px（σ44 前提）不变** |
+| 右小组件栏 | 272 | **232**；卡 p-3→2.5、gap-3→2、时钟 2xl→xl、日历格 24→20、状态行距 1.5→1 |
+| 侧栏项 | py-2 | **py-1.5** |
+| 点击涟漪 | 在 | **移除**（§15） |
+
+- 波浪引擎/自动隐藏/锚点/交通灯可访问名等行为契约零改动；css 契约与
+  viewport 常量测试同步钉新值。

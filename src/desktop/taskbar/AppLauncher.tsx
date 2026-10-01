@@ -93,7 +93,7 @@ export function AppLauncher() {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex h-12 items-center gap-2 rounded-full px-3.5 text-sm font-medium text-text hover:bg-surface-raised"
+        className="flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium text-text hover:bg-surface-raised"
         onClick={() => setOpen((value) => !value)}
       >
         <BrandLogo size={18} />

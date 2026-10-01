@@ -162,7 +162,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       onPointerDown={() => focus(win.id)}
     >
       <header
-        className={`flex h-11 shrink-0 select-none items-center gap-2 border-b border-border-subtle px-3 ${
+        className={`flex h-9 shrink-0 select-none items-center gap-2 border-b border-border-subtle px-3 ${
           maximized ? 'cursor-default' : 'cursor-move'
         }`}
         onPointerDown={onTitlePointerDown}

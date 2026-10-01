@@ -3,7 +3,6 @@ import { act, render } from '@testing-library/react'
 import { useRef } from 'react'
 
 import { GLOW_SIZE_PX, useCursorGlow } from './use-cursor-glow'
-import { useClickRipple } from './use-click-ripple'
 import { PARALLAX_MAX_PX, PARALLAX_SCALE, useWallpaperParallax } from './use-wallpaper-parallax'
 
 /**
@@ -26,12 +25,6 @@ function GlowHarness({ enabled }: { enabled: boolean }) {
       <div ref={orbRef} data-testid="glow-orb" />
     </div>
   )
-}
-
-function RippleHarness() {
-  const hostRef = useRef<HTMLDivElement | null>(null)
-  useClickRipple(hostRef)
-  return <div ref={hostRef} data-testid="ripple-host" style={{ width: 800, height: 600 }} />
 }
 
 function mockRect(el: Element, rect: Partial<DOMRect>): void {
@@ -160,59 +153,4 @@ describe('useCursorGlow（指针光晕，DESIGN.md §15）', () => {
   })
 })
 
-describe('useClickRipple（点击涟漪，DESIGN.md §15）', () => {
-  it('spawns a ripple only on the empty host and cleans it up', () => {
-    const { getByTestId } = render(<RippleHarness />)
-    const host = getByTestId('ripple-host')
 
-    act(() => {
-      host.dispatchEvent(new MouseEvent('pointerdown', { clientX: 300, clientY: 200, bubbles: true }))
-    })
-    const ripple = host.querySelector('.os-ripple') as HTMLElement | null
-    expect(ripple).not.toBeNull()
-    expect(ripple?.style.getPropertyValue('--cr-x')).toBe('300.0px')
-
-    // 兜底清理（300ms + 200ms 余量）
-    act(() => {
-      vi.advanceTimersByTime(600)
-    })
-    expect(host.querySelector('.os-ripple')).toBeNull()
-  })
-
-  it('does not spawn when the pointer lands on a child element', () => {
-    const { getByTestId } = render(
-      <div data-testid="ripple-host-wrap">
-        <RippleHarnessHost />
-      </div>,
-    )
-    const wrap = getByTestId('ripple-host-wrap')
-    const child = wrap.querySelector('[data-testid="ripple-child"]')!
-    act(() => {
-      child.dispatchEvent(new MouseEvent('pointerdown', { bubbles: false }))
-    })
-    void child
-    expect(wrap.querySelector('.os-ripple')).toBeNull()
-  })
-
-  it('is inert under reduced motion', () => {
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }))
-    const { getByTestId } = render(<RippleHarness />)
-    const host = getByTestId('ripple-host')
-    act(() => {
-      host.dispatchEvent(new MouseEvent('pointerdown', { clientX: 10, clientY: 10 }))
-    })
-    expect(host.querySelector('.os-ripple')).toBeNull()
-  })
-})
-
-function RippleHarnessHost() {
-  const hostRef = useRef<HTMLDivElement | null>(null)
-  useClickRipple(hostRef)
-  return (
-    <div ref={hostRef} data-testid="ripple-host">
-      <button type="button" data-testid="ripple-child">
-        child
-      </button>
-    </div>
-  )
-}

@@ -71,7 +71,7 @@ export function DesktopIcons() {
   return (
     <nav
       aria-label={t('desktop.iconsLabel')}
-      className="pointer-events-none absolute left-2 top-[calc(var(--ag-menubar-height)+0.5rem)] z-10 flex max-h-[calc(100%-var(--ag-menubar-height)-1.25rem)] flex-col flex-wrap content-start gap-1 sm:left-[calc(var(--ag-rail-left-width)+0.75rem)]"
+      className="pointer-events-none absolute left-2 top-[calc(var(--ag-menubar-height)+0.5rem)] z-10 flex max-h-[calc(100%-var(--ag-menubar-height)-1.25rem)] flex-col flex-wrap content-start gap-0.5 sm:left-[calc(var(--ag-rail-left-width)+0.75rem)]"
     >
       {entries.map((app, index) => {
         const meta = componentFor(app.id)
@@ -91,7 +91,7 @@ export function DesktopIcons() {
                 ? { animationDelay: `${index * STAGGER_STEP_MS}ms` }
                 : undefined
             }
-            className={`desktop-icon-button pointer-events-auto flex w-24 flex-col items-center gap-1 rounded-lg px-1 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+            className={`desktop-icon-button pointer-events-auto flex w-20 flex-col items-center gap-1 rounded-lg px-1 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               stagger ? 'os-stagger-item' : ''
             }`}
             onClick={() => setSelected(app.id)}
@@ -102,7 +102,7 @@ export function DesktopIcons() {
           >
             <AppIcon
               appId={app.id}
-              size={52}
+              size={44}
               className={isSelected ? 'outline-2 outline-primary' : undefined}
             />
             <span

@@ -88,7 +88,7 @@ export function NotificationCenter() {
         aria-expanded={open}
         aria-label={t('notification.center')}
         data-testid="notification-bell"
-        className="relative flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-raised hover:text-text"
+        className="relative flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-surface-raised hover:text-text"
         onClick={togglePanel}
       >
         <Bell size={15} weight="regular" />

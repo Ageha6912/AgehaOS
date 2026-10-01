@@ -19,7 +19,7 @@ describe('WindowFrame (via WindowLayer)', () => {
     const region = screen.getByRole('region', { name: '记事' })
     // 头部 44px + 窗体 radius-xl（非最大化）。
     const header = region.querySelector('header') as HTMLElement
-    expect(header.classList.contains('h-11')).toBe(true)
+    expect(header.classList.contains('h-9')).toBe(true)
     expect(region.classList.contains('rounded-xl')).toBe(true)
 
     // 三灯左置且顺序固定：关闭 → 最小化 → 最大化；点色走 Token。

@@ -21,7 +21,7 @@ export function UserMenu() {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex h-8 items-center gap-2 rounded-md px-2 text-xs text-text hover:bg-surface-raised"
+        className="flex h-7 items-center gap-2 rounded-md px-2 text-xs text-text hover:bg-surface-raised"
         onClick={() => setOpen((value) => !value)}
       >
         {user.avatar ? (

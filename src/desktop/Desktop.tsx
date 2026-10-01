@@ -18,7 +18,6 @@ import {
   RAIL_RIGHT_BREAKPOINT_PX,
   RAIL_RIGHT_WIDTH_PX,
 } from '@/desktop/window/viewport'
-import { useClickRipple } from '@/desktop/motion/use-click-ripple'
 import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
@@ -33,10 +32,10 @@ export function Desktop() {
   // 动态桌面关闭（或尚无生成结果）时回落到系统画布渐变（docs/DESIGN.md §2.1，
   // 蓝白/藏蓝随主题；v0.1 的暖色硬编码渐变已随 2026-09 方向翻新退场）。
   const showWallpaper = useDynamicDesktopStore((s) => s.prefs.enabled && s.currentPlan !== null)
-  // 桌面增强动效（DESIGN.md §15）：涟漪 + 可选指针光晕（默认关）。
+  // 桌面增强动效（DESIGN.md §15）：可选指针光晕（默认关）。
   const glow = useMotionPrefsStore((s) => s.glow)
   const canvasRef = useRef<HTMLDivElement | null>(null)
-  // 桌面右键上下文菜单（DESIGN.md §14 遗留项）：仅空白画布（含壁纸层）。
+  // 桌面右键上下文菜单（DESIGN.md §14）：仅空白画布（含壁纸层）。
   const [contextPos, setContextPos] = useState<ContextMenuPosition | null>(null)
   const onCanvasContextMenu = (event: ReactMouseEvent): void => {
     const target = event.target
@@ -46,7 +45,6 @@ export function Desktop() {
     setContextPos({ x: event.clientX, y: event.clientY })
   }
   const orbRef = useRef<HTMLDivElement | null>(null)
-  useClickRipple(canvasRef)
   useCursorGlow(canvasRef, orbRef, glow)
   useGlobalShortcuts()
 
@@ -88,7 +86,8 @@ export function Desktop() {
       onContextMenu={onCanvasContextMenu}
     >
       {showWallpaper && <WallpaperLayer />}
-      {/* 氛围层（DESIGN.md §18）：环境光 + 暗角，静态零动画，垫在光晕/图标/窗口之下。 */}
+      {/* 氛围层（DESIGN.md §18）：环境光 + 暗角，静态零动画，垫在光晕/图标/窗口之下。
+          点击涟漪已于 2026-10-01 用户裁决移除（§15）。 */}
       <AtmosphereLayer />
       {/* 指针光晕层（默认关）：pointer-events-none，压壁纸、垫窗口与图标。 */}
       <div

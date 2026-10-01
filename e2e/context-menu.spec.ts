@@ -36,8 +36,8 @@ test('desktop context menu: open at pointer, clamp to viewport, run actions', as
   await expect(page.getByRole('region', { name: '设置' })).toBeVisible()
   await expect(menu).toBeHidden()
 
-  // 再开 → Esc 关闭（点空白处：设置窗口已盖住 400,400，窗口上不出菜单是预期行为）
-  await page.mouse.click(100, 500, { button: 'right' })
+  // 再开 → Esc 关闭（点设置窗下方空白；窗口/图标上不出菜单是预期行为）
+  await page.mouse.click(300, 690, { button: 'right' })
   await expect(menu).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()

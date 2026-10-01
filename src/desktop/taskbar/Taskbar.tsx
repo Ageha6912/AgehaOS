@@ -103,9 +103,9 @@ export function Taskbar() {
         {/* 悬浮胶囊 Dock（DESIGN.md §20）：全宽 footer 只是运动层（透明、
             pointer-events-none 不截胡两侧窗口点击，坑 40）；玻璃胶囊本体
             接指针。自动隐藏/波浪/预览/锚点契约全部不变（§9/§13）。 */}
-        <div className="surface-glass pointer-events-auto flex h-16 max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-full border border-border px-2 shadow-popover">
+        <div className="surface-glass pointer-events-auto flex h-14 max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-full border border-border px-2 shadow-popover">
           <AppLauncher />
-          <div aria-hidden="true" className="h-8 w-px shrink-0 bg-border" />
+          <div aria-hidden="true" className="h-7 w-px shrink-0 bg-border" />
 
           {/* self-stretch：裁剪盒抬到整条胶囊高（64px），波浪放大不出框
               （坑 13 的 overflow 隐式裁剪）；按钮节距恒 48px（w-11 + gap-1），
@@ -130,7 +130,7 @@ export function Taskbar() {
                     type="button"
                     aria-label={win.title}
                     data-testid={`taskbar-item-${win.id}`}
-                    className={`relative flex h-10 w-11 items-center justify-center rounded-lg text-sm ${
+                    className={`relative flex h-9 w-11 items-center justify-center rounded-lg text-sm ${
                       active
                         ? 'bg-surface-raised text-text'
                         : win.state === 'minimized'
@@ -140,7 +140,7 @@ export function Taskbar() {
                     onClick={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
                   >
                     <span aria-hidden="true" data-wave-icon className="flex">
-                      <AppIcon appId={win.appId} size={24} />
+                      <AppIcon appId={win.appId} size={22} />
                     </span>
                     {active && (
                       <span

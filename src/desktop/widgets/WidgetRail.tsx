@@ -24,7 +24,7 @@ export function WidgetRail() {
     <aside
       aria-label={t('widgets.label')}
       data-testid="widget-rail"
-      className="scroll-thin surface-glass fixed bottom-0 right-0 top-[var(--ag-menubar-height)] z-40 hidden w-[var(--ag-rail-right-width)] flex-col gap-3 overflow-y-auto border-l border-border-subtle p-3 xl:flex"
+      className="scroll-thin surface-glass fixed bottom-0 right-0 top-[var(--ag-menubar-height)] z-40 hidden w-[var(--ag-rail-right-width)] flex-col gap-2 overflow-y-auto border-l border-border-subtle p-2.5 xl:flex"
     >
       <ClockCard />
       <CalendarCard />
@@ -34,7 +34,7 @@ export function WidgetRail() {
   )
 }
 
-const CARD_CLASS = 'rounded-lg border border-border-subtle bg-surface-raised/50 p-3'
+const CARD_CLASS = 'rounded-lg border border-border-subtle bg-surface-raised/50 p-2.5'
 
 function ClockCard() {
   const locale = useLocaleStore((s) => s.locale)
@@ -48,7 +48,7 @@ function ClockCard() {
   return (
     <section className={CARD_CLASS} data-testid="widgets-clock" aria-label={date}>
       {/* 等宽数据层（DESIGN.md §2.3）：时间戳是数据不是标题。 */}
-      <p className="font-mono text-2xl font-semibold tabular-nums text-text">{clock}</p>
+      <p className="font-mono text-xl font-semibold tabular-nums text-text">{clock}</p>
       <p className="mt-1 text-xs text-text-muted">{date}</p>
     </section>
   )
@@ -95,7 +95,7 @@ function CalendarCard() {
           <span
             key={`d-${index}`}
             data-today={day === today ? 'true' : undefined}
-            className={`mx-auto flex h-6 w-6 items-center justify-center text-[11px] tabular-nums ${
+            className={`mx-auto flex h-5 w-5 items-center justify-center text-[11px] tabular-nums ${
               day === today
                 ? 'rounded-full bg-primary font-semibold text-primary-contrast'
                 : 'text-text-muted'
@@ -128,7 +128,7 @@ function SystemCard() {
   return (
     <section className={CARD_CLASS} data-testid="widgets-system">
       <p className="text-xs font-medium text-text">{t('widgets.system')}</p>
-      <dl className="mt-2 space-y-1.5">
+      <dl className="mt-1.5 space-y-1">
         {rows.map(([label, value]) => (
           <div key={label} className="flex items-center justify-between gap-2">
             <dt className="text-[11px] text-text-muted">{label}</dt>
