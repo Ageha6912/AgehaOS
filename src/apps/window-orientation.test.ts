@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { STORE_CATALOG } from '@/apps/store/catalog'
+
 import { BUILTIN_APP_MANIFESTS } from './builtin-manifests'
 
 /**
@@ -24,6 +26,12 @@ function portraitIds(entries: readonly unknown[]): string[] {
 describe('app default window orientation (DESIGN.md §30)', () => {
   it('every built-in app defaults to a landscape window', () => {
     expect(portraitIds(BUILTIN_APP_MANIFESTS)).toEqual([])
+  })
+
+  it('every store catalog app defaults to a landscape window', () => {
+    expect(
+      portraitIds(STORE_CATALOG.map((entry) => entry.manifest)),
+    ).toEqual([])
   })
 
   it('the dynamic panel default is landscape (680×420)', () => {

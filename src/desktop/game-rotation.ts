@@ -44,8 +44,8 @@ export function openRandomGame(): string | null {
   if (!picked) return null
 
   const manifest = getAppManifest(picked)
-  const width = manifest?.window?.width ?? 380
-  const height = manifest?.window?.height ?? 480
+  const width = manifest?.window?.width ?? 560
+  const height = manifest?.window?.height ?? 420
   launchApp(
     picked,
     {

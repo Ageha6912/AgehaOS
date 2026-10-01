@@ -40,6 +40,9 @@ test('sdk sticky notes: install, write through the sandbox bridge, persist acros
   await store.getByRole('listitem').filter({ hasText: '便签' }).getByRole('button', { name: '打开' }).click()
   const stickyWindow = page.getByRole('region', { name: /^便签/ })
   await expect(stickyWindow).toBeVisible()
+  // §30 横版默认：目录应用默认窗口宽 > 高。
+  const stickyBox = (await stickyWindow.boundingBox()) ?? { width: 0, height: 0 }
+  expect(stickyBox.width).toBeGreaterThan(stickyBox.height)
 
   const frame = stickyWindow.locator('iframe').contentFrame()
   await expect(frame.getByText('SDK 已连接')).toBeVisible({ timeout: 10_000 })

@@ -62,6 +62,10 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
   await expect(iframe).toHaveAttribute('sandbox', 'allow-scripts')
   await expect(iframe).toHaveAttribute('src', '/apps/sites/clock/index.html')
 
+  // §30 横版默认：目录应用默认窗口宽 > 高。
+  const clockBox = (await clockWindow.boundingBox()) ?? { width: 0, height: 0 }
+  expect(clockBox.width).toBeGreaterThan(clockBox.height)
+
   // 关闭窗口后卸载：开始菜单不再提供该应用。
   await clockWindow.getByRole('button', { name: '关闭窗口' }).click()
   await expect(clockWindow).toBeHidden()
@@ -69,8 +73,19 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
   await revealTaskbar(page)
   await startButton.click()
   await expect(
-    page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /时钟/ }),
+    page.getByRole('list', { name: /开始/ }).getByRole('button', { name: '时钟' }),
   ).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  // §30：小游戏同样默认横版（2048 安装 → 打开 → 宽 > 高）。
+  await store.getByRole('listitem').filter({ hasText: '2048' }).getByRole('button', { name: '安装' }).click()
+  await page.getByRole('dialog', { name: '应用权限申请' }).getByRole('button', { name: '允许并安装' }).click()
+  await store.getByRole('button', { name: '打开' }).click()
+  const gameWindow = page.getByRole('region', { name: '2048' })
+  await expect(gameWindow).toBeVisible()
+  const gameBox = (await gameWindow.boundingBox()) ?? { width: 0, height: 0 }
+  expect(gameBox.width).toBeGreaterThan(gameBox.height)
+  await gameWindow.getByRole('button', { name: '关闭窗口' }).click()
 })
 
 test('store list keeps a visible scrollbar and a bottom fade while content overflows', async ({

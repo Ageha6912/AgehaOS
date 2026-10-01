@@ -65,3 +65,34 @@ button.primary {
   font-size: 11px;
   color: var(--muted);
 }
+
+/* §30 横版默认：内容区 ≥500px 宽改行布局（棋盘左 + 右侧控制栏），
+   拉窄回竖版自动回落列布局。 */
+@media (min-width: 500px) {
+  body {
+    display: grid;
+    grid-template-columns: auto 160px;
+    grid-template-rows: auto auto 1fr;
+    align-content: center;
+    justify-content: center;
+    column-gap: 16px;
+    row-gap: 12px;
+  }
+  header {
+    grid-area: 1 / 2;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    max-width: none;
+  }
+  canvas {
+    grid-area: 1 / 1 / 4 / 2;
+  }
+  .bar {
+    grid-area: 2 / 2;
+  }
+  .hint {
+    grid-area: 3 / 2;
+    align-self: start;
+  }
+}

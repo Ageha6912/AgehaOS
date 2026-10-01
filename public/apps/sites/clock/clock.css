@@ -79,3 +79,21 @@ button:hover {
 button:active {
   transform: scale(0.97);
 }
+
+/* §30 横版默认：内容区 ≥440px 宽时双卡并排（时钟左、秒表右）。 */
+@media (min-width: 440px) {
+  .shell {
+    width: min(100%, 432px);
+    flex-direction: row;
+    align-items: stretch;
+  }
+  .card {
+    flex: 1;
+  }
+  .clock {
+    font-size: 30px;
+  }
+  .stopwatch {
+    font-size: 22px;
+  }
+}
