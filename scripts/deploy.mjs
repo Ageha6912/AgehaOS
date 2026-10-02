@@ -4,12 +4,16 @@
 // 用法：
 //   npm run deploy                          # 构建 + 上传 + 原子切换 + 六点核验
 //   npm run deploy -- --marker glass-popover [--marker ag-dock-gap]
-//   npm run deploy -- --env-file .env.production.local   # 默认 .env.production
+//   npm run deploy -- --env-file .env.deploy.local   # 默认 .env.deploy
 //   npm run deploy:rollback                 # 回滚到上一个 release 并核验
 //
 // 服务器布局：/opt/agehaos/releases/<时间戳>/ 为版本化产物；/opt/agehaos/dist
 // 为指向当前 release/dist 的符号链接（Caddy 零改动）；后端运行时仍在
 // /opt/agehaos 根（node_modules + server/data 不动）。
+//
+// ⚠️ env 文件命名铁律：必须用 .env.deploy 这类 Vite 不加载的名字——
+// .env.production/.env.local 等约定名会被 vite build 自动读取，VITE_ 前缀
+// 变量会泄进客户端 bundle（2026-10-02 事故：E2E 干净构建被污染 19/19 全挂）。
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -91,7 +95,7 @@ if (hasFlag('--rollback')) {
 }
 
 // ── 部署模式 ────────────────────────────────────────────────────────────────
-const envFile = flag('--env-file') ?? '.env.production'
+const envFile = flag('--env-file') ?? '.env.deploy'
 const markers = args.includes('--marker') ? args.filter((a, i) => args[i - 1] === '--marker') : []
 
 let env

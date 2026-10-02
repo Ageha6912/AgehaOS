@@ -1,7 +1,7 @@
 // deploy-lib.test.mjs — node --test 直跑（npm run test:deploy）。
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -91,4 +91,21 @@ test('tarFileArgs keeps the data exclude in front (坑 64 铁律)', () => {
   const args = tarFileArgs()
   assert.equal(args[0], '--exclude=server/data')
   assert.ok(args.includes('dist') && args.includes('package-lock.json'))
+})
+
+test('no Vite-convention env file at repo root carries VITE_ vars（2026-10-02 E2E 污染事故防回归）', () => {
+  // .env.production / .env.local 等约定名会被 vite build 自动加载：只要根部
+  // 出现这类文件且含 VITE_ 前缀变量，E2E 的「干净构建」前提即被打破
+  // （远程模式混入 → 全数挂掉）。部署专用 env 必须用 .env.deploy 这类
+  // Vite 不识别的命名。
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
+  for (const name of ['.env', '.env.local', '.env.production', '.env.development', '.env.production.local']) {
+    const file = path.join(root, name)
+    if (!existsSync(file)) continue
+    const text = readFileSync(file, 'utf8')
+    assert.ok(
+      !/^VITE_/m.test(text),
+      `${name} 含 VITE_ 变量会被 vite build 泄进客户端 bundle——改用 .env.deploy`,
+    )
+  }
 })
