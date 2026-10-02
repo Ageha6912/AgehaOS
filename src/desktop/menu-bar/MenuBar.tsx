@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 
-import { BatteryHigh, Bluetooth, Check, WifiHigh } from '@phosphor-icons/react'
+import { BatteryHigh, Bluetooth, Check, CloudArrowUp, WifiHigh } from '@phosphor-icons/react'
 
 import { launchApp } from '@/apps/launch'
+import { requestSettingsSection } from '@/apps/app-deep-link'
 import { BrandLogo } from '@/components/brand-logo'
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
+import { isRemoteAuthActive } from '@/core/auth'
 import { useTranslation } from '@/core/i18n'
 import { systemDynamicDesktop } from '@/services/dynamic-desktop'
+import { SYNC_TOGGLE_EVENT, isSyncEnabled } from '@/services/settings-sync'
 import { NotificationCenter } from '@/desktop/taskbar/NotificationCenter'
 import { useClock } from '@/desktop/taskbar/use-clock'
 import { UserMenu } from '@/desktop/taskbar/UserMenu'
@@ -14,10 +17,10 @@ import { useSearchStore } from '@/store/search-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useWindowStore } from '@/store/window-store'
 
-type MenuId = 'file' | 'edit' | 'view' | 'window' | 'help'
+type MenuId = 'file' | 'view' | 'window' | 'help'
 
-/** 触发器顺序（键盘左右遍历的环；§32 对齐参考图五菜单）。 */
-const MENU_IDS: MenuId[] = ['file', 'edit', 'view', 'window', 'help']
+/** 触发器顺序（键盘左右遍历的环；Shell 2.0 四菜单：原「编辑」并入文件菜单）。 */
+const MENU_IDS: MenuId[] = ['file', 'view', 'window', 'help']
 
 /** Battery Status API 的最小形状（Chromium 可用；其余环境 null 即隐藏）。 */
 interface BatteryLike {
@@ -52,9 +55,11 @@ function useBatteryLevel(): number | null {
 }
 
 /**
- * 顶部菜单栏（docs/DESIGN.md §19 + §32 参考图对齐）：左 = 品牌 + 五菜单
- * （文件/编辑/视图/窗口/帮助——「编辑」为文档级 execCommand 真实动作），
- * 右 = 状态簇（Wi-Fi/蓝牙指示、电池电量、日期 + 时钟）+ 通知 + 用户。
+ * 顶部菜单栏（docs/DESIGN.md §19；Shell 2.0 OS Menu Bar，2026-10-02）：
+ * 左 = 品牌 + 四菜单（文件/视图/窗口/帮助——原「编辑」菜单 6 项文档级
+ * execCommand 真实动作整体并入文件菜单第二分组，能力零删除，§1① 裁决），
+ * 右 = 状态簇五要素（System 纯指示 Wi-Fi/蓝牙/电池 + Cloud 同步状态深链
+ * 设置账户分区 + 通知中心 + 用户菜单 + 日期时钟最右，§1② 裁决）。
  * 键盘走 Tab/Enter/Esc/箭头（§19 P2-4），关闭语义与右键菜单一致。
  */
 export function MenuBar() {
@@ -71,6 +76,25 @@ export function MenuBar() {
   const restore = useWindowStore((s) => s.restore)
   const minimize = useWindowStore((s) => s.minimize)
   const closeWindow = useWindowStore((s) => s.close)
+
+  // Cloud 要素（§1②）：同步状态指示（与左栏云同步项同数据源）+ 深链设置
+  // 账户分区；开关切换事件驱动重渲染（与 Sidebar 同款 SYNC_TOGGLE_EVENT 模式）。
+  const [syncTick, setSyncTick] = useState(0)
+  useEffect(() => {
+    const onToggle = (): void => setSyncTick((value) => value + 1)
+    window.addEventListener(SYNC_TOGGLE_EVENT, onToggle)
+    return () => window.removeEventListener(SYNC_TOGGLE_EVENT, onToggle)
+  }, [])
+  void syncTick
+
+  const syncAvailable = isRemoteAuthActive()
+  const syncOn = syncAvailable && isSyncEnabled()
+  const syncHint = syncOn
+    ? t('sidebar.syncOn')
+    : syncAvailable
+      ? t('sidebar.syncOff')
+      : t('sidebar.syncLocal')
+  const cloudTitle = `${t('sidebar.sync')} · ${syncHint}`
 
   useEffect(() => {
     if (!openMenu) return
@@ -210,7 +234,7 @@ export function MenuBar() {
     <header
       ref={rootRef}
       data-testid="menu-bar"
-      className="desktop-chrome menubar-glass surface-glass fixed inset-x-0 top-0 z-40 flex h-[var(--ag-menubar-height)] items-center gap-1 border-b border-border-subtle px-2.5 shadow-soft"
+      className="desktop-chrome glass-hint menubar-glass surface-glass fixed inset-x-0 top-0 z-40 flex h-[var(--ag-menubar-height)] items-center gap-1 border-b border-border-subtle px-2.5 shadow-soft"
     >
       <div className="flex items-center gap-1.5 pr-1">
         <BrandLogo size={18} />
@@ -240,22 +264,8 @@ export function MenuBar() {
           label={t('menubar.file.search')}
           onSelect={() => act(() => useSearchStore.getState().setOpen(true))}
         />
-      </MenuEntry>
-
-      <MenuEntry
-        label={t('menubar.edit')}
-        open={openMenu === 'edit'}
-        onToggle={() => setOpenMenu(openMenu === 'edit' ? null : 'edit')}
-        onHoverSwitch={() => openMenu !== null && setOpenMenu('edit')}
-        onTriggerKeyDown={onTriggerKeyDown('edit')}
-        onDropdownKeyDown={onDropdownKeyDown('edit')}
-        triggerRef={(element) => {
-          triggerRefs.current['edit'] = element
-        }}
-        dropdownRef={(element) => {
-          dropdownRefs.current['edit'] = element
-        }}
-      >
+        {/* 第二分组 = 原「编辑」菜单整体迁移（§1① 裁决，能力零删除）。 */}
+        <MenuSeparator />
         <MenuItem label={t('menubar.edit.undo')} onSelect={() => execEdit('undo')} />
         <MenuItem label={t('menubar.edit.redo')} onSelect={() => execEdit('redo')} />
         <MenuSeparator />
@@ -369,7 +379,9 @@ export function MenuBar() {
 
       </nav>
 
-      {/* 系统状态区（§32 参考图）：指示图标 + 电池 + 日期时钟 + 通知/用户。 */}
+      {/* 系统状态区（Shell 2.0 §1② 右簇五要素）：System 纯指示（Wi-Fi/蓝牙/
+          电池，不做假交互）→ Cloud 同步状态深链 → 通知中心 → 用户 → 时钟最右
+          （macOS 惯例；时钟为等宽数据读出，字号豁免见裁决 J）。 */}
       <div className="ml-auto flex items-center gap-1.5">
         <span
           aria-hidden="true"
@@ -394,12 +406,26 @@ export function MenuBar() {
             {battery}%
           </span>
         )}
+        <button
+          type="button"
+          aria-label={cloudTitle}
+          title={cloudTitle}
+          className={`flex h-6 items-center ${
+            syncOn ? 'text-primary' : syncAvailable ? 'text-text-muted' : 'text-disabled'
+          }`}
+          onClick={() => {
+            requestSettingsSection('account')
+            launchApp('com.ageha.settings')
+          }}
+        >
+          <CloudArrowUp size={14} weight="bold" />
+        </button>
+        <NotificationCenter />
+        <UserMenu />
         <time data-testid="menu-bar-clock" className="flex shrink-0 items-center gap-1.5 px-1 text-xs text-text-muted">
           <span>{dateLabel}</span>
           <span>{clock}</span>
         </time>
-        <NotificationCenter />
-        <UserMenu />
       </div>
     </header>
   )
@@ -422,7 +448,7 @@ function MenuItem({
       type="button"
       role="menuitem"
       disabled={disabled}
-      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text hover:bg-surface-raised disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-text hover:bg-surface-raised disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
       onClick={onSelect}
     >
       <span
@@ -469,7 +495,7 @@ function MenuEntry({
         aria-haspopup="menu"
         aria-expanded={open}
         ref={triggerRef}
-        className="flex h-7 items-center rounded-md px-2 text-xs font-medium text-text-muted hover:bg-surface-raised hover:text-text aria-expanded:bg-surface-raised aria-expanded:text-text"
+        className="flex h-7 items-center rounded-md px-2 text-[13px] font-medium text-text-muted hover:bg-surface-raised hover:text-text aria-expanded:bg-surface-raised aria-expanded:text-text"
         onClick={onToggle}
         onPointerEnter={onHoverSwitch}
         onKeyDown={onTriggerKeyDown}

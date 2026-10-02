@@ -157,7 +157,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       ref={sectionRef}
       aria-label={win.title}
       aria-hidden={ghost || undefined}
-      className={`surface-glass absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
+      className={`surface-glass glass-deep absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
         maximized
           ? 'inset-0 rounded-none'
           : 'rounded-xl'

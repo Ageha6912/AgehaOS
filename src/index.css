@@ -1,12 +1,17 @@
 @import 'tailwindcss';
 
 /* Theme strategy (PRD §27): raw tokens flip on `.dark`, utilities stay stable.
-   Direction (2026-09-30, docs/DESIGN.md 「Calm Future」视觉升级): Japanese
-   Futuristic × Modern SaaS — 中性冷白/冷墨基底 + 白玻璃 chrome + 单一品牌强调；
-   蓝靛紫青 accent 族仅作数据/徽章语义。层次靠 surface/shadow/blur 刻度，
-   不靠发光。视觉权威 = 仓库根《AgehaOS UI 全面视觉升级.png》（永不提交）。
-   深色为默认基线（用户裁决 2026-09-30），浅色对称适配；玻璃归 chrome、
-   纸面归应用的材质分工不变。 */
+   Direction (2026-09-30 「Calm Future」；Shell 2.0 精修 2026-10-02，Floating OS
+   Environment): Japanese Futuristic × Modern SaaS — Cool White 冷白基底 +
+   Blue/Indigo/Violet/Cyan accent 族（无橙/米暖氛围）。
+   色彩配额纪律：Ageha 主强调（--ag-primary）只用于
+   Active/Selected/Focus/Highlight（焦点环/选中勾/激活指示点/主按钮/聚焦
+   窗口描边），accent 族仅作数据/徽章语义——不许全页紫蓝化。
+   材质纪律：大面=玻璃（.surface-glass 族按七面 blur 阶梯取材质）、
+   小控件=实色（按钮/输入/开关等小件禁用玻璃与渐变）。
+   层次靠 surface/shadow/blur 刻度，不靠发光。视觉权威 = 仓库根
+   《AgehaOS UI 全面视觉升级.png》（永不提交）。深色为默认基线（用户裁决
+   2026-09-30），浅色对称适配；玻璃归 chrome、纸面归应用的材质分工不变。 */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
@@ -47,18 +52,29 @@
   /* ---- Shadow scale（柔和、弥散、低透明；「浮起来」而非「压下去」）---- */
   --ag-shadow-soft: 0 1px 2px rgb(18 32 62 / 6%), 0 2px 8px rgb(18 32 62 / 5%);
   --ag-shadow-panel: 0 4px 16px rgb(18 32 62 / 8%), 0 1px 3px rgb(18 32 62 / 6%);
+  /* Shell 2.0 浮岛档（左栏 rail；panel→float→window 递进）。 */
+  --ag-shadow-float: 0 12px 32px rgb(18 32 62 / 12%), 0 2px 6px rgb(18 32 62 / 6%);
   --ag-shadow-window: 0 16px 48px rgb(18 32 62 / 16%), 0 2px 8px rgb(18 32 62 / 8%);
   --ag-shadow-window-flat: 0 8px 24px rgb(18 32 62 / 10%);
+  /* Shell 2.0 Dock 专用档（18% 大半径；七面 shadow 阶梯逐格互异）。 */
+  --ag-shadow-dock: 0 20px 56px rgb(18 32 62 / 18%), 0 4px 12px rgb(18 32 62 / 9%);
   --ag-shadow-popover: 0 24px 64px rgb(18 32 62 / 18%), 0 4px 12px rgb(18 32 62 / 8%);
   --ag-shadow-modal: 0 32px 80px rgb(18 32 62 / 24%), 0 8px 20px rgb(18 32 62 / 10%);
 
-  /* ---- Blur scale（玻璃只属于 chrome：Dock/窗口/启动器/搜索/弹层/通知/系统中心）---- */
+  /* ---- Blur scale（玻璃只属于 chrome。Shell 2.0 七面材质表 blur 阶梯：
+     menubar 12 / widget 3（Acrylic 特例族：低模糊重遮罩）/ rail 20 /
+     dock 28 / window 36 / popover 44 / modal 0=实色——逐格互异，离用户越近
+     越模糊越实）---- */
   --ag-blur-sm: 12px;
   --ag-blur-md: 20px;
   --ag-blur-lg: 28px;
+  --ag-blur-xl: 36px;
+  --ag-blur-2xl: 44px;
 
   /* ---- Glass material（白玻璃；实色兜底见 .surface-glass 回退）---- */
   --ag-glass-bg: rgb(255 255 255 / 72%);
+  /* 深玻璃档（z-50 弹层；chrome 作用域内 remap 白26%，见 .desktop-chrome）。 */
+  --ag-glass-bg-strong: rgb(255 255 255 / 86%);
   --ag-glass-border: rgb(18 32 62 / 8%);
   --ag-glass-highlight: rgb(255 255 255 / 70%);
   --ag-glass-blur: var(--ag-blur-lg);
@@ -82,16 +98,27 @@
   --ag-wl-max: #28c840;
   --ag-wl-max-glyph: #0d5a17;
 
-  /* ---- Shell geometry（顶栏/Dock/侧栏；§32 参考图像素级对齐）---- */
-  --ag-menubar-height: 40px;
-  /* 左侧系统导航栏（§26/§32）：<640px 隐藏（与 Sidebar hidden sm:flex 同步）。 */
-  --ag-rail-left-width: 132px;
+  /* ---- Tooltip（左栏气泡芯片底：冷墨实色小件——「大面=玻璃、小控件=实色」
+     纪律下的实色小件；主题无关常量，同红绿灯 --ag-wl-*）---- */
+  --ag-tooltip-bg: rgb(18 26 44 / 92%);
+
+  /* ---- Shell geometry（顶栏/Dock/侧栏；§32 对齐基线 + Shell 2.0 精修
+     2026-10-02：全部与 viewport.ts 常量互指钉扎）---- */
+  /* 菜单栏 32px：h-7(28px) 触发器 + 上下 2px 呼吸（§19 互指）。 */
+  --ag-menubar-height: 32px;
+  /* 左侧系统导航栏（§26/§32；Shell 2.0 icon-first 收窄）：80px = 44px 按钮
+     ×2 内边距 + 呼吸（var 消费自动得 76px 内容宽）。<640px 隐藏
+     （与 Sidebar hidden sm:flex 同步）。 */
+  --ag-rail-left-width: 80px;
   /* 右侧小组件栏（§27/§32）：<1280px 隐藏（与 WidgetRail hidden xl:flex 同步）。 */
   --ag-rail-right-width: 296px;
   --ag-dock-height: 68px;
-  /* 节距 52（w-12 + gap-1）：波浪 σ44 前提 σ ≤ 1.2×节距仍成立（§31 Round 2）。 */
-  --ag-dock-item-pitch: 52px;
-  --ag-dock-icon: 44px;
+  /* Dock 胶囊离底间距（Shell 2.0 漂浮感；预览/启动器 bottom 计算式共用）。 */
+  --ag-dock-gap: 20px;
+  /* 节距 56（48px 图标位 + gap-2 8px）：波浪 σ44 前提 σ ≤ 1.2×节距
+     （44 ≤ 67.2）仍成立（§31 Round 2）。 */
+  --ag-dock-item-pitch: 56px;
+  --ag-dock-icon: 48px;
 
   /* ---- Desktop atmosphere（极轻氛围层：顶部环境光 + 暗角，静态零动画）---- */
   --ag-atmosphere-ambient: linear-gradient(
@@ -187,13 +214,17 @@
   /* ---- Shadow scale ---- */
   --ag-shadow-soft: 0 1px 2px rgb(0 0 0 / 24%), 0 2px 8px rgb(0 0 0 / 16%);
   --ag-shadow-panel: 0 4px 16px rgb(0 0 0 / 28%), 0 1px 3px rgb(0 0 0 / 20%);
+  --ag-shadow-float: 0 12px 32px rgb(0 0 0 / 34%), 0 2px 6px rgb(0 0 0 / 18%);
   --ag-shadow-window: 0 16px 48px rgb(0 0 0 / 45%), 0 2px 8px rgb(0 0 0 / 30%);
   --ag-shadow-window-flat: 0 8px 24px rgb(0 0 0 / 28%);
+  --ag-shadow-dock: 0 20px 56px rgb(0 0 0 / 50%), 0 4px 12px rgb(0 0 0 / 28%);
   --ag-shadow-popover: 0 24px 64px rgb(0 0 0 / 52%), 0 4px 12px rgb(0 0 0 / 32%);
   --ag-shadow-modal: 0 32px 80px rgb(0 0 0 / 60%), 0 8px 20px rgb(0 0 0 / 36%);
 
   /* ---- Glass material（深色冷墨玻璃）---- */
   --ag-glass-bg: rgb(16 23 40 / 66%);
+  /* 深玻璃档（z-50 弹层；chrome 作用域内 remap 白26%，见 .desktop-chrome）。 */
+  --ag-glass-bg-strong: rgb(16 23 40 / 84%);
   --ag-glass-border: rgb(255 255 255 / 10%);
   --ag-glass-highlight: rgb(255 255 255 / 8%);
   --ag-glass-blur: var(--ag-blur-lg);
@@ -274,8 +305,10 @@
 
   --shadow-soft: var(--ag-shadow-soft);
   --shadow-panel: var(--ag-shadow-panel);
+  --shadow-float: var(--ag-shadow-float);
   --shadow-window: var(--ag-shadow-window);
   --shadow-window-flat: var(--ag-shadow-window-flat);
+  --shadow-dock: var(--ag-shadow-dock);
   --shadow-popover: var(--ag-shadow-popover);
   --shadow-modal: var(--ag-shadow-modal);
 
@@ -364,6 +397,8 @@ body {
   --ag-surface-elevated: rgb(255 255 255 / 22%);
   --ag-surface-popover: rgb(255 255 255 / 12%);
   --ag-glass-bg: rgb(255 255 255 / 14%);
+  /* 深玻璃弹层（菜单栏下拉/用户/通知中心/启动器）在白字域的底：白26%。 */
+  --ag-glass-bg-strong: rgb(255 255 255 / 26%);
   --ag-glass-border: rgb(255 255 255 / 30%);
   --ag-glass-highlight: rgb(255 255 255 / 42%);
   --ag-primary: #5b8def;
@@ -442,6 +477,74 @@ body {
   background: var(--ag-glass-bg);
   backdrop-filter: blur(var(--ag-glass-blur)) saturate(150%);
 }
+
+/*
+ * Shell 2.0 七面玻璃材质增量（材质总表 §4.1）。插入位置铁律：本区段只准
+ * 位于 .surface-glass 基规则之后、下方降透明/@supports 兜底之前——全部
+ * 消费方均同挂 surface-glass，同特异性下源序靠后的兜底块在降级环境必胜
+ * （blur 归零、玻璃底回实色），对比从不依赖模糊（根因 B 源序教训）。
+ * backdrop-filter 一律只写标准属性：源码出现 -webkit- 前缀会被构建链
+ * 剥掉标准属性，全应用玻璃模糊失效（根因 A）。 */
+/* ① menubar 环境带（blur 12px hint）。 */
+.glass-hint {
+  backdrop-filter: blur(var(--ag-blur-sm)) saturate(150%);
+}
+/* ③ 左栏 rail 浮岛（blur 20px raise）。 */
+.glass-raise {
+  backdrop-filter: blur(var(--ag-blur-md)) saturate(150%);
+}
+/* ⑤ 窗口面（blur 36px deep）。 */
+.glass-deep {
+  backdrop-filter: blur(var(--ag-blur-xl)) saturate(160%);
+}
+/* ④ Dock 胶囊底（blur 走默认 surface-glass 28px；白22% 胶囊面）。 */
+.dock-glass {
+  background: rgb(255 255 255 / 22%);
+}
+
+/* ⑥ 弹层深玻璃（blur 44px + 白86%/墨84%；chrome 作用域自动白26%）。
+   ⚠️ 必须保持为独立规则块，严禁把声明并入下方弹层原块——原块位于降级
+   兜底之后，扩玻璃属性会同特异性源序压过兜底，把 44px blur 带进降透明/
+   无 backdrop-filter 环境。7 处 popover-panel 消费方同挂 surface-glass 自动
+   升级；搜索面板经 glass-popover 类补挂（切片六）。⑦ modal = 唯一实色面
+   （无 blur，材质终点），不走本区段。 */
+.popover-panel,
+.glass-popover {
+  background: var(--ag-glass-bg-strong);
+  backdrop-filter: blur(var(--ag-blur-2xl)) saturate(160%);
+}
+
+/* 左栏 icon-first 气泡 tooltip：冷墨实色小芯片（小控件=实色纪律）。
+   基态 opacity:0，由宿主按钮的 group-hover/group-focus-visible 点亮；
+   reduced-motion 由全局 0.01ms 塌缩接管。 */
+.os-tooltip {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 8px;
+  background: var(--ag-tooltip-bg);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 8px;
+  border-radius: var(--ag-radius-md);
+  box-shadow: var(--ag-shadow-popover);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 50;
+  transition: opacity var(--ag-motion-fast) var(--ag-motion-ease);
+}
+
+/* Dock 图标 hover 光晕（裁决 I）：波浪（transform）+ 一次性 drop-shadow；
+   filter 与波浪写的 transform 无冲突。按钮本体零底色（2026-10-01 用户裁决：
+   浅底在玻璃胶囊上显成图标四周的白边，不得回退）；回收站按钮无 wave 图标
+   后代，规则空命中无害。 */
+.dock-tile:hover [data-wave-icon] {
+  filter: drop-shadow(0 4px 10px rgb(47 95 232 / 28%));
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .surface-glass {
     background: var(--ag-surface-popover);

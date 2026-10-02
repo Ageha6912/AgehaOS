@@ -91,14 +91,16 @@ export function Taskbar() {
     <>
       <footer
         data-state="revealed"
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex h-[calc(var(--ag-dock-height)+0.75rem)] items-end justify-center px-3 pb-3"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex h-[calc(var(--ag-dock-height)+var(--ag-dock-gap))] items-end justify-center px-3 pb-[var(--ag-dock-gap)]"
         /* 内联 transform 恒存在：footer 是启动器弹层（fixed）的包含块
            （坑 13），移除会让包含块落到被钳制居中的胶囊上，窄视口溢出。 */
         style={{ transform: 'translateY(0)' }}
       >
-        {/* 悬浮胶囊 Dock（§20/§32）：启动器 + 常驻瓷贴 + 运行中 + 回收站。
-            自动隐藏/波浪/预览/锚点行为契约全部不变（§9/§13/§12）。 */}
-        <div className="desktop-chrome surface-glass pointer-events-auto relative flex h-16 max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-full border border-border px-2 shadow-popover">
+        {/* 悬浮胶囊 Dock（§20/§32；Shell 2.0 §4.1④ 材质：白22% 胶囊底 +
+            28px 默认 surface-glass blur + 白/42% 强边 + shadow-dock 专用档）：
+            启动器 + 常驻瓷贴 + 运行中 + 回收站。自动隐藏/波浪/预览/锚点行为
+            契约全部不变（§9/§13/§12）。 */}
+        <div className="desktop-chrome dock-glass surface-glass pointer-events-auto relative flex h-[var(--ag-dock-height)] max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-full border border-border-strong px-2 shadow-dock">
           {/* Dock 高光滑过（§32.5 修订 10）：低频釉面扫光，覆盖层内裁剪，
               不裁波浪放大的图标；盖在图标上做「玻璃反光」（pointer-events-none）。 */}
           {dockSheen && <div aria-hidden="true" data-testid="dock-sheen" className="dock-sheen is-on" />}
@@ -111,7 +113,7 @@ export function Taskbar() {
               按钮不画 hover/active 底色（2026-10-01 用户裁决：44px 图标坐在
               48px 按钮里，浅底在玻璃胶囊上显成图标四周的白边）——悬停反馈
               走悬停预览与波浪，激活态只剩指示点。 */}
-          <div className="flex shrink-0 items-center gap-1 self-stretch">
+          <div className="flex shrink-0 items-center gap-2 self-stretch">
             {PINNED_APP_IDS.map((appId) => {
               const appWindows = windows.filter((win) => win.appId === appId)
               const latest = appWindows[appWindows.length - 1]
@@ -135,11 +137,11 @@ export function Taskbar() {
                     data-testid={`dock-pin-${appId}`}
                     aria-label={pinnedLabel(appId)}
                     title={pinnedLabel(appId)}
-                    className="relative flex h-12 w-12 items-center justify-center rounded-xl"
+                    className="dock-tile relative flex h-12 w-12 items-center justify-center rounded-xl"
                     onClick={() => activatePinned(appId)}
                   >
                     <span aria-hidden="true" data-wave-icon className="flex">
-                      <AppIcon appId={appId} size={44} />
+                      <AppIcon appId={appId} size={48} />
                     </span>
                     {active && (
                       <span
@@ -175,7 +177,7 @@ export function Taskbar() {
           ) && <div aria-hidden="true" className="mx-0.5 h-8 w-px shrink-0 bg-border" />}
           <div
             data-testid="dock-running-row"
-            className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-x-auto"
+            className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 self-stretch overflow-x-auto"
           >
             {windows.map((win) => {
               if (PINNED_APP_IDS.includes(win.appId as (typeof PINNED_APP_IDS)[number])) return null
@@ -194,7 +196,7 @@ export function Taskbar() {
                     type="button"
                     aria-label={win.title}
                     data-testid={`taskbar-item-${win.id}`}
-                    className={`relative flex h-12 w-12 items-center justify-center rounded-xl text-sm ${
+                    className={`dock-tile relative flex h-12 w-12 items-center justify-center rounded-xl text-sm ${
                       active
                         ? 'text-text'
                         : win.state === 'minimized'
@@ -204,7 +206,7 @@ export function Taskbar() {
                     onClick={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
                   >
                     <span aria-hidden="true" data-wave-icon className="flex">
-                      <AppIcon appId={win.appId} size={44} />
+                      <AppIcon appId={win.appId} size={48} />
                     </span>
                     {active && (
                       <span
@@ -238,7 +240,7 @@ export function Taskbar() {
             data-testid="dock-trash"
             aria-label={t('dock.trash')}
             title={t('dock.trashHint')}
-            className="flex h-12 w-12 items-center justify-center rounded-xl"
+            className="dock-tile flex h-12 w-12 items-center justify-center rounded-xl"
             onClick={() => {
               requestFilesTrash()
               launchApp('com.ageha.files')

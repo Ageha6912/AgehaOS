@@ -44,7 +44,7 @@ test('dynamic desktop: photo wallpaper by default, opt-in field rendering, opt-o
 
   // 右键菜单「更换壁纸」：seed 变化驱动 canvas 重绘（同款构图或新构图都合法）。
   // §30 横版面板占 240-920×64-484（§32 让位 336px 右栏），(200,400) 在面板
-  // 左侧稳定空白区（左栏 0-132；契约不变：空白画布右键出菜单）。
+  // 左侧稳定空白区（左栏 16-92，Shell 2.0 浮岛：80px 栏 + left 16px；契约不变：空白画布右键出菜单）。
   await page.mouse.click(200, 400, { button: 'right' })
   const menu = page.getByTestId('context-menu')
   await expect(menu).toBeVisible()

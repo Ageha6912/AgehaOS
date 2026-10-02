@@ -92,7 +92,31 @@ describe('WidgetRail (§32 参考图四卡)', () => {
       expect(card.className).toContain('surface-glass')
       expect(card.className).toContain('pointer-events-auto')
       expect(card.className).toContain('rounded-2xl')
-      expect(card.className).toContain('shadow-popover')
+      // 材质表②：subtle 档 shadow-panel（自 shadow-popover 降档）；禁跨层
+      // 借用 rail 的 shadow-float / 弹层的 shadow-popover（§6.2 规则 3）。
+      expect(card.classList.contains('shadow-panel'), `shadow-panel on ${testId}`).toBe(true)
+      expect(card.classList.contains('shadow-popover'), `no shadow-popover on ${testId}`).toBe(false)
+      expect(card.classList.contains('shadow-float'), `no shadow-float on ${testId}`).toBe(false)
     }
+  })
+
+  it('keeps the shell 2.0 floating rhythm at the rail container (§4.2②)', () => {
+    render(<WidgetRail />)
+
+    const rail = screen.getByTestId('widget-rail')
+    // right-5(20px) + gap-4(16px)：卡片间距节奏（简报 right 20-24 / 间距
+    // 14-18 区间内的定案值）；top 锚 = 菜单栏 32px + 16px = 48px（token
+    // 计算式不动，随地基切片 token 自动成立）。
+    expect(rail.classList.contains('right-5')).toBe(true)
+    expect(rail.classList.contains('gap-4')).toBe(true)
+    expect(rail.classList.contains('top-[calc(var(--ag-menubar-height)+1rem)]')).toBe(true)
+    // 卡宽 288px = token 296 - 8（简报 280-320 区间内，token 消费）。
+    expect(rail.classList.contains('w-[calc(var(--ag-rail-right-width)-0.5rem)]')).toBe(true)
+    // 旧节奏退役（坑 55：负断言用 classList 精确 token）。
+    expect(rail.classList.contains('right-2')).toBe(false)
+    expect(rail.classList.contains('gap-3')).toBe(false)
+    // 容器无独立玻璃底：观感 = 桌面上四个独立漂浮面板，非连续 Dashboard 侧栏。
+    expect(rail.classList.contains('surface-glass')).toBe(false)
+    expect(rail.classList.contains('widget-card')).toBe(false)
   })
 })

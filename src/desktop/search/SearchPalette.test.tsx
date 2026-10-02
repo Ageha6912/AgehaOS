@@ -43,6 +43,11 @@ describe('SearchPalette (PRD §15)', () => {
     expect(palette.classList.contains('w-[38rem]')).toBe(true)
     expect(palette.classList.contains('shadow-popover')).toBe(true)
     expect(palette.classList.contains('rounded-xl')).toBe(true)
+    // 材质表⑥（Shell 2.0 §4.2⑥）：弹层深玻璃档——glass-popover 挂上
+    // --ag-glass-bg-strong（白86%；chrome 作用域自动白26%）+ 44px blur，
+    // 档位独立于 z-30 窗口层的 surface-glass 基底（白72% + 28px）。
+    expect(palette.classList.contains('surface-glass')).toBe(true)
+    expect(palette.classList.contains('glass-popover')).toBe(true)
   })
 
   it('is hidden until opened and shows app results while typing', async () => {

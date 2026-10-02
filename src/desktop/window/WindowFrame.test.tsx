@@ -112,6 +112,28 @@ describe('WindowFrame (via WindowLayer)', () => {
     expect(layer.className).toContain('z-[45]')
   })
 
+  it('wears the shell 2.0 window skin: deep glass face with OS-level focus hierarchy', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    render(<WindowLayer />)
+
+    // 材质表⑤：半透明面 + glass-deep（36px 深玻璃）；radius-xl(20px) 契约
+    // 不变（简报 16-20 区间）；最大化 inset-0 rounded-none 全屏契约不受影响。
+    const focused = screen.getByRole('region', { name: '文件' })
+    expect(focused.classList.contains('surface-glass')).toBe(true)
+    expect(focused.classList.contains('glass-deep')).toBe(true)
+    expect(focused.classList.contains('rounded-xl')).toBe(true)
+    expect(focused.classList.contains('inset-0')).toBe(false)
+    // 聚焦 = primary/50 描边 + shadow-window；失焦 = 常规边框 + window-flat
+    // （active/inactive 层级：像 OS 窗口，不像网页卡片）。
+    expect(focused.classList.contains('border-primary/50')).toBe(true)
+    expect(focused.classList.contains('shadow-window')).toBe(true)
+    const unfocused = screen.getByRole('region', { name: '记事' })
+    expect(unfocused.classList.contains('border-border')).toBe(true)
+    expect(unfocused.classList.contains('shadow-window-flat')).toBe(true)
+    expect(unfocused.classList.contains('glass-deep')).toBe(true)
+  })
+
   it('focuses the window on pointer down', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })

@@ -100,7 +100,7 @@ export function SearchPalette() {
         role="dialog"
         aria-label={t('search.placeholder')}
         data-testid="search-palette"
-        className={`surface-glass w-[38rem] max-w-[90%] rounded-xl border border-border p-3 shadow-popover ${popoverMotionClass(phase.exiting)}`}
+        className={`surface-glass glass-popover w-[38rem] max-w-[90%] rounded-xl border border-border p-3 shadow-popover ${popoverMotionClass(phase.exiting)}`}
         onClick={(event) => event.stopPropagation()}
       >
         <input

@@ -21,11 +21,15 @@ import { unreadCount, useNotificationStore } from '@/store/notification-store'
 import { useWindowStore } from '@/store/window-store'
 
 /**
- * 左侧系统导航栏（docs/DESIGN.md §26 + §32 参考图对齐）：八项「瓷贴 + 右排
- * 标签」（瓷贴 = 各自彩色渐变圆角方块，同参考图）；顺序 = 桌面/商店/文件/
- * 终端/设置/云同步/通知/用户中心。只放真实动作（拒绝装饰性谎言）：
- * 桌面=最小化全部、商店/文件/终端/设置=启动器、用户中心=Settings 落账户
- * 分区（深链）、云同步=真实开关（本地模式禁用）、通知=唤起共享通知中心。
+ * 左侧系统导航栏（docs/DESIGN.md §26；Shell 2.0 Floating System Rail，
+ * 2026-10-02）：icon-first 浮岛——80px 窄栏（内容 76px）+ left-4 +
+ * 真垂直居中 + glass-raise 玻璃 + 细边框 + shadow-float；八项瓷贴（36px，
+ * 各自彩色渐变圆角方块）保留原导航目标，文字标签退役为悬停/聚焦 tooltip
+ * （原生 title 双轨保留，§1③）。顺序 = 桌面/商店/文件/终端/设置/云同步/
+ * 通知/用户中心。只放真实动作（拒绝装饰性谎言）：桌面=最小化全部、商店/
+ * 文件/终端/设置=启动器、用户中心=Settings 落账户分区（深链）、云同步=
+ * 真实开关（本地模式禁用）、通知=唤起共享通知中心。无「当前项」语义，
+ * 不设常亮选中底（轻透明胶囊 = hover bg-surface-raised 瞬态）。
  * <640px 隐藏（§25）。
  */
 
@@ -46,7 +50,7 @@ function Tile({ gradient, glyph }: { gradient: string; glyph: ReactNode }) {
   return (
     <span
       aria-hidden="true"
-      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg shadow-[0_1px_2px_rgba(15,23,42,0.25)] ring-1 ring-inset ring-white/25"
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-[0_1px_2px_rgba(15,23,42,0.25)] ring-1 ring-inset ring-white/25"
       style={style}
     >
       {glyph}
@@ -95,42 +99,42 @@ export function Sidebar() {
     <nav
       aria-label={t('sidebar.label')}
       data-testid="sidebar"
-      className="desktop-chrome surface-glass fixed bottom-6 left-2 top-[calc(var(--ag-menubar-height)+1rem)] z-40 hidden w-[calc(var(--ag-rail-left-width)-0.5rem)] flex-col gap-3 rounded-2xl border border-border-subtle px-2 py-3 shadow-popover sm:flex"
+      className="desktop-chrome surface-glass glass-raise fixed left-4 top-1/2 z-40 hidden w-[calc(var(--ag-rail-left-width)-0.5rem)] -translate-y-1/2 flex-col items-center gap-2 rounded-xl border border-border px-2 py-3 shadow-float sm:flex"
     >
       <SidebarItem
         testid="sidebar-desktop"
         label={t('sidebar.desktop')}
-        tile={<Tile gradient={TILE_GRADIENTS.desktop} glyph={<Monitor size={16} weight="fill" color="#ffffff" />} />}
+        tile={<Tile gradient={TILE_GRADIENTS.desktop} glyph={<Monitor size={18} weight="fill" color="#ffffff" />} />}
         onClick={showDesktop}
       />
       <SidebarItem
         testid="sidebar-store"
         label={t('sidebar.store')}
-        tile={<Tile gradient={TILE_GRADIENTS.store} glyph={<Storefront size={16} weight="fill" color="#ffffff" />} />}
+        tile={<Tile gradient={TILE_GRADIENTS.store} glyph={<Storefront size={18} weight="fill" color="#ffffff" />} />}
         onClick={() => launchApp('com.ageha.store')}
       />
       <SidebarItem
         testid="sidebar-files"
         label={t('sidebar.files')}
-        tile={<Tile gradient={TILE_GRADIENTS.files} glyph={<FolderOpen size={16} weight="fill" color="#ffffff" />} />}
+        tile={<Tile gradient={TILE_GRADIENTS.files} glyph={<FolderOpen size={18} weight="fill" color="#ffffff" />} />}
         onClick={() => launchApp('com.ageha.files')}
       />
       <SidebarItem
         testid="sidebar-terminal"
         label={t('sidebar.terminal')}
-        tile={<Tile gradient={TILE_GRADIENTS.terminal} glyph={<TerminalWindow size={16} weight="fill" color="#ffffff" />} />}
+        tile={<Tile gradient={TILE_GRADIENTS.terminal} glyph={<TerminalWindow size={18} weight="fill" color="#ffffff" />} />}
         onClick={() => launchApp('com.ageha.terminal')}
       />
       <SidebarItem
         testid="sidebar-settings"
         label={t('sidebar.settings')}
-        tile={<Tile gradient={TILE_GRADIENTS.settings} glyph={<GearSix size={16} weight="fill" color="#ffffff" />} />}
+        tile={<Tile gradient={TILE_GRADIENTS.settings} glyph={<GearSix size={18} weight="fill" color="#ffffff" />} />}
         onClick={() => launchApp('com.ageha.settings')}
       />
       <SidebarItem
         testid="sidebar-sync"
         label={t('sidebar.sync')}
-        tile={<Tile gradient={TILE_GRADIENTS.sync} glyph={<CloudArrowUp size={16} weight="fill" color="#ffffff" />} />}
+        tile={<Tile gradient={TILE_GRADIENTS.sync} glyph={<CloudArrowUp size={18} weight="fill" color="#ffffff" />} />}
         hint={`${t('sidebar.sync')} · ${syncHint}`}
         stateDot={syncOn}
         disabled={!syncAvailable}
@@ -139,14 +143,14 @@ export function Sidebar() {
       <SidebarItem
         testid="sidebar-notifications"
         label={t('sidebar.notifications')}
-        tile={<Tile gradient={TILE_GRADIENTS.notifications} glyph={<Bell size={16} weight="fill" color="#ffffff" />} />}
+        tile={<Tile gradient={TILE_GRADIENTS.notifications} glyph={<Bell size={18} weight="fill" color="#ffffff" />} />}
         badge={unread}
         onClick={togglePanel}
       />
       <SidebarItem
         testid="sidebar-user-center"
         label={t('sidebar.userCenter')}
-        tile={<Tile gradient={TILE_GRADIENTS.user} glyph={<UserCircle size={16} weight="fill" color="#ffffff" />} />}
+        tile={<Tile gradient={TILE_GRADIENTS.user} glyph={<UserCircle size={18} weight="fill" color="#ffffff" />} />}
         onClick={openUserCenter}
       />
     </nav>
@@ -182,25 +186,32 @@ function SidebarItem({
       title={hint ?? label}
       disabled={disabled}
       onClick={onClick}
-      className="relative flex items-center gap-2.5 rounded-lg py-2 pl-1.5 pr-2 text-[12.5px] text-text hover:bg-surface-raised disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+      className="group relative flex h-11 w-11 items-center justify-center rounded-xl text-text hover:bg-surface-raised disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
     >
-      {tile}
-      <span className="min-w-0 truncate">{label}</span>
-      {stateDot && (
-        <span
-          aria-hidden="true"
-          className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary"
-        />
-      )}
-      {badge !== undefined && badge > 0 && (
-        <span
-          aria-hidden="true"
-          data-testid="sidebar-unread"
-          className="absolute right-1.5 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-contrast"
-        >
-          {badge > 9 ? '9+' : badge}
-        </span>
-      )}
+      <span className="relative">
+        {tile}
+        {stateDot && (
+          <span
+            aria-hidden="true"
+            className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-primary"
+          />
+        )}
+        {badge !== undefined && badge > 0 && (
+          <span
+            aria-hidden="true"
+            data-testid="sidebar-unread"
+            className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-contrast"
+          >
+            {badge > 9 ? '9+' : badge}
+          </span>
+        )}
+      </span>
+      {/* 自绘气泡 tooltip（§1③ 双轨的视觉主轨）：基态 opacity:0 由 .os-tooltip
+          提供，宿主 group 的 hover/focus-visible 变体点亮；气泡 aria-hidden
+          不进可达树（可达名 = aria-label）。原生 title 双轨保留。 */}
+      <span aria-hidden="true" className="os-tooltip group-hover:opacity-100 group-focus-visible:opacity-100">
+        {hint ?? label}
+      </span>
     </button>
   )
 }

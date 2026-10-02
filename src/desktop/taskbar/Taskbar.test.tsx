@@ -199,6 +199,25 @@ describe('Taskbar', () => {
     expect(screen.getByText('无匹配结果')).toBeInTheDocument()
   })
 
+  it('keeps the launcher search box legible in the chrome white-on-glass scope (评审修复)', () => {
+    render(<Taskbar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+
+    // chrome 白字域内 placeholder 与 ⌘K 徽章提档一阶：白 100%（text-text），
+    // 不再吃 text-muted（白/78%）弱对比；输入底同步提档 surface-elevated
+    // （白/22%）。玻璃材质与布局不动（2026-10-02 视觉评审第 1 轮）。
+    const input = screen.getByTestId('launcher-search')
+    expect(input.classList.contains('placeholder:text-text')).toBe(true)
+    expect(input.classList.contains('placeholder:text-text-muted')).toBe(false)
+    expect(input.classList.contains('bg-surface-elevated')).toBe(true)
+    expect(input.classList.contains('bg-surface')).toBe(false)
+    const kbd = input.parentElement?.querySelector('kbd') as HTMLElement | null
+    expect(kbd).not.toBeNull()
+    expect(kbd!.classList.contains('text-text')).toBe(true)
+    expect(kbd!.classList.contains('text-text-muted')).toBe(false)
+  })
+
   it('常驻显示：默认可见且指针离开也不再隐藏（§32 修订 8）', () => {
     render(<Taskbar />)
 
@@ -216,31 +235,52 @@ describe('Taskbar', () => {
     // 运动层全宽透明：渐变纱退场，pointer-events-none 不截胡两侧窗口点击（坑 40）。
     expect(bar.className).not.toContain('from-bg/')
     expect(bar.classList.contains('pointer-events-none')).toBe(true)
+    // Shell 2.0 浮动节奏：运动层高 = 胶囊 68 + 离底 20（token 计算式）。
+    expect(bar.className).toContain('h-[calc(var(--ag-dock-height)+var(--ag-dock-gap))]')
+    expect(bar.className).toContain('pb-[var(--ag-dock-gap)]')
 
-    // 胶囊本体：玻璃 + pill + hairline + popover 影 + 接指针。
+    // 胶囊本体（材质表④）：玻璃 + 白22% 胶囊底 + pill + 白/42% 强边 +
+    // shadow-dock 专用档 + 接指针；自动隐藏不复活（§32 修订 8）。
     const pill = bar.firstElementChild as HTMLElement
-    expect(pill.classList.contains('surface-glass')).toBe(true)
-    expect(pill.classList.contains('rounded-full')).toBe(true)
-    expect(pill.classList.contains('border')).toBe(true)
-    expect(pill.classList.contains('shadow-popover')).toBe(true)
-    expect(pill.classList.contains('pointer-events-auto')).toBe(true)
+    for (const cls of [
+      'surface-glass',
+      'dock-glass',
+      'rounded-full',
+      'border',
+      'border-border-strong',
+      'shadow-dock',
+      'pointer-events-auto',
+      'h-[var(--ag-dock-height)]',
+    ]) {
+      expect(pill.classList.contains(cls), cls).toBe(true)
+    }
+    // 材质配额：胶囊不得借弹层的 shadow-popover / 左栏的 shadow-float。
+    expect(pill.classList.contains('shadow-popover')).toBe(false)
+    expect(pill.classList.contains('shadow-float')).toBe(false)
   })
 
-  it('scales the dock up to the §32 reference prominence (68 capsule / 48 buttons / 44 icons)', () => {
+  it('scales the dock up to the shell 2.0 rhythm (68 capsule / 48 buttons / 48 icons / 56 pitch)', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.dynamic.panel', title: '动态面板' })
     render(<Taskbar />)
 
-    // 胶囊 64px；运行项按钮 48×48（节距 52 = w-12 + gap-1，σ44 波浪前提）、图标 44。
+    // 胶囊 68px（token）；瓷贴段与运行中段 gap-2（节距 56 = 48 + 8，σ44 波浪前提）；
+    // 运行项按钮 48×48、图标 48（token --ag-dock-icon）。
     const pill = (screen.getByRole('contentinfo') as HTMLElement).firstElementChild as HTMLElement
-    expect(pill.className).toContain('h-16')
+    expect(pill.classList.contains('h-[var(--ag-dock-height)]')).toBe(true)
     const button = screen.getByTestId(
       `taskbar-item-${useWindowStore.getState().windows[0]!.id}`,
     )
     expect(button.className).toContain('h-12')
     expect(button.className).toContain('w-12')
+    // 三类按钮（瓷贴/运行中/回收站）挂 dock-tile：hover 光晕规则的前置类。
+    expect(button.classList.contains('dock-tile')).toBe(true)
+    expect(screen.getByTestId('dock-pin-com.ageha.files').classList.contains('dock-tile')).toBe(true)
+    expect(screen.getByTestId('dock-trash').classList.contains('dock-tile')).toBe(true)
     const icon = button.querySelector('[data-wave-icon] span') as HTMLElement
-    expect(icon.style.width).toBe('44px')
-    expect(icon.style.height).toBe('44px')
+    expect(icon.style.width).toBe('48px')
+    expect(icon.style.height).toBe('48px')
+    // 波浪域不变：运行中图标仍在 data-wave-icon 引擎内（§13 全域契约）。
+    expect(button.querySelector('[data-wave-icon]')).not.toBeNull()
   })
 
   it('opens the launcher as a left-anchored two-pane panel above the dock (§32)', () => {
@@ -249,9 +289,9 @@ describe('Taskbar', () => {
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
     const search = screen.getByTestId('launcher-search')
     const menu = search.closest('menu') as HTMLElement
-    // 左侧锚定（贴左栏），锚在 Dock 上方，宽 410px、4 列网格。
+    // 左侧锚定（贴左栏），锚在 Dock 上方（dock-gap token 计算式），宽 410px、4 列网格。
     expect(menu.className).toContain('left-[calc(var(--ag-rail-left-width)+1.125rem)]')
-    expect(menu.className).toContain('bottom-[calc(var(--ag-dock-height)+1.75rem)]')
+    expect(menu.className).toContain('bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+0.75rem)]')
     expect(menu.className).toContain('w-[410px]')
     expect(menu.querySelector('ul.grid')?.className).toContain('grid-cols-4')
   })

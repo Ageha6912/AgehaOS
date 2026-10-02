@@ -35,4 +35,13 @@ test('widgets: rail shows the four reference cards and the panel avoids it (§27
   const panelBox = await panel.boundingBox()
   const railBox = await rail.boundingBox()
   expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(railBox!.x + 1)
+
+  // Shell 2.0 浮动节奏（§4.2②）严格钉扎：右缘留白 20px（right-5）、顶部锚
+  // 48px（菜单栏 32px + 1rem，地基切片 token 自动成立）——±0.5px 亚像素余量。
+  const vp = page.viewportSize() ?? { width: 1280, height: 720 }
+  const railInset = vp.width - (railBox!.x + railBox!.width)
+  expect(railInset).toBeGreaterThanOrEqual(19.5)
+  expect(railInset).toBeLessThanOrEqual(20.5)
+  expect(railBox!.y).toBeGreaterThanOrEqual(47.5)
+  expect(railBox!.y).toBeLessThanOrEqual(48.5)
 })

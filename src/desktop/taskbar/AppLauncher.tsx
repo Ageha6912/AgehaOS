@@ -139,11 +139,11 @@ export function AppLauncher() {
         onChange={(event) => setQuery(event.target.value)}
         placeholder={t('launcher.searchPlaceholder')}
         aria-label={t('launcher.searchPlaceholder')}
-        className="w-full rounded-lg border border-border-subtle bg-surface py-2 pl-8 pr-12 text-xs text-text placeholder:text-text-muted focus:outline-none"
+        className="w-full rounded-lg border border-border-subtle bg-surface-elevated py-2 pl-8 pr-12 text-xs text-text placeholder:text-text focus:outline-none"
       />
       <kbd
         aria-hidden="true"
-        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md border border-border-subtle bg-surface-soft px-1.5 py-0.5 text-[10px] text-text-muted"
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md border border-border-subtle bg-surface-soft px-1.5 py-0.5 text-[10px] text-text"
       >
         ⌘ K
       </kbd>
@@ -238,7 +238,7 @@ export function AppLauncher() {
               // 弹层契约（§24）：Esc 关闭并清空搜索。
               if (event.key === 'Escape') closeMenu()
             }}
-            className={`popover-panel desktop-chrome surface-glass fixed bottom-[calc(var(--ag-dock-height)+1.75rem)] left-3 z-50 flex max-h-[calc(100vh-var(--ag-dock-height)-3rem)] flex-col overflow-hidden rounded-2xl p-3 sm:left-[calc(var(--ag-rail-left-width)+1.125rem)] ${
+            className={`popover-panel desktop-chrome surface-glass fixed bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+0.75rem)] left-3 z-50 flex max-h-[calc(100vh-var(--ag-dock-height)-3rem)] flex-col overflow-hidden rounded-2xl p-3 sm:left-[calc(var(--ag-rail-left-width)+1.125rem)] ${
               TIER_WIDTH_CLASS[layout?.tier ?? 'single'] ?? 'w-[410px]'
             } max-w-[calc(100vw-1.5rem)] ${popoverMotionClass(menuPhase.exiting)}`}
           >

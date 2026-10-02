@@ -38,8 +38,12 @@ describe('getWorkspaceViewport', () => {
     expect(getWorkspaceViewport().width).toBe(375)
   })
 
-  it('keeps the TS constant in lockstep with the CSS token (--ag-menubar-height)', () => {
-    // 与 src/index.css.test.ts 的 40px 值钉扎互为双保险——改任一侧都会红（§32）。
-    expect(MENUBAR_HEIGHT_PX).toBe(40)
+  it('keeps the TS constants in lockstep with the CSS tokens (menubar + both rails)', () => {
+    // 与 src/index.css.test.ts 的 32px/80px/296px 值钉扎互为双保险——改任
+    // 一侧都会红（§32；Shell 2.0 切片一：互指从菜单栏扩到双栏，防 TS 常量
+    // 漏改/回漂无红测——左栏漏改 = 工作区钳制宽度错 52px）。
+    expect(MENUBAR_HEIGHT_PX).toBe(32)
+    expect(RAIL_LEFT_WIDTH_PX).toBe(80)
+    expect(RAIL_RIGHT_WIDTH_PX).toBe(296)
   })
 })

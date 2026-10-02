@@ -29,7 +29,7 @@ export function WidgetRail() {
     <aside
       aria-label={t('widgets.label')}
       data-testid="widget-rail"
-      className="desktop-chrome scroll-thin pointer-events-none fixed bottom-3 right-2 top-[calc(var(--ag-menubar-height)+1rem)] z-40 hidden w-[calc(var(--ag-rail-right-width)-0.5rem)] flex-col gap-3 overflow-y-auto pb-1 xl:flex"
+      className="desktop-chrome scroll-thin pointer-events-none fixed bottom-3 right-5 top-[calc(var(--ag-menubar-height)+1rem)] z-40 hidden w-[calc(var(--ag-rail-right-width)-0.5rem)] flex-col gap-4 overflow-y-auto pb-1 xl:flex"
     >
       <ClockCard />
       <SystemCard />
@@ -40,7 +40,7 @@ export function WidgetRail() {
 }
 
 const CARD_CLASS =
-  'widget-card surface-glass pointer-events-auto rounded-2xl border border-border-subtle p-4 shadow-popover'
+  'widget-card surface-glass pointer-events-auto rounded-2xl border border-border-subtle p-4 shadow-panel'
 
 function ClockCard() {
   const locale = useLocaleStore((s) => s.locale)

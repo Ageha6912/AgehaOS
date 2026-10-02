@@ -32,16 +32,39 @@ describe('Sidebar', () => {
     )
   })
 
-  it('renders icon tiles left of labels (§32 reference layout)', () => {
+  it('renders icon-first tiles with the label moved out of the inline flow (shell 2.0 §4.2③)', () => {
     render(<Sidebar />)
 
     const item = screen.getByTestId('sidebar-files')
-    // 行内布局：瓷贴（渐变圆角方块）在标签之前。
-    expect(item.className).toContain('items-center')
-    expect(item.className).not.toContain('flex-col')
-    const tile = item.firstElementChild as HTMLElement
+    // icon-first：44px 方按钮居中一颗 36px 瓷贴（渐变圆角方块保留）。
+    for (const cls of ['h-11', 'w-11', 'items-center', 'justify-center', 'rounded-xl', 'group']) {
+      expect(item.classList.contains(cls), cls).toBe(true)
+    }
+    const wrapper = item.firstElementChild as HTMLElement
+    expect(wrapper.classList.contains('relative')).toBe(true)
+    const tile = wrapper.firstElementChild as HTMLElement
     expect(tile.style.backgroundImage).toContain('linear-gradient')
-    expect(tile.className).toContain('rounded-lg')
+    expect(tile.classList.contains('rounded-lg')).toBe(true)
+    expect(tile.classList.contains('h-9')).toBe(true)
+    expect(tile.classList.contains('w-9')).toBe(true)
+    // 行内文字标签退役（进 tooltip）：旧标签 span（min-w-0 truncate）不复存在。
+    expect(item.querySelector('.truncate')).toBeNull()
+  })
+
+  it('shows labels as hover/focus tooltips via the os-tooltip bubble (§1③)', () => {
+    render(<Sidebar />)
+
+    const item = screen.getByTestId('sidebar-files')
+    const bubble = item.querySelector('.os-tooltip') as HTMLElement | null
+    expect(bubble).not.toBeNull()
+    expect(bubble!.classList.contains('group-hover:opacity-100')).toBe(true)
+    expect(bubble!.classList.contains('group-focus-visible:opacity-100')).toBe(true)
+    expect(bubble!.classList.contains('pointer-events-none')).toBe(false) // 指针豁免由 .os-tooltip 的 pointer-events:none 承担
+    expect(bubble!.getAttribute('aria-hidden')).toBe('true')
+    // 气泡文本 = 词条（复用 sidebar.* 双语键，零新增词条）。
+    expect(bubble!.textContent).toBe('文件管理')
+    // 原生 title 双轨保留（可达性 + 触屏兜底）。
+    expect(item.getAttribute('title')).toBe('文件管理')
   })
 
   it('user center deep-links Settings to the account partition (§32)', () => {
@@ -97,19 +120,43 @@ describe('Sidebar', () => {
     expect(sync.querySelector('.bg-primary')).toBeNull()
   })
 
-  it('floats as a rounded glass card detached from the viewport edges (§31/§32)', () => {
+  it('floats as a vertically-centered glass rail detached from the edges (shell 2.0 §4.2③)', () => {
     render(<Sidebar />)
 
     const nav = screen.getByTestId('sidebar')
-    // 不再通顶贴边（Web Sidebar 形态退役）：圆角玻璃卡 + soft shadow + 边距。
-    expect(nav.className).toContain('rounded-2xl')
-    expect(nav.className).toContain('surface-glass')
-    expect(nav.className).toContain('shadow-popover')
-    expect(nav.className).toContain('bottom-6')
-    expect(nav.className).toContain('left-2')
-    expect(nav.className).toContain('desktop-chrome')
-    expect(nav.className).not.toContain('border-r')
-    expect(nav.className).not.toContain('bottom-0')
-    expect(nav.className).not.toContain('left-0')
+    // Floating System Rail：left-4(16px) + 真垂直居中 + 80px 栏（内容 76px）
+    // + glass-raise(20px blur) + 白/30% 细边框 + shadow-float 浮岛档。
+    for (const cls of [
+      'desktop-chrome',
+      'surface-glass',
+      'glass-raise',
+      'rounded-xl',
+      'border-border',
+      'shadow-float',
+      'left-4',
+      'top-1/2',
+      '-translate-y-1/2',
+      'w-[calc(var(--ag-rail-left-width)-0.5rem)]',
+      'hidden',
+      'sm:flex',
+    ]) {
+      expect(nav.classList.contains(cls), cls).toBe(true)
+    }
+    // 旧形态退役：贴顶/贴底锚、白/18% 弱边框、popover 档阴影、旧圆角，
+    // 以及一切通栏贴边（Web Sidebar）残留。
+    for (const cls of [
+      'border-r',
+      'border-border-subtle',
+      'bottom-0',
+      'bottom-6',
+      'left-0',
+      'left-2',
+      'rounded-2xl',
+      'shadow-popover',
+      'top-[calc(var(--ag-menubar-height)+1rem)]',
+    ]) {
+      expect(nav.classList.contains(cls), `no ${cls}`).toBe(false)
+    }
+    expect(nav.className).not.toContain('top-[calc')
   })
 })

@@ -16,9 +16,10 @@ test('desktop context menu: open at pointer, clamp to viewport, run actions', as
   // 桌面图标层已移除（2026-10-01）：以侧栏就绪为桌面就绪信号。
   await page.getByTestId('sidebar-files').waitFor()
 
-  // 右键工作区右缘附近空白：§32 右侧小组件栏占 944-1272×56-712（品牌横幅
-  // 卡压到 y≈712）、动态面板横版占 240-920×64-484——(935, 660) 是面板/侧栏/
-  // 小组件栏之间的稳定空白；菜单底边须收进视口。
+  // 右键工作区右缘附近空白：§32 右侧小组件栏占 944-1272×48-712（顶 48 =
+  // 菜单栏 32px + 16px，Shell 2.0 精修；品牌横幅卡压到 y≈712）、动态面板
+  // 横版占 240-920×64-484——(935, 660) 是面板/侧栏/小组件栏之间的稳定空白；
+  // 菜单底边须收进视口。
   await page.mouse.click(935, 660, { button: 'right' })
   const menu = page.getByTestId('context-menu')
   await expect(menu).toBeVisible()
@@ -31,7 +32,7 @@ test('desktop context menu: open at pointer, clamp to viewport, run actions', as
   await page.getByTestId('context-menu-renew-wallpaper').click()
   await expect(menu).toBeHidden()
 
-  // 再开 → 打开设置（面板左侧空白：左栏 0-80、面板 344 起）
+  // 再开 → 打开设置（面板左侧空白：左栏 16-92，Shell 2.0 浮岛；面板 344 起）
   await page.mouse.click(200, 400, { button: 'right' })
   await expect(menu).toBeVisible()
   await page.getByTestId('context-menu-open-settings').click()

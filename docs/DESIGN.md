@@ -905,3 +905,71 @@ Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌�
   契约）+ E2E `e2e/window-maximize.spec.ts`（几何边界 ±1px + elementFromPoint
   遮挡探针 + 还原回落）+ `e2e/taskbar-autohide.spec.ts`（预览居中 |Δ|≤2px、
   悬停 computed 透明）；四门禁全绿，E2E 18/18。
+
+## 33. Desktop Shell 2.0 · Floating OS Environment 高保真精修（2026-10-02 用户 /workflow 交付）
+
+方向裁决：从「Sidebar + Content + Dashboard」彻底转为 **Floating OS
+Environment**（macOS-like + 日系未来 + Modern SaaS + Calm Glassmorphism），
+关键词 Glass / Light / Space / Butterfly / Future。重点是 Space / Hierarchy /
+Depth / Proportion / Floating / Atmosphere，不堆特效；不重写 Window Manager /
+Motion / Wallpaper 引擎，不删功能删测试，自动隐藏保持退役（§9 常驻 Dock）。
+设计规范全程稿：`.tmp/shell2-design-brief.md`（会话产物，数值已收敛入本节）。
+
+### 33.1 玻璃七面材质表（blur 阶梯 Token 化，逐格互异，层级递进）
+
+Wallpaper → Desktop → Window → Popover → Modal 递进成立；大面=玻璃、
+小控件=实色；backdrop-filter 源码只写标准属性（§32.3 坑 A 铁律）。
+
+| 面 | 类 | blur | 底色（light·白系 / chrome 作用域 remap） | 阴影 |
+| --- | --- | --- | --- | --- |
+| menubar | `.glass-hint` | 12px | menubar-glass 白10% | 无（细底边 10%） |
+| widget | `.widget-card`（Acrylic 特例） | `--ag-widget-blur`=3px | Acrylic tint 渐变 | shadow-panel |
+| rail 左栏 | `.glass-raise` | 20px | surface-glass 基底 | `--ag-shadow-float` |
+| dock | `.dock-glass` | 28px | 白22% | `--ag-shadow-dock` |
+| window | `.glass-deep` | 36px（`--ag-blur-xl`） | surface-glass 白72% | shadow-popover 档 |
+| popover | `.popover-panel` / `.glass-popover` | 44px（`--ag-blur-2xl`） | `--ag-glass-bg-strong` 白86% / 墨84%（chrome remap 白26%） | shadow-popover |
+| modal | 实色 | — | #ffffff / #1a2540（唯一非玻璃大面） | shadow-popover |
+
+新增 `--ag-tooltip-bg rgb(18 26 44/92%)`（主题无关）；新玻璃类源序严格插在
+`.surface-glass` 基规则与降透明/`@supports` 兜底之间（源序即降级）。
+
+### 33.2 几何 Token 重定档（viewport.ts 常量 + CSS↔TS 互指钉扎同步）
+
+- menubar 40→**32px**（简报 28-32 档；字号 13px，等宽数据读出 11-12px 豁免）。
+- rail-left 132→**80px**（简报 72-88 档；浮岛 left 16px / 垂直居中 / 圆角 20px）。
+- rail-right 296px 不变（卡宽 288 在简报 280-320 档内）；右栏节奏 right
+  **20px** / gap **16px** / 顶锚 menubar+16=**48px**。
+- dock 高 **68px**、新增 `--ag-dock-gap` **20px**（胶囊距底）、图标 **48px**、
+  节距 **56px**（σ44 ≤ 1.2×节距仍成立）、圆角 24px。
+- 悬停预览/启动器等 fixed 弹层底部锚定统一消费 `--ag-dock-gap`。
+
+### 33.3 组件形态
+
+- **左栏 = Floating System Rail**：icon-first（44px 方钮 + 18px 字形），文字
+  标签改自绘 `os-tooltip` 气泡（group-hover/focus-visible 点亮，aria 不进
+  可达树）+ 原生 title 双轨；八项彩瓷贴与用户中心/回收站深链全保留；
+  active 态 = 既有 hover 瞬态（八项均动作入口，无「当前项」常亮选中语义）。
+- **右栏 = 漂浮系统 Widgets**：容器不画材质（pointer-events-none），四卡
+  各自独立接针 = 桌面上四个独立漂浮面板；功能（时钟天气含月历/系统状态
+  真实指标/最近通知/品牌横幅）零改动。
+- **菜单栏 = OS Menu Bar**：五菜单→四菜单 `file/view/window/help`，原
+  「编辑」6 项 execCommand 动作整体迁入文件菜单第二分组（能力零删除，
+  `menubar.edit.*` i18n 键保留）；右簇 = System 纯指示（Wi-Fi/蓝牙/电池，
+  不做假交互）+ **Cloud 同步状态按钮**（三态，点击深链设置账户分区）+
+  通知铃 + 用户菜单 + 时钟移最右（macOS 惯例，`menu-bar-clock` testid 不变）。
+- **Dock**：几何按 §33.2 精修；波浪/悬停预览 portal 居中/无底色按钮/
+  运行中指示点/回收站/常驻契约全部不变。
+- **窗口**：16-20px 圆角 + 细边 + 软阴影 + 半透明面 + 聚焦/失焦层级；
+  最大化 `inset-0` 真全屏契约（§32.5 修订 12，z-[45]）原样保留。
+- **品牌层**：44%/29% 位置基线不变，视觉更轻；文案 AgehaOS +
+  「Your Web OS, Your Space.」；无可见窗口才显示的既有语义保留。
+
+### 33.4 验收
+
+- 六切片各过完整五门禁（typecheck/lint/test/build/test:e2e 逐切片跑真）；
+  终态基线 **847 前端（102 文件）+ 80 后端 + E2E 19/19**。
+- 截图取证 7 状态（1920×1080）+ 1280/1366/2560 三视口（横向溢出探针全
+  false）；5 名独立评审员并行评审（含与参考图十轴对比）1 轮 2 问题
+  （SearchPalette 补挂 `.glass-popover` 弹层独立材质档；AppLauncher 输入
+  placeholder/kbd 徽章对比度提升 + 底部锚定改 `--ag-dock-gap`），修复后
+  五门禁复验全绿 + 复拍确认。
