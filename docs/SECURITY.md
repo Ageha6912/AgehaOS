@@ -46,6 +46,7 @@ object-src 'none'; base-uri 'self'; form-action 'self'
 - **限流**：login 10/min、register 20/min 每 IP（可配），超限 `429 {"error":"rate-limited"}`；改密码路由与 login 同限流。
 - **审计**：pino 结构化 `auth.*` 事件；成功日志只含 userId。
 - **改密码即吊销其他会话**：`POST /api/users/me/password` 校验当前密码后重哈希，并吊销该用户除当前会话外的全部会话（防被窃 cookie 继续存活）；「登出其他设备」动作复用同一 DataStore 原语。
+- **管理员引导防抢注（2026-10-02 评审 P0-1）**：`AGEHA_ADMIN_USERNAME` 不在注册时授予 `role=admin`（否则任何访客注册同名账号即得目录发布权与内容复审权）——唯一授权路径是服务端启动时对既有同名用户的幂等提升，引导用户名的持有权因此收敛为「先注册者得，提升只作用于已存在账号」。
 
 ## 4. 已知风险与后续项（PRD §47）
 

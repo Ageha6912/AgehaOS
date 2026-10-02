@@ -29,8 +29,6 @@ export interface AuthRoutesOptions {
   sessionTtlMs: number
   cookieSecure: boolean
   rateLimit: RateLimitOptions
-  /** ADR 20：与该用户名匹配的注册者获得 admin 角色；null = 不引导。 */
-  adminUsername: string | null
 }
 
 interface CredentialsBody {
@@ -142,16 +140,15 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
     async (request, reply) => {
       const { username, password } = request.body as CredentialsBody
       const now = new Date().toISOString()
+      // 评审 2026-10-02 P0-1：注册时不再授予 admin 角色——「注册即管理员」
+      // 允许任意访客抢注引导用户名。唯一授权路径 = app.ts 启动时对既有
+      // 同名用户的幂等提升（先注册，重启后生效）。
       const user: UserRecord = {
         id: generateUserId(),
         username,
         createdAt: now,
         updatedAt: now,
         passwordHash: await hashPassword(password),
-        // ADR 20：管理员引导——匹配 AGEHA_ADMIN_USERNAME 的注册者即管理员。
-        ...(options.adminUsername !== null && username === options.adminUsername
-          ? { role: 'admin' as const }
-          : {}),
       }
       try {
         await store.createUser(user)

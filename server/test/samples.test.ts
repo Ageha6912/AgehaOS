@@ -37,6 +37,20 @@ async function register(app: FastifyInstance, username: string, password = 'secr
   return { response, cookies: { agehaos_session: sessionCookie(response) ?? '' } }
 }
 
+/** admin 造数：注册后经 store 直授角色（ADR 20 修订后注册不再授予 admin）。 */
+async function registerAsAdmin(
+  app: FastifyInstance,
+  store: DataStore,
+  username: string,
+  password = 'secret123',
+) {
+  const { response, cookies } = await register(app, username, password)
+  const user = await store.findUserByUsername(username)
+  if (!user) throw new Error('register did not persist the user')
+  await store.updateUser({ ...user, role: 'admin' })
+  return { response, cookies }
+}
+
 describe('content sample upload（DDS §8.6 匿名上报 + 服务端分类器）', () => {
   let app: FastifyInstance
 
@@ -176,7 +190,7 @@ describe('content sample upload（DDS §8.6 匿名上报 + 服务端分类器）
     expect(forbidden.statusCode).toBe(403)
     expect(forbidden.json()).toEqual({ error: 'not-admin' })
 
-    const admin = await register(app, 'boss')
+    const admin = await registerAsAdmin(app, store, 'boss')
     const allowed = await app.inject({
       method: 'GET',
       url: '/api/dynamic/samples',
@@ -198,7 +212,7 @@ describe('content sample upload（DDS §8.6 匿名上报 + 服务端分类器）
       payload: { text: '待处置样本' },
     })
     const id = (created.json() as { id: string }).id
-    const admin = await register(app, 'boss')
+    const admin = await registerAsAdmin(app, store, 'boss')
 
     const deleted = await app.inject({
       method: 'DELETE',

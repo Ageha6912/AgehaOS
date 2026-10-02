@@ -42,6 +42,20 @@ async function register(app: FastifyInstance, username: string, password = 'secr
   return { response, cookies: { agehaos_session: sessionCookie(response) ?? '' } }
 }
 
+/** 目录/复审类测试的 admin 造数：注册后经 store 直授角色（绕开授权路径本身）。 */
+async function registerAsAdmin(
+  app: FastifyInstance,
+  store: DataStore,
+  username: string,
+  password = 'secret123',
+) {
+  const { response, cookies } = await register(app, username, password)
+  const user = await store.findUserByUsername(username)
+  if (!user) throw new Error('register did not persist the user')
+  await store.updateUser({ ...user, role: 'admin' })
+  return { response, cookies }
+}
+
 const VALID_APP = {
   id: 'com.ageha.samples.counter2',
   name: '计数器二号',
@@ -60,14 +74,14 @@ describe('admin role & catalog publishing (ADR 20)', () => {
     await app?.close()
   })
 
-  it('bootstraps admin at register time via AGEHA_ADMIN_USERNAME', async () => {
+  it('does NOT grant admin at register time, even for the bootstrap username（评审 P0-1 防抢注）', async () => {
     app = await makeApp(new MemoryDataStore(), 'boss')
     const { response, cookies } = await register(app, 'boss')
     expect(response.statusCode).toBe(201)
-    expect(response.json().user.role).toBe('admin')
+    expect(response.json().user.role).toBeUndefined()
 
     const me = await app.inject({ method: 'GET', url: '/api/users/me', cookies })
-    expect(me.json().user.role).toBe('admin')
+    expect(me.json().user.role).toBeUndefined()
   })
 
   it('keeps regular users at the default role', async () => {
@@ -89,8 +103,9 @@ describe('admin role & catalog publishing (ADR 20)', () => {
   })
 
   it('lets only admins read/publish the catalog', async () => {
-    app = await makeApp(new MemoryDataStore(), 'boss')
-    const admin = await register(app, 'boss')
+    const store = new MemoryDataStore()
+    app = await makeApp(store, 'boss')
+    const admin = await registerAsAdmin(app, store, 'boss')
     const user = await register(app, 'mallory')
 
     const anonymous = await app.inject({ method: 'PUT', url: '/api/store/admin/catalog', payload: { apps: [] } })
@@ -119,8 +134,9 @@ describe('admin role & catalog publishing (ADR 20)', () => {
   })
 
   it('serves the published catalog through the signed public endpoint', async () => {
-    app = await makeApp(new MemoryDataStore(), 'boss')
-    const admin = await register(app, 'boss')
+    const store = new MemoryDataStore()
+    app = await makeApp(store, 'boss')
+    const admin = await registerAsAdmin(app, store, 'boss')
     await app.inject({
       method: 'PUT',
       url: '/api/store/admin/catalog',
@@ -136,8 +152,9 @@ describe('admin role & catalog publishing (ADR 20)', () => {
   })
 
   it('rejects invalid catalog entries at the whitelist gate', async () => {
-    app = await makeApp(new MemoryDataStore(), 'boss')
-    const admin = await register(app, 'boss')
+    const store = new MemoryDataStore()
+    app = await makeApp(store, 'boss')
+    const admin = await registerAsAdmin(app, store, 'boss')
 
     const cases: unknown[] = [
       // entry 越出同源 allowlist。

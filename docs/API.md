@@ -104,9 +104,9 @@ docker compose -f server/docker-compose.yml up -d   # 可选：本地 PostgreSQL
 - 深度校验（`validateCatalogApps`）：字段白名单（恰 8 字段）；`id` 唯一 `^[a-zA-Z0-9][a-zA-Z0-9._-]{2,63}$`；`entry` 必须匹配 `/apps/sites/<name>/index.html` 且无上跳；`permissions` ⊆ MVP 权限名；窗口 200–2000 整数；非法 → `400 {"error":"invalid-catalog"}`。
 - 认证：会话 Cookie + `role=admin`；匿名 `401 not-authenticated`，普通用户 `403 not-admin`。
 
-### 管理员引导（ADR 20）
+### 管理员引导（ADR 20；2026-10-02 评审 P0-1 修订）
 
-`AGEHA_ADMIN_USERNAME` 环境变量：该用户名的注册者即时获得 `role=admin`；已存在同名用户在每次服务端启动时幂等提升（可追溯生效于既有库）。`/api/auth/*` 与 `/api/users/me` 的用户载荷携带 `role`（普通用户缺省不返回）。
+`AGEHA_ADMIN_USERNAME` 环境变量：**注册时不再授予任何角色**（「注册即管理员」可被任意访客抢注，已移除）；唯一授权路径 = 服务端每次启动时对既有同名用户幂等提升——运维流程为「先注册普通账号 → 重启服务 → 被提升」。`/api/auth/*` 与 `/api/users/me` 的用户载荷携带 `role`（普通用户缺省不返回）。
 
 ### POST /api/ai/proxy（DDS §5.3，Phase B）
 

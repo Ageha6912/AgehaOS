@@ -103,7 +103,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     sessionTtlMs: config.sessionTtlMs,
     cookieSecure: config.cookieSecure,
     rateLimit: config.rateLimit,
-    adminUsername: config.adminUsername,
   })
   await app.register(aiRoutes, {
     prefix: '/api',
@@ -124,8 +123,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     options.signingKey ?? (await loadOrCreateSigningKey(config.dataDir))
   await app.register(storeRoutes, { prefix: '/api', signingKey, store })
 
-  // ADR 20：管理员引导提升（幂等）——已存在同名用户时每次启动补授角色，
-  // 使 AGEHA_ADMIN_USERNAME 在既有库上也可追溯生效。
+  // ADR 20（评审 2026-10-02 P0-1 修订）：admin 角色的唯一授权路径——启动时
+  // 对 AGEHA_ADMIN_USERNAME 同名的既有用户幂等提升。注册时不再授予（防
+  // 访客抢注引导用户名）；流程 = 先注册普通账号，重启服务后被提升。
   if (config.adminUsername) {
     const admin = await store.findUserByUsername(config.adminUsername)
     if (admin && admin.role !== 'admin') {
