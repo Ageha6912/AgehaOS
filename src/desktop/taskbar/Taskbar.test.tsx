@@ -307,14 +307,15 @@ describe('Taskbar', () => {
     )
     expect(button.className).toContain('h-12')
     expect(button.className).toContain('w-12')
-    // 三类按钮（瓷贴/运行中/回收站）挂 dock-tile：hover 光晕规则的前置类。
+    // 三类按钮（瓷贴/运行中/回收站）挂 dock-tile：hover 规则的域标记。
     expect(button.classList.contains('dock-tile')).toBe(true)
     expect(screen.getByTestId('dock-pin-com.ageha.files').classList.contains('dock-tile')).toBe(true)
     expect(screen.getByTestId('dock-trash').classList.contains('dock-tile')).toBe(true)
     const icon = button.querySelector('[data-wave-icon] span') as HTMLElement
     expect(icon.style.width).toBe('48px')
     expect(icon.style.height).toBe('48px')
-    // 波浪域不变：运行中图标仍在 data-wave-icon 引擎内（§13 全域契约）。
+    // 悬停浮起域不变：运行中图标的 data-wave-icon 包裹层仍是 CSS 钩子
+    // （2026-10-02 裁决：只浮起被悬浮的一枚，引擎已退役）。
     expect(button.querySelector('[data-wave-icon]')).not.toBeNull()
   })
 
@@ -346,8 +347,8 @@ describe('Taskbar', () => {
     }
     expect(screen.getByTestId('dock-trash').className).not.toContain('bg-surface-raised')
 
-    // 波浪域覆盖瓷贴（2026-10-01 用户报告「波浪没有了」）：瓷贴图标 span
-    // 挂 data-wave-icon，与运行中窗口同引擎。
+    // 悬停浮起覆盖瓷贴：瓷贴图标 span 挂 data-wave-icon（CSS hover 规则的
+    // 作用域，2026-10-02 起只浮起被悬浮的一枚，与运行中窗口同钩子）。
     expect(
       screen.getByTestId('dock-pin-com.ageha.files').querySelector('[data-wave-icon]'),
     ).not.toBeNull()

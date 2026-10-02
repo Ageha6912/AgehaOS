@@ -36,10 +36,10 @@ describe('WindowFrame (via WindowLayer)', () => {
     expect(close.querySelector('.bg-wl-close')).not.toBeNull()
     expect(minimize.querySelector('.bg-wl-min')).not.toBeNull()
     expect(maximize.querySelector('.bg-wl-max')).not.toBeNull()
-    // 键盘聚焦与悬停一样显示灯内字形（UI 评审 P2-7）。
+    // 2026-10-02 用户裁决：灯内不再有 ✕/—/⬛ 字形（纯色圆点，macOS 素态）；
+    // 可访问名契约（上方 getByRole）不受影响。
     for (const light of [close, minimize, maximize]) {
-      const glyph = light.querySelector('svg') as SVGElement
-      expect(glyph.classList.contains('group-focus-visible/light:opacity-100')).toBe(true)
+      expect(light.querySelector('svg')).toBeNull()
     }
     // 灯在 AppIcon/标题之前（左置）：灯组是 header 第一个子元素。
     const firstGroup = header.firstElementChild as HTMLElement

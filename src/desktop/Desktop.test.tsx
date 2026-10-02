@@ -67,21 +67,18 @@ describe('Desktop', () => {
     expect(screen.getByTestId('menu-bar').classList.contains('z-[41]')).toBe(true)
   })
 
-  it('auto-opens the dynamic panel once per desktop session, docked to the right', () => {
+  it('opens NOTHING automatically at desktop entry（2026-10-02 用户裁决：零自动开窗）', () => {
     const { rerender } = render(<Desktop />)
 
-    const windows = useWindowStore.getState().windows
-    expect(windows).toHaveLength(1)
-    expect(windows[0]?.appId).toBe('com.ageha.dynamic.panel')
-    // 面板停靠桌面右侧（避开左侧图标列），fallback 最小 8px。
-    expect(windows[0]?.x).toBeGreaterThanOrEqual(8)
+    // 桌面回归纯壁纸 + 品牌层：动态面板与小游戏都不再自动打开。
+    expect(useWindowStore.getState().windows).toHaveLength(0)
 
-    // StrictMode/重渲染不重复开窗。
+    // StrictMode/重渲染同样零开窗。
     rerender(<Desktop />)
-    expect(useWindowStore.getState().windows).toHaveLength(1)
+    expect(useWindowStore.getState().windows).toHaveLength(0)
   })
 
-  it('auto-opens a random installed game next to the panel on entry', () => {
+  it('does not auto-open installed games either（轮换自动开窗已退役）', () => {
     const gameEntry = STORE_CATALOG.find(
       (entry) => entry.manifest.id === 'com.ageha.games.snake',
     )
@@ -91,12 +88,8 @@ describe('Desktop', () => {
 
     render(<Desktop />)
 
-    // 动态面板 + 轮换小游戏。
-    const windows = useWindowStore.getState().windows
-    expect(windows).toHaveLength(2)
-    expect(windows[1]?.appId).toBe('com.ageha.games.snake')
-    // 游戏窗口水平居中。
-    expect(windows[1]?.x).toBeGreaterThan(0)
+    // 已安装游戏也不再自动开窗；游戏仍可经商店/启动器手动启动。
+    expect(useWindowStore.getState().windows).toHaveLength(0)
   })
 
   it('opens an app window from the launcher and closes it again', () => {
@@ -104,19 +97,19 @@ describe('Desktop', () => {
 
     launchFromStartMenu(/记事/)
 
-    // 自动打开的动态面板 + 记事，共两个窗口。
-    expect(useWindowStore.getState().windows).toHaveLength(2)
+    // 零自动开窗后：启动器开「记事」= 唯一窗口。
+    expect(useWindowStore.getState().windows).toHaveLength(1)
     // 桌面图标层已移除（2026-10-01 用户裁决）：「记事」只在窗口标题栏。
     expect(screen.getAllByText('记事').length).toBe(1)
 
-    // 关闭记事窗口（按区域限定，避开动态面板的关闭按钮）。
+    // 关闭记事窗口。
     fireEvent.click(
       within(screen.getByRole('region', { name: '记事' })).getByRole('button', {
         name: '关闭窗口',
       }),
     )
 
-    expect(useWindowStore.getState().windows).toHaveLength(1)
+    expect(useWindowStore.getState().windows).toHaveLength(0)
   })
 
   it('stacks a second window above the first and focuses on click', () => {
@@ -125,9 +118,9 @@ describe('Desktop', () => {
     launchFromStartMenu(/记事/)
     launchFromStartMenu(/文件/)
 
-    // 自动面板 + 记事 + 文件。
+    // 记事 + 文件。
     let windows = useWindowStore.getState().windows
-    expect(windows).toHaveLength(3)
+    expect(windows).toHaveLength(2)
     expect(windows.find((win) => win.appId === 'com.ageha.notes')?.focused).toBe(false)
     expect(windows.find((win) => win.appId === 'com.ageha.files')?.focused).toBe(true)
 
@@ -165,9 +158,9 @@ describe('Desktop × dynamic wallpaper (验收 ⑨)', () => {
     expect(screen.getByTestId('wallpaper-surface-photo')).toBeInTheDocument()
     expect(screen.queryByTestId('wallpaper-surface-canvas')).toBeNull()
     expect(screen.queryByTestId('wallpaper-surface-css')).toBeNull()
-    // 启动器照常工作（自动面板之外多出一个窗口）。
+    // 启动器照常工作（零自动开窗：记事即唯一窗口）。
     launchFromStartMenu(/记事/)
-    expect(useWindowStore.getState().windows).toHaveLength(2)
+    expect(useWindowStore.getState().windows).toHaveLength(1)
   })
 
   it('mounts the wallpaper layer when enabled with a generated plan', () => {

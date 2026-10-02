@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 
-import { launchApp } from '@/apps/launch'
 import { useTranslation } from '@/core/i18n'
 import { AtmosphereLayer } from '@/desktop/atmosphere/AtmosphereLayer'
 import { DesktopBranding } from '@/desktop/branding/DesktopBranding'
@@ -12,23 +11,12 @@ import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
 import { NotificationToasts } from '@/desktop/NotificationToasts'
 import { SearchPalette } from '@/desktop/search/SearchPalette'
 import { ContextMenu, type ContextMenuPosition } from '@/desktop/ContextMenu'
-import { openRandomGame } from '@/desktop/game-rotation'
 import { WidgetRail } from '@/desktop/widgets/WidgetRail'
-import {
-  MENUBAR_HEIGHT_PX,
-  RAIL_RIGHT_BREAKPOINT_PX,
-  RAIL_RIGHT_WIDTH_PX,
-} from '@/desktop/window/viewport'
 import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
 import { useAurora } from '@/desktop/motion/use-aurora'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useSettingsStore, type ThemePreference } from '@/store/settings-store'
-import { getAppManifest } from '@/store/app-store'
-import { useWindowStore } from '@/store/window-store'
-
-/** 动态面板默认开启（2026-09-26 用户裁决）：进入桌面自动打开的仪表盘。 */
-const AUTO_OPEN_APP_ID = 'com.ageha.dynamic.panel'
 
 function resolveDark(preference: ThemePreference): boolean {
   if (preference === 'dark') return true
@@ -67,36 +55,9 @@ export function Desktop() {
   useCursorGlow(canvasRef, orbRef, glow)
   useGlobalShortcuts()
 
-  // 每个桌面会话自动打开一次动态面板：停靠桌面右上（避开左侧图标列），
-  // 已打开则不重复；ref 挡掉 StrictMode 的双挂载。
-  const autoOpened = useRef(false)
-  useEffect(() => {
-    if (autoOpened.current) return
-    autoOpened.current = true
-    const { windows } = useWindowStore.getState()
-    if (windows.some((win) => win.appId === AUTO_OPEN_APP_ID)) return
-    const width = getAppManifest(AUTO_OPEN_APP_ID)?.window?.width ?? 680
-    // 右侧小组件栏（§27）≥1280px 常驻：面板停靠让位。
-    const railRight = window.innerWidth >= RAIL_RIGHT_BREAKPOINT_PX ? RAIL_RIGHT_WIDTH_PX : 0
-    launchApp(
-      AUTO_OPEN_APP_ID,
-      {
-        x: Math.max(8, window.innerWidth - railRight - width - 24),
-        // 顶栏常驻（§19）：面板标题栏不得钻进菜单栏底下。
-        y: MENUBAR_HEIGHT_PX + 24,
-      },
-      'system',
-    )
-  }, [])
-
-  // 小游戏轮换（2026-09-26 用户裁决「每次进入桌面都是不一样的小游戏」）：
-  // 在已安装的游戏里随机开一个（与上次不同）；没装游戏则静默跳过。
-  const gameOpened = useRef(false)
-  useEffect(() => {
-    if (gameOpened.current) return
-    gameOpened.current = true
-    openRandomGame()
-  }, [])
+  // 2026-10-02 用户裁决：进桌面不再自动打开任何窗口——动态面板与随机小游戏
+  // 的自动开窗整体退役（原 ADR 裁决 A5/A6 取代），桌面回归纯壁纸 + 品牌层；
+  // 动态面板仍可经启动器/搜索手动打开，游戏仍可安装后手动启动。
 
   return (
     <div

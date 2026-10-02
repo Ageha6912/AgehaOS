@@ -1,5 +1,12 @@
 # AgehaOS 交付与部署日志
 
+## 2026-10-02 用户三点裁决（Dock 悬停 / 红绿灯 / 零自动开窗，18:xx 工作区提交）
+
+- **Dock 悬停只浮起被悬浮的一枚**：§13 波浪引擎（wave.ts / use-dock-wave.ts 及测试）整体删除，改为 index.css hover 规则（translateY(-3px) scale(1.18) + cobalt 28% 光晕；触屏与 reduced-motion 不浮起）；motion-lab E2E 重钉「悬浮浮起 + 邻位不动 + 移开归位」（DESIGN.md §13 重写、DECISIONS A21）。
+- **红绿灯去符号**：✕/—/⬛ 字形与 --ag-wl-*-glyph Token 退役，纯色圆点；可访问名契约不变（DESIGN.md §21、DECISIONS A22）。
+- **进桌面零自动开窗**：动态面板自动打开与小游戏轮换自动弹出退役（A5/A6 标记被取代 → A23）；Desktop 单测钉零开窗；dynamic-panel/responsive/widgets/menu-bar 四条 E2E 改 helpers.openDynamicPanel 手动开。**连带修 §25 缺口**：launchApp 无显式几何时级联起点（x=80）在窄视口横向溢出（375px 下 80+359=439，自动开窗时代传显式几何从未暴露）——右缘收进视口（8px 余量），launch 单测 +2。
+- **连带修部署 env 污染**：.env.production 命名撞 Vite env 约定被 vite build 自动读取，VITE_AUTH_BACKEND 泄进客户端 → E2E 干净构建 19/19 全挂；改名 .env.deploy + 防回归测试（根部 Vite 约定 env 文件禁含 VITE_ 变量）。
+
 > 自 v0.2.0（tag d460774，2026-09-23）起的逐切片日志，自 HANDOFF.md 迁入（2026-10-02 评审 P1-5）。更早历史见 git log 与该 tag。
 
 ## 2026-10-02 UI 评审修复（docs/UI-REVIEW-2026-10-02.md，部署 ㉖）

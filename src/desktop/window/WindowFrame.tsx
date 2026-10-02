@@ -1,7 +1,5 @@
 import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 
-import { Minus, Square, X } from '@phosphor-icons/react'
-
 import { AppIcon } from '@/apps/app-icon'
 import { componentFor } from '@/apps/builtin'
 import { MissingApp } from '@/apps/placeholder-app'
@@ -182,64 +180,39 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
           if (win.resizable) toggleMaximize(win.id)
         }}
       >
-        {/* 交通灯（Q4 裁决，左置；非激活时整体降不透明度，§21）。 */}
+        {/* 交通灯（Q4 裁决，左置；非激活时整体降不透明度，§21）。
+            2026-10-02 用户裁决：去掉 ✕/—/⬛ 符号，只留纯色圆点（macOS 素态
+            语义）；可访问名（aria-label）契约不变，键盘/读屏不受影响。 */}
         <div className={`flex items-center gap-2 ${win.focused ? 'opacity-100' : 'opacity-60'}`}>
           {win.closable && (
             <button
               type="button"
               aria-label={t('window.close')}
-              className="group/light flex h-6 w-6 items-center justify-center"
+              className="flex h-6 w-6 items-center justify-center"
               onPointerDown={swallowPointerDown}
               onClick={requestClose}
             >
-              <span
-                aria-hidden="true"
-                className="flex h-3 w-3 items-center justify-center rounded-full bg-wl-close"
-              >
-                <X
-                  size={8}
-                  weight="bold"
-                  className="text-wl-close-glyph opacity-0 transition-opacity group-hover/light:opacity-100 group-focus-visible/light:opacity-100"
-                />
-              </span>
+              <span aria-hidden="true" className="h-3 w-3 rounded-full bg-wl-close" />
             </button>
           )}
           <button
             type="button"
             aria-label={t('window.minimize')}
-            className="group/light flex h-6 w-6 items-center justify-center"
+            className="flex h-6 w-6 items-center justify-center"
             onPointerDown={swallowPointerDown}
             onClick={() => minimize(win.id)}
           >
-            <span
-              aria-hidden="true"
-              className="flex h-3 w-3 items-center justify-center rounded-full bg-wl-min"
-            >
-              <Minus
-                size={8}
-                weight="bold"
-                className="text-wl-min-glyph opacity-0 transition-opacity group-hover/light:opacity-100 group-focus-visible/light:opacity-100"
-              />
-            </span>
+            <span aria-hidden="true" className="h-3 w-3 rounded-full bg-wl-min" />
           </button>
           {win.resizable && (
             <button
               type="button"
               aria-label={maximized ? t('window.restore') : t('window.maximize')}
-              className="group/light flex h-6 w-6 items-center justify-center"
+              className="flex h-6 w-6 items-center justify-center"
               onPointerDown={swallowPointerDown}
               onClick={() => toggleMaximize(win.id)}
             >
-              <span
-                aria-hidden="true"
-                className="flex h-3 w-3 items-center justify-center rounded-full bg-wl-max"
-              >
-                <Square
-                  size={7}
-                  weight={maximized ? 'fill' : 'bold'}
-                  className="text-wl-max-glyph opacity-0 transition-opacity group-hover/light:opacity-100 group-focus-visible/light:opacity-100"
-                />
-              </span>
+              <span aria-hidden="true" className="h-3 w-3 rounded-full bg-wl-max" />
             </button>
           )}
         </div>

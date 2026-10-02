@@ -13,8 +13,8 @@ import { componentFor } from './builtin'
  * open a window with the manifest's default geometry. Refusals are audited
  * as `permission.denied` events (PRD §30.5).
  *
- * `geometry` lets callers pin the window position (e.g. the auto-opened
- * Dynamic Panel docks to the desktop's right edge); size still comes from
+ * `geometry` lets callers pin the window position (系统钉位调用；2026-10-02 起
+ * 桌面不再自动开窗); size still comes from
  * the manifest unless overridden here. 小视口钳制（§25）：初始尺寸不超过
  * 视口（桌面优先 1280+，此为窄屏兜底，不改变核心窗口管理器语义）。
  *
@@ -57,6 +57,20 @@ export function launchApp(
     height,
     ...geometry,
   })
+  if (windowId !== null && geometry?.x === undefined && width !== undefined) {
+    // §25 窄屏兜底第二段：无显式几何时 create() 用级联起点（x=80 起），
+    // 窄视口下「级联 x + 尺寸钳制宽」仍会横向溢出（375px：80+359=439）。
+    // 把右缘收进视口（8px 余量）；宽视口下该条件恒假，级联位置原样保留。
+    const viewport = { width: window.innerWidth, height: window.innerHeight }
+    const created = useWindowStore
+      .getState()
+      .windows.find((win) => win.id === windowId)
+    if (created && created.x + created.width > viewport.width - 8) {
+      useWindowStore
+        .getState()
+        .move(windowId, Math.max(8, viewport.width - created.width - 8), created.y, viewport)
+    }
+  }
   if (windowId !== null && source === 'user') {
     useUsageStore.getState().recordRecentApp(appId)
   }

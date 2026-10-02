@@ -3,14 +3,15 @@ import { expect, test } from '@playwright/test'
 import { taskbarStartButton } from './helpers'
 
 /**
- * 动效实验室集成契约（docs/DESIGN.md §15/§32.5 修订 10，2026-10-01 用户裁决）：
- * 进阶炫技档四项 + 指针光晕默认开——流光氛围画布、主题光晕呼吸、Dock 扫光
- * 覆盖层在桌面就位；波浪域覆盖瓷贴（图标随指针放大）；设置「外观」五开关
- * 可即时关闭对应效果。
+ * 动效实验室集成契约（docs/DESIGN.md §15/§32.5 修订 10，2026-10-01 用户裁决；
+ * §13 悬停浮起修订 2026-10-02 用户裁决）：进阶炫技档四项 + 指针光晕默认开——
+ * 流光氛围画布、主题光晕呼吸、Dock 扫光覆盖层在桌面就位；Dock 悬停只浮起
+ * 被悬浮的那一枚（波浪引擎退役，邻位不动）；设置「外观」开关可即时关闭
+ * 对应效果。
  */
 test.describe.configure({ retries: 2 })
 
-test('motion lab: aurora/glow/sheen present, wave covers pins, toggles cut effects', async ({
+test('motion lab: aurora/glow/sheen present, hovered dock icon lifts alone, toggles cut effects', async ({
   page,
 }) => {
   await page.goto('/')
@@ -29,17 +30,24 @@ test('motion lab: aurora/glow/sheen present, wave covers pins, toggles cut effec
   await expect(page.getByTestId('ambient-glow')).toHaveClass(/is-on/)
   await expect(page.getByTestId('dock-sheen')).toBeAttached()
 
-  // ② 波浪域覆盖瓷贴：悬停瓷贴图标 → 波浪引擎写入放大 transform。
+  // ② 悬停浮起（2026-10-02 裁决）：悬停瓷贴 → 该图标 computed transform
+  //    浮起，邻位图标 transform 恒 none（波浪引擎已退役，CSS hover 域）。
   const terminalPin = page.getByTestId('dock-pin-com.ageha.terminal')
+  const filesPin = page.getByTestId('dock-pin-com.ageha.files')
+  const computedTransform = (locator: ReturnType<typeof page.getByTestId>) =>
+    locator.locator('[data-wave-icon]').evaluate((el) => getComputedStyle(el).transform)
   await terminalPin.hover()
-  await page.waitForTimeout(300) // 波浪包络进入（120ms）+ 帧写入。
-  const wave = await terminalPin
-    .locator('[data-wave-icon]')
-    .evaluate((el) => el.style.transform)
-  expect(wave).toContain('scale')
+  await page.waitForTimeout(250) // transition（motion-base 200ms）落定。
+  expect(await computedTransform(terminalPin)).toContain('matrix')
+  expect(await computedTransform(filesPin)).toBe('none')
 
-  // ②b 运行中行（动态面板图标所在）滚动条 UI 隐藏：波浪 1.5× 变换边界会
-  //    撑出可滚动区域，滚动条不得随悬停闪现（修订 11）。
+  // ②b 移开指针：浮起回落归位。
+  await page.mouse.move(960, 300)
+  await page.waitForTimeout(300)
+  expect(await computedTransform(terminalPin)).toBe('none')
+
+  // ②c 运行中行滚动条 UI 隐藏：浮起 scale 变换边界会撑出可滚动区域，
+  //    滚动条不得随悬停闪现（修订 11）。
   const scrollbarWidth = await page
     .getByTestId('dock-running-row')
     .evaluate((el) => getComputedStyle(el).scrollbarWidth)

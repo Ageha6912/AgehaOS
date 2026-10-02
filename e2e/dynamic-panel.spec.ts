@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test'
 
+import { openDynamicPanel } from './helpers'
+
 /**
- * AI 内容面板（DDS §5.1 域③）+ 默认开启裁决（2026-09-26）：
- * 进入桌面即自动打开（停靠右上、避开图标列），卡片渲染且带
- * 「AI 生成」标识，生成位置为本机；不再需要从菜单手动启动。
+ * AI 内容面板（DDS §5.1 域③）。2026-10-02 用户裁决：进桌面不再自动开窗——
+ * 面板改为经 Ctrl+K 搜索手动打开；卡片渲染且带「AI 生成」标识，生成位置
+ * 为本机。桌面空态由 Desktop 单测钉扎。
  */
-test('dynamic panel: auto-opens on the desktop with local cards and AI attribution', async ({
+test('dynamic panel: opens via search with local cards and AI attribution', async ({
   page,
 }) => {
   await page.goto('/')
@@ -16,11 +18,13 @@ test('dynamic panel: auto-opens on the desktop with local cards and AI attributi
   await page.getByLabel('用户名').fill('panele2e')
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
+  await page.getByTestId('sidebar-desktop').waitFor({ timeout: 15_000 })
 
-  // 自动打开：桌面就绪后面板窗口直接出现，且停靠屏幕右半侧；
-  // §30 横版默认：默认窗口宽 > 高。
-  const panel = page.getByRole('region', { name: '动态面板' })
-  await expect(panel).toBeVisible({ timeout: 20_000 })
+  // 零自动开窗：桌面就绪后动态面板（原自动打开项）不在场。
+  await expect(page.getByRole('region', { name: '动态面板' })).toHaveCount(0)
+
+  // 手动打开：停靠屏幕右半侧；§30 横版默认：默认窗口宽 > 高。
+  const panel = await openDynamicPanel(page)
   const size = page.viewportSize() ?? { width: 1280, height: 720 }
   const box = (await panel.boundingBox()) ?? { x: 0, width: 0, height: 0 }
   // §32 右栏 296px（用户裁决收窄）：面板停靠在右栏左侧（右缘不越入小组件栏）。

@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test'
 
+import { openDynamicPanel } from './helpers'
+
 /**
  * 右侧小组件栏（docs/DESIGN.md §27 + §32 参考图对齐）：≥1280px 显示四卡
- * （时钟天气/系统状态/最近通知/品牌横幅，月历收拢进时钟卡）；自动打开的
- * 动态面板让位不重叠。
+ * （时钟天气/系统状态/最近通知/品牌横幅，月历收拢进时钟卡）；手动打开的
+ * 动态面板让位不重叠（2026-10-02 起不再自动开窗）。
  */
 test('widgets: rail shows the four reference cards and the panel avoids it (§27/§32)', async ({
   page,
@@ -29,9 +31,9 @@ test('widgets: rail shows the four reference cards and the panel avoids it (§27
   await page.getByTestId('widgets-clock-calendar-toggle').click()
   await expect(page.getByTestId('widgets-calendar')).toBeVisible()
 
-  // 动态面板自动打开后完整处于小组件栏左侧（E2E 视口 1280 = xl 恰好启用）。
-  const panel = page.getByRole('region', { name: '动态面板' })
-  await expect(panel).toBeVisible()
+  // 手动打开的动态面板完整处于小组件栏左侧（E2E 视口 1280 = xl 恰好启用；
+  // 2026-10-02 起不再自动开窗，让位契约对手动开窗同样成立）。
+  const panel = await openDynamicPanel(page)
   const panelBox = await panel.boundingBox()
   const railBox = await rail.boundingBox()
   expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(railBox!.x + 1)

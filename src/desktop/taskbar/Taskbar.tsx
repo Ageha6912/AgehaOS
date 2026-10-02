@@ -11,7 +11,6 @@ import { useWindowStore } from '@/store/window-store'
 
 import { AppLauncher } from './AppLauncher'
 import { WindowPreview } from './WindowPreview'
-import { useDockWave } from './use-dock-wave'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 
 const HOVER_DELAY_MS = 350
@@ -43,12 +42,9 @@ export function Taskbar() {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [anchorLeft, setAnchorLeft] = useState(0)
   const hoverTimer = useRef<number | null>(null)
-  // 任务栏波浪（DESIGN.md §13）：高斯距离衰减放大，只写 data-wave-icon 的
-  // transform，不碰按钮与 reveal/hide 的 pointerenter/leave 链。范围 = 瓷贴
-  // + 运行中整段图标带（2026-10-01 用户报告「波浪没有了」——瓷贴此前不在
-  // 波浪域，§32 后 Dock 主体恰是瓷贴）。
-  const waveRowRef = useRef<HTMLDivElement | null>(null)
-  useDockWave(waveRowRef)
+  // Dock 悬停浮起（2026-10-02 用户裁决：只浮起被悬浮的那一枚，§13 波浪引擎
+  // 整体退役）：transform 经 index.css 的 [data-wave-icon]:hover 规则写入，
+  // 邻位图标不再随高斯衰减联动。data-wave-icon 包裹层保留为样式钩子。
   const dockSheen = useMotionPrefsStore((s) => s.dockSheen)
 
   const toggleWindow = (id: string, focused: boolean, minimized: boolean) => {
@@ -109,12 +105,12 @@ export function Taskbar() {
           <AppLauncher />
           <div aria-hidden="true" className="h-8 w-px shrink-0 bg-border" />
 
-          {/* 波浪域：瓷贴 + 运行中共享一个引擎容器（§13）。 */}
-          <div ref={waveRowRef} className="flex min-w-0 flex-1 items-center self-stretch">
+          {/* Dock 图标带：瓷贴 + 运行中（悬停浮起的 CSS 作用域，§13）。 */}
+          <div className="flex min-w-0 flex-1 items-center self-stretch">
           {/* 常驻瓷贴（§32 参考图 Dock 位；单实例激活语义 + 悬停预览同契约）。
               按钮不画 hover/active 底色（2026-10-01 用户裁决：44px 图标坐在
               48px 按钮里，浅底在玻璃胶囊上显成图标四周的白边）——悬停反馈
-              走悬停预览与波浪，激活态只剩指示点。 */}
+              走悬停预览与浮起，激活态只剩指示点。 */}
           <div className="flex shrink-0 items-center gap-2 self-stretch">
             {PINNED_APP_IDS.map((appId) => {
               const appWindows = windows.filter((win) => win.appId === appId)
@@ -171,9 +167,9 @@ export function Taskbar() {
             })}
           </div>
 
-          {/* 运行中窗口（非常驻瓷贴的应用）：波浪/预览契约区。no-scrollbar：
-              波浪 1.5× 变换边界会撑出滚动区域，滚动条不得随悬停闪现（修订 11），
-              多窗口仍可滚轮横滚。 */}
+          {/* 运行中窗口（非常驻瓷贴的应用）：预览/悬停浮起契约区。no-scrollbar：
+              悬停浮起的 scale 变换边界会撑出滚动区域，滚动条不得随悬停闪现
+              （修订 11），多窗口仍可滚轮横滚。 */}
           {windows.some(
             (win) => !PINNED_APP_IDS.includes(win.appId as (typeof PINNED_APP_IDS)[number]),
           ) && <div aria-hidden="true" className="mx-0.5 h-8 w-px shrink-0 bg-border" />}

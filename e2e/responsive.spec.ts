@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { openDynamicPanel } from './helpers'
+
 // Chromium 在 4-worker 高负载 + 375px 仿真视口下曾现「absolute 底座相对其
 // 包含块整体偏移 -33px」的反盒模型布局态（探针实证：画布 x=0/w=375、无滚动、
 // 无变换，footer left:0 right:0 却量得 -33；单跑与成对跑永不复现）——属环境
@@ -39,11 +41,11 @@ test('responsive: 375px viewport stays usable without horizontal overflow (§25)
   expect(bar!.x).toBeGreaterThanOrEqual(0)
   expect(bar!.x + bar!.width).toBeLessThanOrEqual(375.5)
 
-  // ③ 自动打开的动态面板不超视口（launch 钳制 §25）。
+  // ③ 手动打开的动态面板不超视口（launch 钳制 §25；2026-10-02 起不再自动
+  //    开窗，钳制契约对手动开窗同样成立）。
   // 坑（§30/§32）：waitFor 可见 ≠ 开窗动画完成，且弹性飞行可能重放——
   // 等「内联位姿已清除（落定）+ x≥0」再读数。
-  const panel = page.getByRole('region', { name: '动态面板' })
-  await expect(panel).toBeVisible()
+  const panel = await openDynamicPanel(page)
   await page.waitForFunction(
     () => {
       const region = document.querySelector('[aria-label="动态面板"]')

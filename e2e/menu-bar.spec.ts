@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { openDynamicPanel } from './helpers'
+
 /**
  * 顶部菜单栏（docs/DESIGN.md §19）：窗口菜单管理窗口、视图菜单切主题、
  * 通知铃自任务栏迁移至顶栏后照常展开通知中心。
@@ -21,9 +23,8 @@ test('menu bar: manages windows, switches theme, opens notification center', asy
   await expect(page.getByTestId('menu-bar-clock')).toBeVisible()
   await expect(page.getByRole('button', { name: /menubar-e2e/ })).toBeVisible()
 
-  // 窗口菜单：动态面板自动打开 → 条目存在 → 最小化全部。
-  const dynamicPanel = page.getByRole('region', { name: '动态面板' })
-  await expect(dynamicPanel).toBeVisible()
+  // 窗口菜单：手动打开动态面板（2026-10-02 起不再自动开窗）→ 条目存在 → 最小化全部。
+  const dynamicPanel = await openDynamicPanel(page)
   await page.getByRole('button', { name: '窗口', exact: true }).click()
   const menu = page.getByRole('menu')
   await expect(menu).toBeVisible()

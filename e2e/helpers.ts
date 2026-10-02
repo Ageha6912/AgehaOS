@@ -31,3 +31,18 @@ export async function revealTaskbar(page: Page): Promise<void> {
 export function taskbarStartButton(page: Page): Locator {
   return page.getByRole('contentinfo').getByRole('button', { name: /开始/ })
 }
+
+/**
+ * 动态面板（DDS 域③）：2026-10-02 用户裁决起进桌面不再自动开窗——测试需要
+ * 面板时经 Ctrl+K 搜索手动打开，返回面板 region 定位器。
+ */
+export async function openDynamicPanel(page: Page): Promise<Locator> {
+  await page.keyboard.press('Control+k')
+  const palette = page.getByTestId('search-palette')
+  await expect(palette).toBeVisible()
+  await palette.getByRole('textbox').fill('动态面板')
+  await page.keyboard.press('Enter')
+  const panel = page.getByRole('region', { name: '动态面板' })
+  await expect(panel).toBeVisible({ timeout: 10_000 })
+  return panel
+}

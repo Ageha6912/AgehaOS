@@ -102,7 +102,7 @@
 ### 0.7 待产品裁决（未落地，保持原裁决）
 - 左栏与 Dock 的重复入口（文件/终端/商店/设置）是否删减（§32.3）。
 - 编辑命令是否移回独立「编辑」菜单（§33 §1① 裁决并入文件菜单）。
-- 首次登录是否继续自动打开动态面板与轮换小游戏（2026-09-26 裁决）。
+- ~~首次登录是否继续自动打开动态面板与轮换小游戏~~（已裁决：2026-10-02 用户裁决不再自动打开，见 §32.5 修订 13）。
 - 深色主题配套的黄昏/夜景壁纸；动效默认开启项数（§15 vs 现行默认全开）。
 
 ## 1. 一句话方向
@@ -286,9 +286,7 @@ Files（试点）→ Terminal（含主题修复）→ Notes → Settings → Sto
 
 新增精选徽章 = 在 `APP_BADGES` 加一行（覆盖生成器）。
 
-**小游戏轮换**：`desktop/game-rotation.ts`——进入桌面在已安装游戏
-（snake/2048/memory/mines）中随机打开一个且与上次不同（上次记录持久化），
-窗口居中弹出；未安装任何游戏则静默跳过。
+**小游戏轮换**（2026-10-02 起自动弹出退役）：`desktop/game-rotation.ts` 保留纯函数 `pickGameId`（与上次不同）与 `openRandomGame`（居中弹出）供后续手动入口复用；进入桌面不再自动打开游戏（§32.5 修订 13），游戏经商店安装后手动启动。
 
 ## 10. 品牌 logo（BrandLogo，v2 揚羽蝶主视觉·透明底）
 
@@ -441,7 +439,19 @@ footer 只是透明运动层（`pointer-events-none`，内联 transform 保留�
   `overflow-hidden`）；飞行中的位姿在动画效果里，读 `getComputedStyle`
   的 transform/opacity 而非 `el.style`。
 
-## 13. 任务栏波浪（motion-lab dock → 产品集成）
+## 13. Dock 悬停浮起（2026-10-02 用户裁决：波浪退役，只浮起被悬浮的一枚）
+
+> **2026-10-02 用户裁决（现行）**：指针悬停 Dock 图标时，**只有被悬浮的那一枚
+> 浮起**，邻位不再随高斯衰减联动——波浪引擎（`src/core/dock/wave.ts` +
+> `use-dock-wave.ts` 及其测试）整体删除，`motion-lab/` 演示模块归档保留。
+> 实现：`index.css` 对 `[data-wave-icon]` 包裹层（保留为样式钩子）挂基态
+> `transition` + `@media (hover: hover) and (prefers-reduced-motion: no-preference)`
+> 下的 `button:hover > [data-wave-icon]` 浮起规则
+> （`translateY(-3px) scale(1.18)` + 品牌 cobalt 28% drop-shadow 光晕）。
+> 触屏与 reduced-motion 不浮起；零底色裁决、悬停预览、`.no-scrollbar`
+> （修订 11）契约不变。E2E `motion-lab.spec` 钉「悬浮位浮起 + 邻位不动 +
+> 移开归位」。
+> 以下为 2026-09-26 ~ 2026-10-02 波浪时期的原契约，仅供历史参照：
 
 2026-09-26 起任务栏窗口按钮图标带高斯距离衰减放大波浪（macOS Dock 隐喻，
 SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·exp(-d²/2σ²)`
@@ -690,11 +700,13 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
 - **头部**：`h-9`（**36px**，2026-10-01 密度档原 44）玻璃材质（弃 `bg-surface-raised` 实色，让框体玻璃
   连续），底边 `border-border-subtle` 发丝线；AppIcon 16 + 标题（激活
   text-text / 非激活 text-text-muted）。
-- **交通灯**（主题无关常量 `--ag-wl-{close,min,max}(-glyph)`）：左置三枚
-  12px 圆点（close #ff5f57 / min #febc2e / max #28c840），hover 显字形
-  （group-hover，Phosphor 8px），命中区 24px；非激活窗口整组 opacity-60。
-  可访问名契约不变（`window.close/minimize/maximize/restore`——测试与
-  E2E 按名点击）；按钮 `onPointerDown` stopPropagation 保留（拖拽不吞点击）。
+- **交通灯**（主题无关常量 `--ag-wl-{close,min,max}`）：左置三枚 12px 圆点
+  （close #ff5f57 / min #febc2e / max #28c840），命中区 24px；非激活窗口
+  整组 opacity-60。**2026-10-02 用户裁决：去掉 ✕/—/⬛ 字形**（hover/聚焦
+  曾显 Phosphor 8px 字形，随裁决移除；`--ag-wl-*-glyph` Token 退役）——
+  纯色圆点 mac OS 素态；可访问名契约不变（`window.close/minimize/maximize/
+  restore`——测试与 E2E 按名点击）；按钮 `onPointerDown` stopPropagation
+  保留（拖拽不吞点击）。
 - **窗体纸面**：§2.1 P2-6 终裁 92% 轻半透明（见上；预览工作台存档
   `.tmp/shots/paper-preview.png`）；动效契约（§12 WAAPI 常量/ghost/
   genie）与窗口状态语义零改动。
@@ -1070,3 +1082,17 @@ Wallpaper → Desktop → Window → Popover → Modal 递进成立；大面=玻
   （SearchPalette 补挂 `.glass-popover` 弹层独立材质档；AppLauncher 输入
   placeholder/kbd 徽章对比度提升 + 底部锚定改 `--ag-dock-gap`），修复后
   五门禁复验全绿 + 复拍确认。
+
+### 32.5 修订 13（2026-10-02，用户三点裁决：Dock 悬停 / 红绿灯 / 零自动开窗）
+
+- **Dock 悬停只浮起被悬浮的一枚**：§13 波浪引擎（高斯邻位联动）整体删除
+  （wave.ts / use-dock-wave.ts 及测试；motion-lab/ 归档保留），改为 index.css
+  的 hover 浮起规则（translateY(-3px) scale(1.18) + cobalt 28% 光晕；触屏与
+  reduced-motion 不浮起）。零底色 / 悬停预览 / no-scrollbar 契约不变。
+- **红绿灯去符号**：窗口左上三灯去掉 ✕/—/⬛ 字形（--ag-wl-*-glyph Token
+  退役），纯色圆点；可访问名契约不变（§21）。
+- **进桌面零自动开窗**：动态面板自动打开（原 §26/ADR 裁决）与小游戏轮换
+  自动弹出整体退役——桌面空闲态回归纯壁纸 + 品牌层；面板经启动器/搜索手动
+  打开，游戏手动启动；game-rotation 纯函数保留。E2E：dynamic-panel/
+  responsive/widgets 改 helpers.openDynamicPanel 手动开；motion-lab 重钉
+  「悬浮浮起 + 邻位不动 + 移开归位」；Desktop 单测钉零开窗。

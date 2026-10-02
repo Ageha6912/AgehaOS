@@ -96,11 +96,8 @@
 
   /* ---- Window traffic lights（左置三灯，主题无关常量，如同 boot 系）---- */
   --ag-wl-close: #ff5f57;
-  --ag-wl-close-glyph: #7d0906;
   --ag-wl-min: #febc2e;
-  --ag-wl-min-glyph: #7d5110;
   --ag-wl-max: #28c840;
-  --ag-wl-max-glyph: #0d5a17;
 
   /* ---- Tooltip（左栏气泡芯片底：冷墨实色小件——「大面=玻璃、小控件=实色」
      纪律下的实色小件；主题无关常量，同红绿灯 --ag-wl-*）---- */
@@ -307,11 +304,8 @@
   --color-scrim: var(--ag-scrim);
   --color-scrim-strong: var(--ag-scrim-strong);
   --color-wl-close: var(--ag-wl-close);
-  --color-wl-close-glyph: var(--ag-wl-close-glyph);
   --color-wl-min: var(--ag-wl-min);
-  --color-wl-min-glyph: var(--ag-wl-min-glyph);
   --color-wl-max: var(--ag-wl-max);
-  --color-wl-max-glyph: var(--ag-wl-max-glyph);
 
   --radius-sm: var(--ag-radius-sm);
   --radius-md: var(--ag-radius-md);
@@ -562,12 +556,22 @@ body {
   opacity: 1;
 }
 
-/* Dock 图标 hover 光晕（裁决 I）：波浪（transform）+ 一次性 drop-shadow；
-   filter 与波浪写的 transform 无冲突。按钮本体零底色（2026-10-01 用户裁决：
-   浅底在玻璃胶囊上显成图标四周的白边，不得回退）；回收站按钮无 wave 图标
-   后代，规则空命中无害。 */
-.dock-tile:hover [data-wave-icon] {
-  filter: drop-shadow(0 4px 10px rgb(47 95 232 / 28%));
+/* Dock 图标悬停（2026-10-02 用户裁决：只浮起被悬浮的那一枚——§13 波浪引擎
+   整体退役，邻位不再随高斯衰减联动）。transform 只写 [data-wave-icon] 包裹层
+   （按钮本体零底色，2026-10-01 裁决不回退）；transition 挂在基态上使回落也有
+   动画。scale 变换会撑出容器的可滚动区域 → 运行中行保持 .no-scrollbar
+   （修订 11）。触屏（无 hover）与 prefers-reduced-motion 不浮起，保留按钮
+   原生反馈。回收站按钮无 wave 图标后代，规则空命中无害。 */
+[data-wave-icon] {
+  transition:
+    transform var(--ag-motion-base) var(--ag-motion-ease),
+    filter var(--ag-motion-base) var(--ag-motion-ease);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  button:hover > [data-wave-icon] {
+    transform: translateY(-3px) scale(1.18);
+    filter: drop-shadow(0 4px 10px rgb(47 95 232 / 28%));
+  }
 }
 
 @media (prefers-reduced-transparency: reduce) {

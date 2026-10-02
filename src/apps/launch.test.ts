@@ -30,7 +30,7 @@ describe('launchApp', () => {
     expect(windows[0]?.height).toBe(480)
   })
 
-  it('pins the window position when geometry is provided (auto-open panel)', () => {
+  it('pins the window position when geometry is provided (系统调用钉位)', () => {
     launchApp('com.ageha.notes', { x: 912, y: 24 })
 
     const windows = useWindowStore.getState().windows
@@ -38,6 +38,28 @@ describe('launchApp', () => {
     expect(windows[0]?.y).toBe(24)
     // 尺寸仍来自 manifest。
     expect(windows[0]?.width).toBe(720)
+  })
+
+  it('keeps a no-geometry launch inside a narrow viewport (§25 位置兜底)', async () => {
+    // 375px 视口：记事 720 → 尺寸钳 359；级联起点 x=80 曾把右缘推到 439。
+    vi.stubGlobal('innerWidth', 375)
+    vi.stubGlobal('innerHeight', 812)
+    try {
+      launchApp('com.ageha.notes')
+
+      const win = useWindowStore.getState().windows[0]
+      expect(win?.width).toBe(359)
+      expect(win!.x).toBeGreaterThanOrEqual(8)
+      expect(win!.x + win!.width).toBeLessThanOrEqual(375 - 8 + 0.5)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('keeps the cascade position untouched on wide viewports', () => {
+    // jsdom 默认 innerWidth=1024：80 + 720 = 800 在视口内，级联起点不动。
+    launchApp('com.ageha.notes')
+    expect(useWindowStore.getState().windows[0]?.x).toBe(80)
   })
 
   it('refuses to launch when a requested permission is not granted', () => {

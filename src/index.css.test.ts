@@ -313,17 +313,26 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(css).not.toContain('-webkit-backdrop-filter')
   })
 
-  it('gives dock icons a one-shot hover glow without touching the wave transform (裁决 I)', () => {
-    // 前置契约：Taskbar 三类按钮挂 dock-tile 类（不加类则规则永不命中 =
-    // 静默丢需求）。filter 与波浪的 transform 所有权无冲突；按品牌 cobalt
-    // 28% 取色（Active/Selected/Focus/Highlight 配额内的 hover 高亮）。
-    const at = css.indexOf('.dock-tile:hover')
+  it('lifts only the hovered dock icon with glow, neighbors untouched（2026-10-02 裁决，§13 波浪退役）', () => {
+    // 前置契约：Taskbar 图标 span 挂 data-wave-icon（CSS 钩子，不加则规则
+    // 永不命中 = 静默丢需求）。hover 规则 = 浮起（translateY+scale）+ 光晕
+    // （drop-shadow，品牌 cobalt 28%，Active/Highlight 配额内）；写入域限定
+    // 在 button:hover 的直接子级 = 只影响被悬浮的那一枚；触屏与
+    // reduced-motion 不浮起；不声明 background（按钮零底色裁决不回退）。
+    const at = css.indexOf('button:hover > [data-wave-icon]')
     expect(at).toBeGreaterThan(0)
-    const rule = css.slice(at, at + 160)
+    const rule = css.slice(at, at + 200)
+    expect(rule).toContain('transform: translateY(-3px) scale(1.18)')
     expect(rule).toContain('filter: drop-shadow(')
     expect(rule).toContain('rgb(47 95 232 / 28%)')
-    // 规则只写 filter，不声明 background（按钮零底色裁决不得回退）。
     expect(rule).not.toContain('background')
+    // 作用域护栏：hover 浮起必须包在 (hover:hover)+(no-preference) 媒体内，
+    // 基态 transition 存在（回落动画）。
+    expect(css).toContain('@media (hover: hover) and (prefers-reduced-motion: no-preference)')
+    expect(css.indexOf('[data-wave-icon] {')).toBeGreaterThan(-1)
+    expect(css.slice(css.indexOf('[data-wave-icon] {'), css.indexOf('[data-wave-icon] {') + 140)).toContain(
+      'transition:',
+    )
   })
 
   it('documents the accent quota and the glass/solid material rules in the token header', () => {
