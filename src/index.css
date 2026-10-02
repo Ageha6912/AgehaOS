@@ -507,6 +507,16 @@ body {
   background: color-mix(in srgb, var(--ag-text-muted) 60%, transparent);
 }
 
+/* 隐藏滚动条 UI 但保留滚动能力（Dock 运行中窗口行，§13/§32.5 修订 11）：
+   波浪把图标放大到 1.5× 时变换边界会撑出可滚动区域，滚动条随悬停闪现——
+   滚动条 UI 隐藏后多窗口仍可滚轮横滚（scroll 事件照常驱动波浪重测）。 */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Enter animations (feedback/state-transition); reduced motion collapses them. */
 @keyframes os-pop-in {
   from {

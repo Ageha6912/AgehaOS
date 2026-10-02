@@ -38,6 +38,13 @@ test('motion lab: aurora/glow/sheen present, wave covers pins, toggles cut effec
     .evaluate((el) => el.style.transform)
   expect(wave).toContain('scale')
 
+  // ②b 运行中行（动态面板图标所在）滚动条 UI 隐藏：波浪 1.5× 变换边界会
+  //    撑出可滚动区域，滚动条不得随悬停闪现（修订 11）。
+  const scrollbarWidth = await page
+    .getByTestId('dock-running-row')
+    .evaluate((el) => getComputedStyle(el).scrollbarWidth)
+  expect(scrollbarWidth).toBe('none')
+
   // ③ 菜单浮层可开（进场动效语言由 pop-motion 单测钉扎，此处验证链路通）。
   await taskbarStartButton(page).click()
   await expect(page.getByRole('list', { name: /开始/ })).toBeVisible()

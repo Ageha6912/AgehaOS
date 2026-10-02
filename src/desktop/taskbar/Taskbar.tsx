@@ -167,11 +167,16 @@ export function Taskbar() {
             })}
           </div>
 
-          {/* 运行中窗口（非常驻瓷贴的应用）：波浪/预览契约区。 */}
+          {/* 运行中窗口（非常驻瓷贴的应用）：波浪/预览契约区。no-scrollbar：
+              波浪 1.5× 变换边界会撑出滚动区域，滚动条不得随悬停闪现（修订 11），
+              多窗口仍可滚轮横滚。 */}
           {windows.some(
             (win) => !PINNED_APP_IDS.includes(win.appId as (typeof PINNED_APP_IDS)[number]),
           ) && <div aria-hidden="true" className="mx-0.5 h-8 w-px shrink-0 bg-border" />}
-          <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-x-auto">
+          <div
+            data-testid="dock-running-row"
+            className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-x-auto"
+          >
             {windows.map((win) => {
               if (PINNED_APP_IDS.includes(win.appId as (typeof PINNED_APP_IDS)[number])) return null
               const active = win.focused && win.state !== 'minimized'

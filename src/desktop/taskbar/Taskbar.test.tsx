@@ -280,6 +280,10 @@ describe('Taskbar', () => {
     // Dock 高光滑过覆盖层随偏好默认开（§32.5 修订 10）。
     expect(screen.getByTestId('dock-sheen')).toBeInTheDocument()
 
+    // 运行中窗口行隐藏滚动条 UI（§32.5 修订 11：波浪 1.5× 变换边界会撑出
+    // 可滚动区域，滚动条不得随悬停闪现），滚动能力保留。
+    expect(screen.getByTestId('dock-running-row').className).toContain('no-scrollbar')
+
     // 单实例激活：点击瓷贴启动，再点聚焦窗口最小化，再点还原。
     fireEvent.click(screen.getByTestId('dock-pin-com.ageha.files'))
     const filesWindow = useWindowStore.getState().windows.find((w) => w.appId === 'com.ageha.files')
