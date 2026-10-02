@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { SignOut, User } from '@phosphor-icons/react'
 
 import { useTranslation } from '@/core/i18n'
 import { useSessionStore } from '@/store/session-store'
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
+import { usePopoverDismiss } from '@/components/use-popover-dismiss'
 
 export function UserMenu() {
   const { t } = useTranslation()
@@ -12,14 +13,27 @@ export function UserMenu() {
   const menuPhase = useExitPhase(open)
   const user = useSessionStore((state) => state.user)
   const logout = useSessionStore((state) => state.logout)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+
+  usePopoverDismiss(
+    'user',
+    open,
+    (reason) => {
+      const focusInside = wrapperRef.current?.contains(document.activeElement) ?? false
+      setOpen(false)
+      if (reason === 'escape' && focusInside) triggerRef.current?.focus()
+    },
+    { insideRefs: [wrapperRef] },
+  )
 
   if (!user) return null
 
   return (
-    <div className="relative">
+    <div ref={wrapperRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
-        aria-haspopup="menu"
         aria-expanded={open}
         className="flex h-7 items-center gap-2 rounded-md px-2 text-xs text-text hover:bg-surface-raised"
         onClick={() => setOpen((value) => !value)}

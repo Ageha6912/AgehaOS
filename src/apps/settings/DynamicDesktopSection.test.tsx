@@ -57,8 +57,7 @@ describe('SettingsApp 动态桌面 section', () => {
 
     await waitFor(() => expect(useDynamicDesktopStore.getState().currentPlan).not.toBeNull())
     expect(screen.getByText(/来源层级/)).toBeInTheDocument()
-    expect(screen.getByText(/决策来源/)).toBeInTheDocument()
-    expect(screen.getByText(/本地规则/)).toBeInTheDocument()
+    expect(screen.getByText('生成于: 本机')).toBeInTheDocument()
   })
 
   it('maps the slider onto the five bands and persists the value', () => {

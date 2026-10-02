@@ -199,7 +199,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
                 <X
                   size={8}
                   weight="bold"
-                  className="text-wl-close-glyph opacity-0 transition-opacity group-hover/light:opacity-100"
+                  className="text-wl-close-glyph opacity-0 transition-opacity group-hover/light:opacity-100 group-focus-visible/light:opacity-100"
                 />
               </span>
             </button>
@@ -218,7 +218,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
               <Minus
                 size={8}
                 weight="bold"
-                className="text-wl-min-glyph opacity-0 transition-opacity group-hover/light:opacity-100"
+                className="text-wl-min-glyph opacity-0 transition-opacity group-hover/light:opacity-100 group-focus-visible/light:opacity-100"
               />
             </span>
           </button>
@@ -237,7 +237,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
                 <Square
                   size={7}
                   weight={maximized ? 'fill' : 'bold'}
-                  className="text-wl-max-glyph opacity-0 transition-opacity group-hover/light:opacity-100"
+                  className="text-wl-max-glyph opacity-0 transition-opacity group-hover/light:opacity-100 group-focus-visible/light:opacity-100"
                 />
               </span>
             </button>

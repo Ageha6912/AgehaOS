@@ -4,6 +4,7 @@ import { Gear, Sparkle, Storefront } from '@phosphor-icons/react'
 
 import { launchApp } from '@/apps/launch'
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
+import { usePopoverDismiss } from '@/components/use-popover-dismiss'
 import { useTranslation } from '@/core/i18n'
 import { systemDynamicDesktop } from '@/services/dynamic-desktop'
 
@@ -53,6 +54,8 @@ export function ContextMenu({
       y: Math.min(Math.max(raw.y, EDGE_GAP_PX), Math.max(EDGE_GAP_PX, window.innerHeight - height - EDGE_GAP_PX)),
     })
   }, [raw])
+
+  usePopoverDismiss('context-menu', open, onClose, { dismissible: false })
 
   // 关闭语义：菜单外按下 / Esc / 视口尺寸变化。
   useEffect(() => {

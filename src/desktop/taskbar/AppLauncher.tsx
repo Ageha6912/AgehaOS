@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import {
@@ -14,6 +14,8 @@ import {
 } from '@phosphor-icons/react'
 
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
+import { usePopoverDismiss } from '@/components/use-popover-dismiss'
+import { shortcutLabel } from '@/core/platform'
 
 import { AppIcon } from '@/apps/app-icon'
 import { componentFor } from '@/apps/builtin'
@@ -65,13 +67,31 @@ export function AppLauncher() {
   const [category, setCategory] = useState<CategoryId>('recent')
   const menuPhase = useExitPhase(open)
   const { t } = useTranslation()
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const menuRef = useRef<HTMLMenuElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const searchRef = useRef<HTMLInputElement | null>(null)
 
-  // 弹层契约（§24）：Esc 关闭并回焦触发器（挂 wrapper——通过触发器打开时
-  // 焦点在按钮，浏览菜单时焦点在菜单内，两者都会冒泡到这里）。
   const closeMenu = (): void => {
     setOpen(false)
     setQuery('')
   }
+  // 弹层契约（§24 + UI 评审 P0-2）：Esc / 外部按下 / 被其他弹层顶替即关闭；
+  // Esc 时焦点若在面板内则回焦触发器（portal 面板不在触发器子树内）。
+  usePopoverDismiss(
+    'launcher',
+    open,
+    (reason) => {
+      const focusInside = menuRef.current?.contains(document.activeElement) ?? false
+      closeMenu()
+      if (reason === 'escape' && focusInside) triggerRef.current?.focus()
+    },
+    { insideRefs: [wrapperRef, menuRef] },
+  )
+  // 打开即可输入：聚焦搜索框。
+  useEffect(() => {
+    if (open) searchRef.current?.focus()
+  }, [open])
   const apps = useAppStore((s) => s.apps)
   const appliedLayout = useDynamicDesktopStore((s) => s.appliedLayout)
   const resetAppliedLayout = useDynamicDesktopStore((s) => s.resetAppliedLayout)
@@ -133,19 +153,21 @@ export function AppLauncher() {
         className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
       />
       <input
+        ref={searchRef}
         type="text"
         data-testid="launcher-search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         placeholder={t('launcher.searchPlaceholder')}
         aria-label={t('launcher.searchPlaceholder')}
-        className="w-full rounded-lg border border-border-subtle bg-surface-elevated py-2 pl-8 pr-12 text-xs text-text placeholder:text-text focus:outline-none"
+        className="w-full rounded-lg border border-border-subtle bg-surface-elevated py-2 pl-8 pr-14 text-xs text-text placeholder:text-text-tertiary focus:outline-none"
       />
       <kbd
         aria-hidden="true"
-        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md border border-border-subtle bg-surface-soft px-1.5 py-0.5 text-[10px] text-text"
+        data-testid="launcher-search-kbd"
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md border border-border-subtle bg-surface-soft px-1.5 py-0.5 text-[11px] text-text-muted"
       >
-        ⌘ K
+        {shortcutLabel('K')}
       </kbd>
     </div>
   )
@@ -207,10 +229,10 @@ export function AppLauncher() {
     ) : null
 
   return (
-    <div className="relative">
+    <div ref={wrapperRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
-        aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t('taskbar.start')}
         title={t('taskbar.start')}
@@ -228,17 +250,15 @@ export function AppLauncher() {
 
       {/* §32 修订 8：弹层传送至 body——胶囊的 backdrop-filter 会成为 fixed
           弹层的包含块（坑 13 变体），窄视口下弹层随被钳制的胶囊偏移溢出；
-          portal 到 body 后包含块恒为视口，Esc 契约移到弹层自身。 */}
+          portal 到 body 后包含块恒为视口；Esc 走 usePopoverDismiss 的
+          document 捕获监听（焦点在触发器上时也生效）。 */}
       {menuPhase.render &&
         createPortal(
           <menu
+            ref={menuRef}
             aria-label={t('taskbar.start')}
             data-testid={layout ? `launcher-layout-${layout.tier}` : undefined}
-            onKeyDown={(event) => {
-              // 弹层契约（§24）：Esc 关闭并清空搜索。
-              if (event.key === 'Escape') closeMenu()
-            }}
-            className={`popover-panel desktop-chrome surface-glass fixed bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+0.75rem)] left-3 z-50 flex max-h-[calc(100vh-var(--ag-dock-height)-3rem)] flex-col overflow-hidden rounded-2xl p-3 sm:left-[calc(var(--ag-rail-left-width)+1.125rem)] ${
+            className={`popover-panel surface-glass fixed bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+0.75rem)] left-3 z-50 flex max-h-[calc(100vh-var(--ag-dock-height)-3rem)] flex-col overflow-hidden rounded-2xl p-3 sm:left-[calc(var(--ag-rail-left-width)+1.125rem)] ${
               TIER_WIDTH_CLASS[layout?.tier ?? 'single'] ?? 'w-[410px]'
             } max-w-[calc(100vw-1.5rem)] ${popoverMotionClass(menuPhase.exiting)}`}
           >

@@ -118,23 +118,69 @@ describe('index.css token contract (Token 2.0)', () => {
     // 白字 Token 阶 + 低透白玻璃 + 深玻璃弹层 remap + 降透明实色兜底。
     expect(scope).toMatch(/--ag-text:\s*#ffffff/)
     expect(scope).toMatch(/--ag-glass-bg:\s*rgb\(255 255 255 \/ 14%\)/)
-    expect(scope).toMatch(/--ag-glass-bg-strong:\s*rgb\(255 255 255 \/ 26%\)/)
+    // 弹层不再继承白字 26% 白玻璃（实测 1.7-2.7:1）：改由纸面块重声明。
+    const rule = css.slice(css.indexOf('.desktop-chrome {'), css.indexOf('}', css.indexOf('.desktop-chrome {')))
+    expect(rule).not.toMatch(/--ag-glass-bg-strong/)
+    // :root 别名在声明处求值、子树不重算：作用域内必须显式重声明，否则
+    // hover:bg-surface-raised 会落成 :root 的近白实色（菜单栏铃铛白圆斑）。
+    expect(rule).toMatch(/--ag-surface-raised:\s*rgb\(255 255 255 \/ 16%\)/)
+    expect(rule).toMatch(/--ag-brand:/)
     expect(scope).toMatch(/--ag-surface-popover:\s*#2c3a63/)
   })
 
+  it('re-declares paper tokens on popovers and widget cards (UI review P0-1)', () => {
+    const paperAt = css.indexOf('.chrome-paper,')
+    expect(paperAt).toBeGreaterThan(0)
+    const paper = css.slice(paperAt, css.indexOf('}', paperAt))
+    expect(paper).toMatch(/\.popover-panel,\s*\.glass-popover,\s*\.widget-card\s*\{/)
+    // 墨字 + 白玻璃；别名（surface-raised）必须显式重声明，不能靠 :root 别名。
+    expect(paper).toMatch(/--ag-text:\s*#18202c/)
+    expect(paper).toMatch(/--ag-text-muted:\s*#43526a/)
+    expect(paper).toMatch(/--ag-surface-raised:/)
+    expect(paper).toMatch(/--ag-brand:\s*#2f5fe8/)
+    expect(paper).toMatch(/--ag-glass-bg-strong:\s*rgb\(255 255 255 \/ 86%\)/)
+    expect(paper).toMatch(/text-shadow:\s*none/)
+    // 深色主题 = 冷墨玻璃 + 浅字。
+    const darkAt = css.indexOf('.dark .chrome-paper,')
+    const darkPaper = css.slice(darkAt, css.indexOf('}', darkAt))
+    expect(darkPaper).toMatch(/--ag-text:\s*#e6ecf7/)
+    expect(darkPaper).toMatch(/--ag-glass-bg-strong:\s*rgb\(16 23 40 \/ 86%\)/)
+    // 纸面块只发 Token，不碰玻璃声明：必须位于玻璃兜底之后、互不干扰。
+    expect(paper).not.toContain('backdrop-filter')
+    expect(paperAt).toBeGreaterThan(css.indexOf('.surface-glass {'))
+  })
+
+  it('darkens the menubar strip so its white text stays legible', () => {
+    const at = css.indexOf('.menubar-glass {')
+    const block = css.slice(at, css.indexOf('}', at))
+    expect(block).toMatch(/background:\s*rgb\(18 30 66 \/ 50%\)/)
+    expect(block).toMatch(/--ag-text-muted:\s*rgb\(255 255 255 \/ 92%\)/)
+  })
+
+  it('lights sidebar tooltips with an unlayered rule (Tailwind utilities cannot beat opacity:0)', () => {
+    expect(css).toMatch(/\.group:hover \.os-tooltip,\s*\.group:focus-visible \.os-tooltip\s*\{\s*opacity:\s*1;/)
+  })
+
+  it('draws a two-tone focus ring that survives any backdrop', () => {
+    expect(root).toMatch(/--ag-focus-ring:\s*#2f5fe8/)
+    expect(root).toMatch(/--ag-focus-halo:\s*#ffffff/)
+    expect(css).toMatch(/outline:\s*2px solid var\(--ag-focus-ring\)/)
+    expect(css).toMatch(/box-shadow:\s*0 0 0 2px var\(--ag-focus-halo\)/)
+  })
+
   it('defines the widget Acrylic knobs (sec 32, 用户可调模糊/遮罩)', () => {
-    // 模糊半径（2026-10-01 用户裁决多轮调淡后 3px）+ 淡蓝纱遮罩（
-    // 白字配深遮罩）；.widget-card 消费双旋钮，降透明回落实色。
-    expect(root).toMatch(/--ag-widget-blur:\s*3px/)
+    // 模糊半径 8px（3px 时壁纸细节透字，UI 评审 P0-1 提到 8px）+ 白纱遮罩
+    // 配墨字；.widget-card 消费双旋钮，降透明回落纸面实色。
+    expect(root).toMatch(/--ag-widget-blur:\s*8px/)
     expect(root).toMatch(/--ag-widget-tint:\s*linear-gradient\(/)
     // 主规则是文件中最后一个 .widget-card（前面是降透明/@supports 兜底块）。
     const widget = css.slice(css.lastIndexOf('.widget-card'), css.lastIndexOf('.widget-card') + 400)
     expect(widget).toMatch(/backdrop-filter:\s*blur\(var\(--ag-widget-blur\)\)/)
     expect(widget).toMatch(/background:\s*var\(--ag-widget-tint\)/)
-    // 白玻璃配深墨字（chrome 白字作用域内重映射，参考图组件样式）。
-    expect(widget).toMatch(/--ag-text:\s*#1c2740/)
-    expect(widget).toMatch(/text-shadow:\s*none/)
-    expect(css).toMatch(/prefers-reduced-transparency[\s\S]{0,400}\.widget-card\s*\{[^}]*#2c3a63/)
+    // 墨字 Token 由纸面块提供（见 paper 用例）；降透明回落纸面实色而非藏青。
+    expect(css).toMatch(
+      /prefers-reduced-transparency[\s\S]{0,400}\.widget-card\s*\{[^}]*var\(--ag-surface-popover\)/,
+    )
   })
 
   it('defines the unified popover-panel material (sec 24)', () => {
@@ -199,7 +245,7 @@ describe('index.css token contract (Token 2.0)', () => {
   })
 
   it('pins the seven-face material ladder with pairwise-distinct blur steps (shell 2.0 §4.1)', () => {
-    // blur 阶梯（浅/深主题同值）：widget 3（Acrylic 特例族）< menubar 12 <
+    // blur 阶梯（浅/深主题同值）：widget 8（Acrylic 特例族）< menubar 12 <
     // rail 20 < dock 28 < window 36 < popover 44；modal = 实色无 blur（材质
     // 终点，第七面互异由「实色」承担）。逐格互异 = 递进成立的量化前提。
     const blurPx = [
@@ -210,7 +256,7 @@ describe('index.css token contract (Token 2.0)', () => {
       'ag-blur-xl',
       'ag-blur-2xl',
     ].map((name) => Number(root.match(new RegExp(`--${name}:\\s*(\\d+)px`))?.[1]))
-    expect(blurPx).toEqual([3, 12, 20, 28, 36, 44])
+    expect(blurPx).toEqual([8, 12, 20, 28, 36, 44])
     expect(new Set(blurPx).size).toBe(blurPx.length)
     // modal 面唯一实色（100% 不透明 hex，无 blur 档）。
     expect(root).toMatch(/--ag-surface-modal:\s*#ffffff/)
@@ -256,7 +302,7 @@ describe('index.css token contract (Token 2.0)', () => {
   })
 
   it('defines the strong glass material in both themes', () => {
-    // 浅=白86% / 深=墨84%；chrome 白字作用域另有 26% remap（上方 chrome 用例）。
+    // 浅=白86% / 深=墨84%；chrome 弹层由纸面块重声明（上方 paper 用例）。
     expect(root).toMatch(/--ag-glass-bg-strong:\s*rgb\(255 255 255 \/ 86%\)/)
     expect(dark).toMatch(/--ag-glass-bg-strong:\s*rgb\(16 23 40 \/ 84%\)/)
   })

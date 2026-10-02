@@ -43,6 +43,30 @@ describe('Desktop', () => {
     expect(screen.getByTestId('widget-rail')).toBeInTheDocument()
   })
 
+  it('exposes landmarks and a DOM order that matches the visual order (UI review P2-7)', () => {
+    render(<Desktop />)
+
+    expect(screen.getByRole('heading', { level: 1, name: 'AgehaOS 桌面' })).toBeInTheDocument()
+    expect(screen.getByRole('main', { name: '窗口' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: '系统导航' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: '程序坞' })).toBeInTheDocument()
+
+    // Tab 序：菜单栏 → 左栏 → 窗口区 → 右栏 → Dock。
+    const order = [
+      screen.getByTestId('menu-bar'),
+      screen.getByTestId('sidebar'),
+      screen.getByRole('main', { name: '窗口' }),
+      screen.getByTestId('widget-rail'),
+      screen.getByRole('navigation', { name: '程序坞' }),
+    ]
+    for (let index = 1; index < order.length; index += 1) {
+      const relation = order[index - 1]!.compareDocumentPosition(order[index]!)
+      expect(relation & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    // 菜单栏层级略高于其余 chrome：下拉不被随后渲染的左右栏盖住。
+    expect(screen.getByTestId('menu-bar').classList.contains('z-[41]')).toBe(true)
+  })
+
   it('auto-opens the dynamic panel once per desktop session, docked to the right', () => {
     const { rerender } = render(<Desktop />)
 

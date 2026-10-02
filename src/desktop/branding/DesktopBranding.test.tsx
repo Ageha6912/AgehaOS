@@ -28,11 +28,23 @@ describe('DesktopBranding（DESIGN.md §31 Round 2 中央品牌层）', () => {
   it('wears the cool-violet wordmark gradient (shell 2.0 裁决 C: no pink residue)', () => {
     render(<DesktopBranding />)
 
-    // 「OS」渐变尾色 = #c4b5fd 冷紫（Tailwind violet-300）；粉色残留禁止回潮。
+    // 「OS」渐变提亮为浅冷紫（UI 评审 P0-1：#c4b5fd 尾色在亮天空上糊成一片）；
+    // 粉色残留禁止回潮。
     const osSpan = screen.getByTestId('desktop-branding').querySelector('p > span + span') as HTMLElement
     expect(osSpan.className).toContain('bg-gradient-to-r')
-    expect(osSpan.classList.contains('to-[#c4b5fd]')).toBe(true)
+    expect(osSpan.classList.contains('to-[#d8ceff]')).toBe(true)
     expect(osSpan.className).not.toContain('to-[#f4bde4]')
+  })
+
+  it('renders the taglines in full-strength text with a legibility shadow', () => {
+    render(<DesktopBranding />)
+
+    const tagline = screen.getByText('Your Web OS, Your Space.')
+    expect(tagline.classList.contains('text-text')).toBe(true)
+    expect(tagline.classList.contains('font-light')).toBe(false)
+    const sub = screen.getByText('在云端，打开属于你的数字世界')
+    expect(sub.classList.contains('text-text')).toBe(true)
+    expect(sub.classList.contains('text-text-muted')).toBe(false)
   })
 
   it('fades out while a window is visible and returns when everything is minimized', () => {

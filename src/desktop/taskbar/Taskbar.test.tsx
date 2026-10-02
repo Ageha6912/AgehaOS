@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
@@ -199,23 +199,58 @@ describe('Taskbar', () => {
     expect(screen.getByText('无匹配结果')).toBeInTheDocument()
   })
 
-  it('keeps the launcher search box legible in the chrome white-on-glass scope (评审修复)', () => {
+  it('renders the launcher on paper (ink text), not in the white-on-glass chrome scope', () => {
     render(<Taskbar />)
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
 
-    // chrome 白字域内 placeholder 与 ⌘K 徽章提档一阶：白 100%（text-text），
-    // 不再吃 text-muted（白/78%）弱对比；输入底同步提档 surface-elevated
-    // （白/22%）。玻璃材质与布局不动（2026-10-02 视觉评审第 1 轮）。
+    // UI 评审 P0-1：弹层改纸面（白玻璃 + 墨字），面板自身不再挂 desktop-chrome；
+    // placeholder 用 tertiary 墨色（纸面上 ≥4.5:1），⌘K 徽章按平台显示。
     const input = screen.getByTestId('launcher-search')
-    expect(input.classList.contains('placeholder:text-text')).toBe(true)
-    expect(input.classList.contains('placeholder:text-text-muted')).toBe(false)
+    const menu = input.closest('menu') as HTMLElement
+    expect(menu.classList.contains('popover-panel')).toBe(true)
+    expect(menu.classList.contains('desktop-chrome')).toBe(false)
+    expect(input.classList.contains('placeholder:text-text-tertiary')).toBe(true)
     expect(input.classList.contains('bg-surface-elevated')).toBe(true)
-    expect(input.classList.contains('bg-surface')).toBe(false)
-    const kbd = input.parentElement?.querySelector('kbd') as HTMLElement | null
-    expect(kbd).not.toBeNull()
-    expect(kbd!.classList.contains('text-text')).toBe(true)
-    expect(kbd!.classList.contains('text-text-muted')).toBe(false)
+    const kbd = screen.getByTestId('launcher-search-kbd')
+    expect(kbd.classList.contains('text-[11px]')).toBe(true)
+    // jsdom 的 navigator.platform 为空 → 非 Apple → Ctrl+K。
+    expect(kbd.textContent).toBe('Ctrl+K')
+  })
+
+  it('focuses the launcher search on open so typing filters immediately', () => {
+    render(<Taskbar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+
+    expect(document.activeElement).toBe(screen.getByTestId('launcher-search'))
+  })
+
+  it('closes the launcher on an outside press and keeps it open for inside presses', () => {
+    render(
+      <>
+        <Taskbar />
+        <p>desktop</p>
+      </>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+
+    fireEvent.pointerDown(screen.getByTestId('launcher-search'))
+    expect(screen.getByTestId('launcher-search')).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByText('desktop'))
+    expect(screen.queryByTestId('launcher-search')).not.toBeInTheDocument()
+  })
+
+  it('returns focus to the start button when Escape closes the launcher', () => {
+    render(<Taskbar />)
+    const start = screen.getByRole('button', { name: /开始/ })
+    fireEvent.click(start)
+
+    fireEvent.keyDown(screen.getByTestId('launcher-search'), { key: 'Escape' })
+
+    expect(screen.queryByTestId('launcher-search')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(start)
   })
 
   it('常驻显示：默认可见且指针离开也不再隐藏（§32 修订 8）', () => {
@@ -342,6 +377,22 @@ describe('Taskbar', () => {
     expect(
       useWindowStore.getState().windows.some((win) => win.appId === 'com.ageha.files'),
     ).toBe(true)
+  })
+
+  it('keeps pinned tile names stable while their app runs (UI review P2-7)', () => {
+    render(<Taskbar />)
+    const pin = screen.getByTestId('dock-pin-com.ageha.files')
+    const name = pin.getAttribute('aria-label')
+
+    fireEvent.click(pin)
+    act(() => {
+      useWindowStore.getState().setTitle(useWindowStore.getState().windows[0]!.id, '文档 — 文件')
+    })
+
+    // 名称不随窗口标题漂移；标题进 title（可访问描述）。
+    expect(pin.getAttribute('aria-label')).toBe(name)
+    expect(pin.getAttribute('title')).toBe('文档 — 文件')
+    expect(screen.getByRole('navigation', { name: '程序坞' })).toContainElement(pin)
   })
 
   it('closes the launcher on Escape (§24 popover contract)', () => {

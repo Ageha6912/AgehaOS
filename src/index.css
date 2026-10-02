@@ -37,6 +37,10 @@
   /* ---- Brand / accents ---- */
   --ag-primary: #2f5fe8; /* cobalt：唯一主动作/焦点/选中 */
   --ag-primary-contrast: #f7f9ff;
+  /* 焦点双环：实色环 + 反差衬圈（衬圈填满 outline-offset 间隙，任意背景
+     上都与环本身形成 ≥3:1 反差，WCAG 1.4.11）。 */
+  --ag-focus-ring: #2f5fe8;
+  --ag-focus-halo: #ffffff;
   --ag-accent-blue: #2f6fed;
   --ag-accent-indigo: #4f46e5;
   --ag-accent-violet: #8b5cf6;
@@ -135,11 +139,13 @@
   /* ---- 桌面小组件 Acrylic 旋钮（§32，用户可按壁纸复杂度微调）----
      blur：背景高斯模糊半径（建议 20-40px）；tint：模糊之上的半透明遮罩
      （白字配淡蓝纱；2026-10-01 用户裁决五轮调淡至 3%-6%，blur 12px，近乎纯透）。 */
-  --ag-widget-blur: 3px;
+  --ag-widget-blur: 8px;
+  /* 2026-10-02 UI 评审：近透明底上的次级墨字实测 2.4-3.6:1 不达标——按参考图
+     回到「白纱 + 墨字」，底部最透处仍 ≥66% 白，保证 muted 墨字 ≥4.5:1。 */
   --ag-widget-tint: linear-gradient(
     165deg,
-    rgb(255 255 255 / 28%) 0%,
-    rgb(236 243 255 / 16%) 100%
+    rgb(255 255 255 / 76%) 0%,
+    rgb(238 244 255 / 66%) 100%
   );
 
 
@@ -199,6 +205,8 @@
   /* ---- Brand / accents ---- */
   --ag-primary: #82a3ff;
   --ag-primary-contrast: #0d1220;
+  --ag-focus-ring: #82a3ff;
+  --ag-focus-halo: #0d1220;
   --ag-accent-blue: #60a5fa;
   --ag-accent-indigo: #818cf8;
   --ag-accent-violet: #a78bfa;
@@ -243,6 +251,13 @@
     125% 95% at 50% 42%,
     rgb(2 6 16 / 0%) 52%,
     rgb(2 6 16 / 30%) 100%
+  );
+
+  /* ---- 小组件 Acrylic（深色：冷墨纱 + 浅字，与纸面 token 的深色档成对）---- */
+  --ag-widget-tint: linear-gradient(
+    165deg,
+    rgb(20 28 48 / 78%) 0%,
+    rgb(16 23 40 / 70%) 100%
   );
 
   /* ---- Large-surface gradients（藏蓝墨渐变）---- */
@@ -355,8 +370,9 @@ body {
 
 /* Keyboard focus visibility: one consistent ring, keyboard-only (:focus-visible). */
 :where(button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--ag-primary) 65%, transparent);
+  outline: 2px solid var(--ag-focus-ring);
   outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--ag-focus-halo);
 }
 
 /* 终端输入：终端本身就是焦点所在，全局焦点环在此是视觉噪音（属性选择器
@@ -381,10 +397,12 @@ body {
  * 小组件栏/Dock/启动器/品牌层等悬浮于 vivid 壁纸之上的 chrome，统一为
  * 「低透白玻璃 + 白字」材质（参考图取色：玻璃 ≈ white/14，文字白阶）。
  * 通过在 chrome 子树重语义 Token 实现主题无关（apps 纸面窗口不在此作用域，
- * 仍走既有主题体系）。Token 别名（--ag-surface-raised 等）按元素继承重解析，
- * 无需重复声明。
+ * 仍走既有主题体系）。Token 别名（--ag-surface-raised、--ag-brand）在 :root
+ * 声明处就已求值，子树不会重算——作用域内必须显式重声明。
  */
 .desktop-chrome {
+  --ag-surface-raised: rgb(255 255 255 / 16%);
+  --ag-brand: #5b8def;
   --ag-text: #ffffff;
   --ag-text-muted: rgb(255 255 255 / 78%);
   --ag-text-tertiary: rgb(255 255 255 / 62%);
@@ -397,12 +415,13 @@ body {
   --ag-surface-elevated: rgb(255 255 255 / 22%);
   --ag-surface-popover: rgb(255 255 255 / 12%);
   --ag-glass-bg: rgb(255 255 255 / 14%);
-  /* 深玻璃弹层（菜单栏下拉/用户/通知中心/启动器）在白字域的底：白26%。 */
-  --ag-glass-bg-strong: rgb(255 255 255 / 26%);
   --ag-glass-border: rgb(255 255 255 / 30%);
   --ag-glass-highlight: rgb(255 255 255 / 42%);
   --ag-primary: #5b8def;
   --ag-primary-contrast: #ffffff;
+  /* 亮天空上浅色环不可见：chrome 内焦点环取深藏青，白衬圈托底。 */
+  --ag-focus-ring: #0f2a73;
+  --ag-focus-halo: #ffffff;
   /* 白字在亮部湖面上的可读性兜底（参考图同款轻微暗色晕影；小字号收紧
      阴影避免发糊）。 */
   text-shadow: 0 1px 1px rgb(15 23 42 / 30%);
@@ -417,9 +436,9 @@ body {
     --ag-surface-popover: #2c3a63;
     --ag-glass-bg: rgb(44 58 99 / 92%);
   }
-  /* Acrylic 旋钮失效时的实色兜底：模糊/遮罩都不可用 → 直接实色。 */
+  /* Acrylic 旋钮失效时的实色兜底：模糊/遮罩都不可用 → 纸面实色（墨字）。 */
   .desktop-chrome .widget-card {
-    background: #2c3a63;
+    background: var(--ag-surface-popover);
     backdrop-filter: none;
   }
 }
@@ -429,9 +448,9 @@ body {
     --ag-surface-popover: #2c3a63;
     --ag-glass-bg: rgb(44 58 99 / 92%);
   }
-.desktop-chrome .widget-card {
-      background: #2c3a63;
-    }
+  .desktop-chrome .widget-card {
+    background: var(--ag-surface-popover);
+  }
 }
 
 /*
@@ -536,6 +555,12 @@ body {
   z-index: 50;
   transition: opacity var(--ag-motion-fast) var(--ag-motion-ease);
 }
+/* 本文件不分层，未分层规则压过 Tailwind 4 的 @layer utilities——宿主上的
+   group-hover:opacity-100 永远赢不了上面的 opacity:0，点亮必须写在这里。 */
+.group:hover .os-tooltip,
+.group:focus-visible .os-tooltip {
+  opacity: 1;
+}
 
 /* Dock 图标 hover 光晕（裁决 I）：波浪（transform）+ 一次性 drop-shadow；
    filter 与波浪写的 transform 无冲突。按钮本体零底色（2026-10-01 用户裁决：
@@ -557,20 +582,84 @@ body {
   }
 }
 
+/*
+ * Chrome 纸面（2026-10-02 UI 评审，参考图口径）：弹层（菜单下拉/启动器/
+ * 通知中心/用户菜单/右键菜单/搜索/预览/toast）与右栏小组件卡不再沿用
+ * chrome 白字域——白字落在 12-26% 白玻璃 + 亮天空上实测仅 1.7-2.7:1。
+ * 这些面在元素自身重声明整套文字/表面 Token：浅色 = 白玻璃 + 墨字，
+ * 深色 = 冷墨玻璃 + 浅字。自定义属性的 var() 在声明处求值，别名
+ * （--ag-surface-raised）必须在此显式重声明，不能依赖 :root 的别名。
+ */
+.chrome-paper,
+.popover-panel,
+.glass-popover,
+.widget-card {
+  --ag-text: #18202c;
+  --ag-text-muted: #43526a;
+  --ag-text-tertiary: #4f5e77;
+  --ag-text-disabled: #8a97ac;
+  --ag-border: rgb(18 32 62 / 12%);
+  --ag-border-subtle: rgb(18 32 62 / 8%);
+  --ag-border-strong: rgb(18 32 62 / 20%);
+  --ag-surface: rgb(255 255 255 / 70%);
+  --ag-surface-soft: rgb(47 95 232 / 8%);
+  --ag-surface-raised: rgb(47 95 232 / 8%);
+  --ag-surface-elevated: #ffffff;
+  --ag-surface-popover: #f9fbff;
+  --ag-glass-bg: rgb(255 255 255 / 80%);
+  --ag-glass-bg-strong: rgb(255 255 255 / 86%);
+  --ag-glass-border: rgb(18 32 62 / 10%);
+  --ag-glass-highlight: rgb(255 255 255 / 70%);
+  --ag-primary: #2f5fe8;
+  --ag-brand: #2f5fe8;
+  --ag-primary-contrast: #f7f9ff;
+  --ag-focus-ring: #2f5fe8;
+  --ag-focus-halo: #ffffff;
+  color: var(--ag-text);
+  text-shadow: none;
+}
+.dark .chrome-paper,
+.dark .popover-panel,
+.dark .glass-popover,
+.dark .widget-card {
+  --ag-text: #e6ecf7;
+  --ag-text-muted: #a9b6cf;
+  --ag-text-tertiary: #95a4c0;
+  --ag-text-disabled: #5b6b8a;
+  --ag-border: rgb(255 255 255 / 12%);
+  --ag-border-subtle: rgb(255 255 255 / 8%);
+  --ag-border-strong: rgb(255 255 255 / 20%);
+  --ag-surface: rgb(255 255 255 / 5%);
+  --ag-surface-soft: rgb(255 255 255 / 8%);
+  --ag-surface-raised: rgb(255 255 255 / 8%);
+  --ag-surface-elevated: #1e2a42;
+  --ag-surface-popover: #16213a;
+  --ag-glass-bg: rgb(16 23 40 / 80%);
+  --ag-glass-bg-strong: rgb(16 23 40 / 86%);
+  --ag-glass-border: rgb(255 255 255 / 10%);
+  --ag-glass-highlight: rgb(255 255 255 / 8%);
+  --ag-primary: #82a3ff;
+  --ag-brand: #82a3ff;
+  --ag-primary-contrast: #0d1220;
+  --ag-focus-ring: #82a3ff;
+  --ag-focus-halo: #0d1220;
+}
+
+/* 菜单栏暗藏青条：白字在壁纸最亮段（≈#88bbff）上仍 ≥5:1；次级白字提到
+   92%（78% 在此底上仅 ≈4:1）。 */
 .menubar-glass {
-  background: rgb(255 255 255 / 10%);
+  background: rgb(18 30 66 / 50%);
+  --ag-text-muted: rgb(255 255 255 / 92%);
+  --ag-text-tertiary: rgb(255 255 255 / 80%);
+}
+/* 文字/表面 Token 由上方 Chrome 纸面块提供（白纱 + 墨字）。 */
+.dark .widget-card {
+  --ag-surface-soft: rgb(255 255 255 / 7%);
 }
 .widget-card {
   background: var(--ag-widget-tint);
   backdrop-filter: blur(var(--ag-widget-blur)) saturate(140%);
-  /* 白玻璃配深墨字（参考图组件为白纱+墨字）：在 chrome 白字作用域内
-     重映射文字/表面 Token；去白字投影（深字不需要）。 */
-  --ag-text: #1c2740;
-  --ag-text-muted: #4a5a75;
-  --ag-text-tertiary: #74839e;
-  --ag-surface-soft: rgb(228 238 252 / 60%);
-  --ag-border-subtle: rgb(120 145 200 / 35%);
-  text-shadow: none;
+  --ag-surface-soft: rgb(47 95 232 / 7%);
 }
 
 
@@ -727,6 +816,20 @@ body {
 }
 .boot-motion-screen[hidden] {
   display: none;
+}
+/* 文字字标：白字 +「OS」冷紫渐变；与进度条留 24px（≥16px，UI 评审 P1-5）。 */
+.boot-motion-wordmark {
+  margin-top: 14px;
+  margin-bottom: 24px;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ag-boot-text);
+}
+.boot-motion-wordmark-os {
+  background-image: linear-gradient(90deg, #e6efff, #c9bcff);
+  background-clip: text;
+  color: transparent;
 }
 .boot-motion-status {
   margin-top: 24px;

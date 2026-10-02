@@ -1,13 +1,29 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { RemoteCatalogResult } from '@/core/apps/remote-catalog'
 import { resetAppStore } from '@/store/app-store'
 
 import { StoreApp } from './StoreApp'
 
+const remoteCatalog = vi.hoisted(() => ({
+  result: { ok: false, reason: 'unavailable' } as RemoteCatalogResult,
+}))
+
+vi.mock('@/core/apps/remote-catalog', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/apps/remote-catalog')>()),
+  fetchSignedCatalog: vi.fn(async () => remoteCatalog.result),
+}))
+
 beforeEach(() => {
   resetAppStore()
+  remoteCatalog.result = { ok: false, reason: 'unavailable' }
 })
+
+async function renderSettled() {
+  render(<StoreApp />)
+  await act(async () => {})
+}
 
 /** jsdom 无布局：伪造列表盒尺寸后派发 scroll，驱动 useScrollZone 重读快照。 */
 function measureList(scrollTop: number, scrollHeight: number, clientHeight: number) {
@@ -45,6 +61,30 @@ describe('StoreApp', () => {
 
     measureList(700, 1000, 300)
     expect(screen.queryByTestId('scroll-fade')).not.toBeInTheDocument()
+  })
+
+  it('stays quiet when there is simply no remote catalog (local mode / offline)', async () => {
+    for (const reason of ['unavailable', 'no-valid-apps'] as const) {
+      remoteCatalog.result = { ok: false, reason }
+      const { unmount } = render(<StoreApp />)
+      await act(async () => {})
+      expect(screen.queryByTestId('store-remote-invalid'), reason).toBeNull()
+      unmount()
+    }
+  })
+
+  it('warns only when a remote catalog arrived but failed verification', async () => {
+    remoteCatalog.result = { ok: false, reason: 'bad-signature' }
+    await renderSettled()
+
+    expect(screen.getByTestId('store-remote-invalid')).toBeInTheDocument()
+  })
+
+  it('describes bundled apps in user terms, not developer jargon', () => {
+    render(<StoreApp />)
+
+    const text = screen.getByTestId('store-list').textContent ?? ''
+    expect(text).not.toMatch(/Type B|SDK|沙箱/)
   })
 
   it('always exposes the thin-scrollbar class on the list', () => {

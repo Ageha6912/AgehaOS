@@ -348,7 +348,7 @@ export function DynamicPanelApp() {
         />
       )}
 
-      <p className="border-t border-border px-4 py-2 font-mono text-[11px] text-text-muted" data-testid="panel-decision-source">
+      <p className="border-t border-border px-4 py-2 text-[11px] text-text-muted" data-testid="panel-decision-source">
         {t('cards.panel.decisionBy')} {t(SOURCE_KEYS[enhanceSource])}
       </p>
     </div>

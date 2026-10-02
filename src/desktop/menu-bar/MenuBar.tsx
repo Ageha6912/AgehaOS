@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 
-import { BatteryHigh, Bluetooth, Check, CloudArrowUp, WifiHigh } from '@phosphor-icons/react'
+import { BatteryHigh, Check, CloudArrowUp } from '@phosphor-icons/react'
 
 import { launchApp } from '@/apps/launch'
 import { requestSettingsSection } from '@/apps/app-deep-link'
 import { BrandLogo } from '@/components/brand-logo'
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
+import { usePopoverDismiss } from '@/components/use-popover-dismiss'
 import { isRemoteAuthActive } from '@/core/auth'
 import { useTranslation } from '@/core/i18n'
 import { systemDynamicDesktop } from '@/services/dynamic-desktop'
@@ -16,6 +17,10 @@ import { UserMenu } from '@/desktop/taskbar/UserMenu'
 import { useSearchStore } from '@/store/search-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useWindowStore } from '@/store/window-store'
+import { altShortcutLabel, redoShortcutLabel, shortcutLabel } from '@/core/platform'
+import { cycleWindows } from '@/desktop/use-global-shortcuts'
+
+import { ShortcutsDialog } from './ShortcutsDialog'
 
 type MenuId = 'file' | 'view' | 'window' | 'help'
 
@@ -58,7 +63,7 @@ function useBatteryLevel(): number | null {
  * 顶部菜单栏（docs/DESIGN.md §19；Shell 2.0 OS Menu Bar，2026-10-02）：
  * 左 = 品牌 + 四菜单（文件/视图/窗口/帮助——原「编辑」菜单 6 项文档级
  * execCommand 真实动作整体并入文件菜单第二分组，能力零删除，§1① 裁决），
- * 右 = 状态簇五要素（System 纯指示 Wi-Fi/蓝牙/电池 + Cloud 同步状态深链
+ * 右 = 状态簇（System 纯指示电池 + Cloud 同步状态深链
  * 设置账户分区 + 通知中心 + 用户菜单 + 日期时钟最右，§1② 裁决）。
  * 键盘走 Tab/Enter/Esc/箭头（§19 P2-4），关闭语义与右键菜单一致。
  */
@@ -67,6 +72,7 @@ export function MenuBar() {
   const clock = useClock()
   const battery = useBatteryLevel()
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const rootRef = useRef<HTMLElement | null>(null)
 
   const theme = useSettingsStore((s) => s.theme)
@@ -95,6 +101,9 @@ export function MenuBar() {
       ? t('sidebar.syncOff')
       : t('sidebar.syncLocal')
   const cloudTitle = `${t('sidebar.sync')} · ${syncHint}`
+
+  // 菜单栏自带 Esc/外部按下/键盘模型，只参与全局弹层互斥（UI 评审 P0-2）。
+  usePopoverDismiss('menubar', openMenu !== null, () => setOpenMenu(null), { dismissible: false })
 
   useEffect(() => {
     if (!openMenu) return
@@ -234,7 +243,7 @@ export function MenuBar() {
     <header
       ref={rootRef}
       data-testid="menu-bar"
-      className="desktop-chrome glass-hint menubar-glass surface-glass fixed inset-x-0 top-0 z-40 flex h-[var(--ag-menubar-height)] items-center gap-1 border-b border-border-subtle px-2.5 shadow-soft"
+      className="desktop-chrome glass-hint menubar-glass surface-glass fixed inset-x-0 top-0 z-[41] flex h-[var(--ag-menubar-height)] items-center gap-1 border-b border-border-subtle px-2.5 shadow-soft"
     >
       <div className="flex items-center gap-1.5 pr-1">
         <BrandLogo size={18} />
@@ -244,7 +253,7 @@ export function MenuBar() {
       </div>
 
       {/* 窄屏（<640px）收起菜单标签，只留品牌 + 系统状态（§25）。 */}
-      <nav className="hidden items-center gap-0.5 sm:flex">
+      <nav aria-label={t('menubar.label')} className="hidden items-center gap-0.5 sm:flex">
       <MenuEntry
         label={t('menubar.file')}
         open={openMenu === 'file'}
@@ -262,18 +271,27 @@ export function MenuBar() {
         <MenuItem label={t('menubar.file.files')} onSelect={() => act(() => launchApp('com.ageha.files'))} />
         <MenuItem
           label={t('menubar.file.search')}
+          shortcut={shortcutLabel('K')}
           onSelect={() => act(() => useSearchStore.getState().setOpen(true))}
         />
         {/* 第二分组 = 原「编辑」菜单整体迁移（§1① 裁决，能力零删除）。 */}
         <MenuSeparator />
-        <MenuItem label={t('menubar.edit.undo')} onSelect={() => execEdit('undo')} />
-        <MenuItem label={t('menubar.edit.redo')} onSelect={() => execEdit('redo')} />
+        <MenuItem label={t('menubar.edit.undo')} shortcut={shortcutLabel('Z')} onSelect={() => execEdit('undo')} />
+        <MenuItem label={t('menubar.edit.redo')} shortcut={redoShortcutLabel()} onSelect={() => execEdit('redo')} />
         <MenuSeparator />
-        <MenuItem label={t('menubar.edit.cut')} onSelect={() => execEdit('cut')} />
-        <MenuItem label={t('menubar.edit.copy')} onSelect={() => execEdit('copy')} />
-        <MenuItem label={t('menubar.edit.paste')} onSelect={() => pasteFromClipboard()} />
+        <MenuItem label={t('menubar.edit.cut')} shortcut={shortcutLabel('X')} onSelect={() => execEdit('cut')} />
+        <MenuItem label={t('menubar.edit.copy')} shortcut={shortcutLabel('C')} onSelect={() => execEdit('copy')} />
+        <MenuItem
+          label={t('menubar.edit.paste')}
+          shortcut={shortcutLabel('V')}
+          onSelect={() => pasteFromClipboard()}
+        />
         <MenuSeparator />
-        <MenuItem label={t('menubar.edit.selectAll')} onSelect={() => execEdit('selectAll')} />
+        <MenuItem
+          label={t('menubar.edit.selectAll')}
+          shortcut={shortcutLabel('A')}
+          onSelect={() => execEdit('selectAll')}
+        />
       </MenuEntry>
 
       <MenuEntry
@@ -327,6 +345,12 @@ export function MenuBar() {
         }}
       >
         <MenuItem
+          label={t('menubar.window.next')}
+          shortcut={altShortcutLabel('W')}
+          disabled={windows.filter((win) => win.state !== 'minimized').length < 2}
+          onSelect={() => act(cycleWindows)}
+        />
+        <MenuItem
           label={t('menubar.window.minimizeAll')}
           disabled={windows.length === 0}
           onSelect={() =>
@@ -372,6 +396,11 @@ export function MenuBar() {
         }}
       >
         <MenuItem
+          label={t('menubar.help.shortcuts')}
+          onSelect={() => act(() => setShortcutsOpen(true))}
+        />
+        <MenuSeparator />
+        <MenuItem
           label={t('menubar.help.about')}
           onSelect={() => act(() => launchApp('com.ageha.settings'))}
         />
@@ -379,24 +408,19 @@ export function MenuBar() {
 
       </nav>
 
-      {/* 系统状态区（Shell 2.0 §1② 右簇五要素）：System 纯指示（Wi-Fi/蓝牙/
-          电池，不做假交互）→ Cloud 同步状态深链 → 通知中心 → 用户 → 时钟最右
-          （macOS 惯例；时钟为等宽数据读出，字号豁免见裁决 J）。 */}
+      {shortcutsOpen && (
+        <ShortcutsDialog
+          onClose={() => {
+            setShortcutsOpen(false)
+            triggerRefs.current['help']?.focus()
+          }}
+        />
+      )}
+
+      {/* 系统状态区：只放浏览器读得到的真实状态（电池；Web 读不到 Wi-Fi/蓝牙，
+          不画装饰性图标）→ Cloud 同步状态深链 → 通知中心 → 用户 → 时钟最右
+          （macOS 惯例；时钟为等宽数据读出）。 */}
       <div className="ml-auto flex items-center gap-1.5">
-        <span
-          aria-hidden="true"
-          title={t('menubar.status.wifi')}
-          className="flex h-6 items-center text-text-muted"
-        >
-          <WifiHigh size={14} weight="bold" />
-        </span>
-        <span
-          aria-hidden="true"
-          title={t('menubar.status.bluetooth')}
-          className="flex h-6 items-center text-text-muted"
-        >
-          <Bluetooth size={14} weight="bold" />
-        </span>
         {battery !== null && (
           <span
             className="flex h-6 items-center gap-0.5 text-[11px] tabular-nums text-text-muted"
@@ -431,22 +455,32 @@ export function MenuBar() {
   )
 }
 
+/** 显示写法 → aria-keyshortcuts 规范写法（`⇧⌘Z` → `Shift+Meta+Z`）。 */
+function toAriaShortcut(label: string): string {
+  const glyphs: Record<string, string> = { '⌘': 'Meta+', '⌥': 'Alt+', '⇧': 'Shift+' }
+  return label.replace(/[⌘⌥⇧]/g, (glyph) => glyphs[glyph] ?? '').replace('Ctrl+', 'Control+')
+}
+
 /** 菜单项（role=menuitem）：勾选位对齐（无勾选时占位），禁用态半透明。 */
 function MenuItem({
   label,
   checked,
   disabled,
+  shortcut,
   onSelect,
 }: {
   label: string
   checked?: boolean
   disabled?: boolean
+  /** 右对齐的快捷键提示（按平台写法，见 core/platform）。 */
+  shortcut?: string
   onSelect: () => void
 }) {
   return (
     <button
       type="button"
       role="menuitem"
+      aria-keyshortcuts={shortcut ? toAriaShortcut(shortcut) : undefined}
       disabled={disabled}
       className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-text hover:bg-surface-raised disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
       onClick={onSelect}
@@ -458,6 +492,11 @@ function MenuItem({
         {checked ? <Check size={12} weight="bold" /> : null}
       </span>
       <span className="min-w-0 truncate">{label}</span>
+      {shortcut && (
+        <kbd aria-hidden="true" className="ml-auto shrink-0 pl-4 font-sans text-[11px] text-text-muted">
+          {shortcut}
+        </kbd>
+      )}
     </button>
   )
 }

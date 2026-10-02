@@ -30,7 +30,7 @@ export const STORE_CATALOG: StoreCatalogEntry[] = [
       permissions: [],
       window: { width: 480, height: 360, resizable: true },
       author: 'AgehaOS Samples',
-      description: '桌面时钟与秒表，Type B 沙箱示例应用。',
+      description: '桌面时钟与秒表，随时掐表计时。',
     },
   },
   {
@@ -42,7 +42,7 @@ export const STORE_CATALOG: StoreCatalogEntry[] = [
       permissions: [],
       window: { width: 560, height: 440, resizable: true },
       author: 'AgehaOS Samples',
-      description: '随手涂鸦画板，Type B 沙箱示例应用。',
+      description: '随手涂鸦的小画板，记下一闪而过的灵感。',
     },
   },
   {
@@ -54,7 +54,7 @@ export const STORE_CATALOG: StoreCatalogEntry[] = [
       permissions: ['storage', 'window'],
       window: { width: 480, height: 380, resizable: true },
       author: 'AgehaOS Samples',
-      description: 'SDK 示例应用：便签经沙箱桥持久化，标题随数量更新。',
+      description: '桌面便签：随手记事，关掉窗口也不会丢。',
     },
   },
   {
@@ -66,7 +66,7 @@ export const STORE_CATALOG: StoreCatalogEntry[] = [
       permissions: ['filesystem.read', 'filesystem.write', 'notification'],
       window: { width: 460, height: 420, resizable: true },
       author: 'AgehaOS Samples',
-      description: 'SDK 示例应用：笔记写入本应用专属目录，并可发送系统通知。',
+      description: '轻量笔记：边写边自动保存到你的文件，一键发通知提醒自己。',
     },
   },
   {
@@ -102,7 +102,7 @@ export const STORE_CATALOG: StoreCatalogEntry[] = [
       permissions: [],
       window: { width: 560, height: 420, resizable: true },
       author: 'AgehaOS Games',
-      description: '记忆力挑战：翻开幕对相同数字的卡牌，用最少步数完成全部配对。',
+      description: '记忆力挑战：翻开卡牌找出数字相同的一对，用最少步数完成全部配对。',
     },
   },
   {

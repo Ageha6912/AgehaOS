@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
+import { useTranslation } from '@/core/i18n'
 import type { WindowInstance } from '@/core/window'
 import { useWindowStore } from '@/store/window-store'
 
@@ -10,6 +11,7 @@ import {
 import { WindowFrame } from './WindowFrame'
 
 export function WindowLayer() {
+  const { t } = useTranslation()
   const windows = useWindowStore((s) => s.windows)
   const ghosts = useSyncExternalStore(subscribeClosingGhosts, getClosingGhosts)
 
@@ -31,10 +33,13 @@ export function WindowLayer() {
   const maximizedActive = withGhosts.some((win) => win.state === 'maximized')
 
   return (
-    <div className={`pointer-events-none absolute inset-0 ${maximizedActive ? 'z-[45]' : 'z-30'}`}>
+    <main
+      aria-label={t('desktop.windowsLabel')}
+      className={`pointer-events-none absolute inset-0 ${maximizedActive ? 'z-[45]' : 'z-30'}`}
+    >
       {withGhosts.map((win: WindowInstance) => (
         <WindowFrame key={win.id} win={win} ghost={!windows.some((w) => w.id === win.id)} />
       ))}
-    </div>
+    </main>
   )
 }

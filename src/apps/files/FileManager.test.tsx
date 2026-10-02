@@ -22,7 +22,7 @@ async function renderInDocuments(vfs: Vfs) {
   render(<FileManager vfs={vfs} windowId="w-files" />)
   // enter /Documents via the sidebar
   fireEvent.click(
-    await within(screen.getByRole('complementary')).findByRole('button', { name: /Documents/ }),
+    await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' }),
   )
   await screen.findByText('此文件夹为空')
 }
@@ -34,11 +34,28 @@ describe('FileManager', () => {
 
     expect(screen.getByText('快速访问')).toBeInTheDocument()
     expect(
-      await within(screen.getByRole('complementary')).findByRole('button', { name: /Documents/ }),
+      await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' }),
     ).toBeInTheDocument()
     expect(
-      await within(screen.getByRole('complementary')).findByRole('button', { name: /System/ }),
+      await within(screen.getByRole('complementary')).findByRole('button', { name: '系统' }),
     ).toBeInTheDocument()
+  })
+
+  it('shows localized names for system folders while keeping the real path', async () => {
+    const vfs = await createVfs()
+    render(<FileManager vfs={vfs} windowId="w-files" />)
+
+    const sidebarItem = await within(screen.getByRole('complementary')).findByRole('button', {
+      name: '图片',
+    })
+    expect(sidebarItem).toHaveAttribute('title', '/Pictures')
+    // 根目录网格同样显示中文名。
+    expect(await screen.findByRole('button', { name: '下载', pressed: false })).toBeInTheDocument()
+
+    fireEvent.click(sidebarItem)
+    const breadcrumb = screen.getByRole('navigation', { name: 'breadcrumb' })
+    expect(within(breadcrumb).getByRole('button', { name: '图片' })).toHaveAttribute('title', '/Pictures')
+    expect(screen.getByText('/Pictures')).toBeInTheDocument()
   })
 
   it('enters a directory and shows its empty state', async () => {
@@ -63,7 +80,7 @@ describe('FileManager', () => {
     await vfs.writeFile('/Documents/dup.txt', 'x')
     render(<FileManager vfs={vfs} windowId="w-files" />)
     fireEvent.click(
-      await within(screen.getByRole('complementary')).findByRole('button', { name: /Documents/ }),
+      await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' }),
     )
     await screen.findByText('dup.txt')
 
@@ -95,7 +112,7 @@ describe('FileManager', () => {
     await vfs.writeFile('/Documents/old.txt', 'x')
     render(<FileManager vfs={vfs} windowId="w-files" />)
     fireEvent.click(
-      await within(screen.getByRole('complementary')).findByRole('button', { name: /Documents/ }),
+      await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' }),
     )
     const tile = await screen.findByRole('button', { name: /old\.txt/ })
 
@@ -114,7 +131,7 @@ describe('FileManager', () => {
     await vfs.writeFile('/Documents/temp.txt', 'x')
     render(<FileManager vfs={vfs} windowId="w-files" />)
     fireEvent.click(
-      await within(screen.getByRole('complementary')).findByRole('button', { name: /Documents/ }),
+      await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' }),
     )
     const tile = await screen.findByRole('button', { name: /temp\.txt/ })
 
@@ -160,7 +177,7 @@ describe('FileManager', () => {
     await vfs.writeFile('/Documents/todo.txt', 'x')
     render(<FileManager vfs={vfs} windowId="w-files" />)
     fireEvent.click(
-      await within(screen.getByRole('complementary')).findByRole('button', { name: /Documents/ }),
+      await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' }),
     )
     await screen.findByText('todo.txt')
 
@@ -177,11 +194,11 @@ describe('FileManager', () => {
   it('shows an error banner when listing fails', async () => {
     const vfs = await createVfs()
     render(<FileManager vfs={vfs} windowId="w-files" />)
-    await within(screen.getByRole('complementary')).findByRole('button', { name: /Documents/ })
+    await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' })
 
     vi.spyOn(vfs, 'list').mockRejectedValue(new Error('boom'))
     fireEvent.click(
-      within(screen.getByRole('complementary')).getByRole('button', { name: /Music/ }),
+      within(screen.getByRole('complementary')).getByRole('button', { name: '音乐' }),
     )
 
     expect(await screen.findByRole('alert')).toHaveTextContent('操作失败，请重试')

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 
 import { launchApp } from '@/apps/launch'
+import { useTranslation } from '@/core/i18n'
 import { AtmosphereLayer } from '@/desktop/atmosphere/AtmosphereLayer'
 import { DesktopBranding } from '@/desktop/branding/DesktopBranding'
 import { MenuBar } from '@/desktop/menu-bar/MenuBar'
@@ -45,6 +46,7 @@ export function Desktop() {
   // 状态渲染——桌面关闭动态桌面时回落照片（不再回落纯画布渐变）。
   // 桌面增强动效（DESIGN.md §15/§32.5 修订 10）：光晕 + 进阶炫技档，
   // 2026-10-01 用户裁决默认全开（设备本地开关在设置「外观」）。
+  const { t } = useTranslation()
   const glow = useMotionPrefsStore((s) => s.glow)
   const aurora = useMotionPrefsStore((s) => s.aurora)
   const themeGlow = useMotionPrefsStore((s) => s.themeGlow)
@@ -129,15 +131,16 @@ export function Desktop() {
       {/* 中央品牌层（§31 R2-2/§32 修订）：壁纸已换无文字原版画作，品牌字标
           恢复由 DOM 层承载（参考图位 44%/29%，窗口可见即淡出）。 */}
       <DesktopBranding />
-      <WindowLayer />
-      <NotificationToasts />
-      {/* 轨道栏（§26/§27）先于顶栏/Dock 渲染：同为 z-40 chrome，DOM 序靠前者
-          垫底——顶栏右挂面板（用户菜单/通知中心）与 Dock 浮层必须能点到。 */}
-      <Sidebar />
-      <WidgetRail />
-      {/* 顶部菜单栏（§19）：常驻 chrome，z-40 与任务栏同级；通知/用户/时钟挂此。 */}
+      <h1 className="sr-only">{t('desktop.heading')}</h1>
+      {/* DOM 序 = 视觉/Tab 序（UI 评审 P2-7）：菜单栏 → 左栏 → 窗口 → 右栏 →
+          Dock。菜单栏 z-[41] 略高于其余 z-40 chrome，其下拉/通知面板不会被
+          随后渲染的左右栏盖住（层级靠 z-index，不靠渲染顺序）。 */}
       <MenuBar />
+      <Sidebar />
+      <WindowLayer />
+      <WidgetRail />
       <Taskbar />
+      <NotificationToasts />
       <SearchPalette />
       <ContextMenu position={contextPos} onClose={() => setContextPos(null)} />
     </div>

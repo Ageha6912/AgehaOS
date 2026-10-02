@@ -63,8 +63,12 @@ export function BootScreen() {
 
   return (
     <div ref={rootRef} data-testid="boot-screen" className="boot-motion-screen">
-      {/* 含字标全尺寸位（DESIGN.md §10 双资产分工），开机层深色底之上展示。 */}
-      <BrandLogo size={96} variant="full" />
+      {/* mark 图形 + CSS 文字字标（UI 评审 P1-5）：full 资产的深色字标落在
+          开机层深色底上只剩「OS」可见。 */}
+      <BrandLogo size={88} />
+      <p className="boot-motion-wordmark" data-testid="boot-wordmark">
+        Ageha<span className="boot-motion-wordmark-os">OS</span>
+      </p>
       <div
         ref={barRef}
         className="boot-motion-bar"

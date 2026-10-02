@@ -147,6 +147,51 @@ describe('MenuBar', () => {
     expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.settings')
   })
 
+  it('help menu opens a keyboard shortcuts panel and restores focus on close (UI review P2-8)', () => {
+    render(<MenuBar />)
+
+    fireEvent.click(screen.getByRole('button', { name: '帮助' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '键盘快捷键' }))
+
+    const dialog = screen.getByRole('dialog', { name: '键盘快捷键' })
+    // 传送到 body：菜单栏 backdrop-filter 不再是遮罩的包含块。
+    expect(screen.getByTestId('menu-bar').contains(dialog)).toBe(false)
+    expect(dialog.textContent).toContain('Ctrl+K')
+    expect(dialog.textContent).toContain('Alt+W')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '知道了' }))
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '帮助' }))
+  })
+
+  it('shows platform shortcut hints on menu items without polluting their names', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    render(<MenuBar />)
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }))
+    const search = screen.getByRole('menuitem', { name: '搜索…' })
+    expect(search.textContent).toContain('Ctrl+K')
+    expect(search).toHaveAttribute('aria-keyshortcuts', 'Control+K')
+    expect(screen.getByRole('menuitem', { name: '重做' }).textContent).toContain('Ctrl+Y')
+
+    fireEvent.click(screen.getByRole('button', { name: '窗口' }))
+    const next = screen.getByRole('menuitem', { name: '切换到下一个窗口' })
+    expect(next).toHaveAttribute('aria-keyshortcuts', 'Alt+W')
+    fireEvent.click(next)
+    expect(useWindowStore.getState().windows.find((win) => win.focused)?.appId).toBe('com.ageha.notes')
+  })
+
+  it('shows only real status indicators (no decorative Wi-Fi/Bluetooth)', () => {
+    render(<MenuBar />)
+
+    const header = screen.getByTestId('menu-bar')
+    expect(header.querySelector('[title*="Wi-Fi"]')).toBeNull()
+    expect(header.querySelector('[title*="蓝牙"]')).toBeNull()
+    expect(screen.getByRole('navigation', { name: '菜单' })).toBeInTheDocument()
+  })
+
   it('closes on Escape and on outside pointerdown, and hover-switches between menus', () => {
     render(<MenuBar />)
 

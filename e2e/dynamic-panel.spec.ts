@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 /**
  * AI 内容面板（DDS §5.1 域③）+ 默认开启裁决（2026-09-26）：
  * 进入桌面即自动打开（停靠右上、避开图标列），卡片渲染且带
- * 「AI 生成」标识，决策来源为本地规则；不再需要从菜单手动启动。
+ * 「AI 生成」标识，生成位置为本机；不再需要从菜单手动启动。
  */
 test('dynamic panel: auto-opens on the desktop with local cards and AI attribution', async ({
   page,
@@ -27,12 +27,12 @@ test('dynamic panel: auto-opens on the desktop with local cards and AI attributi
   expect(box.x + box.width).toBeLessThanOrEqual(size.width - 296 + 1)
   expect(box.width).toBeGreaterThan(box.height)
 
-  // 问候卡恒在；AI 生成标识逐卡存在；决策来源 = 本地规则。
+  // 问候卡恒在；AI 生成标识逐卡存在；生成位置 = 本机。
   await expect(panel.getByTestId('panel-card-greeting')).toBeVisible()
   await expect(panel.getByTestId('panel-card-suggest')).toBeVisible()
   await expect(panel.getByTestId('panel-card-tip')).toBeVisible()
   await expect(panel.getByText('AI 生成').first()).toBeVisible()
-  await expect(panel.getByText('本地规则').first()).toBeVisible()
+  await expect(panel.getByTestId('panel-decision-source')).toHaveText('生成于 本机')
 
   // 刷新按钮重新装配（内容仍完整）。
   await panel.getByTestId('dynamic-panel-refresh').click()

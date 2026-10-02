@@ -2,6 +2,18 @@
 
 > 自 v0.2.0（tag d460774，2026-09-23）起的逐切片日志，自 HANDOFF.md 迁入（2026-10-02 评审 P1-5）。更早历史见 git log 与该 tag。
 
+## 2026-10-02 UI 评审修复（docs/UI-REVIEW-2026-10-02.md，部署 ㉖）
+
+- 用户裁决「外壳可读性照参考图」后指令「直接根据 UI 评审清单优化」，完成清单 P0-1/P0-2/P1-3/P1-4/P1-5（开机字标）/P2-7/P2-8 与 DESIGN.md 收敛；现行规则写入 **DESIGN.md §0**（与下文冲突以 §0 为准）。
+- **材质**：弹层与小组件改纸面（白玻璃 + 墨字 / 深色冷墨玻璃 + 浅字，`.chrome-paper,.popover-panel,.glass-popover,.widget-card` 重声明整套 Token）；菜单栏压暗 `rgb(18 30 66/50%)`；双色焦点环；widget blur 3→8px；品牌标语全强度字色。`.desktop-chrome` 补声明别名 `--ag-surface-raised`/`--ag-brand`（:root 别名声明处求值、子树不重算——菜单栏 hover 曾落成近白实色）。
+- **弹层契约**：`usePopoverDismiss` + `popover-store` 互斥槽——Esc（document 捕获）/外部按下/焦点进 iframe 关闭，Esc 回焦触发器；启动器自动聚焦搜索；通知中心 ≥1280px 停靠右栏左侧。窗口 blur 判定只认「焦点落进 iframe」（jsdom 与浏览器在焦点离开 body 时也发 window blur，曾导致启动器打开即关）。
+- **tooltip**：`index.css` 未分层压过 Tailwind `@layer utilities`，改为 `.group:hover .os-tooltip` 点亮（浏览器实测 opacity 1）。
+- **真实性**：删示例天气（改真实时区名）/ Wi-Fi·蓝牙示意图标；「CPU」改「流畅度」rAF 实测帧率；商店仅在目录验签失败时告警；示例应用与动态面板去术语；设置提示去裁决日期；Files 系统目录中文显示名。
+- **可达性与快捷键**：DOM 序 = 视觉序（菜单栏 z-[41]）、`h1`/`main`/命名 `nav` 地标、Dock 瓷贴名恒为应用名、交通灯 focus-visible 显字形、11px 下限；`core/platform` 按平台写快捷键；菜单项快捷键提示 + `aria-keyshortcuts`；「帮助 → 键盘快捷键」面板；「窗口 → 切换到下一个窗口」。用户菜单去掉不合法的 menuitem/aria-haspopup（`<menu>` 的 ARIA 角色是 list）。
+- **开机屏**：mark + CSS 文字字标（full 资产深色字标在深色开机底上只剩「OS」）。
+- **未落地（待产品裁决，DESIGN.md §0.7）**：左栏与 Dock 重复入口、编辑菜单独立、首登自动开面板与小游戏、深色壁纸、动效默认项。
+- 门禁：typecheck / lint（2 条既有 warning 不在改动文件）/ **890 前端（106 文件）+ 80 后端 + 部署库** / build / **E2E 19/19**。本机可用内存约 4GB 时 vitest 默认 worker 数会 OOM，用 `--maxWorkers=2`；E2E 构建须 `vite build --mode e2e`（`.env.production` 会开远程后端，坑 46）。截图 `.tmp/ui-verify/`。
+
 ## 2026-10-02 Desktop Shell 2.0 高保真精修（4f25d9a，部署 ㉔ 已上线）
 
 - 用户以 `/workflow` 点名工作流交付「Floating OS Environment」精修（17 条简报：浮动左栏/漂浮右栏 Widgets/OS 菜单栏/浮动 Dock/玻璃体系/冷白蓝靛紫青调色板/桌面负空间/窗口 OS 质感；禁止重写引擎、删功能删测试、新框架、Dashboard 风）。六切片工作流交付后用户验收「确认，提交部署吧」→ 同日提交部署上线。

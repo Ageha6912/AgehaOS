@@ -33,14 +33,17 @@ export function DesktopBranding() {
         <span className="text-text [text-shadow:none]">Ageha</span>
         {/* 「OS」淡冰蓝→冷紫渐变（Shell 2.0 裁决 C：尾色 #f4bde4 粉 →
             #c4b5fd 冷紫 = Tailwind violet-300，去暖收冷）。 */}
-        <span className="bg-gradient-to-r from-[#cfe0ff] via-[#dcd0ff] to-[#c4b5fd] bg-clip-text text-transparent [text-shadow:none] [filter:drop-shadow(0_1px_2px_rgb(70_60_130/38%))]">
+        <span className="bg-gradient-to-r from-[#e6efff] via-[#e4dcff] to-[#d8ceff] bg-clip-text text-transparent [text-shadow:none] [filter:drop-shadow(0_1px_2px_rgb(40_40_110/55%))]">
           OS
         </span>
       </p>
-      <p className="text-xl font-light tracking-wide text-text">
+      {/* 标语压在亮天空上：实色白字 + 双层暗晕（贴边 + 弥散）托底可读性。 */}
+      <p className="text-xl tracking-wide text-text [text-shadow:0_1px_2px_rgb(15_30_70/55%),0_0_14px_rgb(15_30_70/35%)]">
         {t('desktop.brandTagline')}
       </p>
-      <p className="text-[13px] text-text-muted">{t('desktop.brandTaglineSub')}</p>
+      <p className="text-[13px] font-medium text-text [text-shadow:0_1px_2px_rgb(15_30_70/60%),0_0_10px_rgb(15_30_70/35%)]">
+        {t('desktop.brandTaglineSub')}
+      </p>
       <div
         aria-hidden="true"
         className="mt-1 h-px w-28 bg-gradient-to-r from-transparent via-border-strong to-transparent"

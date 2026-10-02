@@ -57,9 +57,10 @@ describe('Sidebar', () => {
     const item = screen.getByTestId('sidebar-files')
     const bubble = item.querySelector('.os-tooltip') as HTMLElement | null
     expect(bubble).not.toBeNull()
-    expect(bubble!.classList.contains('group-hover:opacity-100')).toBe(true)
-    expect(bubble!.classList.contains('group-focus-visible:opacity-100')).toBe(true)
-    expect(bubble!.classList.contains('pointer-events-none')).toBe(false) // 指针豁免由 .os-tooltip 的 pointer-events:none 承担
+    // 点亮由 index.css 的未分层 `.group:hover .os-tooltip` 规则承担：Tailwind
+    // 的 group-hover:opacity-100 在 @layer utilities 里，压不过未分层的 opacity:0。
+    expect(bubble!.className).toBe('os-tooltip')
+    expect(item.classList.contains('group')).toBe(true)
     expect(bubble!.getAttribute('aria-hidden')).toBe('true')
     // 气泡文本 = 词条（复用 sidebar.* 双语键，零新增词条）。
     expect(bubble!.textContent).toBe('文件管理')

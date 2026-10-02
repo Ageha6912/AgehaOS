@@ -23,12 +23,13 @@ beforeEach(() => {
 })
 
 describe('WidgetRail (§32 参考图四卡)', () => {
-  it('renders the four reference cards: clock/weather, system, notifications, brand (§32)', () => {
+  it('renders the four reference cards: clock/time zone, system, notifications, brand (§32)', () => {
     render(<WidgetRail />)
 
     expect(screen.getByTestId('widgets-clock').textContent).toContain('10:30')
-    // 天气行 = 参考图版式（示例数据，title 标注无实时源）。
-    expect(screen.getByTestId('widgets-clock').textContent).toContain('24°C')
+    // 假天气已退役（UI 评审 P1-4）：改显系统真实时区名。
+    expect(screen.getByTestId('widgets-clock').textContent).not.toContain('°C')
+    expect(screen.getByTestId('widgets-clock-timezone').textContent).not.toBe('')
     expect(screen.getByTestId('widgets-clock-thumb')).toBeInTheDocument()
     expect(screen.getByTestId('widgets-system')).toBeInTheDocument()
     expect(screen.getByTestId('widgets-notifications')).toBeInTheDocument()
@@ -47,12 +48,15 @@ describe('WidgetRail (§32 参考图四卡)', () => {
     expect(today.classList.contains('bg-primary')).toBe(true)
   })
 
-  it('shows the three real system metrics cells (CPU/memory/network)', () => {
+  it('shows the three real system metrics cells (smoothness/memory/network)', () => {
     render(<WidgetRail />)
 
     // 指标源不可用时显「—」（jsdom 无 performance.memory / connection），
-    // 但三个真实数据单元格必须在位。
-    expect(screen.getByTestId('widgets-system-cpu').textContent).toContain('CPU')
+    // 但三个真实数据单元格必须在位。帧率如实标「流畅度」，不再冒充 CPU。
+    expect(screen.queryByTestId('widgets-system-cpu')).toBeNull()
+    const fps = screen.getByTestId('widgets-system-fps')
+    expect(fps.textContent).toContain('流畅度')
+    expect(fps.getAttribute('title')).toContain('帧率')
     expect(screen.getByTestId('widgets-system-memory').textContent).toContain('内存')
     expect(screen.getByTestId('widgets-system-network').textContent).toContain('网络')
   })
@@ -76,7 +80,11 @@ describe('WidgetRail (§32 参考图四卡)', () => {
   it('disables clear when there are no notifications', () => {
     render(<WidgetRail />)
 
-    expect(screen.getByTestId('widgets-notifications-clear')).toBeDisabled()
+    const clear = screen.getByTestId('widgets-notifications-clear')
+    expect(clear).toBeDisabled()
+    // 禁用态用 disabled 文字 token，不靠整体降透明度（玻璃上会糊成一片）。
+    expect(clear.classList.contains('disabled:text-text-disabled')).toBe(true)
+    expect(clear.classList.contains('disabled:opacity-40')).toBe(false)
   })
 
   it('floats as separate glass cards: container passes pointers through, cards take them (§31/§32)', () => {

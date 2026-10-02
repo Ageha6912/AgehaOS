@@ -92,6 +92,46 @@ describe('NotificationCenter (PRD §16.2)', () => {
     expect(screen.getByText('暂无通知')).toBeInTheDocument()
   })
 
+  it('closes on Escape and returns focus to the bell (UI review P0-2)', () => {
+    pushSample()
+    render(<NotificationCenter />)
+    const bell = screen.getByTestId('notification-bell')
+    fireEvent.click(bell)
+    screen.getByTestId('notification-clear').focus()
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+
+    expect(screen.queryByTestId('notification-panel')).toBeNull()
+    expect(useNotificationStore.getState().panelOpen).toBe(false)
+    expect(document.activeElement).toBe(bell)
+  })
+
+  it('closes on an outside press but stays open for presses inside the panel', () => {
+    pushSample()
+    render(
+      <>
+        <NotificationCenter />
+        <p>desktop</p>
+      </>,
+    )
+    fireEvent.click(screen.getByTestId('notification-bell'))
+
+    fireEvent.pointerDown(screen.getByTestId('notification-item'))
+    expect(screen.getByTestId('notification-panel')).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByText('desktop'))
+    expect(screen.queryByTestId('notification-panel')).toBeNull()
+  })
+
+  it('docks left of the widget rail instead of covering the clock card', () => {
+    render(<NotificationCenter />)
+    fireEvent.click(screen.getByTestId('notification-bell'))
+
+    const panel = screen.getByTestId('notification-panel')
+    expect(panel.classList.contains('xl:right-[calc(var(--ag-rail-right-width)+1.25rem)]')).toBe(true)
+    expect(panel.classList.contains('popover-panel')).toBe(true)
+  })
+
   it('keeps the history capped at the store limit', () => {
     for (let index = 0; index < 35; index += 1) {
       pushSample()

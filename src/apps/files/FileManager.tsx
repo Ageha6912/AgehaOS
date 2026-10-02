@@ -52,6 +52,25 @@ const QUICK_ACCESS_ROOTS: Array<{ name: string; icon: Icon }> = [
   { name: 'System', icon: Gear },
 ]
 
+const SYSTEM_FOLDER_KEYS: Record<string, MessageKey> = {
+  Desktop: 'files.folder.desktop',
+  Documents: 'files.folder.documents',
+  Downloads: 'files.folder.downloads',
+  Pictures: 'files.folder.pictures',
+  Videos: 'files.folder.videos',
+  Music: 'files.folder.music',
+  Apps: 'files.folder.apps',
+  System: 'files.folder.system',
+}
+
+/** 根级系统目录显示本地化名；真实路径仍是英文（VFS/SDK 契约不动）。 */
+function folderLabel(path: string, t: (key: MessageKey) => string): string | null {
+  const segments = splitPath(path)
+  if (segments.length !== 1) return null
+  const key = SYSTEM_FOLDER_KEYS[segments[0] ?? '']
+  return key ? t(key) : null
+}
+
 export interface FileManagerProps {
   vfs: Vfs
   windowId: string
@@ -247,9 +266,10 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                       : 'text-text hover:bg-surface-raised'
                   }`}
                   onClick={() => navigate(item.path)}
+                  title={item.path}
                 >
                   <item.icon aria-hidden="true" size={14} className={active ? 'text-primary' : 'text-text-muted'} />
-                  {item.name}
+                  {folderLabel(item.path, t) ?? item.name}
                 </button>
               </li>
             )
@@ -307,7 +327,7 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                     onClick={() => navigate(target)}
                     title={target}
                   >
-                    {segment}
+                    {(index === 0 ? folderLabel(target, t) : null) ?? segment}
                   </button>
                 )
               })}
@@ -434,7 +454,9 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                     ) : (
                       <FileText aria-hidden="true" size={28} weight="fill" className="text-text-muted/70" />
                     )}
-                    <span className="line-clamp-2 break-all text-xs text-text">{entry.node.name}</span>
+                    <span className="line-clamp-2 break-all text-xs text-text">
+                      {(entry.node.type === 'directory' ? folderLabel(entry.path, t) : null) ?? entry.node.name}
+                    </span>
                     {searching && (
                       <span className="break-all font-mono text-[11px] text-text-muted">{entry.path}</span>
                     )}

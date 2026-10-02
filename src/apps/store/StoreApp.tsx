@@ -34,7 +34,10 @@ export function StoreApp() {
   const { t } = useTranslation()
   const apps = useAppStore((s) => s.apps)
   const [consenting, setConsenting] = useState<number | null>(null)
-  const [remote, setRemote] = useState<{ status: 'loading' | 'ok' | 'invalid'; apps: AppManifest[] }>({
+  const [remote, setRemote] = useState<{
+    status: 'loading' | 'ok' | 'none' | 'invalid'
+    apps: AppManifest[]
+  }>({
     status: 'loading',
     apps: [],
   })
@@ -47,6 +50,10 @@ export function StoreApp() {
     }).then((result) => {
       if (cancelled) return
       if (result.ok) setRemote({ status: 'ok', apps: result.apps })
+      // 没有远程目录（本地模式/离线/目录为空）是常态，不是错误；只有拿到了
+      // 目录却通不过信任校验才告警。
+      else if (result.reason === 'unavailable' || result.reason === 'no-valid-apps')
+        setRemote({ status: 'none', apps: [] })
       else setRemote({ status: 'invalid', apps: [] })
     })
     return () => {

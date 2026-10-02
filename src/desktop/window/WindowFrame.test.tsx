@@ -36,6 +36,11 @@ describe('WindowFrame (via WindowLayer)', () => {
     expect(close.querySelector('.bg-wl-close')).not.toBeNull()
     expect(minimize.querySelector('.bg-wl-min')).not.toBeNull()
     expect(maximize.querySelector('.bg-wl-max')).not.toBeNull()
+    // 键盘聚焦与悬停一样显示灯内字形（UI 评审 P2-7）。
+    for (const light of [close, minimize, maximize]) {
+      const glyph = light.querySelector('svg') as SVGElement
+      expect(glyph.classList.contains('group-focus-visible/light:opacity-100')).toBe(true)
+    }
     // 灯在 AppIcon/标题之前（左置）：灯组是 header 第一个子元素。
     const firstGroup = header.firstElementChild as HTMLElement
     expect(firstGroup.contains(close)).toBe(true)

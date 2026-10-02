@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { BRAND_LOGO_FULL_SRC } from '@/components/brand-logo'
+import { BRAND_LOGO_FULL_SRC, BRAND_LOGO_SRC } from '@/components/brand-logo'
 import { useBootStore } from '@/store/boot-store'
 import { resetSessionStore, seedSessionForTests, useSessionStore } from '@/store/session-store'
 
@@ -34,8 +34,13 @@ describe('BootScreen（motion-lab boot 引擎驱动，DESIGN.md §11）', () => 
 
     const layer = screen.getByTestId('boot-screen')
     expect(layer).toHaveClass('boot-motion-screen')
-    // 开机位用含字标全尺寸资产（DESIGN.md §10 双资产分工）；装饰性 img 不进可达树。
-    expect(container.querySelector('img')).toHaveAttribute('src', BRAND_LOGO_FULL_SRC)
+    // mark 图形 + CSS 文字字标（UI 评审 P1-5：full 资产深色字标在深色底上
+    // 只剩「OS」）；装饰性 img 不进可达树。
+    expect(container.querySelector('img')).toHaveAttribute('src', BRAND_LOGO_SRC)
+    expect(container.querySelector('img')).not.toHaveAttribute('src', BRAND_LOGO_FULL_SRC)
+    const wordmark = screen.getByTestId('boot-wordmark')
+    expect(wordmark.textContent).toBe('AgehaOS')
+    expect(wordmark.classList.contains('boot-motion-wordmark')).toBe(true)
 
     const bar = screen.getByRole('progressbar', { name: '启动进度' })
     expect(bar).toHaveAttribute('aria-valuemin', '0')

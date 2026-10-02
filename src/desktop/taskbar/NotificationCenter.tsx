@@ -1,7 +1,10 @@
+import { useRef } from 'react'
+
 import { Bell, Check, X } from '@phosphor-icons/react'
 
 import { useLocaleStore, useTranslation } from '@/core/i18n'
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
+import { usePopoverDismiss } from '@/components/use-popover-dismiss'
 import { ScrollFadeList } from '@/components/scroll-fade-list'
 import {
   notificationBodyText,
@@ -14,7 +17,8 @@ import type { NotificationItem } from '@/store/notification-store'
 /**
  * 通知中心（PRD §16.2）：铃铛 + 历史面板——查看、标记已读、全部已读、
  * 单条删除、清空。未读数以徽标呈现。2026-09-30 起挂顶部菜单栏（§19），
- * 面板自顶栏向下展开（top-10）。
+ * 面板自顶栏向下展开。≥1280px 时右栏小组件常驻，面板停靠在右栏左侧，
+ * 不再盖住时钟卡（UI 评审 P0-2）。
  */
 
 function timeOf(createdAt: number, locale: 'zh-CN' | 'en'): string {
@@ -40,7 +44,7 @@ function NotificationRow({ item }: { item: NotificationItem }) {
             {notificationTitleText(item, t)}
           </p>
           {body && <p className="mt-0.5 text-xs text-text-muted">{body}</p>}
-          <p className="mt-1 text-[10px] text-text-muted">{timeOf(item.createdAt, locale)}</p>
+          <p className="mt-1 text-[11px] text-text-muted">{timeOf(item.createdAt, locale)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {!item.read && (
@@ -74,15 +78,31 @@ export function NotificationCenter() {
   // 面板开合入 store（P2-2）：左侧系统导航栏与铃铛共享同一面板。
   const open = useNotificationStore((s) => s.panelOpen)
   const togglePanel = useNotificationStore((s) => s.togglePanel)
+  const setPanelOpen = useNotificationStore((s) => s.setPanelOpen)
   const panelPhase = useExitPhase(open)
   const items = useNotificationStore((s) => s.items)
   const markAllRead = useNotificationStore((s) => s.markAllRead)
   const clear = useNotificationStore((s) => s.clear)
   const unread = unreadCount(items)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const bellRef = useRef<HTMLButtonElement | null>(null)
+
+  usePopoverDismiss(
+    'notifications',
+    open,
+    (reason) => {
+      const focusInside = panelRef.current?.contains(document.activeElement) ?? false
+      setPanelOpen(false)
+      if (reason === 'escape' && focusInside) bellRef.current?.focus()
+    },
+    { insideRefs: [wrapperRef] },
+  )
 
   return (
-    <div className="relative">
+    <div ref={wrapperRef} className="relative">
       <button
+        ref={bellRef}
         type="button"
         aria-haspopup="true"
         aria-expanded={open}
@@ -96,7 +116,7 @@ export function NotificationCenter() {
           <span
             data-testid="notification-badge"
             aria-hidden="true"
-            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-contrast"
+            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-contrast"
           >
             {unread > 9 ? '9+' : unread}
           </span>
@@ -104,11 +124,14 @@ export function NotificationCenter() {
       </button>
 
       {panelPhase.render && (
+        // fixed 的包含块是菜单栏（backdrop-filter，坑 67）：菜单栏贴视口
+        // 顶部全宽，故 top/right 仍等价于视口坐标。
         <div
+          ref={panelRef}
           role="region"
           aria-label={t('notification.center')}
           data-testid="notification-panel"
-          className={`popover-panel surface-glass absolute top-10 right-0 z-50 flex max-h-96 w-80 flex-col p-2 ${popoverMotionClass(panelPhase.exiting)}`}
+          className={`popover-panel surface-glass fixed right-3 top-[calc(var(--ag-menubar-height)+0.5rem)] z-50 flex max-h-96 w-80 flex-col p-2 xl:right-[calc(var(--ag-rail-right-width)+1.25rem)] ${popoverMotionClass(panelPhase.exiting)}`}
         >
           <div className="flex items-center justify-between px-1 pb-2">
             <p className="text-xs font-semibold text-text">{t('notification.center')}</p>
@@ -117,7 +140,7 @@ export function NotificationCenter() {
                 <button
                   type="button"
                   data-testid="notification-mark-all"
-                  className="rounded-md px-2 py-1 text-[10px] text-text-muted hover:bg-surface-raised hover:text-text"
+                  className="rounded-md px-2 py-1 text-[11px] text-text-muted hover:bg-surface-raised hover:text-text"
                   onClick={markAllRead}
                 >
                   {t('notification.markAllRead')}
@@ -125,7 +148,7 @@ export function NotificationCenter() {
                 <button
                   type="button"
                   data-testid="notification-clear"
-                  className="rounded-md px-2 py-1 text-[10px] text-text-muted hover:bg-surface-raised hover:text-text"
+                  className="rounded-md px-2 py-1 text-[11px] text-text-muted hover:bg-surface-raised hover:text-text"
                   onClick={clear}
                 >
                   {t('notification.clear')}

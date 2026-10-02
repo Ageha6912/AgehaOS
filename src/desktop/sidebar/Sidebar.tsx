@@ -39,9 +39,11 @@ const TILE_GRADIENTS = {
   store: 'linear-gradient(150deg, #7c8ef8, #4f46e5)',
   files: 'linear-gradient(150deg, #38c8e8, #0e9fc4)',
   terminal: 'linear-gradient(150deg, #3a4356, #1c2433)',
-  settings: 'linear-gradient(150deg, #4a5568, #273044)',
+  // 设置/通知与终端曾同为深藏青、难以区分（UI 评审 P1-3）：设置改中性钢灰，
+  // 通知取 accent 族洋红。
+  settings: 'linear-gradient(150deg, #94a3b8, #5b6b82)',
   sync: 'linear-gradient(150deg, #4a9df8, #1f7af0)',
-  notifications: 'linear-gradient(150deg, #2b3757, #16203a)',
+  notifications: 'linear-gradient(150deg, #e879f9, #c026d3)',
   user: 'linear-gradient(150deg, #6ea0f8, #7c5cf0)',
 } as const
 
@@ -145,6 +147,7 @@ export function Sidebar() {
         label={t('sidebar.notifications')}
         tile={<Tile gradient={TILE_GRADIENTS.notifications} glyph={<Bell size={18} weight="fill" color="#ffffff" />} />}
         badge={unread}
+        popoverTrigger="notifications"
         onClick={togglePanel}
       />
       <SidebarItem
@@ -164,6 +167,7 @@ function SidebarItem({
   hint,
   stateDot,
   badge,
+  popoverTrigger,
   disabled,
   onClick,
 }: {
@@ -175,6 +179,8 @@ function SidebarItem({
   stateDot?: boolean
   /** 计数徽标（通知未读）。 */
   badge?: number
+  /** 外部弹层触发器标记：在该弹层打开时点击本项不算「外部按下」。 */
+  popoverTrigger?: string
   disabled?: boolean
   onClick: () => void
 }) {
@@ -182,6 +188,7 @@ function SidebarItem({
     <button
       type="button"
       data-testid={testid}
+      data-popover-trigger={popoverTrigger}
       aria-label={label}
       title={hint ?? label}
       disabled={disabled}
@@ -200,16 +207,16 @@ function SidebarItem({
           <span
             aria-hidden="true"
             data-testid="sidebar-unread"
-            className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-contrast"
+            className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-contrast"
           >
             {badge > 9 ? '9+' : badge}
           </span>
         )}
       </span>
-      {/* 自绘气泡 tooltip（§1③ 双轨的视觉主轨）：基态 opacity:0 由 .os-tooltip
-          提供，宿主 group 的 hover/focus-visible 变体点亮；气泡 aria-hidden
-          不进可达树（可达名 = aria-label）。原生 title 双轨保留。 */}
-      <span aria-hidden="true" className="os-tooltip group-hover:opacity-100 group-focus-visible:opacity-100">
+      {/* 自绘气泡 tooltip（§1③ 双轨的视觉主轨）：显隐全部由 index.css 的
+          .os-tooltip / .group:hover .os-tooltip 承担（工具类变体压不过未分层
+          规则）；气泡 aria-hidden 不进可达树（可达名 = aria-label）。 */}
+      <span aria-hidden="true" className="os-tooltip">
         {hint ?? label}
       </span>
     </button>

@@ -58,10 +58,9 @@ export function Taskbar() {
   }
 
   /** 常驻瓷贴可达名：有窗口用窗口标题，无窗口用本地化应用名。 */
+  // 可读名称恒为应用名（读屏不随窗口标题漂移）；运行中窗口标题经 title
+  // 进入可访问描述。
   const pinnedLabel = (appId: string): string => {
-    const appWindows = windows.filter((win) => win.appId === appId)
-    const latest = appWindows[appWindows.length - 1]
-    if (latest) return latest.title
     const meta = componentFor(appId)
     return meta ? t(meta.titleKey) : appId
   }
@@ -100,7 +99,10 @@ export function Taskbar() {
             28px 默认 surface-glass blur + 白/42% 强边 + shadow-dock 专用档）：
             启动器 + 常驻瓷贴 + 运行中 + 回收站。自动隐藏/波浪/预览/锚点行为
             契约全部不变（§9/§13/§12）。 */}
-        <div className="desktop-chrome dock-glass surface-glass pointer-events-auto relative flex h-[var(--ag-dock-height)] max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-full border border-border-strong px-2 shadow-dock">
+        <nav
+          aria-label={t('dock.label')}
+          className="desktop-chrome dock-glass surface-glass pointer-events-auto relative flex h-[var(--ag-dock-height)] max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-full border border-border-strong px-2 shadow-dock"
+        >
           {/* Dock 高光滑过（§32.5 修订 10）：低频釉面扫光，覆盖层内裁剪，
               不裁波浪放大的图标；盖在图标上做「玻璃反光」（pointer-events-none）。 */}
           {dockSheen && <div aria-hidden="true" data-testid="dock-sheen" className="dock-sheen is-on" />}
@@ -136,7 +138,7 @@ export function Taskbar() {
                     type="button"
                     data-testid={`dock-pin-${appId}`}
                     aria-label={pinnedLabel(appId)}
-                    title={pinnedLabel(appId)}
+                    title={latest?.title ?? pinnedLabel(appId)}
                     className="dock-tile relative flex h-12 w-12 items-center justify-center rounded-xl"
                     onClick={() => activatePinned(appId)}
                   >
@@ -254,7 +256,7 @@ export function Taskbar() {
               <Trash size={20} weight="fill" color="#5a6b82" />
             </span>
           </button>
-        </div>
+        </nav>
       </footer>
     </>
   )

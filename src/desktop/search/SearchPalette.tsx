@@ -12,6 +12,7 @@ import { useSearchStore } from '@/store/search-store'
 import type { VfsSearchResult } from '@/core/filesystem'
 
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
+import { usePopoverDismiss } from '@/components/use-popover-dismiss'
 
 import { limitFiles, rankApps } from './search'
 
@@ -32,6 +33,8 @@ export function SearchPalette() {
   const [files, setFiles] = useState<VfsSearchResult[]>([])
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  // 自带遮罩点击与输入框 Esc，只参与弹层互斥（打开搜索即收起启动器等）。
+  usePopoverDismiss('search', open, close, { dismissible: false })
 
   const appHits = useMemo(
     () =>

@@ -65,8 +65,9 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
     expect(screen.getByTestId('panel-card-tip')).toBeInTheDocument()
     // 动态桌面关闭：无壁纸卡。
     expect(screen.queryByTestId('panel-card-wallpaper')).toBeNull()
-    // 决策来源标识：本地规则（每张卡片都有）。
-    expect(screen.getAllByText(/本地规则/).length).toBeGreaterThanOrEqual(2)
+    // 生成位置标识：本机（每张卡片都有；不再露出「本地规则」这类实现术语）。
+    expect(screen.getAllByText(/AI 生成 · 本机/).length).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByText(/本地规则/)).toBeNull()
   })
 
   it('emits ai.content.ready and ai.decision.performed on assembly', async () => {
@@ -157,7 +158,7 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
     await waitFor(() => expect(screen.getByTestId('panel-card-greeting')).toBeInTheDocument())
     await Promise.resolve()
     expect(requestAiSlots).not.toHaveBeenCalled()
-    expect(screen.getByTestId('panel-decision-source').textContent).toContain('本地规则')
+    expect(screen.getByTestId('panel-decision-source').textContent).toBe('生成于 本机')
   })
 
   it('upgrades the tip card from an accepted LLM slot without blocking assembly', async () => {
@@ -178,7 +179,7 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
     await waitFor(() => expect(screen.getByTestId('panel-tip-body')).toBeInTheDocument())
     await waitFor(() => expect(screen.getByTestId('panel-tip-body').textContent).toContain('随机度'))
     expect(decisionSpy).toHaveBeenCalledWith({ domain: 'content', source: 'llm' })
-    expect(screen.getByTestId('panel-decision-source').textContent).toContain('云端模型')
+    expect(screen.getByTestId('panel-decision-source').textContent).toBe('生成于 云端 AI')
   })
 
   it('falls back to the cached slot when the LLM call fails', async () => {
@@ -199,7 +200,7 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
     render(<DynamicPanelApp />)
 
     await waitFor(() => expect(screen.getByTestId('panel-tip-body').textContent).toContain('数据不会离开'))
-    expect(screen.getByTestId('panel-decision-source').textContent).toContain('缓存重放')
+    expect(screen.getByTestId('panel-decision-source').textContent).toBe('生成于 本机缓存')
   })
 
   it('renders filter-passed free text with a report takedown (Phase C / §8.6)', async () => {
