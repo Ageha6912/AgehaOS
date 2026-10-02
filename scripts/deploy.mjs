@@ -23,6 +23,7 @@ import { pathToFileURL } from 'node:url'
 
 import {
   assertHealthyEnvShape,
+  changedPaths,
   extractAssetNames,
   keyIdFromPin,
   loadEnvProduction,
@@ -125,34 +126,44 @@ const localMissing = missingBundleMarkers(bundleJs, [env.VITE_STORE_CATALOG_PUBL
 if (localMissing.length > 0) fail(`bundle 缺少标记，已在上传前拦截：${localMissing.join(', ')}`)
 log(`本地断言过：${assets.js} / ${assets.css}`)
 
-// 3. 变更检测基线：远端 lock 与 server/src 清单。
+// 3. 变更检测基线：远端 lock 与 server/src 逐文件清单（路径:md5 行）。
+// 两侧用同构的逐文件比对——聚合哈希对排序/分隔符敏感，曾恒误报变更。
 log('读取服务器变更基线…')
 const baseline = ssh(
   `md5sum ${REMOTE}/package-lock.json 2>/dev/null | cut -d" " -f1; ` +
-    `cd ${REMOTE}/server && find src -type f -print0 2>/dev/null | sort -z | xargs -0 md5sum 2>/dev/null | md5sum | cut -d" " -f1`,
+    `cd ${REMOTE}/server && find src -type f 2>/dev/null | sort | while read -r f; do echo "$f:$(md5sum "$f" | cut -d" " -f1)"; done`,
 )
 if (baseline.code !== 0) fail('无法读取服务器基线（SSH 不通？）')
-const [prevLockHash, prevServerHash] = baseline.stdout.trim().split('\n')
+const baselineLines = baseline.stdout.trim().split('\n')
+const prevLockHash = baselineLines[0]?.trim() ?? ''
+const prevServerFiles = {}
+for (const line of baselineLines.slice(1)) {
+  const at = line.lastIndexOf(':')
+  if (at > 0) prevServerFiles[line.slice(0, at)] = line.slice(at + 1)
+}
 
 const localLockHash = createHash('md5').update(readFileSync(path.join(ROOT, 'package-lock.json'))).digest('hex')
-let localServerHash = 'none'
+const localServerFiles = {}
 const serverSrcDir = path.join(ROOT, 'server', 'src')
 if (existsSync(serverSrcDir)) {
-  const hash = createHash('md5')
   const walk = (dir, prefix = '') => {
     for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       const full = path.join(dir, entry.name)
-      const rel = prefix + entry.name
+      const rel = (prefix + entry.name).split(path.sep).join('/')
       if (entry.isDirectory()) walk(full, rel + '/')
-      else hash.update(rel + ':' + createHash('md5').update(readFileSync(full)).digest('hex') + '\n')
+      else localServerFiles[rel] = createHash('md5').update(readFileSync(full)).digest('hex')
     }
   }
-  walk(serverSrcDir, '')
-  localServerHash = hash.digest('hex')
+  // 与服务端 find src 同构：键带 src/ 前缀。
+  walk(serverSrcDir, 'src/')
 }
 const lockChanged = localLockHash !== prevLockHash
-const serverChanged = localServerHash !== prevServerHash
-log(`变更检测：package-lock ${lockChanged ? '有变化 → 将远端完整 npm install' : '无变化'}；src/server ${serverChanged ? '有变化 → 将重启 agehaos' : '无变化'}`)
+const serverChangedFiles = changedPaths(prevServerFiles, localServerFiles)
+const serverChanged = serverChangedFiles.length > 0
+log(
+  `变更检测：package-lock ${lockChanged ? '有变化 → 将远端完整 npm install' : '无变化'}；` +
+    `src/server ${serverChanged ? `有变化(${serverChangedFiles.slice(0, 3).join(', ')}${serverChangedFiles.length > 3 ? ' 等' : ''}) → 将重启 agehaos` : '无变化'}`,
+)
 
 // 4. 打包上传到 releases/<时间戳>/（exclude 前置，坑 64）。
 const stamp = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14)
