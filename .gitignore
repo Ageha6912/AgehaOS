@@ -40,3 +40,8 @@ server/data/
 
 # 会话交接文档（永不提交，见 HANDOFF §2）
 HANDOFF.md
+
+# 用户视觉参考资产（永不提交，见 HANDOFF §2）
+AgehaOS UI 全面视觉升级.png
+原版背景图.png
+.impeccable/

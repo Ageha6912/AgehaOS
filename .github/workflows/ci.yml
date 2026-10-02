@@ -1,0 +1,42 @@
+# CI（评审 2026-10-02 P1-4）：门禁上远端，区分「环境性抖动」与真实失败。
+# 矩阵刻意单档（ubuntu + Node 24 = 与生产一致的口径）；E2E 用无 env 干净构建（坑 46）。
+# E2E 失败时上传 test-results/ trace 供排查。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests (frontend + server + deploy-lib)
+        run: npm run test
+      - name: Build (clean, no env — E2E 前置，坑 46)
+        run: npm run build
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: E2E (19 specs on production build)
+        run: npm run test:e2e
+      - name: Upload E2E traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore

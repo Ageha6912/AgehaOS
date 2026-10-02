@@ -11,14 +11,17 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p server/tsconfig.json",
-    "test": "vitest run && npm run test:server",
+    "test": "vitest run && npm run test:server && npm run test:deploy",
     "test:server": "vitest run --config server/vitest.config.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test:e2e": "npm run build && playwright test"
+    "test:e2e": "npm run build && playwright test",
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:rollback": "node scripts/deploy.mjs --rollback",
+    "test:deploy": "node --test scripts/deploy-lib.test.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

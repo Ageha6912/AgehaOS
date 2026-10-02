@@ -57,7 +57,15 @@ Issue 标签：`feat` `fix` `refactor` `security` `performance` `docs` `test`。
 npm run typecheck && npm run lint && npm run test && npm run build
 ```
 
-四项全部通过才算完成。
+四项全部通过才算完成。`npm run test` = 前端 Vitest + 后端套件 + 部署脚本库测试（`test:deploy`）；涉及视觉交付还需 `npm run test:e2e`（生产构建 + Playwright，本机必须用无 env 干净构建，见 HANDOFF 坑 46）。
+
+### CI（2026-10-02 P1-4 起）
+
+以上门禁同样在 GitHub Actions（`.github/workflows/ci.yml`）对每次 push / PR 自动执行（ubuntu + Node 24，E2E 失败自动上传 trace）。**CI 绿是合并前提**；本机无法复现的失败先看 CI 的 trace 产物再下结论——环境性抖动与真实失败由此区分。
+
+### 部署
+
+生产部署一律走 `npm run deploy`（`scripts/deploy.mjs`：清洁构建 → 上传前断言 → releases 原子切换 → 六点核验 → 失败自动回滚），禁止手工 tar（评审 P1-3）。回滚用 `npm run deploy:rollback`。
 
 ## 6. Definition of Done（PRD §46）
 

@@ -1,0 +1,94 @@
+// deploy-lib.test.mjs — node --test 直跑（npm run test:deploy）。
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import {
+  assertHealthyEnvShape,
+  caddyOsBlockHealthy,
+  changedPaths,
+  extractAssetNames,
+  keyIdFromPin,
+  loadEnvProduction,
+  missingBundleMarkers,
+  pickPreviousRelease,
+  sortReleases,
+  tarFileArgs,
+} from './deploy-lib.mjs'
+
+// 真实生产 pin（keyId 082ff6625c72e40b）作为测试向量——keyId 口径漂移会被这里拦住。
+const PROD_PIN = 'c48lL/vODieWM/d/zNolkSBpa/AbAbTnUgbRtfal2SE='
+
+test('keyIdFromPin matches the production keyId (ADR 18 口径)', () => {
+  assert.equal(keyIdFromPin(PROD_PIN), '082ff6625c72e40b')
+})
+
+test('loadEnvProduction parses a valid env file', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'env-'))
+  const file = path.join(dir, '.env.production')
+  writeFileSync(file, '# comment\nVITE_AUTH_BACKEND=1\nVITE_STORE_CATALOG_PUBLIC_KEY=abc=\n')
+  const env = loadEnvProduction(file)
+  assert.equal(env.VITE_AUTH_BACKEND, '1')
+  assert.equal(env.VITE_STORE_CATALOG_PUBLIC_KEY, 'abc=')
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('loadEnvProduction fails fast on missing file with guidance', () => {
+  assert.throws(() => loadEnvProduction('/no/such/.env.production'), /缺少[\s\S]*VITE_AUTH_BACKEND=/)
+})
+
+test('loadEnvProduction reports every missing required key', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'env-'))
+  const file = path.join(dir, '.env.production')
+  writeFileSync(file, 'UNRELATED=1\n')
+  assert.throws(() => loadEnvProduction(file), /缺少必填键：VITE_AUTH_BACKEND, VITE_STORE_CATALOG_PUBLIC_KEY/)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('assertHealthyEnvShape accepts pin with padding and rejects short keys', () => {
+  assert.equal(assertHealthyEnvShape({ VITE_STORE_CATALOG_PUBLIC_KEY: PROD_PIN }), true)
+  assert.throws(() => assertHealthyEnvShape({ VITE_STORE_CATALOG_PUBLIC_KEY: 'short' }), /不像 Ed25519 raw 公钥/)
+})
+
+test('missingBundleMarkers lists every absent marker', () => {
+  const bundle = 'has-glass-popover and ag-dock-gap'
+  assert.deepEqual(missingBundleMarkers(bundle, ['glass-popover', 'ag-dock-gap']), [])
+  assert.deepEqual(missingBundleMarkers(bundle, ['glass-popover', 'missing-one']), ['missing-one'])
+})
+
+test('extractAssetNames reads bundle and css from index.html', () => {
+  const html = '<script type="module" crossorigin src="/assets/index-O0VyL329.js"></script>' +
+    '<link rel="stylesheet" crossorigin href="/assets/index-zmcm6SfU.css">'
+  assert.deepEqual(extractAssetNames(html), { js: 'index-O0VyL329.js', css: 'index-zmcm6SfU.css' })
+  assert.throws(() => extractAssetNames('<html></html>'), /构建产物异常/)
+})
+
+test('sortReleases and pickPreviousRelease pick the adjacent predecessor', () => {
+  const names = ['20261002-1200', '20261001-0900', '20261003-0800']
+  assert.deepEqual(sortReleases(names), ['20261001-0900', '20261002-1200', '20261003-0800'])
+  assert.equal(pickPreviousRelease('20261003-0800', names), '20261002-1200')
+  assert.equal(pickPreviousRelease('20261001-0900', names), null)
+  assert.equal(pickPreviousRelease('no-such', names), null)
+})
+
+test('caddyOsBlockHealthy detects the os block with no-cache and its loss', () => {
+  const healthy = 'other.site {\n  root /srv\n}\nos.ageha.cn {\n  root * /opt/agehaos/dist\n  header / Cache-Control "no-cache"\n  reverse_proxy /api/* 127.0.0.1:8787\n}'
+  assert.equal(caddyOsBlockHealthy(healthy), true)
+  const noCache = 'os.ageha.cn {\n  root * /opt/agehaos/dist\n}'
+  assert.equal(caddyOsBlockHealthy(noCache), false)
+  assert.equal(caddyOsBlockHealthy('only.other.site { }'), false)
+})
+
+test('changedPaths reports adds, removes and edits symmetrically', () => {
+  const prev = { 'a.ts': '1', 'b.ts': '2', 'gone.ts': '3' }
+  const next = { 'a.ts': '1', 'b.ts': '9', 'new.ts': '4' }
+  assert.deepEqual(changedPaths(prev, next), ['b.ts', 'gone.ts', 'new.ts'])
+})
+
+test('tarFileArgs keeps the data exclude in front (坑 64 铁律)', () => {
+  const args = tarFileArgs()
+  assert.equal(args[0], '--exclude=server/data')
+  assert.ok(args.includes('dist') && args.includes('package-lock.json'))
+})
