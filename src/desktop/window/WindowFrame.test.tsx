@@ -89,7 +89,7 @@ describe('WindowFrame (via WindowLayer)', () => {
     expect(useWindowStore.getState().windows[0]?.state).toBe('maximized')
   })
 
-  it('maximized window spans edge-to-edge between menubar and dock, and lifts the layer over the floating rails (2026-10-01 verdict)', () => {
+  it('maximized window covers the entire viewport above all chrome (2026-10-02 verdict)', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
 
     const { container } = render(<WindowLayer />)
@@ -99,19 +99,16 @@ describe('WindowFrame (via WindowLayer)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '最大化窗口' }))
 
-    // 几何：横向全幅贴左右屏幕边缘（不再扣左栏/右栏宽），上贴菜单栏下界、
-    // 下贴 Dock 边界（--ag-dock-height + 0.75rem footer 高）。
+    // 几何：整视口真全屏（inset-0）——盖过菜单栏带与 Dock 带，无系统栏留边。
     const region = screen.getByRole('region', { name: '记事' })
-    expect(region.className).toContain('left-0')
-    expect(region.className).toContain('w-full')
-    expect(region.className).toContain(
-      'h-[calc(100%_-_var(--ag-menubar-height)_-_var(--ag-dock-height)_-_0.75rem)]',
-    )
+    expect(region.className).toContain('inset-0')
+    expect(region.className).toContain('rounded-none')
     expect(region.className).not.toContain('rail-left-width')
     expect(region.className).not.toContain('rail-right-width')
+    expect(region.className).not.toContain('menubar-height')
 
-    // 层级：存在最大化窗口（含退场 ghost）时整层抬到 z-[45]，盖过左栏/
-    // 小组件栏（z-40）；菜单栏/Dock 几何上无重叠，照常可用。
+    // 层级：存在最大化窗口（含退场 ghost）时整层抬到 z-[45]，盖过全部
+    // z-40 chrome（菜单栏/Dock/左右浮层栏）；还原走窗口标题栏。
     expect(layer.className).toContain('z-[45]')
   })
 

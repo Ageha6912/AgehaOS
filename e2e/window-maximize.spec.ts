@@ -5,14 +5,12 @@ import { expect, test } from '@playwright/test'
 test.describe.configure({ retries: 2 })
 
 /**
- * 窗口最大化契约（docs/DESIGN.md §19/§26 修订，2026-10-01 用户裁决）：
- * 最大化窗口横向全幅贴左右屏幕边缘、上贴菜单栏下界、下贴 Dock 边界，
- * 不留空白边框；窗口层抬到 z-[45] 盖过左栏/小组件栏（z-40 浮层）——
- * 桌面组件不得遮挡最大化窗口的任何区域。
+ * 窗口最大化契约（§32.5 修订 12，2026-10-02 用户裁决）：最大化 = 整视口
+ * 真全屏——横向贴左右屏幕边缘、上缘到屏幕顶、下缘到屏幕底，盖过菜单栏/
+ * Dock/左右浮层栏全部 chrome（窗口层 z-[45]），不留任何系统栏带；还原走
+ * 窗口标题栏。
  */
-test('maximized window fills the screen edge-to-edge above the desktop widgets', async ({
-  page,
-}) => {
+test('maximized window covers the entire screen above every chrome layer', async ({ page }) => {
   await page.goto('/')
 
   const loginForm = page.getByRole('form', { name: '登录 AgehaOS' })
@@ -33,30 +31,32 @@ test('maximized window fills the screen edge-to-edge above the desktop widgets',
   await page.waitForTimeout(450) // 开窗/层叠切换动画落定后再测量。
   const frame = region
 
-  // ① 几何：x=0、宽度=视口宽、上贴菜单栏（40px）下界、下贴 Dock 边界
-  //    （--ag-dock-height 68 + 0.75rem = 80px footer 带）。
+  // ① 几何：x=0、y=0、宽=视口宽、高=视口高——无任何系统栏带留边。
   const vp = page.viewportSize() ?? { width: 1280, height: 720 }
   await expect(frame).toBeVisible()
   const box = (await frame.boundingBox())!
   expect(box.x).toBeGreaterThanOrEqual(-0.5)
   expect(box.x).toBeLessThanOrEqual(1)
   expect(Math.abs(box.width - vp.width)).toBeLessThanOrEqual(1)
-  expect(Math.abs(box.y - 40)).toBeLessThanOrEqual(1)
-  expect(Math.abs(box.height - (vp.height - 40 - 80))).toBeLessThanOrEqual(1.5)
+  expect(box.y).toBeGreaterThanOrEqual(-0.5)
+  expect(box.y).toBeLessThanOrEqual(1)
+  expect(Math.abs(box.height - vp.height)).toBeLessThanOrEqual(1.5)
 
-  // ② 遮挡：组件栏（xl 可见，右侧 296px 带）区域内取点必须命中窗口——
-  //    窗口层 z-[45] 盖过 z-40 浮层；同时窗口层容器的计算 z-index 生效。
+  // ② 遮挡：小组件栏（xl 可见，右侧 296px 带）与底部 Dock 带内取点都必须
+  //    命中窗口——窗口层 z-[45] 盖过全部 z-40 chrome。
   const probe = await page.evaluate(
-    ([x, y]) => {
-      const el = document.elementFromPoint(x, y)
+    ([right, bottom]) => {
       const win = document.querySelectorAll('section[aria-label="记事"]')[0]
-      return {
-        hitWindow: !!el && !!win && (el === win || win.contains(el)),
+      const hit = (x: number, y: number) => {
+        const el = document.elementFromPoint(x, y)
+        return !!el && !!win && (el === win || win.contains(el))
       }
+      return { hitRail: hit(right, 300), hitDockBand: hit(200, bottom) }
     },
-    [vp.width - 150, Math.round(vp.height / 2)],
+    [vp.width - 150, vp.height - 20],
   )
-  expect(probe.hitWindow).toBe(true)
+  expect(probe.hitRail).toBe(true)
+  expect(probe.hitDockBand).toBe(true)
   const layerZ = await page.evaluate(() => {
     const win = document.querySelectorAll('section[aria-label="记事"]')[0]
     const layer = win?.parentElement
@@ -64,7 +64,7 @@ test('maximized window fills the screen edge-to-edge above the desktop widgets',
   })
   expect(layerZ).toBe('45')
 
-  // ③ 还原：窗口回到原几何，窗口层回落 z-30，组件栏重新可见于其上。
+  // ③ 还原：窗口回到原几何，窗口层回落 z-30。
   await region.getByRole('button', { name: '还原窗口' }).click()
   const restored = (await frame.boundingBox())!
   expect(restored.width).toBeLessThan(vp.width)

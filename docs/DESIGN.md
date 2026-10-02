@@ -250,8 +250,8 @@ footer 只是透明运动层（`pointer-events-none`，内联 transform 保留�
 - **悬停预览**（§12/§13 契约不变）：350ms 延时后经 `createPortal` 挂
   body（玻璃胶囊 backdrop-filter 会劫持 fixed 包含块），以图标中心横向
   居中、`bottom: --ag-dock-height + 1.25rem` 悬在胶囊上方。
-- **最大化窗口**（修订 9）：下缘止于 Dock 边界，常驻 Dock 与窗口无
-  空间重叠，照常可用。
+- **最大化窗口**（修订 12）：整视口真全屏，常驻 Dock 与菜单栏被窗口层
+  （z-[45]）覆盖，还原走窗口标题栏。
 - E2E：`e2e/taskbar-autohide.spec.ts`（常驻契约 + 悬停预览锚定）。
   `helpers.revealTaskbar` 保留为立即通过。
 
@@ -554,10 +554,10 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   ←/→ 切换相邻菜单、Home/End 首末项、Esc 关闭并回焦触发器——真实 DOM
   focus（Tab 语义不变），真浏览器键盘链冒烟钉住。
 - **工作区契约**：`getWorkspaceViewport()` 高度扣减顶栏（拖拽/缩放钳制）；
-  最大化窗口（§32 修订 9，2026-10-01 用户裁决）横向全幅贴左右屏幕边缘、
-  `top: var(--ag-menubar-height)` 上贴菜单栏下界、下缘止于 Dock 边界
-  （`--ag-dock-height + 0.75rem`），不留空白边框；窗口层存在最大化窗口时
-  整体抬到 z-[45] 盖过左右浮层栏（z-40）；桌面图标
+  最大化窗口（§32.5 修订 12，2026-10-02 用户裁决）= `inset-0` 整视口真
+  全屏——上缘到屏幕顶（盖过菜单栏带）、下缘到屏幕底（盖过 Dock 带），窗口
+  层抬到 z-[45] 盖过全部 z-40 chrome（菜单栏/Dock/浮层栏），还原走窗口
+  标题栏；桌面图标
   列、动态面板自动停靠、小游戏轮换弹出的 y 基线全部避开顶栏；toast 栈
   顶偏移 `calc(var(--ag-menubar-height)+0.75rem)`。
 - **动效**：下拉复用 §14 弹层语言（进 200ms / 退 120ms，jsdom 无 WAAPI 即时
@@ -896,13 +896,11 @@ Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌�
 - **Dock 图标无底色**：瓷贴/运行中/启动器触发/回收站按钮去除
   hover/active `bg-surface-raised`（44px 徽章坐 48px 按钮，浅底在玻璃
   胶囊上显成图标四周白边）；激活态只剩指示点。弹层内部 hover 底色保留。
-- **最大化全幅（§19/§27 契约更新）**：最大化窗口横向全幅贴左右屏幕边缘
-  （`left-0 w-full`，不再扣左栏/右栏宽）、`top-[var(--ag-menubar-height)]`
-  上贴菜单栏下界、`h-[calc(100%-菜单栏-Dock高-0.75rem)]` 下贴 Dock 边界，
-  不留空白边框；窗口层存在最大化窗口（含退场 ghost）时整层 z-30 →
-  z-[45]，盖过左栏/小组件栏（z-40 浮层）——桌面组件不得遮挡最大化窗口
-  的任何区域；菜单栏/Dock 几何上与最大化窗口无重叠，照常可用。普通窗口
-  拖拽钳制（`getWorkspaceViewport` 扣栏）不变。
+- **最大化全幅（§19/§27 契约更新；修订 9 → 12 两步演进）**：修订 9
+  （2026-10-01）先改为横向全幅 + 上贴菜单栏下界 + 下贴 Dock 边界；修订 12
+  （2026-10-02 用户裁决「依然被上下组件阻拦」）改为 **`inset-0` 整视口真
+  全屏**——盖过菜单栏带与 Dock 带及全部 z-40 chrome（窗口层 z-[45]），
+  还原走窗口标题栏。普通窗口拖拽钳制（`getWorkspaceViewport` 扣栏）不变。
 - 验收：单测（WindowFrame 几何+层级契约、Taskbar 无底色契约、预览 portal
   契约）+ E2E `e2e/window-maximize.spec.ts`（几何边界 ±1px + elementFromPoint
   遮挡探针 + 还原回落）+ `e2e/taskbar-autohide.spec.ts`（预览居中 |Δ|≤2px、

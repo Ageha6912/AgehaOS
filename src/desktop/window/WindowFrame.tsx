@@ -76,11 +76,11 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
   const tiltOn = useMotionPrefsStore((s) => s.windowTilt)
   useFocusTilt(sectionRef, win.focused, minimized, tiltOn)
 
-  // 最大化（2026-10-01 用户裁决）：横向全幅贴左右屏幕边缘、上贴菜单栏下界、
-  // 下贴 Dock 边界（footer 高 = --ag-dock-height + 0.75rem），不留空白边框；
-  // 左栏/小组件栏是 z-40 浮层，由 WindowLayer 在存在最大化窗口时整体抬升
-  // 压到其下（几何改类驱动——断点条件无法走内联样式；calc 任意值用下划线
-  // 空格形式，坑 §25）。
+  // 最大化（2026-10-02 用户裁决，修订 12）：整视口真全屏——横向全幅贴左右
+  // 屏幕边缘、上缘到屏幕顶（盖过菜单栏带）、下缘到屏幕底（盖过 Dock 带），
+  // 不留任何系统栏带；菜单栏/Dock/左右浮层栏全部置于窗口层（z-[45]）之下，
+  // 还原走窗口标题栏。几何改类驱动（断点条件无法走内联样式）；calc 任意值
+  // 用下划线空格形式（坑 §25）。
   const style: CSSProperties = maximized
     ? { zIndex: win.zIndex }
     : { left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.zIndex }
@@ -159,7 +159,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       aria-hidden={ghost || undefined}
       className={`surface-glass absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
         maximized
-          ? 'left-0 top-[var(--ag-menubar-height)] h-[calc(100%_-_var(--ag-menubar-height)_-_var(--ag-dock-height)_-_0.75rem)] w-full rounded-none'
+          ? 'inset-0 rounded-none'
           : 'rounded-xl'
       } ${
         win.focused
