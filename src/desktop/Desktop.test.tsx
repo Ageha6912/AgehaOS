@@ -41,6 +41,14 @@ describe('Desktop', () => {
     expect(screen.getByTestId('menu-bar')).toBeInTheDocument()
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('widget-rail')).toBeInTheDocument()
+
+    // 系统栏组（2026-10-03 裁决「两栏毛玻璃连成一体」）：单一玻璃面板承载
+    // 左栏 + 今日应用列——玻璃面在组容器上，今日列未就绪时组即纯左栏。
+    const rails = screen.getByTestId('system-rails')
+    for (const cls of ['surface-glass', 'rounded-xl', 'shadow-float', 'flex-row-reverse']) {
+      expect(rails.classList.contains(cls), cls).toBe(true)
+    }
+    expect(rails.className).not.toContain('overflow')
   })
 
   it('exposes landmarks and a DOM order that matches the visual order (UI review P2-7)', () => {

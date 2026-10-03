@@ -5,20 +5,17 @@ import { useEclosionStore } from '@/store/eclosion-store'
 
 /**
  * 「今日应用」专用列（2026-10-03 用户裁决：左栏往右再加一栏，整列放
- * 「今日」分类的应用）：与系统导航栏（Sidebar）同款玻璃浮岛，**紧贴其
- * 右侧无缝相连**（左缘 = 左栏右缘 88px = 16px 偏移 + 72px 栏宽；去自身
- * 左边框与左侧圆角——左栏右框线即两栏中缝的分隔线；2026-10-03 追加裁决：
- * 两栏间不留空隙、毛玻璃连成一体。实测教训：左栏宽是
- * `--ag-rail-left-width - 0.5rem` = 72px（0.5rem = 8px），右缘 88px 而非
- * 92px——几何以 Playwright 实测为准，别心算 rem）。世界就绪（羽化开 +
- * world 摘要在 store 且有应用）才渲染——空栏即装饰性谎言，拒绝（Sidebar
- * 同款铁律）。瓷贴 = AppIcon 按世界行 hue 着色（§6.4 确定性徽章 + 色相旋
- * 转，与启动器「今日」分类同一数据源），悬停 os-tooltip 显示「应用名 ·
- * tagline」，点击 launchApp 触发按需生成（kind=today）。
- * ⚠️ 本栏不得挂 overflow（overflow-y 非 visible 会把 overflow-x 也变
- * auto，向右伸出的 os-tooltip 会被 own 栏裁掉——2026-10-03 实测教训）；
- * 应用数设计上限 10（§6.2），10×44px + 间距纵向天然放得下，不做滚动。
- * <640px 随左栏一起隐藏（§25）。
+ * 「今日」分类的应用）。2026-10-03 追加裁决「两栏毛玻璃连成一体」：与
+ * Sidebar 同住 Desktop 的 system-rails 单一玻璃面板（一道边框、一份圆角、
+ * 一份投影），本列只保留列布局 + border-l 内部分隔线——本列不在场时分隔
+ * 线随之消失，面板即纯左栏，外观不变。世界就绪（羽化开 + world 摘要在
+ * store 且有应用）才渲染——空栏即装饰性谎言，拒绝（Sidebar 同款铁律）。
+ * 瓷贴 = AppIcon 按世界行 hue 着色（§6.4 确定性徽章 + 色相旋转，与启动器
+ * 「今日」分类同一数据源），悬停 os-tooltip 显示「应用名 · tagline」，点击
+ * launchApp 触发按需生成（kind=today）。
+ * ⚠️ 本列与组容器都不得挂 overflow（overflow-y 非 visible 会把 overflow-x
+ * 也变 auto，向右伸出的 os-tooltip 会被裁掉——2026-10-03 实测教训）；应用
+ * 数设计上限 10（§6.2），纵向天然放得下，不做滚动。
  */
 export function TodayRail() {
   const { t } = useTranslation()
@@ -31,7 +28,7 @@ export function TodayRail() {
     <nav
       aria-label={t('sidebar.todayRail')}
       data-testid="today-rail"
-      className="desktop-chrome surface-glass glass-raise fixed left-[calc(var(--ag-rail-left-width)+0.5rem)] top-1/2 z-40 hidden -translate-y-1/2 flex-col items-center gap-2 rounded-r-xl border-y border-r border-border px-2 py-3 shadow-float sm:flex"
+      className="flex w-[calc(var(--ag-rail-left-width)-0.5rem)] flex-col items-center gap-2 border-l border-border px-2 py-3"
     >
       {world.apps.map((app) => {
         const appId = `com.ageha.eclosion.${app.slug}`

@@ -98,12 +98,19 @@ export function Desktop() {
           Dock。菜单栏 z-[41] 略高于其余 z-40 chrome，其下拉/通知面板不会被
           随后渲染的左右栏盖住（层级靠 z-index，不靠渲染顺序）。 */}
       <MenuBar />
-      {/* 今日应用列（2026-10-03 用户裁决）：左栏右侧的整列今日应用，世界
-          就绪才渲染。⚠️ 必须渲染在 Sidebar 之前（同 z-40 时后绘者在上）：
-          左栏 tooltip 向右伸出要盖住今日列的玻璃（2026-10-03 实测：顺序
-          反了会被右栏毛玻璃挡住）。 */}
-      <TodayRail />
-      <Sidebar />
+      {/* 系统栏组（2026-10-03 用户裁决「两栏毛玻璃连成一体」）：单一玻璃
+          面板承载左栏 + 今日应用列——一道边框、一份圆角、一份投影，中缝
+          只是今日列的 border-l 内部分隔线（今日列未就绪时组即纯左栏，外观
+          不变）。flex-row-reverse：DOM 序 TodayRail 在前（先绘在下），左栏
+          及其向右伸出的 tooltip 恒在其上；视觉上左栏仍在左（主轴反转）。
+          ⚠️ 组容器不得挂 overflow（会裁掉向右伸出的 os-tooltip）。 */}
+      <div
+        data-testid="system-rails"
+        className="desktop-chrome surface-glass glass-raise fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 flex-row-reverse items-stretch rounded-xl border border-border shadow-float sm:flex"
+      >
+        <TodayRail />
+        <Sidebar />
+      </div>
       <WindowLayer />
       <WidgetRail />
       <Taskbar />

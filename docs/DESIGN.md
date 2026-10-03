@@ -788,11 +788,14 @@ Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌�
   模式禁用 40% + 提示「远程模式登录后可用」）/ 通知=唤起通知中心（面板
   开合入 `notification-store.panelOpen`，顶栏铃铛与侧栏共享同一面板）。
   图中「用户中心」不建（与顶栏用户菜单重复）。
-- **几何**：`fixed left-0 top-[var(--ag-menubar-height)] bottom-0`，
-  宽 `--ag-rail-left-width`（80px，= CASCADE_BASE 80——级联窗口恰从栏右
-  缘起）；工作区宽度扣减（`viewport.ts`，<640px 隐藏不扣减）；最大化窗口
-  `sm:left-[var(--ag-rail-left-width)]` 只占栏右；桌面图标列 `sm:` 右移
-  让位；z-40 chrome（窗口可从栏下滑过，同顶栏）。
+- **几何（2026-10-03 二次追加裁决：两栏 = 一块玻璃）**：玻璃面（背景/边框/
+  圆角/投影/`fixed left-4 top-1/2`）上移到 Desktop 的 **system-rails 组容
+  器**——一道边框、一份圆角、一份投影承载左栏 + 今日应用列两列；本栏退化为
+  组内静态列（`w-[calc(var(--ag-rail-left-width)-0.5rem)]` = 72px；0.5rem =
+  8px，Playwright 实测钉扎）。今日列不在场时组即纯左栏，外观与旧浮岛一致；
+  <640px 由组容器 `hidden sm:flex` 承担（§25）。组容器禁止 overflow（会裁
+  掉向右伸出的 tooltip）。级联窗口契约不变：`--ag-rail-left-width`(80) =
+  CASCADE_BASE，级联窗口仍从左栏右缘起排（今日列在场时窗口滑过其下，同旧）。
 - **项视觉**：Phosphor 18px 图标 + 11px 标签（密度档 py-1.5）、hover surface-raised 高亮、
   禁用 40%；通知未读徽标复用铃铛样式（`sidebar-unread`）。
 - **缓办**：侧栏项当前无「激活态」概念（无持久选中语义——轨是动作不是
@@ -805,17 +808,18 @@ Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌�
 - **出现条件**：羽化开 + 今日世界就绪（store `world` 摘要含应用）才渲染——
   空栏即装饰性谎言，拒绝；与启动器「今日」分类同一数据源（世界行 hue 着色
   AppIcon + §6.4 确定性徽章），点按同走 `launchApp` 按需生成（kind=today）。
-- **几何（2026-10-03 追加裁决：两栏无缝相连）**：`fixed
-  left-[calc(var(--ag-rail-left-width)+0.5rem)] top-1/2 -translate-y-1/2`——
-  左缘恰为左栏右缘（16px + 72px = 88px；**0.5rem = 8px**，Playwright 实测
-  GAP=0 钉扎），零空隙；自身**无左边框、左侧方角**（`rounded-r-xl` +
-  `border-y border-r`），左栏右框线即两栏中缝分隔线，毛玻璃连成一体。
-  同款 surface-glass、z-40 chrome；<640px 随左栏隐藏（§25）。
-- **DOM 序约束**：必须渲染在 Sidebar **之前**（同 z-40 后绘者在上）——左栏
-  tooltip 向右伸出须盖住今日列玻璃，顺序反了会被毛玻璃挡住。
+- **几何（2026-10-03 二次追加：并入 system-rails 单一玻璃面板）**：本列是
+  组容器内的静态列（`w-[calc(var(--ag-rail-left-width)-0.5rem)]` = 72px，
+  与左栏同宽），`border-l border-border` 作两列的**内部分隔线**——本列不在
+  场时分隔线随之消失，面板即纯左栏。玻璃面/定位/响应式隐藏全部归组容器
+  （见 §26 几何条）。
+- **DOM 序约束**：组内 TodayRail 在前、Sidebar 在后 + `flex-row-reverse`
+  （视觉上左栏在左）——同栈内后绘者在上，左栏向右伸出的 tooltip 恒盖住今
+  日列（顺序反了会被毛玻璃挡住，2026-10-03 实测）。
 - **禁止 overflow**：overflow-y 非 visible 会连带把 overflow-x 变 auto，
-  向右伸出的 os-tooltip 被 own 栏裁掉（2026-10-03 实测教训）——应用数设计
-  上限 10（§6.2），纵向天然放得下，不做滚动。
+  向右伸出的 os-tooltip 被 own 容器裁掉（2026-10-03 实测教训）——本列与组
+  容器都不得挂 overflow；应用数设计上限 10（§6.2），纵向天然放得下，不做
+  滚动。
 - **项视觉**：h-11 瓦片 + AppIcon(hue) 32px，悬停 os-tooltip「应用名 ·
   tagline」（SidebarItem 双轨同款）。
 

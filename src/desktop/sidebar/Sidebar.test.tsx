@@ -121,40 +121,39 @@ describe('Sidebar', () => {
     expect(sync.querySelector('.bg-primary')).toBeNull()
   })
 
-  it('floats as a vertically-centered glass rail detached from the edges (shell 2.0 §4.2③)', () => {
+  it('renders as a static column inside the system-rails group; glass chrome lives on the group (2026-10-03 两栏连成一体)', () => {
     render(<Sidebar />)
 
     const nav = screen.getByTestId('sidebar')
-    // Floating System Rail：left-4(16px) + 真垂直居中 + 80px 栏（内容 76px）
-    // + glass-raise(20px blur) + 白/30% 细边框 + shadow-float 浮岛档。
+    // 2026-10-03 裁决「两栏毛玻璃连成一体」：玻璃面（背景/边框/圆角/投影/
+    // 定位）上移到 Desktop 的 system-rails 组容器——本栏只保留列布局与
+    // 80px 栏宽（内容 72px），今日列不在场时组即纯左栏，外观不变。
     for (const cls of [
-      'desktop-chrome',
-      'surface-glass',
-      'glass-raise',
-      'rounded-xl',
-      'border-border',
-      'shadow-float',
-      'left-4',
-      'top-1/2',
-      '-translate-y-1/2',
+      'flex',
+      'flex-col',
+      'items-center',
       'w-[calc(var(--ag-rail-left-width)-0.5rem)]',
-      'hidden',
-      'sm:flex',
+      'px-2',
+      'py-3',
     ]) {
       expect(nav.classList.contains(cls), cls).toBe(true)
     }
-    // 旧形态退役：贴顶/贴底锚、白/18% 弱边框、popover 档阴影、旧圆角，
-    // 以及一切通栏贴边（Web Sidebar）残留。
+    // 旧的自绘玻璃/定位退役（归组容器）；通栏贴边（Web Sidebar）残留同样
+    // 不允许回归。
     for (const cls of [
+      'fixed',
+      'surface-glass',
+      'glass-raise',
+      'rounded-xl',
+      'shadow-float',
+      'left-4',
+      'top-1/2',
       'border-r',
       'border-border-subtle',
       'bottom-0',
-      'bottom-6',
       'left-0',
-      'left-2',
       'rounded-2xl',
       'shadow-popover',
-      'top-[calc(var(--ag-menubar-height)+1rem)]',
     ]) {
       expect(nav.classList.contains(cls), `no ${cls}`).toBe(false)
     }

@@ -78,21 +78,20 @@ describe('TodayRail（今日应用列）', () => {
     expect(screen.getByTestId('today-rail-app-signal-weaver')).toBeInTheDocument()
   })
 
-  it('无缝相连契约：贴左栏右缘、无左边框与左侧圆角、无 overflow（tooltip 不被裁）', () => {
+  it('单面板契约：本列只保留列布局 + border-l 分隔线，玻璃面归 system-rails 组（毛玻璃连成一体）', () => {
     seedEclosionForTests('u-rail', true)
     seedWorld()
     render(<TodayRail />)
 
     const nav = screen.getByTestId('today-rail')
-    // 左缘 = 左栏右缘（left-4 16px + 栏宽 72px = 88px = token 80 + 0.5rem；
-    // Playwright 实测钉扎：0.5rem = 8px，右缘是 88 不是 92）。
-    expect(nav.className).toContain('left-[calc(var(--ag-rail-left-width)+0.5rem)]')
-    // 中缝 = 左栏自己的右框线：本栏无左边框、左侧方角。
-    expect(nav.className).toContain('rounded-r-xl')
-    expect(nav.className).not.toContain('rounded-l')
-    expect(nav.className).not.toContain('border-l')
-    // overflow 会把向右伸出的 tooltip 一并裁掉（2026-10-03 实测）——禁止。
-    expect(nav.className).not.toContain('overflow')
+    // 与左栏同宽（72px = token 80 - 0.5rem；0.5rem = 8px，Playwright 实测钉扎）。
+    expect(nav.className).toContain('w-[calc(var(--ag-rail-left-width)-0.5rem)]')
+    // 中缝 = 本列 border-l 内部分隔线；今日列不在场时随之消失。
+    expect(nav.className).toContain('border-l')
+    // 玻璃面（背景/边框/圆角/投影/定位）归 Desktop 的 system-rails 组容器。
+    for (const banned of ['fixed', 'surface-glass', 'rounded', 'shadow-float', 'overflow']) {
+      expect(nav.className, banned).not.toContain(banned)
+    }
   })
 
   it('点击瓷贴走 launchApp 按需生成路径（kind=today 的窗口打开）', () => {

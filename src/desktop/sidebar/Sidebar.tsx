@@ -22,15 +22,17 @@ import { useWindowStore } from '@/store/window-store'
 
 /**
  * 左侧系统导航栏（docs/DESIGN.md §26；Shell 2.0 Floating System Rail，
- * 2026-10-02）：icon-first 浮岛——80px 窄栏（内容 76px）+ left-4 +
- * 真垂直居中 + glass-raise 玻璃 + 细边框 + shadow-float；八项瓷贴（36px，
- * 各自彩色渐变圆角方块）保留原导航目标，文字标签退役为悬停/聚焦 tooltip
- * （原生 title 双轨保留，§1③）。顺序 = 桌面/商店/文件/终端/设置/云同步/
- * 通知/用户中心。只放真实动作（拒绝装饰性谎言）：桌面=最小化全部、商店/
- * 文件/终端/设置=启动器、用户中心=Settings 落账户分区（深链）、云同步=
- * 真实开关（本地模式禁用）、通知=唤起共享通知中心。无「当前项」语义，
- * 不设常亮选中底（轻透明胶囊 = hover bg-surface-raised 瞬态）。
- * <640px 隐藏（§25）。
+ * 2026-10-02）：icon-first 浮岛——80px 窄栏（内容 72px）+ 真垂直居中；
+ * 八项瓷贴（36px，各自彩色渐变圆角方块）保留原导航目标，文字标签退役为
+ * 悬停/聚焦 tooltip（原生 title 双轨保留，§1③）。顺序 = 桌面/商店/文件/
+ * 终端/设置/云同步/通知/用户中心。只放真实动作（拒绝装饰性谎言）：桌面=
+ * 最小化全部、商店/文件/终端/设置=启动器、用户中心=Settings 落账户分区
+ * （深链）、云同步=真实开关（本地模式禁用）、通知=唤起共享通知中心。
+ * 无「当前项」语义，不设常亮选中底（轻透明胶囊 = hover bg-surface-raised
+ * 瞬态）。
+ * 2026-10-03 追加裁决「两栏毛玻璃连成一体」：本栏的玻璃面（背景/边框/
+ * 圆角/投影）上移到 Desktop 的 system-rails 组容器，本组件只保留列布局——
+ * 与今日应用列共用同一块玻璃（中缝 = 今日列的 border-l 内部分隔线）。
  */
 
 /** 瓷贴渐变（参考图取色；每项独立配色，白字形统一）。 */
@@ -101,7 +103,7 @@ export function Sidebar() {
     <nav
       aria-label={t('sidebar.label')}
       data-testid="sidebar"
-      className="desktop-chrome surface-glass glass-raise fixed left-4 top-1/2 z-40 hidden w-[calc(var(--ag-rail-left-width)-0.5rem)] -translate-y-1/2 flex-col items-center gap-2 rounded-xl border border-border px-2 py-3 shadow-float sm:flex"
+      className="flex w-[calc(var(--ag-rail-left-width)-0.5rem)] flex-col items-center gap-2 px-2 py-3"
     >
       <SidebarItem
         testid="sidebar-desktop"
