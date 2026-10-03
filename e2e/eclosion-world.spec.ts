@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { revealTaskbar, taskbarStartButton } from './helpers'
+import { dragWindowClearOfRails, revealTaskbar, taskbarStartButton } from './helpers'
 
 /**
  * 羽化模式 P2/P4 端到端（AI-GENERATED-APPS-DESIGN §12 P2「今日世界」/ P4「治理
@@ -451,6 +451,8 @@ test.describe('P2 今日应用（点按瓦片 → kind=today 生成并可用）'
     // 破茧后脚本真实执行（流式 → 截留 → power-on 注入），交互可用。
     const frame = page.frame({ url: /eclosion\.html/ })
     expect(frame, 'sandboxed runner frame').toBeDefined()
+    // 先把窗口拖出系统栏组遮盖带（z 契约上轨盖窗，见 helpers）。
+    await dragWindowClearOfRails(page, win)
     await expect(frame!.locator('#result')).toHaveText('E2E-GEN-OK', { timeout: 15_000 })
     await frame!.locator('#inc').click()
     await expect(frame!.locator('#result')).toHaveText('E2E-CLICK-5')

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { revealTaskbar, taskbarStartButton } from './helpers'
+import { dragWindowClearOfRails, revealTaskbar, taskbarStartButton } from './helpers'
 
 /**
  * 羽化模式 P1 端到端（AI-GENERATED-APPS-DESIGN §12 P1 验收 / §9.3 准入）：
@@ -237,6 +237,8 @@ test.describe('开启态（按用户持久化偏好，route 桩驱动）', () =>
     await expect(frame!.locator('#result')).toHaveText('E2E-GEN-OK', { timeout: 15_000 })
 
     // 生成代码的事件绑定在沙箱内可用（点击 → 脚本改写结果）。
+    // 先把窗口拖出系统栏组遮盖带（z 契约上轨盖窗，见 helpers）。
+    await dragWindowClearOfRails(page, calcWindow)
     await frame!.locator('#inc').click()
     await expect(frame!.locator('#result')).toHaveText('E2E-CLICK-2')
 

@@ -46,3 +46,22 @@ export async function openDynamicPanel(page: Page): Promise<Locator> {
   await expect(panel).toBeVisible({ timeout: 10_000 })
   return panel
 }
+
+/**
+ * 把窗口拖出系统栏组的遮盖带（2026-10-03）：system-rails 组（左栏 + 今日
+ * 应用列，z-40 chrome）按 z 契约盖在普通窗口（z-30）之上——级联落点恰在
+ * 栏带（16~166px）内时，窗口左条带的沙箱内点击会被栏的瓷贴吃掉（坑 75
+ * 同族的 E2E 竞态：窗口 x 随级联/动画时相漂移，命中与否随运行轮盘）。
+ * 抓标题栏中部右移 180px + 等 400ms 动画落定，使 iframe 交互区离开栏带。
+ * 先例：window-resize.spec 的「拖出左栏浮轨下方」。
+ */
+export async function dragWindowClearOfRails(page: Page, region: Locator): Promise<void> {
+  const box = (await region.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + 14)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 180, box.y + 14, { steps: 6 })
+  await page.mouse.up()
+  await page.waitForTimeout(400)
+  const moved = (await region.boundingBox())!
+  expect(moved.x).toBeGreaterThanOrEqual(170)
+}
