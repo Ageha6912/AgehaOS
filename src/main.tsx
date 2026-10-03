@@ -8,6 +8,7 @@ import { registerBuiltinApps, restoreInstalledApps } from '@/store/app-store'
 import { useSessionStore } from '@/store/session-store'
 import { systemVfs } from '@/services/vfs'
 import { systemDynamicDesktop } from '@/services/dynamic-desktop'
+import { systemEclosion } from '@/services/eclosion'
 import { startNotificationBridge } from '@/services/notification-bridge'
 import { startSettingsSync } from '@/services/settings-sync'
 import { startFileSync } from '@/services/file-sync'
@@ -37,6 +38,9 @@ systemVfs.ready().catch((error) => {
 systemDynamicDesktop.start()
 // 系统事件 → 通知桥（PRD §16）：崩溃与生成失败转通知。
 startNotificationBridge()
+// 羽化编排器单例（AI-GENERATED-APPS-DESIGN §3.2）：装配链尾追加——登录联动、
+// 额度拉取、空闲预取；任何 AI 环节失败都静默降级到原生兜底，不阻塞桌面。
+systemEclosion.start()
 
 createRoot(rootElement).render(
   <StrictMode>

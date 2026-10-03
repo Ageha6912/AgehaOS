@@ -15,6 +15,14 @@ const INSTALLED_KEY = 'agehaos.apps.installed.v1'
 
 let registry = new AppRegistry(systemBus)
 
+/**
+ * 会话级运行时应用（羽化今日世界清单 / 「获取」留存 / P3 想象域）：注册进
+ * 注册表供启动器与 launchApp 解析，但**绝不进 INSTALLED_KEY**——跨重启的
+ * 持久事实源是羽化自己的 IndexedDB（kept store），登出/跨日由编排器
+ * unregister 防陈旧（AI-GENERATED-APPS-DESIGN §3.2：Manifest schema 冻结）。
+ */
+const runtimeAppIds = new Set<string>()
+
 export const useAppStore = create<AppStoreState>()(() => ({
   apps: registry.list(),
 }))
@@ -32,7 +40,9 @@ function persistInstalledApps(): void {
   if (typeof localStorage === 'undefined') return
   try {
     const builtins = builtinIds()
-    const installed = registry.list().filter((app) => !builtins.has(app.id))
+    const installed = registry
+      .list()
+      .filter((app) => !builtins.has(app.id) && !runtimeAppIds.has(app.id))
     localStorage.setItem(INSTALLED_KEY, JSON.stringify(installed))
   } catch {
     /* quota or privacy mode: installs stay in memory */
@@ -90,6 +100,40 @@ export function uninstallApp(appId: string): boolean {
   return removed
 }
 
+/**
+ * 运行时注册（羽化今日/留存清单）：与 installApp 同一 manifest 校验
+ * （schema 冻结、deepFreeze 照旧），但只进内存注册表——不持久化、不触
+ * 权限授予（L2/L3 恒零权限，SDK 桥按 Default Deny 逐请求校验）。
+ */
+export function registerRuntimeApp(input: unknown): ManifestParseResult {
+  const result = parseManifest(input)
+  if (!result.ok) return result
+  const registered = registry.register(result.manifest)
+  if (!registered) {
+    return {
+      ok: false,
+      errors: [{ path: 'id', message: `App "${result.manifest.id}" is already registered` }],
+    }
+  }
+  runtimeAppIds.add(result.manifest.id)
+  commit()
+  return result
+}
+
+/** 运行时注销（登出/跨日/卸载留存）：只动内存注册表，不触碰 INSTALLED_KEY。 */
+export function unregisterRuntimeApp(appId: string): boolean {
+  if (!runtimeAppIds.has(appId)) return false
+  runtimeAppIds.delete(appId)
+  const removed = registry.unregister(appId)
+  if (removed) commit()
+  return removed
+}
+
+/** 会话级运行时应用是否在册（启动器「我的羽化」等判别用）。 */
+export function isRuntimeApp(appId: string): boolean {
+  return runtimeAppIds.has(appId)
+}
+
 export function getAppManifest(appId: string): AppManifest | null {
   return registry.get(appId)
 }
@@ -111,6 +155,7 @@ export function registerBuiltinApps(): void {
 /** Fresh registry and permissions with the built-ins installed — mirrors boot. */
 export function resetAppStore(): void {
   registry = new AppRegistry(systemBus)
+  runtimeAppIds.clear()
   commit()
   resetPermissionManager()
   registerBuiltinApps()

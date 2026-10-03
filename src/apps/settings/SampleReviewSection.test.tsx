@@ -122,3 +122,75 @@ describe('SampleReviewSection（DDS §8.6 复审视图，仅 admin 分区挂载�
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
   })
 })
+
+// ── 来源筛选（P4 §10：「羽化应用」举报标记 + 摘要呈现） ──────────────────────
+
+const MIXED_SAMPLES = [
+  {
+    id: 'e1',
+    text: '时钟 · 显示时间 · 时钟',
+    classification: 'ok',
+    createdAt: '2026-10-03T01:00:00.000Z',
+    source: 'eclosion',
+    detail: '<!doctype html><html><body>clock</body></html>',
+  },
+  {
+    id: 's1',
+    text: '较早的样本：今天适合把窗口排成两列，效率更高。',
+    classification: 'ok',
+    createdAt: '2026-09-28T15:18:21.227Z',
+  },
+]
+
+describe('SampleReviewSection × 来源筛选（P4 §10）', () => {
+  it('badges eclosion reports and renders their generated-content excerpt', async () => {
+    fetchMock.mockResolvedValueOnce(okGet(MIXED_SAMPLES))
+    render(<SampleReviewSection />)
+    await waitFor(() => expect(screen.getByTestId('sample-review-list')).toBeInTheDocument())
+
+    // 来源徽标 + 摘要（HTML 前 2KB 摘要按原文呈现）只出现在羽化举报行。
+    expect(screen.getByTestId('sample-review-source-badge').textContent).toContain('羽化应用')
+    expect(screen.getByText(/<!doctype html>/)).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('filters the list to eclosion-sourced samples and back', async () => {
+    fetchMock.mockResolvedValueOnce(okGet(MIXED_SAMPLES))
+    render(<SampleReviewSection />)
+    await waitFor(() => expect(screen.getByTestId('sample-review-list')).toBeInTheDocument())
+
+    // 默认「全部来源」。
+    expect(screen.getByTestId('sample-review-filter-all')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('2 条样本')).toBeInTheDocument()
+
+    // 切「羽化应用」：只留 e1，计数与 aria-pressed 同步。
+    fireEvent.click(screen.getByTestId('sample-review-filter-eclosion'))
+    expect(screen.getByTestId('sample-review-filter-eclosion')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('sample-review-filter-all')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByText('1 条样本')).toBeInTheDocument()
+
+    // 切回全部。
+    fireEvent.click(screen.getByTestId('sample-review-filter-all'))
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('shows the empty hint when the filter matches nothing', async () => {
+    fetchMock.mockResolvedValueOnce(
+      okGet([
+        {
+          id: 's1',
+          text: '只有动态面板样本',
+          classification: 'ok',
+          createdAt: '2026-09-28T15:18:21.227Z',
+        },
+      ]),
+    )
+    render(<SampleReviewSection />)
+    await waitFor(() => expect(screen.getByTestId('sample-review-list')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('sample-review-filter-eclosion'))
+    await waitFor(() => expect(screen.getByTestId('sample-review-filter-empty')).toBeInTheDocument())
+    expect(screen.queryByTestId('sample-review-list')).toBeNull()
+  })
+})

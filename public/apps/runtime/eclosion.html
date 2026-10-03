@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<!--
+  AgehaOS 羽化运行时宿主文档（AI-GENERATED-APPS-DESIGN §4.1）。
+  CSP 由本文件自带（Vite 只给构建后的 index.html 注入 CSP，public/ 原样拷贝），
+  逐条对应 §4.1 第 2 条；connect-src 'none' 是关键——生成代码无法 fetch/XHR/
+  WebSocket/sendBeacon/EventSource 外传任何数据，只能经 postMessage 与宿主说话。
+  版本化（坑 70）：宿主渲染 iframe 时以 src=/apps/runtime/eclosion.html?v=<appVersion>
+  破缓存；本文件换内容必须 bump 宿主侧版本参数。
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>羽化运行时</title>
+</head>
+<body>
+<div id="eclosion-root"></div>
+<!-- runner 内联副本（源文件 public/apps/runtime/eclosion-runner.js；一致性由
+     src/core/eclosion/eclosion-runner.test.ts 钉死）。§4.3-1 spike：Chromium 下 CSP
+     'self' 虽能匹配外链 runner，仍按裁决内联（跨浏览器不确定性 + 缓存坑 70）。 -->
+<script id="eclosion-runner">
+/**
+ * AgehaOS 羽化运行时 runner（AI-GENERATED-APPS-DESIGN §4.2）。
+ *
+ * 本文件是 runner 的**源文件**：生产形态内联进 public/apps/runtime/eclosion.html 的
+ * <script id="eclosion-runner">（CSP 'unsafe-inline' 允许；规避 sandbox 不透明 origin 下
+ * CSP 'self' 匹配外链的不确定性 + 同名换内容被缓存吞掉的坑 70）。内联副本与源文件的
+ * 一致性由 src/core/eclosion/eclosion-runner.test.ts 钉死。
+ *
+ * 消息校验与 src/core/eclosion/runner-protocol.ts 同构（沙箱页无法 import TS 模块）：
+ * 只接受 event.source === parent 的消息；恰四类，多余字段/坏类型/未知类型直接丢弃。
+ * 本文件绝不能出现字面的脚本结束标签序列——它会截断 html 里的内联副本
+ * （eclosion-runner.test.ts 有守卫断言钉住）。
+ */
+;(function () {
+  'use strict'
+
+  var ROOT_ID = 'eclosion-root'
+  var POP_STYLE_ID = 'eclosion-pop-style'
+
+  function root() {
+    var el = document.getElementById(ROOT_ID)
+    if (!el) {
+      el = document.createElement('div')
+      el.id = ROOT_ID
+      document.body.appendChild(el)
+    }
+    return el
+  }
+
+  function post(message) {
+    try {
+      parent.postMessage(message, '*')
+    } catch (e) {
+      /* 宿主窗口已消失：静默 */
+    }
+  }
+
+  /**
+   * 弹出动画（§4.2 第 3 条）：每片挂载后组件逐个弹出。设计原文是全选择器
+   * `*{animation: eclosion-pop .18s ease-out}`；实现收窄为 #eclosion-root 的直接子元素
+   * （挂载单位即顶层构造，动画语义一致且不会对嵌套子孙逐个重复播放），并按仓库 a11y
+   * 铁律保留 prefers-reduced-motion 全量降级（坑 71）。
+   */
+  function ensurePopStyle() {
+    if (document.getElementById(POP_STYLE_ID)) return
+    var style = document.createElement('style')
+    style.id = POP_STYLE_ID
+    style.textContent =
+      '@keyframes eclosion-pop{0%{opacity:0;transform:translateY(6px) scale(.98)}100%{opacity:1;transform:translateY(0) scale(1)}}' +
+      '#' + ROOT_ID + '>*{animation:eclosion-pop .18s ease-out both}' +
+      '@media (prefers-reduced-motion:reduce){#' + ROOT_ID + '>*{animation:none}}'
+    document.head.appendChild(style)
+  }
+
+  /** 增量挂载（§4.2 第 3 条）：<template> 解析 + 移植节点，只吃闭合元素片。 */
+  function mountChunk(html) {
+    if (html === '') return
+    var template = document.createElement('template')
+    template.innerHTML = html
+    if (template.content.childNodes.length === 0) return
+    ensurePopStyle()
+    root().appendChild(template.content)
+  }
+
+  var lastSeq = -1
+  var poweredOn = false
+  var rendered = false
+  var errorSeen = false
+
+  // ── SDK 客户端（window.AgehaOS，§4.1 第 4 条 + §3.2 SDK 桥复用） ──────────
+  //
+  // 生成代码与 runner 同域（同一不透明 origin）。Default Deny 在沙箱内的表现是
+  // **未授予的命名空间在 AgehaOS 对象上不存在**（生成代码特性检测分支）；真闸仍在
+  // 宿主侧逐请求校验（handleSdkRequest：规格权限 + appId 命名空间 + 目录钳制）。
+  // 客户端只做三件事：组装白名单信封（与 public/sdk/ageha-sdk.js 同形状）、按
+  // reqId 关联回执、超时与错误传播。不暴露 post/pending 等内部原语；全部对象冻结。
+
+  var SDK_REQUEST_TYPE = 'agehaos:sdk'
+  var SDK_RESULT_TYPE = 'agehaos:sdk-result'
+  var SDK_TIMEOUT_MS = 5000
+  var SDK_APIS = ['theme', 'storage', 'window', 'notification', 'files']
+  var sdkSeq = 0
+  var sdkPending = {} // reqId -> { resolve, reject, timer }
+
+  function sdkRequest(api, action, params) {
+    return new Promise(function (resolve, reject) {
+      sdkSeq += 1
+      var reqId = 'sdk-' + sdkSeq
+      var entry = { resolve: resolve, reject: reject, timer: null }
+      entry.timer = window.setTimeout(function () {
+        if (sdkPending[reqId] !== entry) return
+        delete sdkPending[reqId]
+        reject(new Error('sdk-timeout'))
+      }, SDK_TIMEOUT_MS)
+      sdkPending[reqId] = entry
+      post({ type: SDK_REQUEST_TYPE, reqId: reqId, api: api, action: action, params: params })
+    })
+  }
+
+  /**
+   * 回执消费（与 runner-protocol.parseSdkResultEnvelope 同构）：恰 type/reqId/ok/
+   * data?/error? 键语义，未知/过期 reqId 丢弃，成功/失败分别 resolve/reject
+   * （Error.message = 宿主错误码，如 permission-denied / invalid-key / invalid-path）。
+   */
+  function handleSdkResult(data) {
+    if (typeof data.reqId !== 'string' || data.reqId === '' || data.reqId.length > 64) return
+    if (typeof data.ok !== 'boolean') return
+    for (var key in data) {
+      if (key !== 'type' && key !== 'reqId' && key !== 'ok' && key !== 'data' && key !== 'error') return
+    }
+    var hasData = Object.prototype.hasOwnProperty.call(data, 'data')
+    var hasError = Object.prototype.hasOwnProperty.call(data, 'error')
+    if (data.ok) {
+      if (hasError) return // 成功不得带 error
+    } else if (!hasError || typeof data.error !== 'string' || data.error === '') {
+      return // 失败必带非空 error
+    }
+    var entry = sdkPending[data.reqId]
+    if (!entry) return
+    delete sdkPending[data.reqId]
+    if (entry.timer !== null) window.clearTimeout(entry.timer)
+    if (data.ok) entry.resolve(hasData ? data.data : undefined)
+    else entry.reject(new Error(data.error))
+  }
+
+  /** 能力声明校验（与 runner-protocol.isSdkCapabilities 同构）：恰一键 apis、成员属白名单。 */
+  function isValidCapabilities(value) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+    var keys = Object.keys(value)
+    if (keys.length !== 1 || keys[0] !== 'apis' || !Array.isArray(value.apis) || value.apis.length === 0) return false
+    for (var i = 0; i < value.apis.length; i++) {
+      if (typeof value.apis[i] !== 'string' || SDK_APIS.indexOf(value.apis[i]) === -1) return false
+    }
+    return true
+  }
+
+  /** 回执 data 里取字段（host 恒按动作回形状；防御式缺省 null / []）。 */
+  function unwrap(data, field) {
+    if (data === null || typeof data !== 'object') return null
+    return Object.prototype.hasOwnProperty.call(data, field) ? data[field] : null
+  }
+
+  /**
+   * 按能力声明构建 AgehaOS 客户端：未列出的命名空间**不存在**（访问抛 TypeError，
+   * 生成代码须先特性检测）。方法全部返回 Promise，失败 reject（Error.message 为
+   * 宿主错误码）——生成代码必须 catch 并以页内 UI 呈现，不得让异常逃到 window.onerror。
+   */
+  function buildSdkClient(capabilities) {
+    var apis = {}
+    for (var i = 0; i < capabilities.apis.length; i++) apis[capabilities.apis[i]] = true
+    var client = {}
+    if (apis.theme) {
+      client.theme = Object.freeze({
+        get: function () {
+          return sdkRequest('theme', 'get', {}).then(function (data) {
+            return unwrap(data, 'theme')
+          })
+        },
+      })
+    }
+    if (apis.storage) {
+      client.storage = Object.freeze({
+        get: function (key) {
+          return sdkRequest('storage', 'get', { key: key }).then(function (data) {
+            return unwrap(data, 'value')
+          })
+        },
+        set: function (key, value) {
+          return sdkRequest('storage', 'set', { key: key, value: value }).then(function () {
+            return true
+          })
+        },
+        remove: function (key) {
+          return sdkRequest('storage', 'remove', { key: key }).then(function () {
+            return true
+          })
+        },
+        keys: function () {
+          return sdkRequest('storage', 'keys', {}).then(function (data) {
+            return unwrap(data, 'keys') || []
+          })
+        },
+      })
+    }
+    if (apis.files) {
+      client.files = Object.freeze({
+        read: function (path) {
+          return sdkRequest('files', 'read', { path: path }).then(function (data) {
+            return unwrap(data, 'content')
+          })
+        },
+        write: function (path, content) {
+          return sdkRequest('files', 'write', {
+            path: path,
+            content: content === undefined ? '' : content,
+          }).then(function () {
+            return true
+          })
+        },
+        list: function (path) {
+          return sdkRequest('files', 'list', { path: path === undefined ? '' : path }).then(function (data) {
+            return unwrap(data, 'entries') || []
+          })
+        },
+        mkdir: function (path) {
+          return sdkRequest('files', 'mkdir', { path: path }).then(function () {
+            return true
+          })
+        },
+        remove: function (path) {
+          return sdkRequest('files', 'remove', { path: path }).then(function () {
+            return true
+          })
+        },
+      })
+    }
+    if (apis.window) {
+      client.window = Object.freeze({
+        setTitle: function (title) {
+          return sdkRequest('window', 'setTitle', { title: title }).then(function () {
+            return true
+          })
+        },
+      })
+    }
+    if (apis.notification) {
+      client.notification = Object.freeze({
+        show: function (options) {
+          return sdkRequest('notification', 'show', {
+            title: options && options.title !== undefined ? options.title : '',
+            body: options && options.body !== undefined ? options.body : '',
+          }).then(function () {
+            return true
+          })
+        },
+      })
+    }
+    return Object.freeze(client)
+  }
+
+  /** 破茧时装载（幂等）：SDK 客户端先于生成脚本注入——脚本首行即可特性检测。 */
+  function installSdkClient(capabilities) {
+    if (typeof window.AgehaOS !== 'undefined') return
+    window.AgehaOS = buildSdkClient(capabilities)
+  }
+
+  /** 破茧（§4.2 第 4 条）：按序以 script.textContent 注入宿主截留的脚本。 */
+  function powerOn(scripts, capabilities) {
+    poweredOn = true
+    installSdkClient(capabilities)
+    for (var i = 0; i < scripts.length; i++) {
+      var element = document.createElement('script')
+      element.textContent = scripts[i]
+      document.body.appendChild(element)
+    }
+    if (!errorSeen && !rendered) {
+      rendered = true
+      post({ type: 'eclosion:rendered' })
+    }
+  }
+
+  function isNonNegativeInteger(value) {
+    return typeof value === 'number' && isFinite(value) && Math.floor(value) === value && value >= 0
+  }
+
+  function handleMessage(event) {
+    if (event.source !== parent) return // 只信宿主窗口（嵌套 iframe 伪造消息被拒）
+    var data = event.data
+    if (typeof data !== 'object' || data === null) return
+    switch (data.type) {
+      case 'eclosion:chunk': {
+        if (Object.keys(data).length !== 3) return // type + seq + html
+        if (!isNonNegativeInteger(data.seq) || typeof data.html !== 'string') return
+        if (data.seq <= lastSeq) return // 重复/乱序片：丢弃（postMessage 本身保序，这是防御）
+        if (poweredOn) return // 破茧后不再改 DOM，宿主契约如此
+        lastSeq = data.seq
+        mountChunk(data.html)
+        return
+      }
+      case 'eclosion:power-on': {
+        if (Object.keys(data).length !== 3 || !Array.isArray(data.scripts)) return
+        for (var i = 0; i < data.scripts.length; i++) {
+          if (typeof data.scripts[i] !== 'string') return
+        }
+        if (!isValidCapabilities(data.capabilities)) return
+        if (poweredOn) return // 幂等：只破茧一次
+        powerOn(data.scripts, data.capabilities)
+        return
+      }
+      case 'agehaos:hello':
+        return // 握手问候：runner 加载即已发 agehaos:ready，无需回应
+      case 'agehaos:sdk-result':
+        handleSdkResult(data)
+        return
+      default:
+        return // 未知类型拒绝（§4.1 第 3 条）
+    }
+  }
+
+  window.addEventListener('message', handleMessage, false)
+
+  window.onerror = function (message) {
+    errorSeen = true
+    post({ type: 'eclosion:error', message: String(message) })
+    return false
+  }
+
+  // §4.2 第 1 条：加载完成即向宿主报到（宿主以 event.source === contentWindow 采信）。
+  root()
+  post({ type: 'agehaos:ready' })
+})()
+
+</script>
+</body>
+</html>

@@ -30,6 +30,26 @@ describe('launchApp', () => {
     expect(windows[0]?.height).toBe(480)
   })
 
+  it('launches the eclosion trio with spec titles and spec geometry (§5.2)', () => {
+    const windowId = launchApp('com.ageha.eclosion.calculator')
+
+    expect(windowId).not.toBeNull()
+    const win = useWindowStore.getState().windows[0]
+    expect(win?.appId).toBe('com.ageha.eclosion.calculator')
+    // 标题走规格 titleKey（非 manifest.name）；几何来自规格表（300 被
+    // 窗口引擎 MIN_WINDOW_WIDTH=320 抬到下限——原生计算器同款行为）。
+    expect(win?.title).toBe('计算器')
+    expect(win?.width).toBe(320)
+    expect(win?.height).toBe(440)
+
+    const clockId = launchApp('com.ageha.eclosion.clock')
+    expect(clockId).not.toBeNull()
+    const clock = useWindowStore.getState().windows[1]
+    expect(clock?.title).toBe('时钟')
+    expect(clock?.width).toBe(420)
+    expect(clock?.height).toBe(560)
+  })
+
   it('pins the window position when geometry is provided (系统调用钉位)', () => {
     launchApp('com.ageha.notes', { x: 912, y: 24 })
 

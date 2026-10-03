@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>SDK 存储样本</title>
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--ageha-surface, #f7f9fc); color: var(--ageha-text, #1c2430); display: grid; place-items: center; min-height: 100vh; }
+  .card { background: var(--ageha-panel, #ffffff); border-radius: 14px; padding: 20px 24px; box-shadow: 0 6px 24px rgba(20,30,50,.08); width: 280px; }
+  h1 { font-size: 16px; margin: 0 0 12px; }
+  p { font-size: 13px; line-height: 1.6; word-break: break-all; }
+</style>
+</head>
+<body>
+<section class="card" aria-label="SDK 存储样本">
+  <h1>记忆样本</h1>
+  <p id="storage-state">booting</p>
+</section>
+<script>
+(function () {
+  'use strict'
+  var out = document.getElementById('storage-state')
+  function show(text) { out.textContent = text }
+
+  // 特性检测分支：宿主未授予 storage 时 AgehaOS.storage 不存在（§4.1 第 4 条）。
+  if (!window.AgehaOS || !AgehaOS.storage) {
+    show('NO-STORAGE-CAPABILITY')
+    return
+  }
+
+  AgehaOS.storage.set('sample', 'persisted').then(function () {
+    return AgehaOS.storage.get('sample')
+  }).then(function (value) {
+    show('SDK-' + value)
+  }).catch(function (error) {
+    show('ERR-' + error.message)
+  })
+})()
+</script>
+</body>
+</html>

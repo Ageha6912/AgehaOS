@@ -20,6 +20,10 @@ interface SerializedFile {
   /** Reported content samples (DDS §8.6); absent on files written before the
    *  sample-upload slice. Newest first, capped at MAX_CONTENT_SAMPLES. */
   samples?: ContentSampleRecord[]
+  /** 羽化每日计数（§9.3）：day → key → value。absent on older files. */
+  eclosionDaily?: Record<string, Record<string, number>>
+  /** 羽化 L1 全局 HTML 缓存（§9.2）：key → html。absent on older files. */
+  eclosionCache?: Record<string, string>
 }
 
 /** Distinguishes the legacy flat entry from the nested per-domain record. */
@@ -38,6 +42,11 @@ export class FileDataStore implements DataStore {
   private syncData = new Map<string, Map<string, SyncEntry>>()
   private appCatalog: string | null = null
   private contentSamples: ContentSampleRecord[] = []
+  /** 羽化每日计数 + 全局缓存（§9.2/§9.3）持久化；单飞锁不持久（TTL 自愈的
+   *  短命状态，重启即清零，落盘反而在崩溃后挡住恢复）。 */
+  private eclosionDaily = new Map<string, Map<string, number>>()
+  private eclosionCache = new Map<string, string>()
+  private eclosionLocks = new Map<string, { holder: string; expiresAt: number }>()
   private writing = Promise.resolve()
 
   constructor(private readonly filePath: string) {}
@@ -85,6 +94,21 @@ export class FileDataStore implements DataStore {
           if (isContentSampleRecord(sample)) this.contentSamples.push(sample)
         }
         this.contentSamples = this.contentSamples.slice(0, MAX_CONTENT_SAMPLES)
+      }
+      if (typeof parsed.eclosionDaily === 'object' && parsed.eclosionDaily !== null) {
+        for (const [day, entries] of Object.entries(parsed.eclosionDaily)) {
+          if (typeof entries !== 'object' || entries === null) continue
+          const keys = new Map<string, number>()
+          for (const [key, value] of Object.entries(entries)) {
+            if (typeof value === 'number' && Number.isFinite(value)) keys.set(key, value)
+          }
+          if (keys.size > 0) this.eclosionDaily.set(day, keys)
+        }
+      }
+      if (typeof parsed.eclosionCache === 'object' && parsed.eclosionCache !== null) {
+        for (const [key, html] of Object.entries(parsed.eclosionCache)) {
+          if (typeof html === 'string') this.eclosionCache.set(key, html)
+        }
       }
     } catch {
       // Corrupted file: start empty rather than crash-looping; the next
@@ -205,6 +229,43 @@ export class FileDataStore implements DataStore {
     return deleted
   }
 
+  async incrementEclosionDaily(key: string, day: string, by: number): Promise<number> {
+    let keys = this.eclosionDaily.get(day)
+    if (!keys) {
+      keys = new Map()
+      this.eclosionDaily.set(day, keys)
+    }
+    const next = (keys.get(key) ?? 0) + by
+    keys.set(key, next)
+    await this.persist()
+    return next
+  }
+
+  async getEclosionDaily(key: string, day: string): Promise<number> {
+    return this.eclosionDaily.get(day)?.get(key) ?? 0
+  }
+
+  async getEclosionCache(key: string): Promise<string | null> {
+    return this.eclosionCache.get(key) ?? null
+  }
+
+  async putEclosionCache(key: string, html: string): Promise<void> {
+    this.eclosionCache.set(key, html)
+    await this.persist()
+  }
+
+  async acquireEclosionLock(key: string, holder: string, ttlMs: number): Promise<boolean> {
+    const existing = this.eclosionLocks.get(key)
+    if (existing && existing.expiresAt > Date.now() && existing.holder !== holder) return false
+    this.eclosionLocks.set(key, { holder, expiresAt: Date.now() + ttlMs })
+    return true
+  }
+
+  async releaseEclosionLock(key: string, holder: string): Promise<void> {
+    const existing = this.eclosionLocks.get(key)
+    if (existing && existing.holder === holder) this.eclosionLocks.delete(key)
+  }
+
   /** Serializes writes so concurrent requests cannot clobber each other. */
   private persist(): Promise<void> {
     this.writing = this.writing.then(() => this.writeNow())
@@ -216,12 +277,20 @@ export class FileDataStore implements DataStore {
     for (const [userId, domains] of this.syncData) {
       sync[userId] = Object.fromEntries(domains)
     }
+    // 每日计数只保留最近 8 个 day（重置时间即次日零点，旧计数无用）。
+    const recentDays = [...this.eclosionDaily.keys()].sort().slice(-8)
+    const eclosionDaily: Record<string, Record<string, number>> = {}
+    for (const day of recentDays) {
+      eclosionDaily[day] = Object.fromEntries(this.eclosionDaily.get(day) as Map<string, number>)
+    }
     const payload: SerializedFile = {
       users: [...this.users.values()],
       sessions: [...this.sessions.values()],
       sync,
       ...(this.appCatalog !== null ? { catalog: this.appCatalog } : {}),
       ...(this.contentSamples.length > 0 ? { samples: this.contentSamples } : {}),
+      ...(Object.keys(eclosionDaily).length > 0 ? { eclosionDaily } : {}),
+      ...(this.eclosionCache.size > 0 ? { eclosionCache: Object.fromEntries(this.eclosionCache) } : {}),
     }
     const tmpPath = `${this.filePath}.tmp`
     await writeFile(tmpPath, JSON.stringify(payload, null, 2), 'utf8')

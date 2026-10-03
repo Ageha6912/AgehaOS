@@ -6,6 +6,26 @@
  *
  * Permissions follow the canonical §10.1 names.
  */
+import { ECLOSION_RUNNER_ENTRY } from '@/core/apps/web-app'
+import { BASIC_ECLOSION_SPECS } from '@/core/eclosion/spec'
+
+/**
+ * 羽化 L1 三件套（AI-GENERATED-APPS-DESIGN §3.2）：注册为普通 Manifest——
+ * entry 统一指向运行时页（WindowFrame 按 com.ageha.eclosion. 前缀路由到
+ * EclosionAppFrame），permissions/window 直接取自规格表（规格由系统定义，
+ * 不由 AI 决定；与 server/src/eclosion/spec.ts 一致性由服务端测试钉死）。
+ * Manifest schema 不扩（deepFreeze 校验照旧）。非本地化 name 仅作最终回落，
+ * 展示标题走 spec.titleKey（launch.ts / AppLauncher）。
+ */
+const ECLOSION_APP_MANIFESTS: readonly unknown[] = BASIC_ECLOSION_SPECS.map((spec) => ({
+  id: spec.appId,
+  name: spec.specId,
+  version: `1.${spec.specVersion}.0`,
+  entry: ECLOSION_RUNNER_ENTRY,
+  permissions: spec.permissions,
+  window: spec.window,
+}))
+
 export const BUILTIN_APP_MANIFESTS: readonly unknown[] = [
   {
     id: 'com.ageha.notes',
@@ -63,4 +83,5 @@ export const BUILTIN_APP_MANIFESTS: readonly unknown[] = [
     permissions: [],
     window: { width: 660, height: 440, resizable: true },
   },
+  ...ECLOSION_APP_MANIFESTS,
 ]

@@ -326,6 +326,27 @@ AgehaOS 支持三类 App：
 - User API
 - Theme API
 
+### Type D：Eclosion App（羽化应用，AI-GENERATED-APPS-DESIGN）
+
+由 AI 按固定规格现场生成的自包含 HTML 应用（计算器/记事本/时钟起步）。
+
+运行方式与边界：
+
+- 复用 Type B 沙箱（`sandbox="allow-scripts"` 不透明 origin + 运行时页独立禁网 CSP `connect-src 'none'`）与 Type C SDK 桥（逐请求 Default Deny、按 appId 命名空间）；
+- 提示词与规格只在服务端（ADR 27），客户端仅传 `specId`；生成产物持久缓存在独立 IndexedDB（不进 VFS 快照）；
+- 永远带「✦ AI 生成」徽标（不可隐藏）；任何失败（断网/未配置 AI/运行报错，重试一次后）自动回落原生实现——原生实现保留为兜底、一概不删。
+
+**软件分层（羽化模式）**：
+
+| 层 | 内容 | 由谁实现 | 跨重启 |
+| --- | --- | --- | --- |
+| L0 底层固定层 | 登录/Boot、窗口管理器、任务栏/通知/搜索外壳、Files、Settings、Terminal、App Store | 手写原生代码，**永不 AI 生成** | 是 |
+| L1 基础软件层 | 计算器、记事本、时钟 | AI 按固定规格生成；原生实现兜底 | 生成结果持久缓存 |
+| L2 今日应用层 | 依当日热点发散的虚构应用 | AI 自由发挥（受 schema 与过滤约束） | 当日有效；「获取」后可留存 |
+| L3 想象层 | 想象搜索现场生成的应用 | AI 按用户输入生成 | 会话内缓存；「获取」后可留存 |
+
+实施状态（按设计 §12 分期）：**P0–P4 全部已落地**——P0 沙箱运行时 spike、P1 服务端生成管线 + L1 三件套（编排/接线/设置/E2E）、P2 今日世界（trending/世界生成调度/主题落地/启动器「今日」分组/「我的羽化」留存）、P3 想象搜索（搜索面板第三域 + 双端过滤 + 会话缓存 + 「获取」留存）、P4 治理与蝶谱（举报链路 + 复审来源筛选 + 蝶谱时间线回放）+ 沙箱 AgehaOS SDK 客户端全链路；L2/L3 行为即现状描述（偏离设计的落位裁决见 docs/CHANGELOG.md 各切片）。羽化模式总开关默认关，关闭时系统行为与既有版本完全一致；功能面细节见 [AI-GENERATED-APPS-DESIGN.md](AI-GENERATED-APPS-DESIGN.md) §6（今日世界）/§7（想象搜索）/§10（治理）与 [ARCHITECTURE.md](ARCHITECTURE.md) §3.23。
+
 ---
 
 # 9. App Manifest

@@ -53,7 +53,8 @@ export const MANUAL_REFRESH_THROTTLE_MS = 5000
 
 export interface ApplyOutcomeInput {
   outcome: GenerationOutcome
-  trigger: 'login' | 'timer' | 'manual'
+  /** 'world' = 今日世界主题落地（AI-GENERATED-APPS-DESIGN §6.3；非采样路径）。 */
+  trigger: 'login' | 'timer' | 'manual' | 'world'
   atMs: number
   tier: HardwareTier
 }

@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react'
 
 import { consumeSettingsSection } from '@/apps/app-deep-link'
+import { appDisplayName } from '@/apps/launch'
 
 import { BrandLogo } from '@/components/brand-logo'
 import { ToggleSwitch } from '@/components/toggle-switch'
 import { useMotionPrefsStore, type MotionPrefKey } from '@/store/motion-prefs-store'
-import { GlobeHemisphereWest, ListChecks, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
+import { GlobeHemisphereWest, Butterfly, ListChecks, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
 
 import { useTranslation, useLocaleStore } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
@@ -15,11 +16,21 @@ import { useSettingsStore } from '@/store/settings-store'
 import { useAppStore } from '@/store/app-store'
 import { useSessionStore } from '@/store/session-store'
 import { DynamicDesktopSection } from './DynamicDesktopSection'
+import { EclosionSection } from './EclosionSection'
 import { AccountSection } from './AccountSection'
 import { CatalogSection } from './CatalogSection'
 import { SampleReviewSection } from './SampleReviewSection'
 
-type SectionId = 'account' | 'appearance' | 'dynamic' | 'catalog' | 'review' | 'language' | 'permissions' | 'about'
+type SectionId =
+  | 'account'
+  | 'appearance'
+  | 'dynamic'
+  | 'eclosion'
+  | 'catalog'
+  | 'review'
+  | 'language'
+  | 'permissions'
+  | 'about'
 
 const THEME_OPTIONS: Array<{ value: ThemePreference; labelKey: MessageKey }> = [
   { value: 'light', labelKey: 'theme.light' },
@@ -49,6 +60,7 @@ export function SettingsApp() {
     { id: 'account', labelKey: 'settings.account', icon: <UserCircle size={14} weight="regular" /> },
     { id: 'appearance', labelKey: 'settings.appearance', icon: <Palette size={14} weight="regular" /> },
     { id: 'dynamic', labelKey: 'dynamicDesktop.section', icon: <Sparkle size={14} weight="regular" /> },
+    { id: 'eclosion', labelKey: 'settings.eclosion.section', icon: <Butterfly size={14} weight="regular" /> },
     ...(isAdmin
       ? [
           { id: 'catalog' as const, labelKey: 'settings.catalog' as MessageKey, icon: <ShieldCheck size={14} weight="regular" /> },
@@ -93,6 +105,7 @@ export function SettingsApp() {
         {section === 'account' && <AccountSection />}
         {section === 'appearance' && <AppearanceSection />}
         {section === 'dynamic' && <DynamicDesktopSection />}
+        {section === 'eclosion' && <EclosionSection />}
         {section === 'catalog' && isAdmin && <CatalogSection />}
         {section === 'review' && isAdmin && <SampleReviewSection />}
         {section === 'language' && <LanguageSection />}
@@ -243,7 +256,7 @@ function PermissionsSection() {
           const granted = permissionManager.grantedPermissions(app.id)
           return (
             <li key={app.id} className="rounded-md border border-border bg-surface-raised/50 p-3">
-              <p className="text-text">{app.name}</p>
+              <p className="text-text">{appDisplayName(app.id)}</p>
               <p className="mt-1 text-xs text-text-muted">
                 {granted.length === 0
                   ? t('settings.noPermissions')

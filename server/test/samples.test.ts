@@ -131,6 +131,79 @@ describe('content sample upload（DDS §8.6 匿名上报 + 服务端分类器）
     ).toBe(400)
   })
 
+  it('accepts an eclosion report with source and 2KB detail, visible to admin review (P4 §10)', async () => {
+    const store = new MemoryDataStore()
+    app = await makeApp(store, 'boss')
+    const detail = '<!doctype html><html><body>'.padEnd(2048, 'x')
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/dynamic/samples',
+      payload: {
+        text: '时钟 · 一句 tagline',
+        source: 'eclosion',
+        detail,
+      },
+    })
+    expect(response.statusCode).toBe(201)
+    const stored = await store.listContentSamples()
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({ source: 'eclosion', detail, classification: 'ok' })
+
+    const admin = await registerAsAdmin(app, store, 'boss')
+    const listed = await app.inject({ method: 'GET', url: '/api/dynamic/samples', cookies: admin.cookies })
+    expect(listed.statusCode).toBe(200)
+    const samples = (listed.json() as { samples: { source?: string; detail?: string }[] }).samples
+    expect(samples[0]).toMatchObject({ source: 'eclosion', detail })
+  })
+
+  it('validates the extended eclosion body shape', async () => {
+    app = await makeApp()
+    const url = '/api/dynamic/samples'
+    // 未知来源枚举 → 400。
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url,
+          payload: { text: '正常文本', source: 'app-store' },
+        })
+      ).statusCode,
+    ).toBe(400)
+    // detail 超 2KB → 400。
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url,
+          payload: { text: '正常文本', source: 'eclosion', detail: 'x'.repeat(2049) },
+        })
+      ).statusCode,
+    ).toBe(400)
+    // detail 空 → 400（minLength 1；客户端不发空摘要）。
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url,
+          payload: { text: '正常文本', source: 'eclosion', detail: '' },
+        })
+      ).statusCode,
+    ).toBe(400)
+  })
+
+  it('still rejects violating eclosion report text with 422 (分类只跑 text)', async () => {
+    const store = new MemoryDataStore()
+    app = await makeApp(store)
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/dynamic/samples',
+      payload: { text: '今晚赌场见', source: 'eclosion', detail: '<html>…</html>' },
+    })
+    expect(response.statusCode).toBe(422)
+    expect(response.json()).toEqual({ error: 'content-rejected' })
+    expect(await store.listContentSamples()).toEqual([])
+  })
+
   it('caps storage at MAX_CONTENT_SAMPLES keeping the newest', async () => {
     const store = new MemoryDataStore()
     // 直接压 store：路由侧另有 10 次/分钟的匿名限流，走 HTTP 无法凑满容量。

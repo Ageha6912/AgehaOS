@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>难例标记</title>
+<style>
+  /* CSS 子选择器里的 ">" 不是标签 */
+  .panel > .item { margin-block: 6px; }
+  .panel > .item::after { content: ">"; opacity: .4; }
+</style>
+</head>
+<body>
+<!-- <script>这是注释里的假脚本标记</script> -->
+<main class="panel" data-note="a>b" title="含引号内的 > 与 <">
+  <p class="item">比较：1 < 2 且 3 > 2。</p>
+  <p class="item">自闭合与 void：<br>一行<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="点" width="8" height="8"><hr></p>
+  <svg width="120" height="24" role="img" aria-label="装饰线条">
+    <path d="M2 12 H118" stroke="#7aa2f7" stroke-width="3" stroke-linecap="round" fill="none" />
+  </svg>
+</main>
+<script type="application/javascript">
+(function () {
+  'use strict'
+  window.__trickyBooted = true
+  var note = document.querySelector('[data-note]').getAttribute('data-note')
+  document.title = note
+})()
+</script>
+</body>
+</html>

@@ -21,6 +21,7 @@ import { altShortcutLabel, redoShortcutLabel, shortcutLabel } from '@/core/platf
 import { cycleWindows } from '@/desktop/use-global-shortcuts'
 
 import { ShortcutsDialog } from './ShortcutsDialog'
+import { MenuBarWorldSignals } from './WorldSignals'
 
 type MenuId = 'file' | 'view' | 'window' | 'help'
 
@@ -418,8 +419,8 @@ export function MenuBar() {
       )}
 
       {/* 系统状态区：只放浏览器读得到的真实状态（电池；Web 读不到 Wi-Fi/蓝牙，
-          不画装饰性图标）→ Cloud 同步状态深链 → 通知中心 → 用户 → 时钟最右
-          （macOS 惯例；时钟为等宽数据读出）。 */}
+          不画装饰性图标）→ 今日世界信号小字（§6.3 透明性）→ Cloud 同步状态深链
+          → 通知中心 → 用户 → 时钟最右（macOS 惯例；时钟为等宽数据读出）。 */}
       <div className="ml-auto flex items-center gap-1.5">
         {battery !== null && (
           <span
@@ -430,6 +431,7 @@ export function MenuBar() {
             {battery}%
           </span>
         )}
+        <MenuBarWorldSignals />
         <button
           type="button"
           aria-label={cloudTitle}

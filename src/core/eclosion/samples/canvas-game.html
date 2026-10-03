@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>星尘躲闪</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--ageha-surface, #101418); color: var(--ageha-text, #e8edf5); display: grid; place-items: center; min-height: 100vh; }
+  .stage { position: relative; }
+  canvas { border-radius: 12px; background: var(--ageha-canvas, #0b0e13); box-shadow: 0 8px 30px rgba(0,0,0,.35); display: block; }
+  .hud { display: flex; justify-content: space-between; padding: 8px 4px; font-variant-numeric: tabular-nums; font-size: 14px; }
+  .hint { opacity: .7; font-size: 12px; padding: 0 4px 8px; }
+</style>
+</head>
+<body>
+<main class="stage" aria-label="星尘躲闪小游戏">
+  <div class="hud"><span>得分 <output id="score">0</output></span><span>最佳 <output id="best">0</output></span></div>
+  <canvas id="game" width="420" height="300" role="img" aria-label="游戏画布"></canvas>
+  <p class="hint">← → 或 A/D 移动，躲开坠落的星尘。</p>
+</main>
+<script>
+(function () {
+  'use strict'
+  var canvas = document.getElementById('game')
+  var ctx = canvas.getContext('2d')
+  var scoreEl = document.getElementById('score')
+  var bestEl = document.getElementById('best')
+  var player = { x: 210, y: 270, w: 34, h: 10, speed: 4 }
+  var drops = []
+  var score = 0
+  var best = 0
+  var keys = {}
+
+  window.__gameReady = true
+
+  document.addEventListener('keydown', function (e) { keys[e.key] = true })
+  document.addEventListener('keyup', function (e) { keys[e.key] = false })
+
+  function spawn() {
+    drops.push({ x: Math.random() * 400, y: -8, v: 1.6 + Math.random() * 1.8 })
+  }
+
+  function step() {
+    if (keys.ArrowLeft || keys.a) player.x -= player.speed
+    if (keys.ArrowRight || keys.d) player.x += player.speed
+    player.x = Math.max(0, Math.min(420 - player.w, player.x))
+    for (var i = drops.length - 1; i >= 0; i--) {
+      var d = drops[i]
+      d.y += d.v
+      if (d.y > 320) { drops.splice(i, 1); score += 1; continue }
+      if (d.y > player.y - 6 && d.x > player.x && d.x < player.x + player.w) {
+        best = Math.max(best, score)
+        score = 0
+        drops = []
+      }
+    }
+    scoreEl.textContent = String(score)
+    bestEl.textContent = String(best)
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, 420, 300)
+    ctx.fillStyle = '#7aa2f7'
+    ctx.fillRect(player.x, player.y, player.w, player.h)
+    ctx.fillStyle = '#e0af68'
+    drops.forEach(function (d) { ctx.fillRect(d.x, d.y, 4, 8) })
+  }
+
+  var tick = 0
+  function loop() {
+    tick += 1
+    if (tick % 42 === 0) spawn()
+    step()
+    draw()
+    requestAnimationFrame(loop)
+  }
+  loop()
+})()
+</script>
+</body>
+</html>

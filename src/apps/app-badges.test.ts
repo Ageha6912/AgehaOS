@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { APP_UI_META } from './builtin'
-import { APP_BADGES, BADGE_GLYPHS, BADGE_PALETTES, badgeForAppId } from './app-badges'
+import {
+  APP_BADGES,
+  BADGE_GLYPHS,
+  BADGE_PALETTES,
+  badgeForAppId,
+  badgeForAppIdWithHue,
+} from './app-badges'
 
 describe('app badges (DESIGN.md §8)', () => {
   it('curates a badge for every builtin app', () => {
@@ -42,5 +48,24 @@ describe('app badges (DESIGN.md §8)', () => {
 
   it('prefers curated badges over generated ones', () => {
     expect(badgeForAppId('com.ageha.files')).toEqual(APP_BADGES['com.ageha.files'])
+  })
+})
+
+describe('badgeForAppIdWithHue（今日应用世界行着色，§6.4）', () => {
+  it('rotates both gradient stops to the world hue while keeping the glyph', () => {
+    const base = badgeForAppId('com.ageha.eclosion.edge-oracle')
+    const tinted = badgeForAppIdWithHue('com.ageha.eclosion.edge-oracle', 268)
+    expect(tinted.glyph).toBe(base.glyph)
+    expect(tinted.from).not.toBe(base.from)
+    expect(tinted.to).not.toBe(base.to)
+    // 输出是合法 hex，且双 stop 均被旋转（明度差保持渐变深度）。
+    expect(tinted.from).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(tinted.to).toMatch(/^#[0-9a-f]{6}$/i)
+    // 确定性：同 hue 恒同结果。
+    expect(badgeForAppIdWithHue('com.ageha.eclosion.edge-oracle', 268).from).toBe(tinted.from)
+  })
+
+  it('returns the deterministic badge untouched when no hue is given', () => {
+    expect(badgeForAppIdWithHue('com.ageha.files', undefined)).toEqual(badgeForAppId('com.ageha.files'))
   })
 })

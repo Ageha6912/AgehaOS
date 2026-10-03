@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isRemoteAuthActive } from '@/core/auth'
 import { resetAppStore } from '@/store/app-store'
+import { resetEclosionStore, seedEclosionForTests, useEclosionStore } from '@/store/eclosion-store'
 import { resetSearchStore, useSearchStore } from '@/store/search-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 import { resetSettingsStore, useSettingsStore } from '@/store/settings-store'
@@ -137,6 +138,38 @@ describe('MenuBar', () => {
     expect(screen.getByRole('menuitem', { name: '最小化全部窗口' })).toBeDisabled()
     expect(screen.getByRole('menuitem', { name: '关闭全部窗口' })).toBeDisabled()
     expect(screen.queryByRole('menuitem', { name: '记事' })).not.toBeInTheDocument()
+  })
+
+  it('mounts the today-world signal note when the world of today is in', () => {
+    act(() => {
+      resetEclosionStore()
+      seedEclosionForTests('u1', true)
+      // beforeEach 的 fake 时间钉在 2026-09-21（UTC 日界）。
+      useEclosionStore.getState().applyWorld({
+        worldDate: '2026-09-21',
+        headline: '本地智能体与边缘推理的清晨',
+        paletteId: 'nebula-violet',
+        accentHue: 212,
+        degraded: false,
+        signalCount: 3,
+        signals: {
+          titles: ['信号甲', '信号乙', '信号丙'],
+          sourceName: 'GitHub Trending',
+          sourceUrl: 'https://example.invalid/feed',
+        },
+        apps: [],
+      })
+    })
+    render(<MenuBar />)
+
+    expect(screen.getByTestId('menubar-world-signals')).toHaveTextContent(
+      '今日桌面由 3 条趋势信号生成',
+    )
+    // 点击展开来源列表（§6.3 透明性）。
+    fireEvent.click(screen.getByTestId('menubar-world-signals'))
+    expect(screen.getByTestId('menubar-world-signals-panel')).toBeInTheDocument()
+    expect(screen.getAllByTestId('menubar-world-signal')).toHaveLength(3)
+    resetEclosionStore()
   })
 
   it('help menu opens settings', () => {

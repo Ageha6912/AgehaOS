@@ -56,6 +56,28 @@ const SCHEMA_MIGRATIONS = [
      classification TEXT NOT NULL,
      created_at TIMESTAMPTZ NOT NULL
    )`,
+  // 2026-10 (羽化 P4 治理, AI-GENERATED-APPS-DESIGN §10): 举报来源 + 生成内容
+  // 摘要（HTML 前 2KB）。旧表补列（坑 23），既有行两列为 NULL（= 动态面板来源）。
+  `ALTER TABLE ageha_content_samples ADD COLUMN IF NOT EXISTS source TEXT`,
+  `ALTER TABLE ageha_content_samples ADD COLUMN IF NOT EXISTS detail TEXT`,
+  // 2026-10 (羽化模式 P1, AI-GENERATED-APPS-DESIGN §9.2/§9.3): 每日额度与
+  // token 预算计数、L1 全局 HTML 缓存、单飞锁。day 为 UTC YYYY-MM-DD 文本。
+  `CREATE TABLE IF NOT EXISTS ageha_eclosion_daily (
+     day TEXT NOT NULL,
+     key TEXT NOT NULL,
+     value BIGINT NOT NULL DEFAULT 0,
+     PRIMARY KEY (day, key)
+   )`,
+  `CREATE TABLE IF NOT EXISTS ageha_eclosion_cache (
+     key TEXT PRIMARY KEY,
+     html TEXT NOT NULL,
+     updated_at TIMESTAMPTZ NOT NULL
+   )`,
+  `CREATE TABLE IF NOT EXISTS ageha_eclosion_locks (
+     key TEXT PRIMARY KEY,
+     holder TEXT NOT NULL,
+     expires_at TIMESTAMPTZ NOT NULL
+   )`,
 ]
 
 const UNIQUE_VIOLATION = '23505'
@@ -205,8 +227,8 @@ export class PostgresDataStore implements DataStore {
 
   async createContentSample(sample: ContentSampleRecord): Promise<void> {
     await this.pool.query(
-      'INSERT INTO ageha_content_samples (id, text, classification, created_at) VALUES ($1, $2, $3, $4)',
-      [sample.id, sample.text, sample.classification, sample.createdAt],
+      'INSERT INTO ageha_content_samples (id, text, classification, created_at, source, detail) VALUES ($1, $2, $3, $4, $5, $6)',
+      [sample.id, sample.text, sample.classification, sample.createdAt, sample.source ?? null, sample.detail ?? null],
     )
     await this.pool.query(
       `DELETE FROM ageha_content_samples
@@ -219,7 +241,7 @@ export class PostgresDataStore implements DataStore {
 
   async listContentSamples(): Promise<ContentSampleRecord[]> {
     const result = await this.pool.query(
-      'SELECT id, text, classification, created_at FROM ageha_content_samples ORDER BY created_at DESC, id',
+      'SELECT id, text, classification, created_at, source, detail FROM ageha_content_samples ORDER BY created_at DESC, id',
     )
     return result.rows.map(rowToContentSample)
   }
@@ -227,6 +249,60 @@ export class PostgresDataStore implements DataStore {
   async deleteContentSample(id: string): Promise<boolean> {
     const result = await this.pool.query('DELETE FROM ageha_content_samples WHERE id = $1', [id])
     return (result.rowCount ?? 0) > 0
+  }
+
+  async incrementEclosionDaily(key: string, day: string, by: number): Promise<number> {
+    const result = await this.pool.query(
+      `INSERT INTO ageha_eclosion_daily (day, key, value) VALUES ($1, $2, $3)
+       ON CONFLICT (day, key) DO UPDATE SET value = ageha_eclosion_daily.value + $3
+       RETURNING value`,
+      [day, key, by],
+    )
+    return Number(result.rows[0]?.value ?? 0)
+  }
+
+  async getEclosionDaily(key: string, day: string): Promise<number> {
+    const result = await this.pool.query(
+      'SELECT value FROM ageha_eclosion_daily WHERE day = $1 AND key = $2',
+      [day, key],
+    )
+    const row = result.rows[0]
+    return row ? Number(row.value) : 0
+  }
+
+  async getEclosionCache(key: string): Promise<string | null> {
+    const result = await this.pool.query('SELECT html FROM ageha_eclosion_cache WHERE key = $1', [
+      key,
+    ])
+    const row = result.rows[0]
+    return row ? String(row.html) : null
+  }
+
+  async putEclosionCache(key: string, html: string): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO ageha_eclosion_cache (key, html, updated_at) VALUES ($1, $2, $3)
+       ON CONFLICT (key) DO UPDATE SET html = $2, updated_at = $3`,
+      [key, html, new Date().toISOString()],
+    )
+  }
+
+  async acquireEclosionLock(key: string, holder: string, ttlMs: number): Promise<boolean> {
+    // 等价 Redis SET NX PX：仅当无锁或已过期时写入（$4 = 当前时刻，过期判定）。
+    const result = await this.pool.query(
+      `INSERT INTO ageha_eclosion_locks (key, holder, expires_at) VALUES ($1, $2, $3)
+       ON CONFLICT (key) DO UPDATE SET holder = $2, expires_at = $3
+       WHERE ageha_eclosion_locks.expires_at <= $4
+       RETURNING holder`,
+      [key, holder, new Date(Date.now() + ttlMs).toISOString(), new Date().toISOString()],
+    )
+    return (result.rowCount ?? 0) > 0 && result.rows[0]?.holder === holder
+  }
+
+  async releaseEclosionLock(key: string, holder: string): Promise<void> {
+    await this.pool.query('DELETE FROM ageha_eclosion_locks WHERE key = $1 AND holder = $2', [
+      key,
+      holder,
+    ])
   }
 }
 
@@ -274,6 +350,8 @@ function rowToContentSample(row: Record<string, unknown>): ContentSampleRecord {
     text: String(row.text),
     classification: String(row.classification) as ContentSampleRecord['classification'],
     createdAt: new Date(row.created_at as string).toISOString(),
+    ...(row.source === 'eclosion' ? { source: 'eclosion' } : {}),
+    ...(typeof row.detail === 'string' && row.detail !== '' ? { detail: row.detail } : {}),
   }
 }
 

@@ -16,6 +16,14 @@
 export const WEB_APP_ENTRY_PREFIX = '/apps/sites/'
 
 /**
+ * 羽化运行时的唯一合法 entry（AI-GENERATED-APPS-DESIGN §3.2）：羽化宿主
+ * （EclosionAppFrame）只接受这一个精确值。它**不在** `/apps/sites/` allowlist 内，
+ * 两套判定互不放宽；缓存破围的 `?v=` 查询参数由宿主在渲染 iframe 时追加，
+ * 不属于 Manifest entry 的一部分。
+ */
+export const ECLOSION_RUNNER_ENTRY = '/apps/runtime/eclosion.html'
+
+/**
  * sandbox 属性：允许脚本但保持不透明 origin。
  * 绝不添加 `allow-same-origin` / `allow-top-navigation` / `allow-popups`。
  */
@@ -35,6 +43,14 @@ export function isAllowedWebAppEntry(entry: string): boolean {
   if (!entry.endsWith('.html')) return false
   const segments = entry.slice(WEB_APP_ENTRY_PREFIX.length).split('/')
   return segments.every((segment) => segment !== '' && segment !== '.' && segment !== '..')
+}
+
+/**
+ * 羽化宿主 entry 判定（§3.2）：只接受与 ECLOSION_RUNNER_ENTRY **精确相等** 的值——
+ * 不做前缀匹配、不接受查询串/穿越变体，防止 `…/eclosion.html/../x.html` 类构造。
+ */
+export function isEclosionRunnerEntry(entry: string): boolean {
+  return entry === ECLOSION_RUNNER_ENTRY
 }
 
 /** 宿主 → 应用的握手消息（冻结常量，直接 postMessage）。 */

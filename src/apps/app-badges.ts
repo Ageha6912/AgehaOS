@@ -76,7 +76,7 @@ export const BADGE_GLYPHS: readonly ComponentType<IconProps>[] = [
   NotePencil,
 ]
 
-/** 精选徽章：内置 7 应用 + 商店样本 5 应用。 */
+/** 精选徽章：内置 7 应用 + 羽化 L1 三件套 + 商店样本 5 应用。 */
 export const APP_BADGES: Record<string, AppBadge> = {
   'com.ageha.files': { from: '#3b6cf6', to: '#1d43b8', glyph: FolderOpen },
   'com.ageha.notes': { from: '#8b6cf2', to: '#5a3ed0', glyph: NotePencil },
@@ -85,6 +85,11 @@ export const APP_BADGES: Record<string, AppBadge> = {
   'com.ageha.calculator': { from: '#6d75f8', to: '#4338ca', glyph: Calculator },
   'com.ageha.dynamic.panel': { from: '#1fb8a6', to: '#0f766e', glyph: Newspaper },
   'com.ageha.terminal': { from: '#3a4761', to: '#1c2434', glyph: TerminalWindow },
+  // 羽化三件套（AI-GENERATED-APPS-DESIGN §5.2）：字形与原生对应应用一致
+  // （同一应用、另一形态），配色换冷色青蓝族以示「AI 生成版」。
+  'com.ageha.eclosion.calculator': { from: '#38bdf8', to: '#1d4ed8', glyph: Calculator },
+  'com.ageha.eclosion.notes': { from: '#22d3ee', to: '#0e7490', glyph: NotePencil },
+  'com.ageha.eclosion.clock': { from: '#818cf8', to: '#312e81', glyph: Clock },
   'com.ageha.samples.clock': { from: '#22d3ee', to: '#0e7490', glyph: Clock },
   'com.ageha.samples.sketch': { from: '#c084fc', to: '#7e22ce', glyph: PaintBrush },
   'com.ageha.samples.sticky': { from: '#818cf8', to: '#3730a3', glyph: NotePencil },
@@ -113,4 +118,49 @@ export function badgeForAppId(appId: string): AppBadge {
   const palette = BADGE_PALETTES[hash % BADGE_PALETTES.length]
   const glyph = BADGE_GLYPHS[Math.floor(hash / BADGE_PALETTES.length) % BADGE_GLYPHS.length]
   return { ...palette, glyph }
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex)
+  if (!match) return null
+  const int = Number.parseInt(match[1] as string, 16)
+  return { r: (int >> 16) & 0xff, g: (int >> 8) & 0xff, b: int & 0xff }
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const hp = (((h % 360) + 360) % 360) / 60
+  const x = c * (1 - Math.abs((hp % 2) - 1))
+  const [r1, g1, b1] =
+    hp < 1 ? [c, x, 0] : hp < 2 ? [x, c, 0] : hp < 3 ? [0, c, x] : hp < 4 ? [0, x, c] : hp < 5 ? [x, 0, c] : [c, 0, x]
+  const m = l - c / 2
+  const toHex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, '0')
+  return `#${toHex(r1)}${toHex(g1)}${toHex(b1)}`
+}
+
+function hueRotateHex(hex: string, hue: number): string {
+  const rgb = hexToRgb(hex)
+  if (rgb === null) return hex
+  const { r, g, b } = rgb
+  const max = Math.max(r, g, b) / 255
+  const min = Math.min(r, g, b) / 255
+  const l = (max + min) / 2
+  if (max === min) return hex
+  const delta = max - min
+  const s = delta / (1 - Math.abs(2 * l - 1))
+  return hslToHex(hue, s, l)
+}
+
+/**
+ * 世界行 hue 着色徽章（AI-GENERATED-APPS-DESIGN §6.4）：沿用确定性徽章体系
+ *（字形/明度差保持），只把渐变双 stop 的色相旋转到世界行 hue——不做 AI 生图。
+ */
+export function badgeForAppIdWithHue(appId: string, hue: number | undefined): AppBadge {
+  const badge = badgeForAppId(appId)
+  if (hue === undefined) return badge
+  return {
+    from: hueRotateHex(badge.from, hue),
+    to: hueRotateHex(badge.to, hue),
+    glyph: badge.glyph,
+  }
 }

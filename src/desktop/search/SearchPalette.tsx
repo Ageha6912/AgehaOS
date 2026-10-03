@@ -5,9 +5,12 @@ import { File } from '@phosphor-icons/react'
 import { AppIcon } from '@/apps/app-icon'
 import { launchApp } from '@/apps/launch'
 import { componentFor } from '@/apps/builtin'
-import { useTranslation } from '@/core/i18n'
+import { formatMessage, useTranslation } from '@/core/i18n'
+import { filterContentText } from '@/core/dynamic/content/filter'
+import { systemEclosion } from '@/services/eclosion'
 import { systemVfs } from '@/services/vfs'
 import { useAppStore } from '@/store/app-store'
+import { useEclosionStore } from '@/store/eclosion-store'
 import { useSearchStore } from '@/store/search-store'
 import type { VfsSearchResult } from '@/core/filesystem'
 
@@ -17,9 +20,14 @@ import { usePopoverDismiss } from '@/components/use-popover-dismiss'
 import { limitFiles, rankApps } from './search'
 
 /**
- * 全局搜索面板（PRD §15，Ctrl+K）：应用 + 文件两域，键盘导航
- * （↑↓ 选择、Enter 打开、Esc 关闭）。文件结果现阶段经 Files 应用打开——
- * 「携带文件参数启动应用」（§24.3）依赖 launch 参数化，属后续工作。
+ * 全局搜索面板（PRD §15，Ctrl+K）：应用 + 文件两域 + 想象域（羽化 P3，
+ * AI-GENERATED-APPS-DESIGN §7——恒排两域之后），键盘导航（↑↓ 选择、Enter
+ * 打开/生成、Esc 关闭）。文件结果现阶段经 Files 应用打开——「携带文件参数
+ * 启动应用」（§24.3）依赖 launch 参数化，属后续工作。
+ *
+ * 想象域门控（§7 双端过滤的客户端半场）：输入 trim ≥2 字、羽化模式开启、
+ * filterContentText 非违规（违规直接不显示想象项）；服务端 classifier 是
+ * 第二道闸。Enter/点击走生成而非 launchApp。
  */
 
 export function SearchPalette() {
@@ -27,6 +35,7 @@ export function SearchPalette() {
   const open = useSearchStore((s) => s.open)
   const close = useSearchStore((s) => s.close)
   const apps = useAppStore((s) => s.apps)
+  const eclosionEnabled = useEclosionStore((s) => s.enabled)
 
   const phase = useExitPhase(open)
   const [query, setQuery] = useState('')
@@ -72,7 +81,11 @@ export function SearchPalette() {
 
   if (!phase.render) return null
 
-  const total = appHits.length + fileHits.length
+  const trimmed = query.trim()
+  // 想象域（§7）：恒排应用/文件之后；门控 = 羽化开 + ≥2 字 + 客户端过滤通过。
+  const imagineVisible =
+    eclosionEnabled && trimmed.length >= 2 && filterContentText(trimmed).ok
+  const total = appHits.length + fileHits.length + (imagineVisible ? 1 : 0)
   const openApp = (appId: string): void => {
     launchApp(appId)
     close()
@@ -82,12 +95,21 @@ export function SearchPalette() {
     launchApp('com.ageha.files')
     close()
   }
+  const generateImagine = (): void => {
+    // §7：Enter/点击即生成——开窗（ensureImagineSession 内部建会话/注册清单）
+    // 并按需流式生成；门禁不过时静默无果（不阻塞桌面，AI 铁律）。
+    const appId = systemEclosion.ensureImagineSession(trimmed)
+    if (appId !== null) launchApp(appId)
+    close()
+  }
   const openActive = (): void => {
     if (active < appHits.length) {
       const hit = appHits[active]
       if (hit) openApp(hit.id)
-    } else if (fileHits.length > 0) {
-      openFile()
+    } else if (active < appHits.length + fileHits.length) {
+      if (fileHits.length > 0) openFile()
+    } else if (imagineVisible) {
+      generateImagine()
     }
   }
 
@@ -193,6 +215,36 @@ export function SearchPalette() {
               )
             })}
           </ul>
+
+          {/* 想象域（§7）：恒排最后；形如「✦ 想象一个「<query>」应用」。 */}
+          {imagineVisible && (
+            <>
+              <p className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+                {t('search.imagine')}
+              </p>
+              <ul>
+                <li>
+                  <button
+                    type="button"
+                    data-testid="search-result-imagine"
+                    aria-label={formatMessage(t('search.imagineItem'), { query: trimmed })}
+                    className={`flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm ${
+                      total - 1 === active ? 'bg-primary/10 text-text' : 'text-text-muted hover:bg-surface-raised hover:text-text'
+                    }`}
+                    onMouseEnter={() => setActive(total - 1)}
+                    onClick={generateImagine}
+                  >
+                    <span aria-hidden="true" className="text-primary">
+                      ✦
+                    </span>
+                    <span className="min-w-0 truncate">
+                      {formatMessage(t('search.imagineItem'), { query: trimmed })}
+                    </span>
+                  </button>
+                </li>
+              </ul>
+            </>
+          )}
         </div>
 
         <p className="mt-2 border-t border-border px-2 pt-2 text-[11px] text-text-muted">

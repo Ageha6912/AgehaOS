@@ -28,6 +28,19 @@ describe('SettingsApp', () => {
     }
   })
 
+  it('registers the eclosion section and opens it (三处登记)', () => {
+    render(<SettingsApp />)
+
+    // 侧栏分区入口（本地认证下也在场，开关置灰但分区可看）。
+    fireEvent.click(screen.getByRole('button', { name: '羽化' }))
+    expect(screen.getByRole('region', { name: '羽化' })).toBeInTheDocument()
+    // 本地认证：总开关置灰 + 原因提示（§9.3 准入）。
+    expect(screen.getByTestId('eclosion-enable-toggle')).toBeDisabled()
+    expect(screen.getByText(/本地认证下始终使用原生应用/)).toBeInTheDocument()
+    // 三件套生成方式子开关同样置灰（总开关未开）。
+    expect(screen.getByTestId('eclosion-mode-calculator-toggle')).toBeDisabled()
+  })
+
   it('switches the theme via the appearance options', () => {
     render(<SettingsApp />)
 
@@ -88,10 +101,14 @@ describe('SettingsApp', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /权限/ }))
 
-    expect(screen.getByText('Notes')).toBeInTheDocument()
-    expect(screen.getByText('Files')).toBeInTheDocument()
-    expect(screen.getByText('使用本地存储')).toBeInTheDocument()
+    // 展示名本地化（原生与羽化记事本同名共存，各占一行）。
+    expect(screen.getAllByText('记事').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('文件').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('使用本地存储').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('读取文件、写入文件、使用本地存储')).toBeInTheDocument()
+    // 羽化三件套也在此列（grantAll 静默授权，规格即权限面）。
+    expect(screen.getByText('时钟')).toBeInTheDocument()
+    expect(screen.getByText('读取文件、写入文件')).toBeInTheDocument()
   })
 
   it('shows the about section with the version', () => {

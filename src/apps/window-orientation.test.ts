@@ -6,10 +6,15 @@ import { BUILTIN_APP_MANIFESTS } from './builtin-manifests'
 
 /**
  * §30 应用默认窗口横版裁决（2026-10-01 用户「软件默认不要竖版排版」）：
- * 内置应用默认窗口一律宽 > 高；唯一豁免 = 计算器（手持计算器物理隐喻，
- * resizable: false 固定 300×440）。
+ * 内置应用默认窗口一律宽 > 高；豁免 = 计算器（手持计算器物理隐喻，
+ * resizable: false 固定 300×440）与其羽化版（同规格 300×440，设计 §5.2），
+ * 以及羽化时钟（420×560 三 tab 竖版，设计 §5.2 表格钉死）。
  */
-const PORTRAIT_EXEMPT_IDS = new Set(['com.ageha.calculator'])
+const PORTRAIT_EXEMPT_IDS = new Set([
+  'com.ageha.calculator',
+  'com.ageha.eclosion.calculator',
+  'com.ageha.eclosion.clock',
+])
 
 function portraitIds(entries: readonly unknown[]): string[] {
   return entries

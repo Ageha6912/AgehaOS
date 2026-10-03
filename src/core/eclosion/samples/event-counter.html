@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>心情计数器</title>
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--ageha-surface, #f7f9fc); color: var(--ageha-text, #1c2430); display: grid; place-items: center; min-height: 100vh; }
+  .card { background: var(--ageha-panel, #ffffff); border-radius: 14px; padding: 20px 24px; box-shadow: 0 6px 24px rgba(20,30,50,.08); width: 280px; }
+  h1 { font-size: 16px; margin: 0 0 12px; }
+  output { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; display: block; text-align: center; margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; }
+  button { flex: 1; padding: 8px 0; border: 1px solid rgba(20,30,50,.15); background: var(--ageha-accent, #3b82f6); color: #fff; border-radius: 8px; font-size: 13px; cursor: pointer; }
+  button.secondary { background: transparent; color: inherit; }
+  .note { margin-top: 12px; font-size: 12px; opacity: .7; min-height: 1em; }
+  input { width: 100%; box-sizing: border-box; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(20,30,50,.2); margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<section class="card" aria-label="心情计数器">
+  <h1>今日心情</h1>
+  <input id="label" type="text" placeholder="给这一刻起个名字" value="平静" aria-label="时刻名称" />
+  <output id="count" aria-live="polite">0</output>
+  <div class="row">
+    <button type="button" id="inc">＋1</button>
+    <button type="button" id="dec" class="secondary">－1</button>
+    <button type="button" id="reset" class="secondary">归零</button>
+  </div>
+  <p class="note" id="note"></p>
+</section>
+<script>
+(function () {
+  'use strict'
+  var count = 0
+  var countEl = document.getElementById('count')
+  var noteEl = document.getElementById('note')
+  var labelEl = document.getElementById('label')
+
+  window.__counterBooted = true
+
+  function render(why) {
+    countEl.textContent = String(count)
+    noteEl.textContent = why + '：「' + labelEl.value + '」→ ' + count
+  }
+
+  document.getElementById('inc').addEventListener('click', function () { count += 1; render('加一') })
+  document.getElementById('dec').addEventListener('click', function () { count -= 1; render('减一') })
+  document.getElementById('reset').addEventListener('click', function () { count = 0; render('归零') })
+  labelEl.addEventListener('input', function () { render('改名') })
+
+  render('启动')
+})()
+</script>
+</body>
+</html>

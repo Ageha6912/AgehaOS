@@ -2,7 +2,7 @@ import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
-import type { FastifyError, FastifyInstance, FastifyLoggerOptions } from 'fastify'
+import type { FastifyBaseLogger, FastifyError, FastifyInstance, FastifyLoggerOptions } from 'fastify'
 
 import { loadConfig } from './config'
 import type { ServerConfig } from './config'
@@ -10,9 +10,12 @@ import { originCheck } from './plugins/origin-check'
 import type { RedisLike } from './rate-limit-redis'
 import { aiRoutes } from './routes/ai'
 import { authRoutes } from './routes/auth'
+import { eclosionRoutes } from './routes/eclosion'
 import { sampleRoutes } from './routes/samples'
 import { storeRoutes } from './routes/store'
 import { syncRoutes } from './routes/sync'
+import { startWorldScheduler, type WorldSchedulerHandle } from './eclosion/scheduler'
+import { GitHubTrendingRssSource, createTrendingService, type TrendingSource } from './eclosion/trending'
 import { loadOrCreateSigningKey } from './store-keys'
 import { createStore } from './store'
 import type { DataStore } from './store'
@@ -26,8 +29,12 @@ export interface BuildAppOptions {
   signingKey?: Awaited<ReturnType<typeof loadOrCreateSigningKey>>
   /** Fastify logger option; `false` quiets tests, a pino config for prod. */
   logger?: boolean | FastifyLoggerOptions
+  /** Fastify loggerInstance 直通（测试注入 pino 实例捕获审计日志）。 */
+  loggerInstance?: FastifyBaseLogger
   /** 测试注入：共享限流的 Redis 客户端（缺省按 config.redisUrl 动态 import ioredis）。 */
   redis?: RedisLike
+  /** 测试注入的热点源（今日世界生成；缺省 GitHub Trending RSS，绝不真联网于测试）。 */
+  eclosionTrending?: TrendingSource
 }
 
 /**
@@ -59,9 +66,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     ...options.config,
     rateLimit: { ...base.rateLimit, ...options.config?.rateLimit },
     ai: { ...base.ai, ...options.config?.ai },
+    eclosion: { ...base.eclosion, ...options.config?.eclosion },
   }
 
-  const app = Fastify({ logger: options.logger ?? false, trustProxy: true })
+  const app = Fastify({
+    logger: options.loggerInstance === undefined ? (options.logger ?? false) : undefined,
+    loggerInstance: options.loggerInstance,
+    trustProxy: true,
+  })
 
   await app.register(helmet)
   await app.register(cookie)
@@ -78,7 +90,18 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   const store = options.store ?? createStore(config)
   await store.init()
+  // 今日世界热点源服务（§6.1）：内存 + DataStore 双层缓存；测试注入 fake source。
+  const trending = createTrendingService({
+    store,
+    source:
+      options.eclosionTrending ??
+      new GitHubTrendingRssSource(config.eclosion.trendingUrl, config.eclosion.trendingTimeoutMs),
+    ttlMs: config.eclosion.trendingTtlMs,
+  })
+  // 今日世界定时生成句柄（§9.2：见下方装配；onClose 统一清理）。
+  let worldScheduler: WorldSchedulerHandle | null = null
   app.addHook('onClose', async () => {
+    worldScheduler?.stop()
     await store.close()
   })
 
@@ -111,6 +134,17 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
   await app.register(syncRoutes, { prefix: '/api', store })
 
+  // 羽化模式生成管线（AI-GENERATED-APPS-DESIGN §5.3/§6/§9）：SSE 流式 + 结构闸
+  // + 额度/限流/全局缓存；GET /world 全局按日 + 个人重生成；AGEHA_ECLOSION_*
+  // 回退 AGEHA_AI_*，Key 永不出服务端。
+  await app.register(eclosionRoutes, {
+    prefix: '/api',
+    store,
+    eclosion: config.eclosion,
+    trending,
+    rateLimitWindowMs: config.rateLimit.windowMs,
+  })
+
   // 举报样本上传（DDS §8.6）：匿名上报 + 服务端分类器，复审清单仅 admin。
   await app.register(sampleRoutes, {
     prefix: '/api',
@@ -132,6 +166,19 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       await store.updateUser({ ...admin, role: 'admin' })
       app.log.info({ audit: 'admin.promote', userId: admin.id }, 'admin role granted at boot')
     }
+  }
+
+  // 今日世界定时生成（§9.2 触发表第一行）：服务端首个进程内定时器——启动检查
+  // 一次（不阻塞启动）+ 每 interval 查 UTC 日跨日即生成；unref 不阻塞退出，
+  // onClose 清理；与 GET /world 懒触发共用 DataStore 单飞锁（多实例安全）。
+  if (config.eclosion.worldSchedulerEnabled) {
+    worldScheduler = startWorldScheduler({
+      store,
+      eclosion: config.eclosion,
+      trending,
+      logger: app.log,
+      intervalMs: config.eclosion.worldSchedulerIntervalMs,
+    })
   }
 
   return app

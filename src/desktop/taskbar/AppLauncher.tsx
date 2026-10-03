@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import {
+  BookmarkSimple,
   Briefcase,
   CaretRight,
   ClockCounterClockwise,
@@ -9,8 +10,10 @@ import {
   GearSix,
   MagnifyingGlass,
   Code,
+  Sparkle,
   SquaresFour,
   Wrench,
+  X,
 } from '@phosphor-icons/react'
 
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
@@ -18,14 +21,16 @@ import { usePopoverDismiss } from '@/components/use-popover-dismiss'
 import { shortcutLabel } from '@/core/platform'
 
 import { AppIcon } from '@/apps/app-icon'
-import { componentFor } from '@/apps/builtin'
-import { launchApp } from '@/apps/launch'
+import { appDisplayName, launchApp } from '@/apps/launch'
 import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { pruneLayoutSuggestion } from '@/core/dynamic/layout/engine'
 import { useAppStore } from '@/store/app-store'
 import { useUsageStore } from '@/store/usage-store'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
+import { useEclosionStore } from '@/store/eclosion-store'
+import { systemEclosion } from '@/services/eclosion'
+import { filterLauncherAppIds } from './launcher-visibility'
 
 /**
  * 启动器（docs/DESIGN.md §22 + §32 参考图对齐）：左侧锚定（贴左栏、Dock
@@ -33,12 +38,29 @@ import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
  * 空最近回落全部应用）+ 右侧 4 列应用网格 + 推荐列表（最近使用驱动）。
  * 搜索跨全应用；Esc 关闭并回焦（§24）。采纳的布局建议改为排序 + 宽度档，
  * 重置入口在分类轨底部。
+ *
+ * 羽化动态分组（AI-GENERATED-APPS-DESIGN §6.4/§8，2026-10-02 落位裁决：
+ * 桌面图标区已移除 → 启动器承载）：「今日」= 当日世界清单（世界行 hue 着色
+ * 徽章，点击开窗即按需生成）；「我的羽化」=「获取」留存快照（跨重启可用，
+ * 可卸载）。
  */
 
-type CategoryId = 'recent' | 'system' | 'dev' | 'office' | 'fun' | 'tools' | 'settings'
+type CategoryId =
+  | 'recent'
+  | 'today'
+  | 'eclosion-kept'
+  | 'system'
+  | 'dev'
+  | 'office'
+  | 'fun'
+  | 'tools'
+  | 'settings'
 
 /** 分类成员（静态映射，纯展示过滤；交集成员可归属多分类）。 */
-const CATEGORY_MEMBERS: Record<Exclude<CategoryId, 'recent'>, readonly string[]> = {
+const CATEGORY_MEMBERS: Record<
+  Exclude<CategoryId, 'recent' | 'today' | 'eclosion-kept'>,
+  readonly string[]
+> = {
   system: ['com.ageha.files', 'com.ageha.store', 'com.ageha.settings', 'com.ageha.dynamic.panel'],
   dev: ['com.ageha.terminal'],
   office: ['com.ageha.notes', 'com.ageha.files'],
@@ -50,7 +72,16 @@ const CATEGORY_MEMBERS: Record<Exclude<CategoryId, 'recent'>, readonly string[]>
     'com.ageha.samples.sketch',
     'com.ageha.samples.clock',
   ],
-  tools: ['com.ageha.calculator', 'com.ageha.terminal', 'com.ageha.samples.sticky', 'com.ageha.samples.clock'],
+  tools: [
+    'com.ageha.calculator',
+    'com.ageha.terminal',
+    'com.ageha.samples.sticky',
+    'com.ageha.samples.clock',
+    // 羽化三件套（开关开且该应用为羽化版时才可见）。
+    'com.ageha.eclosion.calculator',
+    'com.ageha.eclosion.notes',
+    'com.ageha.eclosion.clock',
+  ],
   settings: ['com.ageha.settings'],
 }
 
@@ -92,7 +123,36 @@ export function AppLauncher() {
   useEffect(() => {
     if (open) searchRef.current?.focus()
   }, [open])
-  const apps = useAppStore((s) => s.apps)
+  const installedApps = useAppStore((s) => s.apps)
+  const eclosionEnabled = useEclosionStore((s) => s.enabled)
+  const eclosionModes = useEclosionStore((s) => s.modes)
+  const world = useEclosionStore((s) => s.world)
+  const keptAppIds = useEclosionStore((s) => s.keptAppIds)
+  // 羽化呈现过滤（§2.1）：开关关 → 三件套隐藏（仅原生）；开且该应用选
+  // 「羽化版」→ 三件套接管 calculator/notes 入口。渲染层过滤，不动注册表。
+  const visibleAppIds = new Set(
+    filterLauncherAppIds(installedApps.map((app) => app.id), {
+      enabled: eclosionEnabled,
+      modes: eclosionModes,
+    }),
+  )
+  const apps = installedApps.filter((app) => visibleAppIds.has(app.id))
+  // 今日世界行 hue → 瓦片徽章着色（§6.4：确定性徽章体系 + 色相旋转）。
+  const worldHueByAppId = new Map<string, number>()
+  if (world !== null) {
+    for (const app of world.apps) {
+      worldHueByAppId.set(`com.ageha.eclosion.${app.slug}`, app.hue)
+    }
+  }
+  /** 分类成员：静态映射 + 动态域（今日世界清单 / 「获取」留存）。 */
+  const categoryMembers = (id: CategoryId): readonly string[] => {
+    if (id === 'today') {
+      return world !== null ? world.apps.map((app) => `com.ageha.eclosion.${app.slug}`) : []
+    }
+    if (id === 'eclosion-kept') return keptAppIds
+    if (id === 'recent') return [] // recent 分支在 gridAppIds 上层处理，不会走到
+    return CATEGORY_MEMBERS[id]
+  }
   const appliedLayout = useDynamicDesktopStore((s) => s.appliedLayout)
   const resetAppliedLayout = useDynamicDesktopStore((s) => s.resetAppliedLayout)
   const recent = useUsageStore((s) => s.recent)
@@ -111,10 +171,7 @@ export function AppLauncher() {
   const needle = query.trim().toLowerCase()
   const matches = (appId: string): boolean => {
     if (!needle) return true
-    const meta = componentFor(appId)
-    const app = useAppStore.getState().apps.find((candidate) => candidate.id === appId)
-    const name = meta ? t(meta.titleKey) : (app?.name ?? appId)
-    return name.toLowerCase().includes(needle)
+    return appDisplayName(appId).toLowerCase().includes(needle)
   }
 
   // 采纳的布局裁剪到当前仍安装的成员（卸载/重装后不出现幽灵条目）。
@@ -134,7 +191,7 @@ export function AppLauncher() {
       ? layoutOrder.filter(matches)
       : category === 'recent'
         ? [...recentIds, ...layoutOrder.filter((id) => !recentIds.includes(id))].filter(matches)
-        : layoutOrder.filter((id) => CATEGORY_MEMBERS[category].includes(id) && matches(id))
+        : layoutOrder.filter((id) => categoryMembers(category).includes(id) && matches(id))
 
   // 推荐行：最近使用优先（排除当前网格已展示的前排），不足补布局建议。
   const recommendationIds = (() => {
@@ -177,12 +234,14 @@ export function AppLauncher() {
       {(
         [
           { id: 'recent', labelKey: 'launcher.cat.recent', icon: ClockCounterClockwise },
+          { id: 'today', labelKey: 'launcher.cat.today', icon: Sparkle },
           { id: 'system', labelKey: 'launcher.cat.system', icon: SquaresFour },
           { id: 'dev', labelKey: 'launcher.cat.dev', icon: Code },
           { id: 'office', labelKey: 'launcher.cat.office', icon: Briefcase },
           { id: 'fun', labelKey: 'launcher.cat.fun', icon: GameController },
           { id: 'tools', labelKey: 'launcher.cat.tools', icon: Wrench },
           { id: 'settings', labelKey: 'launcher.cat.settings', icon: GearSix },
+          { id: 'eclosion-kept', labelKey: 'launcher.cat.kept', icon: BookmarkSimple },
         ] as Array<{ id: CategoryId; labelKey: MessageKey; icon: typeof Code }>
       ).map(({ id, labelKey, icon: Icon }) => (
         <li key={id}>
@@ -276,7 +335,14 @@ export function AppLauncher() {
                       <LauncherTile
                         key={appId}
                         appId={appId}
+                        hue={worldHueByAppId.get(appId)}
                         onLaunch={launch}
+                        removable={category === 'eclosion-kept'}
+                        onRemove={
+                          category === 'eclosion-kept'
+                            ? (id) => void systemEclosion.unkeepApp(id)
+                            : undefined
+                        }
                         testId={
                           category === 'recent' &&
                           recentApps.some((app) => app.id === appId)
@@ -308,23 +374,31 @@ export function AppLauncher() {
   )
 }
 
-/** 图标瓦片（§22/§32 参考图 4 列网格）：AppIcon 44 + 11px 标签，点击启动。 */
+/** 图标瓦片（§22/§32 参考图 4 列网格）：AppIcon 44 + 11px 标签，点击启动。
+ *  今日应用带世界行 hue 着色；「我的羽化」瓦片提供悬停卸载（§8 可卸载）。 */
 function LauncherTile({
   appId,
+  hue,
   onLaunch,
+  removable,
+  onRemove,
   testId,
 }: {
   appId: string
+  /** 世界行色相（今日应用；缺省确定性徽章）。 */
+  hue?: number
   onLaunch: (appId: string) => void
+  /** 「我的羽化」分组的卸载入口。 */
+  removable?: boolean
+  onRemove?: (appId: string) => void
   testId?: string
 }) {
   const { t } = useTranslation()
   const app = useAppStore((s) => s.apps.find((candidate) => candidate.id === appId))
   if (!app) return null
-  const meta = componentFor(app.id)
-  const name = meta ? t(meta.titleKey) : app.name
+  const name = appDisplayName(app.id)
   return (
-    <li>
+    <li className="group relative">
       <button
         type="button"
         title={name}
@@ -332,9 +406,21 @@ function LauncherTile({
         className="flex flex-col items-center gap-1.5 rounded-xl px-1 py-2.5 text-center hover:bg-surface-raised"
         onClick={() => onLaunch(app.id)}
       >
-        <AppIcon appId={app.id} size={44} />
+        <AppIcon appId={app.id} size={44} hue={hue} />
         <span className="w-full truncate text-[11px] text-text">{name}</span>
       </button>
+      {removable && onRemove !== undefined && (
+        <button
+          type="button"
+          data-testid={`launcher-unkeep-${appId}`}
+          aria-label={`${t('launcher.unkeep')} · ${name}`}
+          title={t('launcher.unkeep')}
+          className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-border-subtle bg-surface-raised text-text-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+          onClick={() => onRemove(app.id)}
+        >
+          <X size={10} weight="bold" aria-hidden="true" />
+        </button>
+      )}
     </li>
   )
 }
@@ -344,8 +430,7 @@ function RecommendRow({ appId, onLaunch }: { appId: string; onLaunch: (appId: st
   const { t } = useTranslation()
   const app = useAppStore((s) => s.apps.find((candidate) => candidate.id === appId))
   if (!app) return null
-  const meta = componentFor(app.id)
-  const name = meta ? t(meta.titleKey) : app.name
+  const name = appDisplayName(app.id)
   return (
     <li>
       <button

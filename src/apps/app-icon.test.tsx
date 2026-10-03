@@ -47,4 +47,14 @@ describe('AppIcon', () => {
     const tile2 = second.container.firstElementChild as HTMLElement
     expect(tile2.style.backgroundImage).toBe(tile.style.backgroundImage)
   })
+  it('tints the badge to the world hue when one is provided (§6.4)', () => {
+    const plain = render(<AppIcon appId="com.ageha.eclosion.edge-oracle" size={20} />)
+    const tinted = render(
+      <AppIcon appId="com.ageha.eclosion.edge-oracle" size={20} hue={268} />,
+    )
+    const plainTile = plain.container.firstElementChild as HTMLElement
+    const tintedTile = tinted.container.firstElementChild as HTMLElement
+    expect(tintedTile.style.backgroundImage).not.toBe(plainTile.style.backgroundImage)
+    expect(tintedTile.style.backgroundImage).toContain('linear-gradient')
+  })
 })

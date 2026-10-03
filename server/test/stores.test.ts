@@ -93,11 +93,23 @@ async function expectStoreBehavior(store: DataStore): Promise<void> {
     classification: 'misleading',
     createdAt: '2026-09-28T00:00:02.000Z',
   })
+  // 羽化举报（P4 §10）：source/detail 可选字段随记录往返。
+  await store.createContentSample({
+    id: 's3',
+    text: '时钟 · 显示时间 · 时钟',
+    classification: 'ok',
+    createdAt: '2026-10-03T00:00:00.000Z',
+    source: 'eclosion',
+    detail: '<!doctype html><html><body>clock</body></html>',
+  })
   const samples = await store.listContentSamples()
-  expect(samples.map((sample) => sample.id)).toEqual(['s2', 's1'])
+  expect(samples.map((sample) => sample.id)).toEqual(['s3', 's2', 's1'])
+  expect(samples[0]).toMatchObject({ source: 'eclosion', detail: '<!doctype html><html><body>clock</body></html>' })
+  expect(samples[1]).not.toHaveProperty('source')
+  expect(samples[1]).not.toHaveProperty('detail')
   // 复审处置：删除已复核样本；未知 id 返回 false。
   expect(await store.deleteContentSample('s2')).toBe(true)
-  expect((await store.listContentSamples()).map((sample) => sample.id)).toEqual(['s1'])
+  expect((await store.listContentSamples()).map((sample) => sample.id)).toEqual(['s3', 's1'])
   expect(await store.deleteContentSample('ghost')).toBe(false)
 
   await store.close()
@@ -158,18 +170,33 @@ describe('FileDataStore', () => {
       classification: 'ok',
       createdAt: '2026-09-28T00:00:01.000Z',
     })
+    // P4（§10）：羽化举报样本带来源与摘要——序列化守卫下往返不丢可选字段。
+    await first.createContentSample({
+      id: 's3',
+      text: '时钟 · 显示时间',
+      classification: 'ok',
+      createdAt: '2026-10-03T00:00:00.000Z',
+      source: 'eclosion',
+      detail: '<!doctype html><html><body>clock</body></html>',
+    })
     await first.close()
 
     const second = new FileDataStore(filePath)
     await second.init()
-    expect((await second.listContentSamples()).map((sample) => sample.id)).toEqual(['s2', 's1'])
+    const reloaded = await second.listContentSamples()
+    expect(reloaded.map((sample) => sample.id)).toEqual(['s3', 's2', 's1'])
+    expect(reloaded[0]).toMatchObject({
+      source: 'eclosion',
+      detail: '<!doctype html><html><body>clock</body></html>',
+    })
+    expect(reloaded[1]).not.toHaveProperty('source')
     // 删除持久化：第三个实例确认 s2 已消失。
     expect(await second.deleteContentSample('s2')).toBe(true)
     await second.close()
 
     const third = new FileDataStore(filePath)
     await third.init()
-    expect((await third.listContentSamples()).map((sample) => sample.id)).toEqual(['s1'])
+    expect((await third.listContentSamples()).map((sample) => sample.id)).toEqual(['s3', 's1'])
     await third.close()
   })
 
@@ -279,7 +306,7 @@ describe('PostgresDataStore', () => {
     const store = new PostgresDataStore(pool)
     await store.init()
     const initTexts = pool.queries.map((query) => query.text)
-    expect(initTexts).toHaveLength(15)
+    expect(initTexts).toHaveLength(20)
     expect(
       initTexts.every(
         (text) =>
@@ -297,6 +324,17 @@ describe('PostgresDataStore', () => {
     expect(initTexts.some((text) => text.includes('ageha_app_catalog'))).toBe(true)
     // 样本上传切片（DDS §8.6）：匿名样本复审表。
     expect(initTexts.some((text) => text.includes('ageha_content_samples'))).toBe(true)
+    // 羽化 P4 治理（§10）：举报来源/摘要两列——旧表补列幂等迁移（坑 23）。
+    expect(
+      initTexts.some((text) =>
+        text.includes('ALTER TABLE ageha_content_samples ADD COLUMN IF NOT EXISTS source'),
+      ),
+    ).toBe(true)
+    expect(initTexts.some((text) => text.includes('ADD COLUMN IF NOT EXISTS detail'))).toBe(true)
+    // 羽化模式 P1（AI-GENERATED-APPS-DESIGN §9.2/§9.3）：每日计数 / 全局缓存 / 单飞锁。
+    expect(initTexts.some((text) => text.includes('ageha_eclosion_daily'))).toBe(true)
+    expect(initTexts.some((text) => text.includes('ageha_eclosion_cache'))).toBe(true)
+    expect(initTexts.some((text) => text.includes('ageha_eclosion_locks'))).toBe(true)
     await store.close()
     expect(pool.ended).toBe(true)
   })
@@ -462,11 +500,29 @@ describe('PostgresDataStore', () => {
       createdAt: '2026-09-28T00:00:00.000Z',
     })
     expect(pool.queries[0]?.text).toContain('INSERT INTO ageha_content_samples')
-    expect(pool.queries[0]?.values).toEqual(['s1', '参数化写入', 'ok', '2026-09-28T00:00:00.000Z'])
+    expect(pool.queries[0]?.values).toEqual(['s1', '参数化写入', 'ok', '2026-09-28T00:00:00.000Z', null, null])
+    // 羽化举报（P4 §10）：source/detail 参数化落列。
+    await store.createContentSample({
+      id: 's2',
+      text: '时钟 · 显示时间',
+      classification: 'ok',
+      createdAt: '2026-10-03T00:00:00.000Z',
+      source: 'eclosion',
+      detail: '<!doctype html><html><body>clock</body></html>',
+    })
+    expect(pool.queries[2]?.values).toEqual([
+      's2',
+      '时钟 · 显示时间',
+      'ok',
+      '2026-10-03T00:00:00.000Z',
+      'eclosion',
+      '<!doctype html><html><body>clock</body></html>',
+    ])
     // 容量封顶：超出 MAX_CONTENT_SAMPLES 的最旧样本被清除。
-    expect(pool.queries[1]?.text).toContain('DELETE FROM ageha_content_samples')
-    expect(pool.queries[1]?.text).toContain('OFFSET $1')
-    expect(pool.queries[1]?.values).toEqual([MAX_CONTENT_SAMPLES])
+    const capIndex = pool.queries.findIndex((query) => query.text.includes('DELETE FROM ageha_content_samples'))
+    expect(capIndex).toBeGreaterThan(-1)
+    expect(pool.queries[capIndex]?.text).toContain('OFFSET $1')
+    expect(pool.queries[capIndex]?.values).toEqual([MAX_CONTENT_SAMPLES])
 
     const listPool = makeFakePool({
       rows: [
@@ -476,12 +532,23 @@ describe('PostgresDataStore', () => {
           classification: 'misleading',
           created_at: '2026-09-28T00:00:00.000Z',
         },
+        {
+          id: 's2',
+          text: '时钟 · 显示时间',
+          classification: 'ok',
+          created_at: '2026-10-03T00:00:00.000Z',
+          source: 'eclosion',
+          detail: '<!doctype html><html><body>clock</body></html>',
+        },
       ],
     })
     const samples = await new PostgresDataStore(listPool).listContentSamples()
     expect(listPool.queries[0]?.text).toContain('ORDER BY created_at DESC, id')
+    expect(listPool.queries[0]?.text).toContain('source')
+    // 假 pool 不执行 ORDER BY：按注入顺序断言行映射（source/detail 进出对称）。
     expect(samples).toEqual([
       { id: 's1', text: '参数化写入', classification: 'misleading', createdAt: '2026-09-28T00:00:00.000Z' },
+      { id: 's2', text: '时钟 · 显示时间', classification: 'ok', createdAt: '2026-10-03T00:00:00.000Z', source: 'eclosion', detail: '<!doctype html><html><body>clock</body></html>' },
     ])
 
     const deletePool = makeFakePool({ rowCount: 1 })

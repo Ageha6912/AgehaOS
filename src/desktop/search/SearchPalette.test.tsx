@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { registerBuiltinApps, resetAppStore } from '@/store/app-store'
 import { resetSearchStore, useSearchStore } from '@/store/search-store'
@@ -111,5 +111,132 @@ describe('SearchPalette (PRD §15)', () => {
     openPalette()
     fireEvent.keyDown(screen.getByTestId('search-input'), { key: 'Escape' })
     expect(useSearchStore.getState().open).toBe(false)
+  })
+})
+
+// ── 想象域（AI-GENERATED-APPS-DESIGN §7，P3） ───────────────────────────────
+
+import { imagineAppIdForQuery } from '@/core/eclosion/spec'
+import { resetEclosionStore, seedEclosionForTests } from '@/store/eclosion-store'
+import { systemEclosion } from '@/services/eclosion'
+
+const SEARCH_USER = 'u-search'
+
+/** 单例编排器的假传输：/quota 快照 + generate 的 SSE 单文档响应。 */
+function wireSystemEclosion(responses: Array<Response | Error>): Array<Record<string, unknown>> {
+  const calls: Array<Record<string, unknown>> = []
+  const fetcher = vi.fn(async (url: string, init?: RequestInit): Promise<Response> => {
+    if (String(url).endsWith('/quota')) {
+      return new Response(
+        JSON.stringify({
+          configured: true,
+          quotas: {
+            basic: { used: 0, limit: 10 },
+            today: { used: 0, limit: 30 },
+            imagine: { used: 0, limit: 20 },
+          },
+          resetAtIso: '2026-10-03T00:00:00.000Z',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      )
+    }
+    calls.push(init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {})
+    const next = responses.shift()
+    if (next instanceof Error) throw next
+    if (next === undefined) return new Response('{}', { status: 500 })
+    return next
+  })
+  systemEclosion.configureForTests({ fetcher })
+  return calls
+}
+
+const sseDoc = (html: string): Response =>
+  new Response(`event: delta\ndata: ${JSON.stringify({ text: html })}\n\nevent: done\ndata: {}\n\n`, {
+    headers: { 'content-type': 'text/event-stream' },
+  })
+
+describe('SearchPalette 想象域（§7）', () => {
+  beforeEach(() => {
+    resetEclosionStore()
+    seedEclosionForTests(SEARCH_USER, true)
+  })
+
+  it('shows the imagine domain last (apps → files → imagine) once ≥2 chars with eclosion on', async () => {
+    wireSystemEclosion([])
+    render(<SearchPalette />)
+    openPalette()
+
+    // 'notes' 同时命中应用域（com.ageha.notes）与文件域（meeting-notes.txt）。
+    await userEvent.type(screen.getByTestId('search-input'), 'notes')
+    await waitFor(() => expect(screen.getAllByTestId('search-result-file')).toHaveLength(1))
+
+    const item = screen.getByTestId('search-result-imagine')
+    expect(item).toBeInTheDocument()
+    expect(item.textContent).toContain('想象一个「notes」应用')
+    // 域序恒定：应用头 → 文件头 → 想象项（§7 始终排最后）。
+    const appsHeader = screen.getByText('应用')
+    const filesHeader = screen.getByText('文件')
+    expect(appsHeader.compareDocumentPosition(filesHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(filesHeader.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('hides the imagine item for violations and while eclosion is off (客户端过滤半场)', async () => {
+    const calls = wireSystemEclosion([])
+    render(<SearchPalette />)
+    openPalette()
+
+    await userEvent.type(screen.getByTestId('search-input'), '赌博')
+    // 违规词（filterContentText violation）：不显示想象项，也绝无生成请求。
+    expect(screen.queryByTestId('search-result-imagine')).toBeNull()
+
+    await userEvent.clear(screen.getByTestId('search-input'))
+    seedEclosionForTests(SEARCH_USER, false)
+    await userEvent.type(screen.getByTestId('search-input'), '番茄钟')
+    expect(screen.queryByTestId('search-result-imagine')).toBeNull()
+    expect(calls).toHaveLength(0)
+  })
+
+  it('Enter on the imagine item generates (kind=imagine) and opens its window', async () => {
+    const calls = wireSystemEclosion([
+      sseDoc('<!doctype html><html><body><div>imagined</div></body></html>'),
+    ])
+    render(<SearchPalette />)
+    openPalette()
+
+    // 无应用/文件命中：想象项即唯一结果（active=0），Enter 直接生成。
+    await userEvent.type(screen.getByTestId('search-input'), '番茄钟')
+    const item = screen.getByTestId('search-result-imagine')
+    expect(item.className).toContain('bg-primary/10')
+    await userEvent.type(screen.getByTestId('search-input'), '{Enter}')
+
+    expect(useSearchStore.getState().open).toBe(false)
+    await waitFor(() => expect(calls).toHaveLength(1))
+    expect(calls[0]).toMatchObject({ kind: 'imagine', query: '番茄钟' })
+    const windows = useWindowStore.getState().windows
+    expect(windows).toHaveLength(1)
+    expect(windows[0]?.appId).toBe(imagineAppIdForQuery('番茄钟'))
+    expect(windows[0]?.title).toBe('番茄钟')
+  })
+
+  it('arrow keys walk the three segments in order and Enter generates from the imagine row', async () => {
+    const calls = wireSystemEclosion([
+      sseDoc('<!doctype html><html><body><div>imagined</div></body></html>'),
+    ])
+    render(<SearchPalette />)
+    openPalette()
+
+    // 应用域 1 命中 + 想象项：↓ 两次到想象行，Enter 生成而非 launchApp。
+    await userEvent.type(screen.getByTestId('search-input'), '记事')
+    await waitFor(() => expect(screen.getAllByTestId('search-result-app')).toHaveLength(1))
+    const input = screen.getByTestId('search-input')
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(screen.getByTestId('search-result-imagine').className).toContain('bg-primary/10')
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(useSearchStore.getState().open).toBe(false)
+    await waitFor(() => expect(calls).toHaveLength(1))
+    expect(calls[0]).toMatchObject({ kind: 'imagine' })
+    expect(useWindowStore.getState().windows[0]?.appId).toBe(imagineAppIdForQuery('记事'))
   })
 })

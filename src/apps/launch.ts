@@ -1,11 +1,24 @@
 import { systemBus } from '@/core/events'
 import { permissionManager } from '@/core/permissions'
 import { getLocale, translate } from '@/core/i18n'
+import { findEclosionSpecByAppId } from '@/core/eclosion/spec'
 import { getAppManifest } from '@/store/app-store'
 import { useUsageStore } from '@/store/usage-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { componentFor } from './builtin'
+
+/**
+ * 本地化展示名解析（launch 与启动器共用）：内置组件 → APP_UI_META.titleKey；
+ * 羽化应用（不在 APP_UI_META）→ 规格表 titleKey；其余回落 manifest.name。
+ */
+export function appDisplayName(appId: string): string {
+  const meta = componentFor(appId)
+  if (meta) return translate(getLocale(), meta.titleKey)
+  const spec = findEclosionSpecByAppId(appId)
+  if (spec) return translate(getLocale(), spec.titleKey)
+  return getAppManifest(appId)?.name ?? appId
+}
 
 /**
  * Launch flow (PRD §24.2): resolve the manifest from the registry, verify
@@ -39,8 +52,7 @@ export function launchApp(
     return null
   }
 
-  const meta = componentFor(appId)
-  const title = meta ? translate(getLocale(), meta.titleKey) : manifest.name
+  const title = appDisplayName(appId)
 
   // 窄屏兜底：manifest 默认尺寸可能超过视口（如 375px 手机宽度 < 900px 窗口）。
   const maxWidth = Math.max(320, window.innerWidth - 16)

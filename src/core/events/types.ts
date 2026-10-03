@@ -47,6 +47,16 @@ export interface SystemEventMap {
   'ai.content.ready': { panelId: string; itemCount: number }
   'ai.content.blocked': { panelId: string; reason: string }
   'ai.decision.performed': { domain: string; source: 'local' | 'llm' | 'cache' }
+
+  // 羽化模式（AI-GENERATED-APPS-DESIGN §3.2）。P1 实发 app.generating/
+  // app.ready/app.failed（发送处在 services/eclosion.ts 与宿主容器）；
+  // world.ready（P2 今日世界）与 app.reported（P4 举报链路）为预留键，
+  // 先扩图补测试（ADR 4），接入期到时只加发送处。
+  'eclosion.world.ready': { worldDate: string }
+  'eclosion.app.generating': { appId: string; specId: string }
+  'eclosion.app.ready': { appId: string; specId: string; source: 'network' | 'cache' }
+  'eclosion.app.failed': { appId: string; specId: string; reason: string }
+  'eclosion.app.reported': { appId: string; windowId: string }
 }
 
 export type SystemEventName = keyof SystemEventMap & string

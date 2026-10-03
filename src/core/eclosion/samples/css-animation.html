@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>呼吸灯</title>
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--ageha-surface, #0e1116); color: var(--ageha-text, #e8edf5); display: grid; place-items: center; min-height: 100vh; }
+  .field { display: flex; gap: 22px; align-items: center; }
+  .orb { width: 72px; height: 72px; border-radius: 50%; animation: breathe 3.2s ease-in-out infinite; }
+  .orb.a { background: var(--ageha-accent, #60a5fa); animation-delay: 0s; }
+  .orb.b { background: var(--ageha-mist, #a78bfa); animation-delay: .4s; }
+  .orb.c { background: var(--ageha-dusk, #f0abfc); animation-delay: .8s; }
+  @keyframes breathe { 0%, 100% { transform: scale(.82); opacity: .55; } 50% { transform: scale(1.08); opacity: 1; } }
+  .caption { margin-top: 34px; font-size: 13px; letter-spacing: .12em; opacity: .75; }
+  @media (prefers-reduced-motion: reduce) { .orb { animation: none; } }
+</style>
+</head>
+<body>
+<main class="field" aria-label="呼吸灯">
+  <div class="orb a"></div>
+  <div class="orb b"></div>
+  <div class="orb c"></div>
+</main>
+<p class="caption">静 · 观 · 呼 · 吸</p>
+</body>
+</html>

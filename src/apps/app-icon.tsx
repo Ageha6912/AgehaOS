@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-import { badgeForAppId } from './app-badges'
+import { badgeForAppIdWithHue } from './app-badges'
 
 /**
  * 应用徽章图标（docs/DESIGN.md §8）：AppIcon 渲染圆角徽章——
@@ -18,11 +18,13 @@ export interface AppIconProps {
   size?: number
   /** 可访问名称；缺省时徽章视为装饰（aria-hidden）。 */
   label?: string
+  /** 世界行色相着色（§6.4 今日应用）：只旋转渐变色相，缺省确定性徽章。 */
+  hue?: number
   className?: string
 }
 
-export function AppIcon({ appId, size = 24, label, className }: AppIconProps) {
-  const badge = badgeForAppId(appId)
+export function AppIcon({ appId, size = 24, label, hue, className }: AppIconProps) {
+  const badge = badgeForAppIdWithHue(appId, hue)
   const Glyph = badge.glyph
   const style: CSSProperties = {
     width: size,

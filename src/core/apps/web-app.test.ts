@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  ECLOSION_RUNNER_ENTRY,
   hostHelloMessage,
   isAllowedWebAppEntry,
+  isEclosionRunnerEntry,
   parseAppMessage,
   WEB_APP_ENTRY_PREFIX,
   WEB_APP_SANDBOX,
@@ -28,6 +30,28 @@ describe('Type B 来源 allowlist（§30.3）', () => {
     expect(isAllowedWebAppEntry('/apps/sites/clock/')).toBe(false)
     expect(isAllowedWebAppEntry('/apps/sites/clock/index.js')).toBe(false)
     expect(isAllowedWebAppEntry('/other/clock/index.html')).toBe(false)
+  })
+})
+
+describe('羽化运行时 entry（AI-GENERATED-APPS-DESIGN §3.2）', () => {
+  it('pins the runner entry to the exact runtime URL', () => {
+    expect(ECLOSION_RUNNER_ENTRY).toBe('/apps/runtime/eclosion.html')
+  })
+
+  it('accepts only the exact entry — no prefixes, queries or traversal variants', () => {
+    expect(isEclosionRunnerEntry(ECLOSION_RUNNER_ENTRY)).toBe(true)
+    expect(isEclosionRunnerEntry('/apps/runtime/eclosion.html?v=3')).toBe(false)
+    expect(isEclosionRunnerEntry('/apps/runtime/eclosion.html/')).toBe(false)
+    expect(isEclosionRunnerEntry('/apps/runtime/eclosion.html/../evil.html')).toBe(false)
+    expect(isEclosionRunnerEntry('/apps/runtime/')).toBe(false)
+    expect(isEclosionRunnerEntry('/apps/runtime/other.html')).toBe(false)
+    expect(isEclosionRunnerEntry('https://evil.example.com/apps/runtime/eclosion.html')).toBe(false)
+  })
+
+  it('keeps the runner entry outside the /apps/sites/ allowlist（两套判定互不放宽）', () => {
+    expect(isAllowedWebAppEntry(ECLOSION_RUNNER_ENTRY)).toBe(false)
+    // 反向：sites 条目也不被羽化判定接受。
+    expect(isEclosionRunnerEntry('/apps/sites/clock/index.html')).toBe(false)
   })
 })
 
