@@ -118,8 +118,8 @@ test('taskbar 启动器：分类切换面板尺寸恒定（2026-10-02 裁决「�
   await page.waitForTimeout(450) // 弹入动画落定。
 
   const open = (await panel.boundingBox())!
-  // 用户裁决（2026-10-03）：高度翻倍 = 640px（视口抬高到 900 避开安全帽）。
-  expect(Math.abs(open.height - 640)).toBeLessThanOrEqual(2)
+  // 用户裁决（2026-10-03）：高度降至 640 的三分之二 = 427px（视口 900 避开安全帽）。
+  expect(Math.abs(open.height - 427)).toBeLessThanOrEqual(2)
   // 切到应用数更少的分类：面板宽高必须纹丝不动（高度恒定，内容内部滚动）。
   await page.getByTestId('launcher-category-system').click()
   await page.waitForTimeout(400) // 淡入微动落定。
