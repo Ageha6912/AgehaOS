@@ -184,7 +184,6 @@ export const dictionaries = {
 
     // 羽化模式（AI-GENERATED-APPS-DESIGN §1.1 用语：结茧中 / 破茧 / 重新羽化）
     'app.clock.title': '时钟',
-    'eclosion.aiBadge': 'AI 生成',
     'eclosion.generating': '结茧中…（思考 {count} 字）',
     'eclosion.queued': '排队中…（同时最多 2 个生成流）',
     'eclosion.fallbackNotice': '已回落经典版',
@@ -684,7 +683,6 @@ export const dictionaries = {
 
     // Eclosion mode (design §1.1 wording: cocooning / power-on / regenerate)
     'app.clock.title': 'Clock',
-    'eclosion.aiBadge': 'AI generated',
     'eclosion.generating': 'Cocooning… (thinking, {count} chars)',
     'eclosion.queued': 'Queued… (at most 2 concurrent generations)',
     'eclosion.fallbackNotice': 'Classic version restored',

@@ -455,9 +455,9 @@ test.describe('P2 今日应用（点按瓦片 → kind=today 生成并可用）'
     await frame!.locator('#inc').click()
     await expect(frame!.locator('#result')).toHaveText('E2E-CLICK-5')
 
-    // 生成完成：进度条收起、AI 徽标在场（不可隐藏）。
+    // 生成完成：进度条收起、宿主配件在场（AI 徽标已按 2026-10-03 裁决移除）。
     await expect(page.getByTestId('eclosion-progress')).toHaveCount(0)
-    await expect(win.getByTestId('eclosion-ai-badge')).toBeVisible()
+    await expect(win.getByTestId('eclosion-regenerate')).toBeVisible()
   })
 })
 

@@ -111,13 +111,8 @@ export function EclosionTitleExtras({
 
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      {/* 「AI 生成」徽标不可隐藏（§10：可执行内容的来源必须始终可见）。 */}
-      <span
-        data-testid="eclosion-ai-badge"
-        className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary"
-      >
-        ✦ {t('eclosion.aiBadge')}
-      </span>
+      {/* 「AI 生成」徽标已按 2026-10-03 用户裁决移除（原 §10「不可隐藏」条款作废）；
+          密码框红色警示保留——那是防钓鱼的功能性警示，不是来源标识。 */}
       <button
         type="button"
         data-testid="eclosion-regenerate"

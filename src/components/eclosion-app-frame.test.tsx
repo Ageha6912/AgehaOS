@@ -564,12 +564,12 @@ describe('EclosionAppFrame（宿主容器）', () => {
   })
 })
 
-describe('EclosionTitleExtras（标题栏徽标/重新羽化/密码警示）', () => {
-  it('always shows the non-hideable AI badge and the regenerate action', () => {
+describe('EclosionTitleExtras（标题栏重新羽化/密码警示）', () => {
+  it('shows the regenerate action; the AI badge was removed by the 2026-10-03 ruling', () => {
     const onRegenerate = vi.fn()
     render(<EclosionTitleExtras appId={CALCULATOR} windowId="w-extras" onRegenerate={onRegenerate} />)
 
-    expect(screen.getByTestId('eclosion-ai-badge').textContent).toContain('AI 生成')
+    expect(screen.queryByTestId('eclosion-ai-badge')).toBeNull()
     fireEvent.click(screen.getByTestId('eclosion-regenerate'))
     expect(onRegenerate).toHaveBeenCalledWith(CALCULATOR)
     expect(screen.queryByTestId('eclosion-password-warning')).toBeNull()

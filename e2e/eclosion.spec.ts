@@ -140,7 +140,7 @@ test.describe('默认配置（羽化关）核心路径不受影响', () => {
     const display = calculator.getByTestId('calculator-display')
     await expect(display).toBeVisible() // 原生组件（非 iframe 宿主）
     await expect(calculator.locator('iframe')).toHaveCount(0)
-    await expect(calculator.getByTestId('eclosion-ai-badge')).toHaveCount(0)
+    await expect(calculator.getByTestId('eclosion-regenerate')).toHaveCount(0)
 
     // 原生计算器功能照常（§12 P1 验收末条：默认路径不受 AI 可用性影响）。
     await calculator.getByTestId('calculator-key-1').click()
@@ -209,8 +209,7 @@ test.describe('开启态（按用户持久化偏好，route 桩驱动）', () =>
     await fallenBack.getByTestId('calculator-key-=').click()
     await expect(display).toHaveText('42')
 
-    // 「AI 生成」徽标不可隐藏 + 重新羽化按钮在场（回落态也保留恢复入口）。
-    await expect(fallenBack.getByTestId('eclosion-ai-badge')).toBeVisible()
+    // 重新羽化按钮在场（回落态也保留恢复入口；AI 徽标已按 2026-10-03 裁决移除）。
     await expect(fallenBack.getByTestId('eclosion-regenerate')).toBeVisible()
   })
 
@@ -241,9 +240,9 @@ test.describe('开启态（按用户持久化偏好，route 桩驱动）', () =>
     await frame!.locator('#inc').click()
     await expect(frame!.locator('#result')).toHaveText('E2E-CLICK-2')
 
-    // 破茧完成：进度条消失、标题不回落、AI 徽标在场。
+    // 破茧完成：进度条消失、标题不回落、宿主配件在场。
     await expect(page.getByTestId('eclosion-progress')).toHaveCount(0)
-    await expect(calcWindow.getByTestId('eclosion-ai-badge')).toBeVisible()
+    await expect(calcWindow.getByTestId('eclosion-regenerate')).toBeVisible()
 
     // 重启秒开（§12 P1 验收）：生成产物已落 IndexedDB，重开走缓存。
     await calcWindow.getByRole('button', { name: '关闭窗口' }).click()
@@ -333,7 +332,7 @@ test.describe('想象搜索（开启态，P3）', () => {
     const frame = page.frame({ url: /eclosion\.html/ })
     expect(frame, 'sandboxed runner frame').toBeDefined()
     await expect(frame!.locator('#result')).toHaveText('E2E-GEN-OK', { timeout: 15_000 })
-    await expect(win.getByTestId('eclosion-ai-badge')).toBeVisible()
+    await expect(win.getByTestId('eclosion-regenerate')).toBeVisible()
   })
 
   test('额度耗尽（429 quota-exceeded）→ 想象应用错误卡：剩余额度 + 重置时间提示清晰', async ({

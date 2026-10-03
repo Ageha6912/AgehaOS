@@ -226,8 +226,9 @@ describe('WindowFrame (via WindowLayer)', () => {
 
     expect(screen.getByTestId('calculator-display')).toBeInTheDocument()
     expect(document.querySelector('iframe')).toBeNull()
-    // 标题栏配件：✦ AI 生成徽标（不可隐藏）。
-    expect(screen.getByTestId('eclosion-ai-badge')).toBeInTheDocument()
+    // 标题栏配件：重新羽化入口在场（AI 徽标已按 2026-10-03 裁决移除）。
+    expect(screen.getByTestId('eclosion-regenerate')).toBeInTheDocument()
+    expect(screen.queryByTestId('eclosion-ai-badge')).toBeNull()
     expect(screen.queryByText('未找到该应用，窗口即将关闭。')).not.toBeInTheDocument()
     resetEclosionStore()
   })
