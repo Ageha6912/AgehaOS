@@ -6,7 +6,7 @@ import { useWindowStore } from '@/store/window-store'
  * 桌面中央品牌层（docs/DESIGN.md §31 Round 2 + §32 参考图对齐；Shell 2.0
  * 视觉更轻 2026-10-02）：桌面空闲（无可见窗口）时展示 AgehaOS 品牌焦点
  * ——字标 + 标语 + 副标语 + 分隔线，字号/字重/位置按参考图（块中心 ≈
- * 44% x / 30% y，字标 ≈ 72px，「OS」带冰蓝→冷紫渐变，裁决 C 去粉）；
+ * 50% x（与 Dock 中线对齐，2026-10-02 用户裁决） / 30% y，字标 ≈ 72px，「OS」带冰蓝→冷紫渐变，裁决 C 去粉）；
  * 空闲态 opacity-90（轻存在感，不像 Landing Hero）、任一窗口可见即淡出
  * （§19：绝不挡应用，隐藏语义保留）。纯装饰层：aria-hidden +
  * pointer-events-none，对辅助树与指针事件隐形（右键空白、壁纸点击等桌面
@@ -21,7 +21,7 @@ export function DesktopBranding() {
     <div
       aria-hidden="true"
       data-testid="desktop-branding"
-      className={`desktop-chrome pointer-events-none absolute left-[44%] top-[30%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 transition-opacity duration-300 ease-out [filter:drop-shadow(0_1px_3px_rgba(21,48,112,0.6))_drop-shadow(0_4px_18px_rgba(21,48,112,0.35))] ${
+      className={`desktop-chrome pointer-events-none absolute left-1/2 top-[30%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 transition-opacity duration-300 ease-out [filter:drop-shadow(0_1px_3px_rgba(21,48,112,0.6))_drop-shadow(0_4px_18px_rgba(21,48,112,0.35))] ${
         idle ? 'opacity-90' : 'opacity-0'
       }`}
     >

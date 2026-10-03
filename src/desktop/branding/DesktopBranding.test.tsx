@@ -13,6 +13,10 @@ describe('DesktopBranding（DESIGN.md §31 Round 2 中央品牌层）', () => {
   it('shows on the idle desktop and stays invisible to a11y tree and pointers', () => {
     render(<DesktopBranding />)
 
+        // 2026-10-02 裁决：品牌块水平中心与 Dock 中线对齐（left-1/2，原 44%）。
+    expect(screen.getByTestId('desktop-branding').className).toContain('left-1/2')
+    expect(screen.getByTestId('desktop-branding').className).not.toContain('left-[44%]')
+
     const branding = screen.getByTestId('desktop-branding')
     // Shell 2.0 视觉更轻：空闲态 opacity-90（v3 修订 ②：改三元分支值本身，
     // 禁止类链追加同组工具类被覆盖）。
