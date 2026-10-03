@@ -25,6 +25,9 @@ Thumbs.db
 .env.*
 !.env.example
 
+# 本地启动脚本（含上游 Key，永不提交）
+*.local.sh
+
 # TS build info
 *.tsbuildinfo
 
