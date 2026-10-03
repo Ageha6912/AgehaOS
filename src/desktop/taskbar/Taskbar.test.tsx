@@ -353,6 +353,16 @@ describe('Taskbar', () => {
       screen.getByTestId('dock-pin-com.ageha.files').querySelector('[data-wave-icon]'),
     ).not.toBeNull()
 
+    // 名称气泡（2026-10-02 裁决：dock 气泡 = 左栏同款玻璃芯片，位于图标
+    // 上方）：无运行中窗口的瓷贴显示；有窗口的让位给悬停预览；回收站显示
+    // 提示语。原生 title 属性退役（aria-label 可达名不变）。
+    const filesPin = screen.getByTestId('dock-pin-com.ageha.files')
+    const filesBubble = filesPin.querySelector('.os-tooltip--dock') as HTMLElement | null
+    expect(filesBubble?.textContent).toBe('文件')
+    // 预览挂载在瓷贴 wrapper（无窗口时 WindowPreview 不出现）。
+    expect(filesPin.className).toContain('group')
+    expect(screen.getByTestId('dock-trash').querySelector('.os-tooltip--dock')?.textContent).toBeTruthy()
+
     // Dock 高光滑过覆盖层随偏好默认开（§32.5 修订 10）。
     expect(screen.getByTestId('dock-sheen')).toBeInTheDocument()
 
@@ -390,9 +400,10 @@ describe('Taskbar', () => {
       useWindowStore.getState().setTitle(useWindowStore.getState().windows[0]!.id, '文档 — 文件')
     })
 
-    // 名称不随窗口标题漂移；标题进 title（可访问描述）。
+    // 名称不随窗口标题漂移。原生 title 已退役（2026-10-02 裁决：dock 气泡
+    // + 悬停预览接管——有运行窗口的瓷贴不出名称气泡，标题经预览头部呈现）。
     expect(pin.getAttribute('aria-label')).toBe(name)
-    expect(pin.getAttribute('title')).toBe('文档 — 文件')
+    expect(pin.getAttribute('title')).toBeNull()
     expect(screen.getByRole('navigation', { name: '程序坞' })).toContainElement(pin)
   })
 

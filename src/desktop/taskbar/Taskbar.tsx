@@ -134,8 +134,7 @@ export function Taskbar() {
                     type="button"
                     data-testid={`dock-pin-${appId}`}
                     aria-label={pinnedLabel(appId)}
-                    title={latest?.title ?? pinnedLabel(appId)}
-                    className="dock-tile relative flex h-12 w-12 items-center justify-center rounded-xl"
+                    className="dock-tile group relative flex h-12 w-12 items-center justify-center rounded-xl"
                     onClick={() => activatePinned(appId)}
                   >
                     <span aria-hidden="true" data-wave-icon className="flex">
@@ -146,6 +145,14 @@ export function Taskbar() {
                         aria-hidden="true"
                         className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary"
                       />
+                    )}
+                    {/* 名称气泡（2026-10-02 裁决：dock 气泡与左栏同款玻璃芯片，
+                        位于图标上方；原生 title 太简陋）。有运行中窗口的瓷贴
+                        让位给悬停预览（预览头部已含应用名，避免双层重叠）。 */}
+                    {appWindows.length === 0 && (
+                      <span aria-hidden="true" className="os-tooltip os-tooltip--dock">
+                        {pinnedLabel(appId)}
+                      </span>
                     )}
                   </button>
 
@@ -237,8 +244,7 @@ export function Taskbar() {
             type="button"
             data-testid="dock-trash"
             aria-label={t('dock.trash')}
-            title={t('dock.trashHint')}
-            className="dock-tile flex h-12 w-12 items-center justify-center rounded-xl"
+            className="dock-tile group relative flex h-12 w-12 items-center justify-center rounded-xl"
             onClick={() => {
               requestFilesTrash()
               launchApp('com.ageha.files')
@@ -250,6 +256,9 @@ export function Taskbar() {
               className="flex h-10 w-10 items-center justify-center rounded-[24%] bg-gradient-to-br from-[#f2f6ff]/85 to-[#c7d6f5]/85 shadow-[0_1px_2px_rgba(15,23,42,0.25)] ring-1 ring-inset ring-white/50"
             >
               <Trash size={20} weight="fill" color="#5a6b82" />
+            </span>
+            <span aria-hidden="true" className="os-tooltip os-tooltip--dock">
+              {t('dock.trashHint')}
             </span>
           </button>
         </nav>

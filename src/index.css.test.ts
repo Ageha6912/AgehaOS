@@ -356,7 +356,12 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(rule).toContain('border: 1px solid rgb(255 255 255 / 14%)')
     expect(rule).toContain('inset 0 1px 0 rgb(255 255 255 / 10%)')
     expect(rule).toContain('transform: translateY(-50%) translateX(-4px)')
-    const revealAt = css.indexOf('.group:hover .os-tooltip')
+    // Dock 变体：气泡位于图标上方居中（bottom:100%+10px），亮起位移归零——
+    // specificity (0,4,0) 高于 reveal 规则，覆写安全（2026-10-02 裁决）。
+    expect(css).toContain('.os-tooltip--dock')
+    expect(css).toContain('bottom: calc(100% + 10px)')
+    expect(css).toContain('.group:hover .os-tooltip--dock')
+        const revealAt = css.indexOf('.group:hover .os-tooltip')
     const reveal = css.slice(revealAt, css.indexOf('}', revealAt))
     expect(reveal).toContain('opacity: 1')
     expect(reveal).toContain('transform: translateY(-50%) translateX(0)')

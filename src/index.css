@@ -565,6 +565,20 @@ body {
   opacity: 1;
   transform: translateY(-50%) translateX(0);
 }
+/* Dock 变体（2026-10-02 裁决：dock 名称气泡与左栏同款玻璃芯片，但位于
+   图标上方居中；原生 title 已退役）。 Specificity (0,4,0) 高于上方 reveal
+   规则，位移覆写安全。 */
+.os-tooltip--dock {
+  left: 50%;
+  top: auto;
+  bottom: calc(100% + 10px);
+  margin-left: 0;
+  transform: translateX(-50%) translateY(4px);
+}
+.group:hover .os-tooltip--dock,
+.group:focus-visible .os-tooltip--dock {
+  transform: translateX(-50%) translateY(0);
+}
 
 /* Dock 图标悬停（2026-10-02 用户裁决：只浮起被悬浮的那一枚——§13 波浪引擎
    整体退役，邻位不再随高斯衰减联动；同日再裁决「缓慢浮起」：非对称过渡——
