@@ -317,14 +317,14 @@ export function AppLauncher() {
             ref={menuRef}
             aria-label={t('taskbar.start')}
             data-testid={layout ? `launcher-layout-${layout.tier}` : undefined}
-            className={`popover-panel surface-glass fixed bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+0.75rem)] left-3 z-50 flex max-h-[calc(100vh-var(--ag-dock-height)-3rem)] flex-col overflow-hidden rounded-2xl p-3 sm:left-[calc(var(--ag-rail-left-width)+1.125rem)] ${
+            className={`popover-panel surface-glass fixed bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+0.75rem)] left-3 z-50 flex h-[min(64rem,calc(100vh-var(--ag-dock-height)-3rem))] flex-col overflow-hidden rounded-2xl p-3 sm:left-[calc(var(--ag-rail-left-width)+1.125rem)] ${
               TIER_WIDTH_CLASS[layout?.tier ?? 'single'] ?? 'w-[410px]'
             } max-w-[calc(100vw-1.5rem)] ${popoverMotionClass(menuPhase.exiting)}`}
           >
             {searchBox}
             <div className="flex min-h-0 flex-1 gap-2.5 overflow-y-auto scroll-thin">
               {categoryRail}
-              <div className="min-w-0 flex-1">
+              <div key={category} className="min-w-0 flex-1 animate-os-pop-in">
                 {emptyHint}
                 {gridAppIds.length > 0 && (
                   <ul

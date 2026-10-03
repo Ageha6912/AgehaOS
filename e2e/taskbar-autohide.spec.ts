@@ -99,3 +99,36 @@ test('taskbar 悬停预览：锚定图标上方、不偏移到屏幕右缘', asy
   await page.waitForTimeout(500)
   await expect(preview).toBeHidden()
 })
+
+test('taskbar 启动器：分类切换面板尺寸恒定（2026-10-02 裁决「不变形」）', async ({ page }) => {
+  await page.goto('/')
+
+  const loginForm = page.getByRole('form', { name: '登录 AgehaOS' })
+  await expect(loginForm).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: '没有账户？创建一个' }).click()
+  await page.getByLabel('用户名').fill(`launcher-e2e-${Date.now().toString(36)}`)
+  await page.getByLabel('密码').fill('secret123')
+  await page.getByRole('button', { name: '注册' }).click()
+  await page.getByTestId('sidebar-desktop').waitFor({ timeout: 15_000 })
+
+  await taskbarStartButton(page).click()
+  const panel = page.getByRole('list', { name: /开始/ })
+  await expect(panel).toBeVisible({ timeout: 5_000 })
+  await page.waitForTimeout(450) // 弹入动画落定。
+
+  const open = (await panel.boundingBox())!
+  // 切到应用数更少的分类：面板宽高必须纹丝不动（高度恒定，内容内部滚动）。
+  await page.getByTestId('launcher-category-system').click()
+  await page.waitForTimeout(400) // 淡入微动落定。
+  const switched = (await panel.boundingBox())!
+  expect(Math.abs(switched.width - open.width)).toBeLessThanOrEqual(1)
+  expect(Math.abs(switched.height - open.height)).toBeLessThanOrEqual(1)
+
+  // 切回最近使用：尺寸仍不变，网格内容已切换（淡入重挂）。
+  await page.getByTestId('launcher-category-recent').click()
+  await page.waitForTimeout(400)
+  const back = (await panel.boundingBox())!
+  expect(Math.abs(back.width - open.width)).toBeLessThanOrEqual(1)
+  expect(Math.abs(back.height - open.height)).toBeLessThanOrEqual(1)
+  await expect(page.getByTestId('launcher-grid')).toBeVisible()
+})
