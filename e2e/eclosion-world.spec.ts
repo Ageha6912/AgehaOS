@@ -459,6 +459,32 @@ test.describe('P2 今日应用（点按瓦片 → kind=today 生成并可用）'
     await expect(page.getByTestId('eclosion-progress')).toHaveCount(0)
     await expect(win.getByTestId('eclosion-regenerate')).toBeVisible()
   })
+
+  test('今日应用列（左栏右侧整列，2026-10-03 裁决）：点按瓷贴同样走 kind=today 按需生成', async ({
+    page,
+  }) => {
+    await registerDesktop(page, 'e2eworld-rail')
+    await stubEclosionBackend(page, {
+      world: () =>
+        worldPayload({
+          headline: '今日应用列契约的世界',
+          accentHue: 268,
+          signalTitles: ['边缘推理框架登顶'],
+        }),
+    })
+    await seedEclosionEnabled(page)
+    await waitForWorldLanded(page, '边缘神谕')
+    // 关掉启动器，露出左栏右侧的「今日应用」列（与启动器「今日」分类同源）。
+    await page.keyboard.press('Escape')
+    const rail = page.getByTestId('today-rail')
+    await expect(rail).toBeVisible()
+
+    // 取第 3 个应用（预取只碰前 2 个）：由用户点按触发生成。
+    await rail.getByTestId('today-rail-app-signal-garden').click()
+    const win = page.getByRole('region', { name: '信号花园' })
+    await expect(win).toBeVisible({ timeout: 15_000 })
+    await expect(win.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts')
+  })
 })
 
 // ── P4：蝶谱时间线与「回到那天的主题」 ──────────────────────────────────────

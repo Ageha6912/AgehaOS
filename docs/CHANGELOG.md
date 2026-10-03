@@ -1,5 +1,10 @@
 # AgehaOS 交付与部署日志
 
+## 2026-10-03 用户裁决：左栏右侧新增「今日应用」整列
+
+- 新组件 `src/desktop/sidebar/TodayRail.tsx`：与左栏同款玻璃浮岛、固定其右侧（`left = rail-left-width + 1.5rem`）垂直居中；羽化开 + 世界就绪才渲染，整列放「今日」分类应用——与启动器「今日」分类同源（世界行 hue 着色 AppIcon），点按走 `launchApp` 按需生成（kind=today）；悬停 tooltip「应用名 · tagline」；<640px 随左栏隐藏。
+- 测试：TodayRail 单测 ×3（空态不渲染/瓷贴清单/点按开窗）+ Desktop 回归 10 例 + E2E 新用例（今日应用列点按 → kind=today 真实沙箱生成）；DESIGN.md §26.1 契约入册。
+
 ## 2026-10-03 用户裁决：移除羽化应用窗口「✦ AI 生成」常驻徽标
 
 - `EclosionTitleExtras` 不再渲染徽标（`eclosion-ai-badge` 退役，i18n 键 `eclosion.aiBadge` 双语删除）；标题栏保留 重新羽化 / 获取 / 举报 与**密码框红色警示**（功能性防钓鱼闸，非来源标识）。

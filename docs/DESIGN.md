@@ -798,6 +798,19 @@ Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌�
 - **缓办**：侧栏项当前无「激活态」概念（无持久选中语义——轨是动作不是
   导航上下文）；若未来加应用分区需先定义信息架构。
 
+### 26.1 今日应用列（2026-10-03 用户裁决）
+
+左栏**右侧再加一整列**放「今日」分类的应用：`src/desktop/sidebar/TodayRail.tsx`。
+
+- **出现条件**：羽化开 + 今日世界就绪（store `world` 摘要含应用）才渲染——
+  空栏即装饰性谎言，拒绝；与启动器「今日」分类同一数据源（世界行 hue 着色
+  AppIcon + §6.4 确定性徽章），点按同走 `launchApp` 按需生成（kind=today）。
+- **几何**：`fixed left-[calc(var(--ag-rail-left-width)+1.5rem)] top-1/2
+  -translate-y-1/2`，同款 surface-glass 玻璃浮岛、z-40 chrome；<640px 随左栏
+  隐藏（§25）；应用数设计上限 10，超高屏 max-h + no-scrollbar 兜底。
+- **项视觉**：h-11 瓦片 + AppIcon(hue) 32px，悬停 os-tooltip「应用名 ·
+  tagline」（SidebarItem 双轨同款）。
+
 ## 27. 右侧小组件栏（Phase 2 P2-3，2026-09-30）
 
 权威图右侧竖列的「真实数据源」落地：`src/desktop/widgets/WidgetRail.tsx`，

@@ -5,6 +5,7 @@ import { AtmosphereLayer } from '@/desktop/atmosphere/AtmosphereLayer'
 import { DesktopBranding } from '@/desktop/branding/DesktopBranding'
 import { MenuBar } from '@/desktop/menu-bar/MenuBar'
 import { Sidebar } from '@/desktop/sidebar/Sidebar'
+import { TodayRail } from '@/desktop/sidebar/TodayRail'
 import { Taskbar } from '@/desktop/taskbar/Taskbar'
 import { WindowLayer } from '@/desktop/window/WindowLayer'
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
@@ -98,6 +99,9 @@ export function Desktop() {
           随后渲染的左右栏盖住（层级靠 z-index，不靠渲染顺序）。 */}
       <MenuBar />
       <Sidebar />
+      {/* 今日应用列（2026-10-03 用户裁决）：左栏右侧的整列今日应用，世界
+          就绪才渲染；渲染在 Sidebar 之后、窗口之前，与左栏同为 z-40 chrome。 */}
+      <TodayRail />
       <WindowLayer />
       <WidgetRail />
       <Taskbar />
