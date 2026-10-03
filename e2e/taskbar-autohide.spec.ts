@@ -101,6 +101,7 @@ test('taskbar 悬停预览：锚定图标上方、不偏移到屏幕右缘', asy
 })
 
 test('taskbar 启动器：分类切换面板尺寸恒定（2026-10-02 裁决「不变形」）', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/')
 
   const loginForm = page.getByRole('form', { name: '登录 AgehaOS' })
@@ -117,8 +118,8 @@ test('taskbar 启动器：分类切换面板尺寸恒定（2026-10-02 裁决「�
   await page.waitForTimeout(450) // 弹入动画落定。
 
   const open = (await panel.boundingBox())!
-  // 用户裁决（2026-10-02）：高度降至原先约三分之一 = 固定 320px。
-  expect(Math.abs(open.height - 320)).toBeLessThanOrEqual(2)
+  // 用户裁决（2026-10-03）：高度翻倍 = 640px（视口抬高到 900 避开安全帽）。
+  expect(Math.abs(open.height - 640)).toBeLessThanOrEqual(2)
   // 切到应用数更少的分类：面板宽高必须纹丝不动（高度恒定，内容内部滚动）。
   await page.getByTestId('launcher-category-system').click()
   await page.waitForTimeout(400) // 淡入微动落定。

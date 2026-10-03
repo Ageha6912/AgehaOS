@@ -317,7 +317,7 @@ export function AppLauncher() {
             ref={menuRef}
             aria-label={t('taskbar.start')}
             data-testid={layout ? `launcher-layout-${layout.tier}` : undefined}
-            className={`popover-panel surface-glass fixed bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+0.75rem)] left-3 z-50 flex h-[320px] flex-col overflow-hidden rounded-2xl p-3 sm:left-[calc(var(--ag-rail-left-width)+1.125rem)] ${
+            className={`popover-panel surface-glass fixed bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+0.75rem)] left-3 z-50 flex h-[min(640px,calc(100vh-var(--ag-dock-height)-3rem))] flex-col overflow-hidden rounded-2xl p-3 sm:left-[calc(var(--ag-rail-left-width)+1.125rem)] ${
               TIER_WIDTH_CLASS[layout?.tier ?? 'single'] ?? 'w-[410px]'
             } max-w-[calc(100vw-1.5rem)] ${popoverMotionClass(menuPhase.exiting)}`}
           >
