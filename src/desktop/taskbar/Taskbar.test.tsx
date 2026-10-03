@@ -367,10 +367,10 @@ describe('Taskbar', () => {
     expect(menu.className).toContain('bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+0.75rem)]')
     expect(menu.className).toContain('w-[410px]')
     expect(menu.querySelector('ul.grid')?.className).toContain('grid-cols-4')
-    // 尺寸恒定（2026-10-02 裁决：分类切换面板不变形）——高度固定封顶 64rem
-    // 随视口收缩（原 max-h 随内容行数伸缩，切分类突兀变形）；右列按分类
-    // key 重挂 + os-pop-in 淡入微动。
-    expect(menu.className).toContain('h-[min(64rem,calc(100vh-var(--ag-dock-height)-3rem))]')
+    // 尺寸恒定（2026-10-02 裁决：分类切换面板不变形）；高度按用户裁决降至
+    // 原先约三分之一 = 固定 320px（内容内部滚动）；右列按分类 key 重挂 +
+    // os-pop-in 淡入微动。
+    expect(menu.className).toContain('h-[320px]')
     expect(menu.className).not.toContain('max-h-')
     expect(menu.innerHTML).toContain('animate-os-pop-in')
   })
