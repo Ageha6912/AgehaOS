@@ -30,7 +30,24 @@ interface ResizeOrigin {
   pointerY: number
   width: number
   height: number
+  x: number
+  y: number
+  dir: ResizeDir
 }
+
+/** 八向拖拽（2026-10-02 用户裁决「自由改变大小」）：边缘 6px + 角 14px 命中区。 */
+type ResizeDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+
+const RESIZE_HANDLES: Array<{ dir: ResizeDir; className: string }> = [
+  { dir: 'n', className: 'top-0 left-3 right-3 h-1.5 cursor-ns-resize' },
+  { dir: 's', className: 'bottom-0 left-3 right-3 h-1.5 cursor-ns-resize' },
+  { dir: 'e', className: 'right-0 top-3 bottom-3 w-1.5 cursor-ew-resize' },
+  { dir: 'w', className: 'left-0 top-3 bottom-3 w-1.5 cursor-ew-resize' },
+  { dir: 'ne', className: 'top-0 right-0 h-3.5 w-3.5 cursor-nesw-resize' },
+  { dir: 'nw', className: 'top-0 left-0 h-3.5 w-3.5 cursor-nwse-resize' },
+  { dir: 'se', className: 'bottom-0 right-0 h-3.5 w-3.5 cursor-nwse-resize' },
+  { dir: 'sw', className: 'bottom-0 left-0 h-3.5 w-3.5 cursor-nesw-resize' },
+]
 
 /**
  * Title-bar buttons must not reach the header's drag handler: it captures the
@@ -130,7 +147,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
     }
   }
 
-  const onResizeHandlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+  const onResizePointerDown = (dir: ResizeDir) => (event: ReactPointerEvent<HTMLElement>) => {
     if (event.button !== 0) return
     event.stopPropagation()
     focus(win.id)
@@ -139,22 +156,51 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       pointerY: event.clientY,
       width: win.width,
       height: win.height,
+      x: win.x,
+      y: win.y,
+      dir,
     }
-    event.currentTarget.setPointerCapture(event.pointerId)
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      /* jsdom 无 pointer capture：拖拽逻辑不依赖它 */
+    }
   }
 
-  const onResizeHandlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+  const onResizePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     const origin = resizeOrigin.current
     if (!origin) return
-    resize(
-      win.id,
-      origin.width + (event.clientX - origin.pointerX),
-      origin.height + (event.clientY - origin.pointerY),
-      getWorkspaceViewport(),
-    )
+    const dx = event.clientX - origin.pointerX
+    const dy = event.clientY - origin.pointerY
+    // 钳制在手柄层做（最小尺寸 + 不越过屏幕缘，保留 8px 可见）——不能用
+    // manager 的 workspace 钳制：它假定左上角固定、只向东/南长，西/北缘的
+    // 位置补偿会让「x 右移 → 上限收窄 → 再缩」正反馈螺旋（2026-10-02 实测：
+    // 3 步内窗口被挤到 80px 宽钉死）。
+    let width = origin.width + (origin.dir.includes('e') ? dx : origin.dir.includes('w') ? -dx : 0)
+    let height = origin.height + (origin.dir.includes('s') ? dy : origin.dir.includes('n') ? -dy : 0)
+    const fixedRight = origin.x + origin.width
+    const fixedBottom = origin.y + origin.height
+    if (origin.dir.includes('w')) width = Math.min(width, fixedRight - 8)
+    else width = Math.min(width, window.innerWidth - origin.x - 8)
+    if (origin.dir.includes('n')) height = Math.min(height, fixedBottom - 8)
+    else height = Math.min(height, window.innerHeight - origin.y - 8)
+    width = Math.max(320, width)
+    height = Math.max(200, height)
+    resize(win.id, width, height)
+    if (origin.dir.includes('w') || origin.dir.includes('n')) {
+      // 西/北缘：拖的是左/上边——尺寸被钳制后把位置反向补偿（拖哪边哪边跟手）。
+      const current = useWindowStore
+        .getState()
+        .windows.find((candidate) => candidate.id === win.id)
+      if (current) {
+        const x = origin.dir.includes('w') ? origin.x + (origin.width - current.width) : origin.x
+        const y = origin.dir.includes('n') ? origin.y + (origin.height - current.height) : origin.y
+        if (x !== current.x || y !== current.y) move(win.id, x, y, getWorkspaceViewport())
+      }
+    }
   }
 
-  const onResizeHandlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
+  const onResizePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
     if (!resizeOrigin.current) return
     resizeOrigin.current = null
     try {
@@ -259,14 +305,23 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
         </AppErrorBoundary>
       </div>
 
+      {/* 八向拖拽（2026-10-02 用户裁决「自由改变大小」）：边缘 6px + 角
+          14px 命中区；角柄外半段会被圆角+overflow-hidden 裁剪（Shell 2.0
+          rounded-xl），内侧仍可命中。西/北缘拖拽带位置补偿（见 handler）。 */}
       {win.resizable && !maximized && (
-        <div
-          role="presentation"
-          className="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize"
-          onPointerDown={onResizeHandlePointerDown}
-          onPointerMove={onResizeHandlePointerMove}
-          onPointerUp={onResizeHandlePointerUp}
-        />
+        <>
+          {RESIZE_HANDLES.map(({ dir, className }) => (
+            <div
+              key={dir}
+              role="presentation"
+              data-testid={`window-resize-${dir}`}
+              className={`absolute z-10 ${className}`}
+              onPointerDown={onResizePointerDown(dir)}
+              onPointerMove={onResizePointerMove}
+              onPointerUp={onResizePointerUp}
+            />
+          ))}
+        </>
       )}
     </section>
   )

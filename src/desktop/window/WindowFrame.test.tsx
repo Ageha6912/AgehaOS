@@ -17,6 +17,60 @@ beforeEach(() => {
 })
 
 describe('WindowFrame (via WindowLayer)', () => {
+  it('offers eight-way drag resize handles（2026-10-02 裁决「自由改变大小」）', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+
+    for (const dir of ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']) {
+      expect(screen.getByTestId(`window-resize-${dir}`)).toBeInTheDocument()
+    }
+  })
+
+  it('resizes from the south-east handle and clamps at min width', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+    const before = useWindowStore.getState().windows[0]!
+    const se = screen.getByTestId('window-resize-se')
+
+    fireEvent.pointerDown(se, { button: 0, clientX: before.x + before.width, clientY: before.y + before.height })
+    // 向内拖（-80/-40）：不受视口钳制影响的确定性断言。
+    fireEvent.pointerMove(se, { clientX: before.x + before.width - 80, clientY: before.y + before.height - 40 })
+    fireEvent.pointerUp(se)
+    const after = useWindowStore.getState().windows[0]!
+    expect(after.width).toBe(before.width - 80)
+    expect(after.height).toBe(before.height - 40)
+
+    // 反向拖过最小宽度：钳在 MIN_WINDOW_WIDTH=320，无半途尺寸。
+    fireEvent.pointerDown(se, { button: 0, clientX: before.x + after.width, clientY: before.y + after.height })
+    fireEvent.pointerMove(se, { clientX: before.x + 10, clientY: before.y + 10 })
+    fireEvent.pointerUp(se)
+    expect(useWindowStore.getState().windows[0]!.width).toBe(320)
+  })
+
+  it('compensates position when resizing from the west handle', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+    const before = useWindowStore.getState().windows[0]!
+    const west = screen.getByTestId('window-resize-w')
+
+    // 西缘向右拖 60：宽度 -60、x +60（左缘跟手）。
+    fireEvent.pointerDown(west, { button: 0, clientX: before.x, clientY: before.y + 200 })
+    fireEvent.pointerMove(west, { clientX: before.x + 60, clientY: before.y + 200 })
+    fireEvent.pointerUp(west)
+    const after = useWindowStore.getState().windows[0]!
+    expect(after.width).toBe(before.width - 60)
+    expect(after.x).toBe(before.x + 60)
+  })
+
+  it('hides resize handles while maximized', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    act(() => {
+      useWindowStore.getState().toggleMaximize(useWindowStore.getState().windows[0]!.id)
+    })
+    render(<WindowLayer />)
+    expect(screen.queryByTestId('window-resize-se')).toBeNull()
+  })
+
   it('renders macOS-style traffic lights on the left (§21, Q4 ruling)', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     render(<WindowLayer />)
