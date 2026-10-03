@@ -78,7 +78,7 @@ describe('TodayRail（今日应用列）', () => {
     expect(screen.getByTestId('today-rail-app-signal-weaver')).toBeInTheDocument()
   })
 
-  it('单面板契约：本列只保留列布局 + border-l 分隔线，玻璃面归 system-rails 组（毛玻璃连成一体）', () => {
+  it('单面板契约：本列只保留列布局，无自绘玻璃、无任何分隔线（三次裁决：整块玻璃完全连续）', () => {
     seedEclosionForTests('u-rail', true)
     seedWorld()
     render(<TodayRail />)
@@ -86,10 +86,9 @@ describe('TodayRail（今日应用列）', () => {
     const nav = screen.getByTestId('today-rail')
     // 与左栏同宽（72px = token 80 - 0.5rem；0.5rem = 8px，Playwright 实测钉扎）。
     expect(nav.className).toContain('w-[calc(var(--ag-rail-left-width)-0.5rem)]')
-    // 中缝 = 本列 border-l 内部分隔线；今日列不在场时随之消失。
-    expect(nav.className).toContain('border-l')
-    // 玻璃面（背景/边框/圆角/投影/定位）归 Desktop 的 system-rails 组容器。
-    for (const banned of ['fixed', 'surface-glass', 'rounded', 'shadow-float', 'overflow']) {
+    // 玻璃面（背景/边框/圆角/投影/定位）归 Desktop 的 system-rails 组容器；
+    // 两列之间连 border-l 分隔线都没有（2026-10-03 第三次裁决清除）。
+    for (const banned of ['fixed', 'surface-glass', 'rounded', 'shadow-float', 'overflow', 'border']) {
       expect(nav.className, banned).not.toContain(banned)
     }
   })

@@ -5,14 +5,13 @@ import { useEclosionStore } from '@/store/eclosion-store'
 
 /**
  * 「今日应用」专用列（2026-10-03 用户裁决：左栏往右再加一栏，整列放
- * 「今日」分类的应用）。2026-10-03 追加裁决「两栏毛玻璃连成一体」：与
- * Sidebar 同住 Desktop 的 system-rails 单一玻璃面板（一道边框、一份圆角、
- * 一份投影），本列只保留列布局 + border-l 内部分隔线——本列不在场时分隔
- * 线随之消失，面板即纯左栏，外观不变。世界就绪（羽化开 + world 摘要在
- * store 且有应用）才渲染——空栏即装饰性谎言，拒绝（Sidebar 同款铁律）。
- * 瓷贴 = AppIcon 按世界行 hue 着色（§6.4 确定性徽章 + 色相旋转，与启动器
- * 「今日」分类同一数据源），悬停 os-tooltip 显示「应用名 · tagline」，点击
- * launchApp 触发按需生成（kind=today）。
+ * 「今日」分类的应用）。与 Sidebar 同住 Desktop 的 system-rails 单一玻璃
+ * 面板——**两列之间无边框无分隔线**（2026-10-03 三次裁决：连 border-l 分
+ * 隔线也清除，整块玻璃完全连续）；本列不在场时面板即纯左栏，外观不变。
+ * 世界就绪（羽化开 + world 摘要在 store 且有应用）才渲染——空栏即装饰性
+ * 谎言，拒绝（Sidebar 同款铁律）。瓷贴 = AppIcon 按世界行 hue 着色（§6.4
+ * 确定性徽章 + 色相旋转，与启动器「今日」分类同一数据源），悬停 os-tooltip
+ * 显示「应用名 · tagline」，点击 launchApp 触发按需生成（kind=today）。
  * ⚠️ 本列与组容器都不得挂 overflow（overflow-y 非 visible 会把 overflow-x
  * 也变 auto，向右伸出的 os-tooltip 会被裁掉——2026-10-03 实测教训）；应用
  * 数设计上限 10（§6.2），纵向天然放得下，不做滚动。
@@ -28,7 +27,7 @@ export function TodayRail() {
     <nav
       aria-label={t('sidebar.todayRail')}
       data-testid="today-rail"
-      className="flex w-[calc(var(--ag-rail-left-width)-0.5rem)] flex-col items-center gap-2 border-l border-border px-2 py-3"
+      className="flex w-[calc(var(--ag-rail-left-width)-0.5rem)] flex-col items-center gap-2 px-2 py-3"
     >
       {world.apps.map((app) => {
         const appId = `com.ageha.eclosion.${app.slug}`

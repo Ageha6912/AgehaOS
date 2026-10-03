@@ -15,7 +15,8 @@
 ## 2026-10-03 用户裁决：左栏右侧新增「今日应用」整列
 
 - 新组件 `src/desktop/sidebar/TodayRail.tsx`：与左栏同宽同款列布局；羽化开 + 世界就绪才渲染，整列放「今日」分类应用——与启动器「今日」分类同源（世界行 hue 着色 AppIcon），点按走 `launchApp` 按需生成（kind=today）；悬停 tooltip「应用名 · tagline」；<640px 随左栏隐藏。
-- **用户二次返工（同日）：两栏 = 一块玻璃**——新增 Desktop `system-rails` 组容器，玻璃面（surface-glass/边框/圆角/shadow-float/定位/响应式）全部上移到组；Sidebar 与 TodayRail 退化为组内静态列，中缝 = 今日列 border-l 内部分隔线（不在场即消失，组即纯左栏）。组内 `flex-row-reverse`（DOM：TodayRail 前 Sidebar 后）保左栏向右伸出的 tooltip 恒在上层；组容器禁止 overflow（会裁 tooltip——同日实测教训）。
+- **用户二次返工（同日）：两栏 = 一块玻璃**——新增 Desktop `system-rails` 组容器，玻璃面（surface-glass/边框/圆角/shadow-float/定位/响应式）全部上移到组；Sidebar 与 TodayRail 退化为组内静态列。组内 `flex-row-reverse`（DOM：TodayRail 前 Sidebar 后）保左栏向右伸出的 tooltip 恒在上层；组容器禁止 overflow（会裁 tooltip——同日实测教训）。
+- **用户三次返工（同日）：连分隔线也清除**——去掉今日列 border-l，两列之间无边框无分隔线，整块玻璃完全连续（用户实测截图裁决）。
 - **首版返工记录**：右栏独立定位时 0.5rem=8px 心算错误留 4px 缝（Playwright 实测 GAP 4→0）；overflow-y-auto 连带裁掉 tooltip——两案均被单面板方案取代。
 - 测试：TodayRail 单测 ×4 + Sidebar 面板契约反转（玻璃类移组）+ Desktop 组容器契约（surface-glass/rounded-xl/shadow-float/flex-row-reverse/无 overflow）+ E2E（今日应用列点按 → kind=today 真实沙箱生成 + 几何探针 GAP=0）；DESIGN.md §26/§26.1 契约入册。
 
