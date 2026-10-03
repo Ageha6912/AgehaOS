@@ -78,6 +78,22 @@ describe('TodayRail（今日应用列）', () => {
     expect(screen.getByTestId('today-rail-app-signal-weaver')).toBeInTheDocument()
   })
 
+  it('无缝相连契约：贴左栏右缘、无左边框与左侧圆角、无 overflow（tooltip 不被裁）', () => {
+    seedEclosionForTests('u-rail', true)
+    seedWorld()
+    render(<TodayRail />)
+
+    const nav = screen.getByTestId('today-rail')
+    // 左缘 = 左栏右缘（left-4 16px + 栏宽 76px = 92px = token 80 + 0.75rem）。
+    expect(nav.className).toContain('left-[calc(var(--ag-rail-left-width)+0.75rem)]')
+    // 中缝 = 左栏自己的右框线：本栏无左边框、左侧方角。
+    expect(nav.className).toContain('rounded-r-xl')
+    expect(nav.className).not.toContain('rounded-l')
+    expect(nav.className).not.toContain('border-l')
+    // overflow 会把向右伸出的 tooltip 一并裁掉（2026-10-03 实测）——禁止。
+    expect(nav.className).not.toContain('overflow')
+  })
+
   it('点击瓷贴走 launchApp 按需生成路径（kind=today 的窗口打开）', () => {
     seedEclosionForTests('u-rail', true)
     seedWorld()

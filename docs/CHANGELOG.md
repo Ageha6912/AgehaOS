@@ -8,8 +8,9 @@
 - 测试：WindowFrame +4（八向柄存在/SE 收缩精确值/西缘补偿/最大化隐藏）；新增 `e2e/window-resize.spec.ts`（真实鼠标拖拽：SE 向内精确收缩、向外增大、西缘跟手；窗口先拖出浮轨遮盖区再测西缘——视口 1280 下左/右轨遮盖窗口边缘属 z 契约既定语义）。
 ## 2026-10-03 用户裁决：左栏右侧新增「今日应用」整列
 
-- 新组件 `src/desktop/sidebar/TodayRail.tsx`：与左栏同款玻璃浮岛、固定其右侧（`left = rail-left-width + 1.5rem`）垂直居中；羽化开 + 世界就绪才渲染，整列放「今日」分类应用——与启动器「今日」分类同源（世界行 hue 着色 AppIcon），点按走 `launchApp` 按需生成（kind=today）；悬停 tooltip「应用名 · tagline」；<640px 随左栏隐藏。
-- 测试：TodayRail 单测 ×3（空态不渲染/瓷贴清单/点按开窗）+ Desktop 回归 10 例 + E2E 新用例（今日应用列点按 → kind=today 真实沙箱生成）；DESIGN.md §26.1 契约入册。
+- 新组件 `src/desktop/sidebar/TodayRail.tsx`：与左栏同款玻璃浮岛、固定其右侧垂直居中；羽化开 + 世界就绪才渲染，整列放「今日」分类应用——与启动器「今日」分类同源（世界行 hue 着色 AppIcon），点按走 `launchApp` 按需生成（kind=today）；悬停 tooltip「应用名 · tagline」；<640px 随左栏隐藏。
+- **用户追加三裁决（同日返工）**：①两栏**无缝相连**——右栏左缘 = 左栏右缘（92px），自身无左边框、左侧方角，左栏右框线即中缝分隔线；②右栏 tooltip 被裁根因 = `overflow-y-auto` 连带 overflow-x 变 auto 把向右伸出的气泡裁掉 → 去 overflow（应用上限 10 纵向天然放下）；③左栏 tooltip 被右栏玻璃盖住 → Desktop DOM 序 TodayRail 提到 Sidebar 之前（同 z-40 后绘者在上）。
+- 测试：TodayRail 单测 ×4（空态不渲染/瓷贴清单/点按开窗/**无缝契约 className 钉扎**）+ Desktop 回归 10 例 + E2E 新用例（今日应用列点按 → kind=today 真实沙箱生成）；DESIGN.md §26.1 契约入册。
 
 ## 2026-10-03 用户裁决：移除羽化应用窗口「✦ AI 生成」常驻徽标
 

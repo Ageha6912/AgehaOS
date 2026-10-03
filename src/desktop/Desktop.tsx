@@ -98,10 +98,12 @@ export function Desktop() {
           Dock。菜单栏 z-[41] 略高于其余 z-40 chrome，其下拉/通知面板不会被
           随后渲染的左右栏盖住（层级靠 z-index，不靠渲染顺序）。 */}
       <MenuBar />
-      <Sidebar />
       {/* 今日应用列（2026-10-03 用户裁决）：左栏右侧的整列今日应用，世界
-          就绪才渲染；渲染在 Sidebar 之后、窗口之前，与左栏同为 z-40 chrome。 */}
+          就绪才渲染。⚠️ 必须渲染在 Sidebar 之前（同 z-40 时后绘者在上）：
+          左栏 tooltip 向右伸出要盖住今日列的玻璃（2026-10-03 实测：顺序
+          反了会被右栏毛玻璃挡住）。 */}
       <TodayRail />
+      <Sidebar />
       <WindowLayer />
       <WidgetRail />
       <Taskbar />
