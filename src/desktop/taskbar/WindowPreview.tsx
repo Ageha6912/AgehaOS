@@ -27,12 +27,18 @@ export function WindowPreview({
   anchorLeft,
   onSwitch,
   onClose,
+  onMouseEnter,
+  onMouseLeave,
 }: {
   win: WindowInstance
   /** 任务栏图标的视口 left 坐标（调用方在悬停时测量）。 */
   anchorLeft: number
   onSwitch: () => void
   onClose: () => void
+  /** 悬停桥（2026-10-02 用户裁决：指针可移入预览）：进入取消宽限收卡，
+      离开安排宽限收卡——预览挂 body（坑 13），桥由调用方持时。 */
+  onMouseEnter?: () => void
+  onMouseLeave?: () => void
 }) {
   const { t } = useTranslation()
   const minimized = win.state === 'minimized'
@@ -48,6 +54,8 @@ export function WindowPreview({
     <div
       data-testid="window-preview"
       style={{ left }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       className="popover-panel surface-glass animate-os-pop-in fixed bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+6px)] z-50 w-64 p-2"
       onClick={(event) => {
         event.stopPropagation()

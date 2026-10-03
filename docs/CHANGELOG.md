@@ -1,5 +1,11 @@
 # AgehaOS 交付与部署日志
 
+## 2026-10-02 用户裁决：Dock 悬停预览可移入（悬停桥）
+
+- **根因**：预览卡片经 createPortal 挂在 body（坑 13 防包含块劫持），DOM 上不属于瓷贴 wrapper——wrapper 的 `mouseleave` 在指针离开图标的瞬间就触发 `endHover`，预览必消失，指针根本没机会移进去。
+- **悬停桥**：离开图标不再立即收卡，改 240ms 宽限（`scheduleEndHover`）；宽限期内指针进入预览（`cancelEndHover`）则保持驻留；离开预览再宽限后收卡。图标间切换（A→B）仍即时收 A 卡（`startHover` 先 `cancelEndHover`），预览拖尾不跨目标。预览组件新增可选 `onMouseEnter/onMouseLeave`（portal 根 div 接线，桥由 Taskbar 持时）。
+- 现在可以把鼠标移入预览卡片从容点击「切换窗口」或「关闭」；预览体内驻留不限时长。
+- 测试：Taskbar 新增悬停桥用例（离开图标宽限内存活→移入取消收卡→移出后收卡）；旧「离开即隐」用例改钉新契约；E2E `taskbar-autohide` 悬停预览用例补桥接三段（移入驻留 500ms→移出收卡）。
 ## 2026-10-02 用户裁决：窗口八向自由拖拽缩放（修复失效的角柄）
 
 - **根因（探针实证）**：旧实现只有右下角一个 16px 角柄，且其外半段被 Shell 2.0 的 `rounded-xl`+`overflow-hidden` 圆角裁剪成命中死区（elementFromPoint 直接穿透到壁纸层）——「不能自由拖动改变大小」实为完全不可用。

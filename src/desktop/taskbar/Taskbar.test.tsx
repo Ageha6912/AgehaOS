@@ -102,6 +102,38 @@ describe('Taskbar', () => {
     expect(screen.queryByTestId('window-preview')).toBeNull()
   })
 
+  it('keeps the preview alive while the pointer moves into it（2026-10-02 裁决：悬停桥）', async () => {
+    const { act } = await import('@testing-library/react')
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<Taskbar />)
+
+    const item = screen.getByRole('button', { name: '记事' })
+    const wrapper = item.parentElement as HTMLElement
+    fireEvent.mouseEnter(wrapper)
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(screen.getByTestId('window-preview')).toBeInTheDocument()
+
+    // 离开图标：预览不立即消失（240ms 宽限桥）。
+    fireEvent.mouseLeave(wrapper)
+    expect(screen.getByTestId('window-preview')).toBeInTheDocument()
+
+    // 宽限期内移入预览：取消收卡，驻留稳定。
+    fireEvent.mouseEnter(screen.getByTestId('window-preview'))
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(screen.getByTestId('window-preview')).toBeInTheDocument()
+
+    // 离开预览：宽限后收卡。
+    fireEvent.mouseLeave(screen.getByTestId('window-preview'))
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
+    expect(screen.queryByTestId('window-preview')).toBeNull()
+  })
+
   it('shows the minimized state in the preview and hides it on mouse leave', async () => {
     const { act } = await import('@testing-library/react')
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
@@ -116,6 +148,11 @@ describe('Taskbar', () => {
     expect(screen.getByTestId('window-preview').textContent).toContain('窗口已最小化')
 
     fireEvent.mouseLeave(item.parentElement as HTMLElement)
+    // 悬停桥（2026-10-02 裁决）：离开图标不立即收卡——240ms 宽限后收。
+    expect(screen.getByTestId('window-preview')).toBeInTheDocument()
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
     expect(screen.queryByTestId('window-preview')).toBeNull()
   })
 

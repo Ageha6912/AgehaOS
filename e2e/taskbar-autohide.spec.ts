@@ -88,4 +88,14 @@ test('taskbar 悬停预览：锚定图标上方、不偏移到屏幕右缘', asy
   // hover/active 浅底在玻璃胶囊上显成图标四周的白边）——悬停时背景仍透明。
   const hoverBg = await pin.evaluate((el) => getComputedStyle(el).backgroundColor)
   expect(hoverBg).toBe('rgba(0, 0, 0, 0)')
+
+  // 悬停桥（2026-10-02 用户裁决：指针可移入预览）——离开图标预览不立即
+  // 消失，移入预览后驻留，移出预览才收卡。
+  const previewBox = (await preview.boundingBox())!
+  await page.mouse.move(previewBox.x + previewBox.width / 2, previewBox.y + previewBox.height / 2)
+  await page.waitForTimeout(500) // 越过 240ms 宽限窗，验证驻留。
+  await expect(preview).toBeVisible()
+  await page.mouse.move(640, 120) // 移出预览（远离 Dock）。
+  await page.waitForTimeout(500)
+  await expect(preview).toBeHidden()
 })

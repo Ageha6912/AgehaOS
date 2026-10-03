@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Trash } from '@phosphor-icons/react'
 
@@ -73,14 +73,41 @@ export function Taskbar() {
   }
 
   const startHover = (id: string): void => {
+    // 换目标悬停：取消上一目标的宽限收卡（A→B 过渡仍即时收 A 卡）。
+    cancelEndHover()
     if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current)
     hoverTimer.current = window.setTimeout(() => setHoveredId(id), HOVER_DELAY_MS)
   }
   const endHover = (): void => {
+    cancelEndHover()
     if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current)
     hoverTimer.current = null
     setHoveredId(null)
   }
+  // 悬停桥（2026-10-02 用户裁决：指针可移入预览）：预览经 createPortal 挂
+  // 在 body（坑 13），DOM 上不在瓷贴 wrapper 内——wrapper 的 mouseleave 若
+  // 立即 endHover，指针一离开图标预览就消失。改为宽限 240ms：期间进入预览
+  // （cancelEndHover）则保持驻留，离开预览再宽限后收卡。
+  const endHoverTimer = useRef<number | null>(null)
+  const cancelEndHover = (): void => {
+    if (endHoverTimer.current !== null) {
+      window.clearTimeout(endHoverTimer.current)
+      endHoverTimer.current = null
+    }
+  }
+  const scheduleEndHover = (): void => {
+    if (endHoverTimer.current !== null) window.clearTimeout(endHoverTimer.current)
+    endHoverTimer.current = window.setTimeout(() => {
+      endHoverTimer.current = null
+      setHoveredId(null)
+    }, 240)
+  }
+  useEffect(
+    () => () => {
+      if (endHoverTimer.current !== null) window.clearTimeout(endHoverTimer.current)
+    },
+    [],
+  )
 
   return (
     <>
@@ -128,7 +155,7 @@ export function Taskbar() {
                         }
                       : undefined
                   }
-                  onMouseLeave={endHover}
+                  onMouseLeave={scheduleEndHover}
                 >
                   <button
                     type="button"
@@ -160,6 +187,8 @@ export function Taskbar() {
                     <WindowPreview
                       win={latest}
                       anchorLeft={anchorLeft}
+                      onMouseEnter={cancelEndHover}
+                      onMouseLeave={scheduleEndHover}
                       onSwitch={() =>
                         toggleWindow(latest.id, latest.focused, latest.state === 'minimized')
                       }
@@ -195,7 +224,7 @@ export function Taskbar() {
                     setAnchorLeft(event.currentTarget.getBoundingClientRect().left)
                     startHover(win.id)
                   }}
-                  onMouseLeave={endHover}
+                  onMouseLeave={scheduleEndHover}
                 >
                   <button
                     type="button"
@@ -225,6 +254,8 @@ export function Taskbar() {
                     <WindowPreview
                       win={win}
                       anchorLeft={anchorLeft}
+                      onMouseEnter={cancelEndHover}
+                      onMouseLeave={scheduleEndHover}
                       onSwitch={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
                       onClose={() => {
                         useWindowStore.getState().close(win.id)
