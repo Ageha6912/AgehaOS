@@ -1,5 +1,112 @@
 # AgehaOS 交付与部署日志
 
+## 2026-10-02 用户四点打磨（Dock 丝滑 / 红绿灯悬停 / 光标 / tooltip 精致化）
+
+- **Dock 浮起丝滑化**：非对称过渡——入场 380ms easeOutQuint（cubic-bezier(0.22,1,0.36,1)）软减速浮起，回落 220ms 常规收拢（index.css 两个状态各写 transition）。
+- **红绿灯悬停反馈**：圆点轻微上浮 1px + 放大 110%（group-hover/light，150ms ease-out），不显字形；光标十字（cursor-move）退役，拖动区保持默认箭头。
+- **tooltip 精致化**：玻璃冷墨芯片——blur(10px) + 白/14% 细描边 + 顶缘高光 + 分层软影 + 圆角 10px；浮现带 4px 右滑微动（基态 translateX(-4px) → 亮起归位）。
+- 测试：index.css 非对称过渡/tooltip 芯片新钉 +2；WindowFrame 红绿灯悬停类/cursor 默认 +2 组断言。
+
+## 2026-10-03 羽化模式 P2–P4：E2E 验收补齐（对照设计 §12，26 用例 3 连跑全绿）
+
+- 全部真浏览器 + dist 产物 + `page.route` 桩驱动。**P2**（`e2e/eclosion-world.spec.ts`，8 用例）：①首次今日世界落位——通知中心「今日世界已就绪」留档、顶栏「今日桌面由 N 条趋势信号生成」可展开来源列表、启动器「今日」分组 6 瓦片落位；②双主题质量门——世界 accent 写入 inline `--ag-primary` 后浅/深两态页面内实算 WCAG 对比度均 ≥3；③降级两分支——空数据纯想象（degraded、signalCount=0：世界照常、顶栏小字不渲染）与世界接口 503（静默放弃：今日分组空、桌面照常、worldHits≥1 证明走过拉取）；④今日应用生成——点按第 3 个瓦片（避开前 2 预取）断言 kind=today 请求契约（worldDate=今日/slug/theme/无 hint）+ 真实沙箱 iframe 破茧与点击交互。**P3**（`e2e/eclosion.spec.ts` 新增，含 stubEclosionApi 额度档覆写）：429 quota-exceeded → L3 错误卡带「今日生成额度已用完（20/20）…重置」+ 重试入口。**P4**（2 用例）：蝶谱时间线（世界留档 → Settings 展示日期/headline →「回到那天的主题」恢复甲日 accent 且今日应用不换，同日用「世界甲 → 重载换世界乙 → 回放甲」等价观测）；举报同意流程（先取消不上报/窗口保留 → 确认后 POST /api/dynamic/samples 载荷 source=eclosion + 应用名 + HTML 前 2KB 摘要 → 本地关窗 → 重开呈封禁卡）。回归：羽化关（默认）世界/生成接口零请求、「今日」分组空、accent 不接管。
+- **E2E 抓出真实产品 bug 并修复**：举报同意框 createPortal 到 body，其 pointerdown 经 React 树冒泡到达窗口标题栏拖拽处理器（`WindowFrame.tsx` onTitlePointerDown），setPointerCapture 把后续 pointerup/click 重定到标题栏，弹层取消/确认按钮 onClick 永远收不到（真实浏览器中举报流程完全不可用；fireEvent 单测发现不了）。修复 = 标题栏只劫持物理命中自身的按压（`contains(target)` 守卫），配 jsdom setPointerCapture 探针单测（移除守卫必红、加回必绿），记入 docs/PITFALLS.md 坑 74。另加固既有 SSE 用例的重开帧定位（关窗退场 ghost 挂旧 iframe 致 `page.frame({url})` 偶发撞错帧，改锚定重开窗口自身 iframe 的 `contentFrame()`，坑 75）。
+- 门禁：`npx playwright test e2e/eclosion-world.spec.ts e2e/eclosion.spec.ts e2e/eclosion-runtime.spec.ts`（11+7+8=26 用例）连续 3 轮各 26 passed；`npx vitest run src/desktop/window/ src/components/eclosion-app-frame.test.tsx src/apps/settings/EclosionSection.test.tsx` 74 passed（WindowFrame 单独 22 passed）；`npx tsc --noEmit`、eslint（4 个改动文件）、`npx prettier --check` 全清洁；dist 已 `npx vite build` 重建，临时调试脚本与预览服务器已清理。
+
+## 2026-10-03 羽化模式 P4：治理与蝶谱（设计 §10/§8）
+
+- **举报**：标题栏「举报」→ ConfirmDialog 显式同意（createPortal 至 body，坑 67）→ 编排器 `reportApp` 走既有匿名样本链路 `POST /api/dynamic/samples` 扩体 `{text≤512（应用名+tagline+query 组合摘要）, source:'eclosion', detail≤2048（HTML 前 2KB 客户端截断）}`；上传成功后本地立即关窗 + 会话封禁（编排器内存级 Set，登出/stop 清空不持久化；封禁 appId 开窗即封禁卡、无重试、ensureSession 拒绝）+ `eclosion.app.reported` 事件（预留键转正）。
+- **服务端**：SAMPLE_BODY_SCHEMA 扩 source 枚举/detail 长度（violation 仍 422 不落库，分类只跑 text）；ContentSampleRecord 加 `source?/detail?`，postgres `ALTER TABLE ADD COLUMN IF NOT EXISTS` 两列（坑 23）+ INSERT/SELECT/行映射，memory/file 存整条记录自动透传；admin 复审新增「羽化应用」来源筛选 + 来源徽标 + 摘要呈现（客户端过滤，服务端面零扩展）。
+- **蝶谱**：EclosionSection 时间线（ScrollFadeList：日期/headline/配色条/应用名单）+「回到那天的主题」= `world-theme.applyReplayTheme`（seed=hash(那日 worldDate+headline)，accent Token + 经 applyOutcome 的壁纸计划；只动主题与壁纸，世界摘要/kept/今日蝶谱不动；动效走 WallpaperLayer 既有交叉淡入的 prefers-reduced-motion 降级）。密码框警示与 AI 徽标为 P1 既有实现零改动（回归测试确认，含缓存路径 passwordInputSeen）。
+- 门禁：前端针对性 244 测试（eclosion 42/frame 27/EclosionSection 12/SampleReview 10/world-theme 12 及牵连 141）、服务端 stores+samples 25/25、`npm run typecheck` 与 `npm run lint`（0 错误，2 警告均为未触碰既有文件）全部通过；全量四门禁按约定留给工作流脚本。
+
+## 2026-10-03 羽化模式 P3：想象搜索（设计 §7）
+
+- **服务端** `POST /api/eclosion/generate` 开放 `kind=imagine`：query trim 后 1–60 字（空白→422 invalid-query、schema>60→400 invalid-body）、先过 `classifyContentText`（violation→422 content-rejected，照 samples 模式不落任何存储）、包裹固定模板「用户想要一个应用：\<query\>。按应用生成契约输出。」（空白折叠防逃逸，系统契约不可改写）、恒个人版本不读不写全局缓存且不参与单飞锁、imagine 档每日 20 次、审计带 queryHash 但 query 原文零入日志。
+- **客户端**：spec.ts 新增 `normalizeImagineQuery`（trim+空白折叠+小写）与 `imagineAppIdForQuery`（sha256 前 8 位，与服务端同口径、两侧同批字面量钉死）；编排器 `ensureImagineSession` 三道门禁（开关+登录、客户端 filterContentText、≥2 字）——同会话同（规范化）query 复用同一 appId/会话零新请求，HTML 只存会话内存（§8），登出整体清理；keepApp 扩想象分支（内存全文→kept≤30 LRU，名称=query，跨重启 restoreKeptApps 秒开，可卸载），权限恒空。
+- **SearchPalette** 第三域「想象」恒排应用/文件后（「✦ 想象一个『<query>』应用」），键盘三段化，Enter/点击开窗即生成；帧 imagine 亦显「获取」；错误卡对 quota-exceeded 按 imagine 档展示已用/上限与重置时间（§12 P3 验收「额度耗尽提示清晰」）。
+- 门禁：客户端 82（hash 字面量钉死/域序门控/违规不显示/会话复用/kept 往返/额度卡）+ 服务端 70（422 两类/模板注入钉死/个人版两次真生成/20 档 429/审计不含 query 原文）+ Playwright 1（Ctrl+K→生成窗口可用+违规词无想象项，route 桩 SSE）全绿；typecheck/lint 干净。
+
+## 2026-10-03 羽化模式 P2：今日应用（按 2026-10-02 落位裁决：启动器承载，不复活桌面图标层）
+
+- **分域**：spec.ts 加 `eclosionAppKind`/`ECLOSION_RUNTIME_DEFAULT_WINDOW`（720×480）/imagine 前缀预留；L2/L3 恒零权限。
+- **运行时注册**：app-store 新增 `registerRuntimeApp`/`unregisterRuntimeApp`——与 installApp 同一 manifest 校验（schema 冻结），但不进 INSTALLED_KEY（runtimeIds 过滤持久化）；世界就绪时 `syncWorldApps` 增量同步当日清单、跨日/登出整体注销防陈旧。
+- **编排器泛化** `EclosionTarget{basic/today/kept}`：kind=today 按需流式生成（body 含 worldDate+slug）、当日内重开走 today 缓存秒开、重新羽化绕缓存且覆盖本地；kept 只读快照（跨重启秒开、无网络）；登录时 `pruneTodayBefore` 次日清理 + kept 恢复注册；空闲预取恰前 2 个（每 worldDate 一次）。
+- **「获取」基础设施**：`keepApp` 把当日缓存快照写入 kept（≤30 LRU、hue 随档）+ 注册「我的羽化」清单；`unkeepApp` 卸载。
+- **启动器**：「今日」「我的羽化」两分类，今日瓦片按世界行 hue 色相旋转确定性徽章（AppIcon 新 hue prop，只转色相保明度差），kept 瓦片悬停 ✕ 卸载；宿主容器 L2/kept 终态失败渲染错误卡（重试=重新羽化）绝不落原生兜底、标题不标「已回落经典版」，标题栏新增「获取」（L1 不出现，成功翻转为已获取）；通知桥按域分流措辞（L2 NoFallback 文案键）。
+- 门禁：针对性 15 文件 225 例全绿（另回归 497+282 例全绿、tsc/eslint 干净）。
+
+## 2026-10-03 羽化模式 P2：主题落地（设计 §6.3）
+
+- **world-theme.ts**（新）：seed=sha256(worldDate|headline)、世界 paletteId 按色相映射当前主题 gradient-field 构图（ACTIVE_STYLES 只剩 gradient-field，2026-09-27 裁决；不另起渲染层、不新建调色板）、照常过 evaluateQuality+applyOutcome 写历史；accentHue→`--ag-primary/--ag-focus-ring/--ag-brand-strong` inline Token（`--ag-brand/soft` 经 var() 自动跟随；只改色相，双主题 ≥3 对比度门不过不落 inline，校验层已回落调色板默认）。
+- **编排器**：`refreshWorld`（登录/开关开触发，当日缓存命中不重发请求只重播就绪事件）/`regenerateWorld`/蝶谱 replay 写入（每世界日一条、≤60 LRU、不存 HTML）；`eclosion.world.ready` 由 dynamic-desktop 订阅应用主题（壁纸与 Token 管线所有者），themeFollow 关时不改主题。
+- **接线**：顶栏「今日桌面由 N 条趋势信号生成」小字 + 来源弹层（`WorldSignals.tsx`，usePopoverDismiss 互斥；signalCount=0 纯想象降级与跨日陈旧世界均不渲染）；Settings「主题跟随今日世界」ToggleSwitch（默认开、总开关关时置灰，重开时重拉世界接回主题）。
+- **附带**：额度扩 basic/today/imagine 三档、IndexedDB DB_VERSION 升 2 一次建齐 today/kept/replay 三 store（避免两次迁移）、world.ready 通知每世界日一条（去重态会话级）。
+- 门禁：针对性 17 文件 230 例全绿（另回归 7 文件 71 例 + 服务端一致性 32 例 + tsc/eslint 全部通过）。
+
+## 2026-10-03 羽化模式 P2：服务端今日世界（设计 §6.1/§6.2/§9.2）
+
+- **trending.ts**（新）：可插拔 `TrendingSource` + GitHub Trending RSS 默认源（`AGEHA_ECLOSION_TRENDING_*` 可配）；清洗 ≤120 字/≤12 条/去 HTML/控制字符/URL、violation 条目剔除、内存+DataStore 双层缓存 TTL 6h、失败用上一次成功数据、全无 → 纯想象降级（世界照常生成）。
+- **world.ts + world-data.ts**（新）：JSON Lines 逐行严格校验——theme 行 + 6–10 个合法 app 行；slug/名称撞名/icon Phosphor 白名单/hue/paletteId 抽象调色板白名单（24 组，shanshui-* 不入）/accentHue WCAG 双主题门+调色板默认回落/category 六枚举/内容过滤；invalid 整段重试一次；`ensureWorldForDay` 单飞锁保持坑 73 次序（acquire 后再补读缓存）。
+- **scheduler.ts**（新）：启动检查一次 + 每 10 分钟查 UTC 日跨日即生成（`AGEHA_ECLOSION_WORLD_SCHEDULER*` 可配，默认开）、定时器 `unref`、onClose 清理；多实例复用 DataStore 单飞锁。
+- **客户端同构** `src/core/eclosion/world.ts`（新）：公开载荷纵深防御校验（hint 永不下发——ADR 27），白名单/色相门全值域一致性由服务端测试动态引入客户端模块钉死。
+- **路由**：`GET /api/eclosion/world`（全局按日缓存+懒触发、个人版优先）与 `POST /api/eclosion/world/regenerate`（个人版、耗 today 档、只写个人键绝不回写全局）；`POST /generate` 扩 `kind=today`（当日/世界成员校验 422、`(worldDate,slug,model)` 全局缓存命中不耗额度、权限恒空、今日额度 30）。热点以 JSON 数据块进 user 消息、系统提示词明示不可信不执行（注入测试钉死热点内指令只出现在数据块）。
+- 门禁：`npx vitest run --config server/vitest.config.ts`（11 文件 142 测试）+ `src/core/eclosion/world.test.ts`（26 测试）+ eslint 改动文件 + 双侧 `tsc --noEmit` 全绿。
+
+## 2026-10-03 羽化模式：AgehaOS SDK 客户端全链路（设计 §4.1 第 4 条收口）
+
+- **runner 侧**（`eclosion-runner.js` 源文件 + `eclosion.html` 内联副本，字节一致由既有测试钉死）：power-on 时按宿主下发的 capabilities 声明安装**冻结的** `window.AgehaOS`——未授予的命名空间**不存在**而非「存在但被拒」，生成代码可特性检测分支（`if (window.AgehaOS && AgehaOS.storage)`）；实现 `files{read,write,list,mkdir,remove}`/`storage{get,set,remove,keys}`/`theme.get`/`window.setTitle`/`notification.show`，经既有 `agehaos:sdk` 白名单信封 postMessage 委托宿主、reqId 关联回执、5s 超时（`sdk-timeout`）、宿主错误码经 `Error.message` 传播；`agehaos:sdk-result` 消费不再是 no-op，且不暴露 post/pending 等内部原语。
+- **宿主侧**（`eclosion-app-frame.tsx`）：SDK 权限恒来自规格表（L1 按各自 permissions、spec 查无即 L2/L3 恒空 → 一律拒绝，不读 permissionManager 运行时授予），power-on 随信附 `sdkCapabilitiesForPermissions` 推导的能力清单。
+- **协议侧**（`runner-protocol.ts`）：power-on 信封 `{ scripts }` 扩为 `{ scripts, capabilities }`（capabilities 必填，宿主发送/协议解析/runner 校验/测试四处同步）+ 新纯函数 `sdkCapabilitiesForPermissions`（恒含免许可只读 theme）。
+- **提示词侧**（server `prompts.ts`）：`capabilityLine` 重写为与实际 API 逐项对齐——files 的 `/Apps/<appId>/` 目录钳制与 invalid-path、storage 键规约与「已存值或 null」、特性检测范例、Promise reject 必须 catch、防抖 800ms；零权限规格明示只剩 theme。
+- **安全铁律全程未动**：CSP `connect-src 'none'` 不变、sandbox 属性不变、消息类型不增（仍恰四类）、`<script>` 截留不变。坑 70 说明：eclosion.html 内容有变但 `public/apps/runtime/` 全部为未提交新文件（从未发布过带 `?v=` 的旧副本），runner 与 `?v=` 方案同变更集首发、无旧缓存可破，故未 bump package.json 版本。
+- 门禁：`npx vitest run`（runner-protocol/eclosion-runner/eclosion-app-frame 三文件，44 passed）；`npm run test:server -- eclosion.test.ts` 30 passed（含新增 capability 文案回归）；`npx tsc --noEmit` 与 eslint 九个改动文件清洁；`npm run build` 后 `npx playwright test e2e/eclosion-runtime.spec.ts e2e/eclosion.spec.ts` 16 passed（新样本 sdk-storage.html 在真实 Chromium 的 SDK 往返 + 时钟 storage 桌面全链路端到端 + 未授予时 NO-STORAGE-CAPABILITY 降级分支）。
+
+## 2026-10-02 羽化模式 P1：Playwright 端到端（切片五）
+
+- 新增 `e2e/eclosion.spec.ts`（4 用例，全部真浏览器 chromium @ 干净本地认证构建）：①默认关回归——启动器「计算器」瓦片恰一枚（三件套隐藏）、原生组件可算 1+2=3、无 iframe 无 AI 徽标；②Settings「羽化」区——分区在场、总开关默认关且本地认证置灰+原因提示、三件套子开关联动置灰、额度探测优雅降级（无后端 →「暂无法获取额度」）；③开启态+503 桩（page.route 桩 /api/eclosion/generate → `ai-not-configured`）——羽化计算器接管入口、确定性失败不重试、回落原生可算 7×6=42、标题栏「已回落经典版」、AI 徽标与重新羽化按钮在场；④开启态+SSE 桩——完整真浏览器管线：真实 dist 内沙箱 iframe（sandbox=allow-scripts、src 带 ?v=）、破茧脚本在沙箱内真实执行（#result 文本 + 事件绑定点击）、进度条收起、关窗重开走 IndexedDB 缓存秒开。
+- **开启态进入方式**：按用户分键持久化偏好（登录后以真实 userId 写 `agehaos.eclosion.prefs.v1.<id>` 再 reload 让装配链 hydrate）——本地认证下 UI 无法开启是 §9.3 准入裁决，e2e 测的是开启后的运行路径；服务端交互以 route 桩驱动（真 LLM 上游流式属 P0 spike 手工口径，见 docs/PITFALLS.md）。
+- **沙箱本身不重复覆盖**：CSP 禁网（fetch/XHR/WebSocket/sendBeacon/EventSource 五路阻断 + 零出网 + 无 CSP 对照组）、不透明 origin（父 DOM/localStorage/cookie 不可达）、增量挂载+破茧+伪造来源忽略已在切片一 `e2e/eclosion-runtime.spec.ts`（9 用例）。
+- **覆盖口径**（真浏览器 vs 单测）：真浏览器 = 默认路径/置灰/503 回落/SSE 流式+秒开/沙箱禁网；仅单测（jsdom）= 并发排队、AbortController 取消、重试恰好一次、SDK Default Deny、密码框警示、事件载荷（切片三/四 77 文件 635 用例）。
+- 门禁：干净构建（删 dist、无 VITE_AUTH_BACKEND——.env.deploy 非 Vite 约定名不被读取）+ `npx playwright test` 全套 **32 passed（28 既有用例零改动全绿 + 4 新增）**；spec 经 eslint/tsc 零告警。
+
+## 2026-10-02 羽化模式 P1：接线与设置（切片四）
+
+- **AppRegistry 注册三件套**：`builtin-manifests.ts` 由 `BASIC_ECLOSION_SPECS` 派生 `com.ageha.eclosion.calculator/notes/clock` Manifest（entry 统一 `/apps/runtime/eclosion.html`、permissions/window 取自规格表，Manifest schema 不扩）；`registerBuiltinApps` 静默 grantAll，builtin 过滤使其不落 localStorage 安装表（与 IndexedDB 缓存双源解耦）；app-badges 补三枚精选徽章（字形同原生、青蓝族配色示「AI 生成版」）；窗口横版裁决豁免表补羽化计算器（300×440）与羽化时钟（420×560，设计 §5.2 表格钉死）。
+- **展示名统一**：`launch.ts` 新增 `appDisplayName`（内置组件 → APP_UI_META；羽化 → 规格 titleKey；其余 → manifest.name），launch/启动器瓦片/推荐行/设置权限清单共用；launch 单测钉三件套标题与几何（300 被 MIN_WINDOW_WIDTH=320 抬到下限，与原生计算器同款行为）。
+- **启动器呈现过滤**：`filterLauncherAppIds` 纯函数（开关开 + 默认羽化 → 三件套接管 calculator/notes 入口；关 → 仅原生；每应用可单独选「经典版」换回原生入口；时钟样本 com.ageha.samples.clock 维持现状不随开关隐藏；未知 `com.ageha.eclosion.*`（imagine 域预留）仅开关开时可见）；`eclosion-store` 扩 `modes`（按 userId 分键持久化，脏数据逐字段回落）；AppLauncher 新测试文件（纯函数 5 用例 + 点击启动行为 3 用例，e2e 断言依据）。
+- **Settings「羽化」区**：`EclosionSection`（总开关/三件套生成方式子开关 `disabled={!enabled}`/额度展示/清除羽化数据）+ SettingsApp 三处登记（SectionId/sections/条件渲染）；总开关置灰逻辑——本地认证（§9.3 准入，提示「远程认证模式下可用」）或额度快照 `configured:false`（提示「服务端未配置 AI」，同时是 GET /api/eclosion/quota 的展示位）；开启即安排空闲预取；清除数据走编排器按用户清 IndexedDB。组件测试 6 用例（置灰两因/可开路径+预取触发/子开关联动/清除确认/打开即拉额度）+ SettingsApp 注册用例。
+- **装配**：`main.tsx` 装配链尾追加 `systemEclosion.start()`（登录联动/额度拉取/空闲预取；任何 AI 环节失败静默降级原生兜底，不阻塞桌面）；通知桥 `eclosion.app.failed`（重试后仍失败）切片三已接。
+- **文档**：ARCHITECTURE §2 依赖表登记 `core/eclosion` 与 services→store 既有先例、新增 §3.23 羽化模式、ADR 25/26/27；SECURITY 新增 §5 生成代码威胁模型（外传/越权/脚本偷渡/钓鱼/提示词注入/成本滥用/失败兜底 七闸门表）；PRD §8.1 新增 Type D 羽化应用 + L0–L3 软件分层表。
+- 门禁（本片）：vitest 针对路径全绿（apps/store/desktop/services/components/core）+ `tsc --noEmit` + eslint 触碰文件零告警；全量四门禁与 E2E 由工作流脚本统一执行（切片五补 e2e/eclosion.spec.ts）。
+
+## 2026-10-02 羽化模式 P1：前端核心（切片三）
+
+- **① 规格表**（`src/core/eclosion/spec.ts`）：`EclosionSpec` 类型 + `BASIC_ECLOSION_SPECS` 三件套（appId/permissions/window/specVersion/titleKey/原生兜底映射）——刻意**不含 hint**（ADR 27：提示词只在服务端），服务端一致性门 `server/test/eclosion.test.ts` 随本片激活并通过（此前 it.skipIf 显式跳过）。
+- **② 缓存**（`src/services/eclosion-cache.ts`）：独立 IndexedDB 库 `agehaos.eclosion`（不进 VFS），按 `userId:specId:vN` 分区，含「清除羽化数据」，不可用时静默降级。
+- **③ 编排器**（`src/services/eclosion.ts`）：fetch+ReadableStream 解析 SSE（POST，非 EventSource）；html-stream 边流边切分（script 截留）；缓存命中秒开；并发 2 排队；AbortController 取消 + attach/detach 关注者计数（关窗中止、预取持有不打断）；requestIdleCallback 顺序预取；regenerate；重试一次→回落（ai-not-configured/quota-exceeded 等非重试错误直落）；额度快照；`eclosion.*` 与 `ai.decision.performed` 事件。
+- **④ 状态**（`src/store/eclosion-store.ts`）：总开关（默认关、按 userId 分键持久化）、生成状态镜像、额度。
+- **⑤ 宿主容器**（`src/components/eclosion-app-frame.tsx` + `src/services/eclosion-theme.ts`——主题映射拆独立文件因 eslint react-refresh 禁止组件文件导出非组件）：sandbox=allow-scripts iframe（src 带 ?v=）；event.source 严格相等 + runner-protocol 白名单；主题 Token 子集（--ag-* 映射 --ageha-*）随握手 seq0 下发；流毕 power-on；「结茧中…（思考 N 字）」/排队提示；5 秒无 rendered 或 eclosion:error 重试一次→原生兜底+标题栏「已回落经典版」；AI 徽标不可隐藏+重新羽化+密码框红色警示（EclosionTitleExtras）；SDK 桥复用 handleSdkRequest。
+- **⑥ 事件**：SystemEventMap 扩五事件（world.ready/app.reported 为 P2/P4 预留）+ 发送处 + 通知桥只接 `eclosion.app.failed`（重试后仍失败）+ i18n 双词典新键；⑦ WindowFrame `com.ageha.eclosion.` 前缀分支先于 allowlist 判定。
+- 门禁：vitest 60 文件 502 用例 + `npm run test:server` 108 用例 + `tsc` + eslint 全绿。
+
+## 2026-10-02 羽化模式 P1：服务端生成管线（切片二）
+
+- 新增 `server/src/eclosion/`（L1 规格表+提示词 `spec.ts`/`prompts.ts`、OpenAI 兼容 `stream:true` 上游客户端 `upstream.ts`、流式结构闸 `html-gate.ts`、额度域 `quota.ts`）与 `server/src/routes/eclosion.ts`：`POST /api/eclosion/generate`（登录 + 本期只开放 kind=basic + SSE `meta/think/delta/done/error`、断开与超时经 AbortController 中止上游、`AGEHA_ECLOSION_TIMEOUT_MS` 默认 240s）、`GET /api/eclosion/quota`（剩余额度 + UTC 重置时间；未配置 Key 时 200 `configured:false` 供 Settings 探测，generate 仍严格 503）。
+- **结构闸四件套**：剥围栏与 `<!doctype`/`<html` 之前的一切前缀；60KB 截断标 `invalid-output`；外链（src=/url(/@import）跨 chunk 安全移除并记审计；流末围栏不下发。
+- **成本护栏**（设计 §9.3）：`AGEHA_ECLOSION_*` 逐项回退 `AGEHA_AI_*`、Key 全空 503、个人每日 basic 10 次（admin 只计全局）、全局日 token 预算、6/min/用户限流、`(specId,specVersion,model)` 全局缓存命中不耗额度、单飞锁去重并发。
+- **存储面**：DataStore 接口扩羽化面并 memory/file/postgres 三驱动同步（postgres 三张新表、file 持久化计数与缓存、锁一律不持久化）。
+- **测试中抓到两个生产级 bug 并修复**：① Node ≥16 里 `request.raw` 在请求体读毕即发 close（inject 测不出、真 socket 才暴露）——断开检测改挂 reply.raw 且 writableEnded 判定（坑 73）；② 单飞锁 check-then-act 竞态——改为 acquire 成功后补读缓存。
+- 门禁：`npm run test:server` 107 passed / 1 skipped（skipped 为客户端 spec.ts 一致性闸，切片三落地自动激活）+ server typecheck + eslint 清洁；修复后 27 连跑全绿。
+
+## 2026-10-02 羽化模式 P0：沙箱运行时 Spike（切片一）
+
+- **`public/apps/runtime/eclosion.html`**：自带设计 §4.1 第 2 条**逐字 CSP**（`connect-src 'none'` 为关键），挂载根 `#eclosion-root`；版本化契约（宿主 `?v=`）以注释 + 坑 70 记录。
+- **`eclosion-runner.js`**：实现 §4.2 全协议（ready → chunk 增量 `<template>` 挂载 + pop 动画（reduced-motion 降级）→ power-on 按序 textContent 注入 → rendered/error 回报）；生产形态内联进 html，源文件与内联副本逐字节一致由单测钉死。**§4.3-1 内联裁决**：Chromium 下 CSP 'self' 能匹配外链 runner（无 Refused-to-load 违规），实测拦截发生在其下的网络层（opaque origin→loopback 触发 PNA）；外链受环境支配故维持内联。
+- **`src/core/eclosion/` 四件**：`sse.ts` 纯函数帧解析（跨 chunk/CRLF/CR/event/data/BOM/close）；`html-stream.ts` 流式切分（script 内容与元素整体截留、style/骨架先行、仅闭合构造成片、残缺标签留缓冲、引号内 >/CSS 子选择器/注释内假 script/a<b 全覆盖）；`runner-protocol.ts` 双向恰四类白名单（多余字段丢弃、未知类型拒绝、SDK 委托 sdk-bridge）；runner 源文件/内联副本逐字节一致性单测（`eclosion-runner.test.ts`）。
+- **`web-app.ts`**：新增 `ECLOSION_RUNNER_ENTRY` 精确判定，`/apps/sites/` allowlist 不放宽（测试钉死）。
+- 验证：`npx vitest run src/core/eclosion src/core/apps/web-app.test.ts` → 64 passed（5 文件）；干净构建（无 VITE_AUTH_BACKEND、端口无残留）后 `npx playwright test eclosion` → **9 passed**（CSP 逐字断言、五 API 禁网+零出网+无 CSP 对照组、不透明 origin 三路 blocked、'self' 结论、event-counter/canvas 两样本真实切分器驱动的增量渲染与破茧、破茧抛错回 boom、伪造来源 power-on 被拒）；eslint 零告警。坑 72 入 docs/PITFALLS.md；上游模型选型与延迟对照待真实 Key 手工 spike（坑 72⑤）。
+
 ## 2026-10-02 用户三点裁决（Dock 悬停 / 红绿灯 / 零自动开窗，18:xx 工作区提交）
 
 - **Dock 悬停只浮起被悬浮的一枚**：§13 波浪引擎（wave.ts / use-dock-wave.ts 及测试）整体删除，改为 index.css hover 规则（translateY(-3px) scale(1.18) + cobalt 28% 光晕；触屏与 reduced-motion 不浮起）；motion-lab E2E 重钉「悬浮浮起 + 邻位不动 + 移开归位」（DESIGN.md §13 重写、DECISIONS A21）。

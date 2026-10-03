@@ -1,9 +1,10 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetClosingGhosts } from './closing-ghosts'
 import { resetMotionPrefsStore, useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
+import { resetEclosionStore, seedEclosionForTests } from '@/store/eclosion-store'
 
 import { WindowLayer } from './WindowLayer'
 
@@ -24,6 +25,8 @@ describe('WindowFrame (via WindowLayer)', () => {
     // 头部 44px + 窗体 radius-xl（非最大化）。
     const header = region.querySelector('header') as HTMLElement
     expect(header.classList.contains('h-9')).toBe(true)
+    // 2026-10-02 用户裁决：拖动区保持默认箭头（cursor-move 十字观感差）。
+    expect(header.className).not.toContain('cursor-move')
     expect(region.classList.contains('rounded-xl')).toBe(true)
 
     // 三灯左置且顺序固定：关闭 → 最小化 → 最大化；点色走 Token。
@@ -32,21 +35,30 @@ describe('WindowFrame (via WindowLayer)', () => {
     const maximize = screen.getByRole('button', { name: '最大化窗口' })
     expect(header.contains(close)).toBe(true)
     expect(close.compareDocumentPosition(minimize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(minimize.compareDocumentPosition(maximize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      minimize.compareDocumentPosition(maximize) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(close.querySelector('.bg-wl-close')).not.toBeNull()
     expect(minimize.querySelector('.bg-wl-min')).not.toBeNull()
     expect(maximize.querySelector('.bg-wl-max')).not.toBeNull()
     // 2026-10-02 用户裁决：灯内不再有 ✕/—/⬛ 字形（纯色圆点，macOS 素态）；
-    // 可访问名契约（上方 getByRole）不受影响。
+    // 悬停 = 圆点轻微上浮 + 微放大提示可点（group-hover/light）；可访问名
+    // 契约（上方 getByRole）不受影响。
     for (const light of [close, minimize, maximize]) {
       expect(light.querySelector('svg')).toBeNull()
+      const dot = light.querySelector('span[aria-hidden="true"]') as HTMLElement
+      expect(dot.className).toContain('group-hover/light:-translate-y-px')
+      expect(dot.className).toContain('group-hover/light:scale-110')
+      expect(light.className).toContain('group/light')
     }
     // 灯在 AppIcon/标题之前（左置）：灯组是 header 第一个子元素。
     const firstGroup = header.firstElementChild as HTMLElement
     expect(firstGroup.contains(close)).toBe(true)
     expect(firstGroup.contains(maximize)).toBe(true)
-    expect(firstGroup.compareDocumentPosition(header.querySelector('span.truncate') as Node)
-      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      firstGroup.compareDocumentPosition(header.querySelector('span.truncate') as Node) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 
   it('renders the title bar and app body', () => {
@@ -168,7 +180,11 @@ describe('WindowFrame (via WindowLayer)', () => {
 
     // 焦点迁移后退后标记随之移动；最小化窗口不退后（本来隐藏）。
     act(() => {
-      useWindowStore.getState().focus(useWindowStore.getState().windows.find((w) => w.appId === 'com.ageha.notes')?.id ?? '')
+      useWindowStore
+        .getState()
+        .focus(
+          useWindowStore.getState().windows.find((w) => w.appId === 'com.ageha.notes')?.id ?? '',
+        )
     })
     expect(screen.getByRole('region', { name: '记事' }).className).not.toContain('is-tilt-dim')
     expect(screen.getByRole('region', { name: '文件' }).className).toContain('is-tilt-dim')
@@ -200,6 +216,70 @@ describe('WindowFrame (via WindowLayer)', () => {
     render(<WindowLayer />)
 
     expect(screen.getByText('未找到该应用，窗口即将关闭。')).toBeInTheDocument()
+  })
+
+  it('routes eclosion app ids to the eclosion host before the Type B allowlist (§3.2 路由顺序)', () => {
+    // 开关关：宿主直接渲染原生兜底（不是 MissingApp、不是 WebAppFrame）。
+    resetEclosionStore()
+    useWindowStore.getState().open({ appId: 'com.ageha.eclosion.calculator', title: '计算器' })
+    render(<WindowLayer />)
+
+    expect(screen.getByTestId('calculator-display')).toBeInTheDocument()
+    expect(document.querySelector('iframe')).toBeNull()
+    // 标题栏配件：✦ AI 生成徽标（不可隐藏）。
+    expect(screen.getByTestId('eclosion-ai-badge')).toBeInTheDocument()
+    expect(screen.queryByText('未找到该应用，窗口即将关闭。')).not.toBeInTheDocument()
+    resetEclosionStore()
+  })
+
+  it('renders the sandboxed runner iframe for eclosion apps when the mode is on', () => {
+    seedEclosionForTests('u-frame-route', true)
+    useWindowStore.getState().open({ appId: 'com.ageha.eclosion.calculator', title: '计算器' })
+    render(<WindowLayer />)
+
+    const iframe = document.querySelector('iframe')
+    expect(iframe).not.toBeNull()
+    expect(iframe?.getAttribute('sandbox')).toBe('allow-scripts')
+    expect(iframe?.getAttribute('src')).toMatch(/^\/apps\/runtime\/eclosion\.html\?v=/)
+    resetEclosionStore()
+  })
+
+  it('title-bar drag never hijacks presses on portal dialogs (举报同意框, P4 §10)', () => {
+    // 复现口径（2026-10-03 E2E 实测）：羽化举报同意框 createPortal 到 body，其
+    // pointerdown 经 React 树冒泡到达标题栏 onPointerDown；若照常
+    // setPointerCapture，后续 pointerup/click 被重定到标题栏，同意框按钮的
+    // onClick 收不到（真实浏览器里取消/确认双双失效）。守卫后：portal 按压
+    // 不是标题栏 DOM 后代 → 直接放过。
+    resetEclosionStore()
+    useWindowStore.getState().open({ appId: 'com.ageha.eclosion.calculator', title: '计算器' })
+    render(<WindowLayer />)
+
+    // 打开同意框（触发按钮本身已吞 pointerdown，开框不受影响）。
+    fireEvent.click(screen.getByTestId('eclosion-report'))
+    const dialog = screen.getByRole('dialog', { name: '举报此应用' })
+    expect(dialog.parentElement).toBe(document.body) // portal 出根容器
+
+    // portal 按压不劫持指针、不进拖拽态。jsdom 本无 setPointerCapture——补一个
+    // 探针实现：守卫在场时**绝不能被调**（未守卫时它就是劫持点，且真实浏览器
+    // 里后续 pointerup/click 会被重定到标题栏）。
+    const capture = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+      value: capture,
+      configurable: true,
+    })
+    const before = useWindowStore.getState().windows[0]
+    expect(() =>
+      fireEvent.pointerDown(within(dialog).getByTestId('confirm-dialog-cancel')),
+    ).not.toThrow()
+    expect(capture, 'portal 按压不得 setPointerCapture').not.toHaveBeenCalled()
+    const after = useWindowStore.getState().windows[0]
+    expect({ x: after.x, y: after.y }).toEqual({ x: before.x, y: before.y })
+    delete (HTMLElement.prototype as { setPointerCapture?: unknown }).setPointerCapture
+
+    // 取消照常关闭（onClick 完整事件链不被劫持）。
+    fireEvent.click(within(dialog).getByTestId('confirm-dialog-cancel'))
+    expect(screen.queryByRole('dialog', { name: '举报此应用' })).not.toBeInTheDocument()
+    resetEclosionStore()
   })
 })
 

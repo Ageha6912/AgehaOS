@@ -321,7 +321,7 @@ describe('index.css token contract (Token 2.0)', () => {
     // reduced-motion 不浮起；不声明 background（按钮零底色裁决不回退）。
     const at = css.indexOf('button:hover > [data-wave-icon]')
     expect(at).toBeGreaterThan(0)
-    const rule = css.slice(at, at + 200)
+    const rule = css.slice(at, at + 320)
     expect(rule).toContain('transform: translateY(-3px) scale(1.18)')
     expect(rule).toContain('filter: drop-shadow(')
     expect(rule).toContain('rgb(47 95 232 / 28%)')
@@ -333,6 +333,33 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(css.slice(css.indexOf('[data-wave-icon] {'), css.indexOf('[data-wave-icon] {') + 140)).toContain(
       'transition:',
     )
+  })
+
+  it('raises the hovered dock icon slowly and settles back faster（2026-10-02 裁决「缓慢浮起」）', () => {
+    // 非对称过渡：入场 380ms easeOutQuint（cubic-bezier(0.22,1,0.36,1)）软
+    // 减速丝滑浮起，写在 hover 态；回落 220ms 常规缓动，写在基态。
+    const hoverAt = css.indexOf('button:hover > [data-wave-icon]')
+    const hoverRule = css.slice(hoverAt, hoverAt + 320)
+    expect(hoverRule).toContain('transform 380ms cubic-bezier(0.22, 1, 0.36, 1)')
+    const baseAt = css.indexOf('[data-wave-icon] {')
+    const baseRule = css.slice(baseAt, baseAt + 160)
+    expect(baseRule).toContain('transform 220ms var(--ag-motion-ease)')
+  })
+
+  it('styles the sidebar tooltip as a glass ink chip with slide-in (2026-10-02 裁决「太简陋」)', () => {
+    // 玻璃冷墨芯片：blur + 细描边 + 顶缘高光 + 分层软影；浮现 = 淡入 + 4px
+    // 右滑微动（基态 translateX(-4px) → 亮起归位）；backdrop-filter 只写
+    // 标准属性（坑 A）。定位 translateY(-50%) 两个状态都必须保留。
+    const at = css.indexOf('.os-tooltip {')
+    const rule = css.slice(at, css.indexOf('}', at))
+    expect(rule).toContain('backdrop-filter: blur(10px)')
+    expect(rule).toContain('border: 1px solid rgb(255 255 255 / 14%)')
+    expect(rule).toContain('inset 0 1px 0 rgb(255 255 255 / 10%)')
+    expect(rule).toContain('transform: translateY(-50%) translateX(-4px)')
+    const revealAt = css.indexOf('.group:hover .os-tooltip')
+    const reveal = css.slice(revealAt, css.indexOf('}', revealAt))
+    expect(reveal).toContain('opacity: 1')
+    expect(reveal).toContain('transform: translateY(-50%) translateX(0)')
   })
 
   it('documents the accent quota and the glass/solid material rules in the token header', () => {
