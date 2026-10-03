@@ -8,8 +8,12 @@ import { WORLD_ICON_WHITELIST, WORLD_NAME_BLOCKLIST, WORLD_PALETTES } from './wo
 /**
  * 羽化应用生成契约（AI-GENERATED-APPS-DESIGN §5.1）——system prompt 固化在
  * 服务端，客户端无法改写。要点：单个自包含 HTML、禁联网/外链/弹窗、消费
- * --ageha-* 主题变量、≤150 行 ≤60KB、先 style 后 script、禁长思考、禁仿冒
+ * --ageha-* 主题变量、≤220 行 ≤60KB、先 style 后 script、禁长思考、禁仿冒
  * 登录/支付、持久化只经注入的 AgehaOS.* 能力。
+ *
+ * 2026-10-03 视觉与动效升级：把 AgehaOS「冷静玻璃」设计语言与 CSS 动效契约
+ * 固化进系统提示词（taste-skill 蒸馏：单一强调色/玻璃拟态配方/反俗套红线/
+ * 级联入场/按压反馈/强制 reduced-motion），生成的应用不再是无样式骨架。
  */
 function systemContract(locale: 'zh-CN' | 'en'): string {
   const uiLanguage =
@@ -17,16 +21,27 @@ function systemContract(locale: 'zh-CN' | 'en'): string {
   return [
     '你是 AgehaOS 网页桌面操作系统的应用生成器。输出**单个自包含 HTML 文档**，严格遵守：',
     `1. 文档必须以 <!doctype html> 或 <html> 开头；所有逻辑放进文档内 <script>，不引用任何外部文件。${uiLanguage}。`,
-    '2. 禁止联网与一切外部资源：不 fetch/XHR/WebSocket/EventSource，不引用 CDN、外链字体、外链图片或 @import；图形一律用 CSS/SVG/canvas/emoji。',
+    '2. 禁止联网与一切外部资源：不 fetch/XHR/WebSocket/EventSource，不引用 CDN、外链字体、外链图片或 @import；图形一律用 CSS/SVG/canvas。',
     '3. 禁止 alert/confirm/prompt、window.open、<form> 提交；需要提示或确认时用页内 UI。',
-    '4. 主题：只消费宿主下发的 --ageha-* CSS 变量（同时适配浅色与深色两套值），不写死颜色；少量装饰色可用 color-mix 从变量派生。',
+    '4. 配色：只消费宿主下发的 --ageha-* CSS 变量（浅色与深色两套值都要成立），不写死任何颜色；装饰色一律用 color-mix(in oklab, var(--ageha-…), …) 从变量派生。',
     '5. 运行环境是 sandbox iframe：localStorage/sessionStorage/document.cookie 不可用且会抛错，禁止使用。',
-    '6. 目标 ≤150 行、≤60KB；宁简勿繁、首屏优先；先输出 <style> 与页面骨架，脚本放最后。',
-    '7. 直接输出文档本体：不解释、不寒暄、不输出思考过程、不加 Markdown 围栏。',
-    '8. 禁止仿冒登录框、索要密码或支付信息、出现真实商标。',
-    '9. 需要持久化时，只能使用你的脚本执行前注入的 window.AgehaOS（仅规格明示的命名空间；缺失即不可用，改用内存态），其余一律内存态。',
+    '6. 视觉气质——AgehaOS「冷静玻璃」桌面部件，不是网页：蓝白冷色基调、克制、留白充足；层级靠字重与字号阶梯表达，不靠花哨装饰。玻璃拟态配方：面板用半透明底（如 color-mix(in oklab, var(--ageha-surface) 72%, transparent)）+ backdrop-filter: blur(14px) + 1px 内描边（浅色 rgba(255,255,255,.45)/深色 rgba(255,255,255,.12)）+ 顶部内侧高光；玻璃必须有实色回退（@supports not (backdrop-filter: blur(1px)) 时用不透明 var(--ageha-surface)）。',
+    '7. 视觉红线（违反即废）：不用紫色/蓝紫渐变；不用纯黑 #000 与纯白 #fff（用变量）；强调色只有 --ageha-primary 一个、贯穿全页；无霓虹发光/外发光；不做三个一模一样的等宽卡片阵列；不用 emoji 当功能图标；阴影用带主题底色的柔和投影不用纯黑；全页一套圆角（用 var(--ageha-radius)，特殊处取其半值/倍值）；按钮文字与底色对比足够（深色字/浅色字择一）；数字用 font-variant-numeric: tabular-nums；不用「—」破折号。',
+    '8. 版式：系统字体栈；标题字重 650–750、正文 400；字号阶梯 12/13/15/20/28px；正文行高 1.6；间距取 8 的倍数（8/16/24/32）；首屏即见核心功能。',
+    '9. 动效（全部 CSS、只动 transform/opacity）：① 入场——主要内容 fade + 上移 10px 级联出现，animation-delay 用 calc(var(--i) * 60ms) 阶梯（--i 按序号内联）；② 交互——按钮/卡片 hover 轻抬 translateY(-2px) + 阴影增强，:active 按压 scale(0.98)，:focus-visible 显示 2px var(--ageha-primary) 外圈；③ 过渡 150–250ms、缓动 cubic-bezier(0.16, 1, 0.3, 1)；④ 全页至多一处循环环境动画，且必须贴合应用概念（如计时器的呼吸圆环）；⑤ 必须包含 @media (prefers-reduced-motion: reduce){ *,*::before,*::after{ animation:none !important; transition:none !important } }。',
+    '10. 状态完备：加载用骨架或进度环（不用裸 spinner 文本）、空态说明如何开始、错误以页内 UI 呈现；重点数据变化时用轻微 transition 过渡，不要生硬跳变。',
+    '11. 目标 ≤220 行、≤60KB；先输出 <style> 与页面骨架，脚本放最后；宁精勿乱——把预算花在视觉完成度上，而不是堆功能。',
+    '12. 直接输出文档本体：不解释、不寒暄、不输出思考过程、不加 Markdown 围栏。',
+    '13. 禁止仿冒登录框、索要密码或支付信息、出现真实商标。',
+    '14. 需要持久化时，只能使用你的脚本执行前注入的 window.AgehaOS（仅规格明示的命名空间；缺失即不可用，改用内存态），其余一律内存态。',
   ].join('\n')
 }
+
+/** 主题变量清单（与宿主 eclosion-theme.ts 实际注入的子集逐一对齐）。 */
+const THEME_VARS_LINE =
+  '主题变量：--ageha-bg（页面底）、--ageha-surface（面板底）、--ageha-surface-soft（次级底）、' +
+  '--ageha-text（正文）、--ageha-text-muted（次要文字）、--ageha-border（边框）、--ageha-primary（强调）、' +
+  '--ageha-primary-contrast（强调底上的文字）、--ageha-danger / --ageha-success / --ageha-warning（语义色）、--ageha-radius（圆角）。'
 
 /**
  * 能力面描述（与沙箱内实际安装的 AgehaOS 客户端形状逐一对齐）：
@@ -81,7 +96,7 @@ export function buildBasicMessages(
         '规格要求（必须全部满足，缺一即废）：',
         spec.hint,
         capabilityLine(spec.permissions),
-        '主题变量示例：--ageha-surface（面板底色）、--ageha-text（正文）、--ageha-accent（强调）、--ageha-border、--ageha-bg（页面底）；另有 --ageha-danger 等语义色。',
+        THEME_VARS_LINE,
         '现在输出完整 HTML 文档。',
       ].join('\n'),
     },
@@ -181,7 +196,7 @@ export function buildTodayAppMessages(
         '功能规格（必须全部满足，缺一即废）：',
         app.hint.length > 0 ? app.hint : '围绕定位做一个专注、好用的小工具，首屏即可用。',
         capabilityLine([]),
-        '主题变量示例：--ageha-surface（面板底色）、--ageha-text（正文）、--ageha-primary（强调）、--ageha-border、--ageha-bg（页面底）；另有 --ageha-danger 等语义色。',
+        THEME_VARS_LINE,
         '现在输出完整 HTML 文档。',
       ].join('\n'),
     },
@@ -228,7 +243,7 @@ export function buildImagineMessages(
       content: [
         requestLine,
         capabilityLine([]),
-        '主题变量示例：--ageha-surface（面板底色）、--ageha-text（正文）、--ageha-primary（强调）、--ageha-border、--ageha-bg（页面底）；另有 --ageha-danger 等语义色。',
+        THEME_VARS_LINE,
         '现在输出完整 HTML 文档。',
       ].join('\n'),
     },

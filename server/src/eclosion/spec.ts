@@ -25,7 +25,7 @@ export interface EclosionBasicSpec {
   hint: string
 }
 
-export const BASIC_ECLOSION_SPEC_VERSION = 1
+export const BASIC_ECLOSION_SPEC_VERSION = 2  // v2：视觉与动效契约升级（taste 优化）——旧版全局 HTML 缓存整体失效
 
 export const BASIC_ECLOSION_SPECS: readonly EclosionBasicSpec[] = [
   {

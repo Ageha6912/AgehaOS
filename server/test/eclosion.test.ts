@@ -14,7 +14,11 @@ import { buildApp, type BuildAppOptions } from '../src/app'
 import { loadConfig, type EclosionConfig } from '../src/config'
 import { applyHtmlGate, MAX_HTML_BYTES, StreamingHtmlGate } from '../src/eclosion/html-gate'
 import { ECLOSION_BUDGET_KEY, eclosionUsageKey, nextUtcMidnightIso, utcDayKey } from '../src/eclosion/quota'
-import { buildBasicMessages } from '../src/eclosion/prompts'
+import {
+  buildBasicMessages,
+  buildImagineMessages,
+  buildTodayAppMessages,
+} from '../src/eclosion/prompts'
 import { BASIC_ECLOSION_SPECS, basicCacheKey, findBasicSpec } from '../src/eclosion/spec'
 import type { EclosionBasicSpec } from '../src/eclosion/spec'
 import { FileDataStore } from '../src/store/file-store'
@@ -331,18 +335,18 @@ describe('eclosion basic spec table (server copy, §5.2)', () => {
         spec.window,
       ]),
     ).toEqual([
-      ['calculator', 'com.ageha.eclosion.calculator', 1, [], { width: 300, height: 440, resizable: false }],
+      ['calculator', 'com.ageha.eclosion.calculator', 2, [], { width: 300, height: 440, resizable: false }],
       [
         'notes',
         'com.ageha.eclosion.notes',
-        1,
+        2,
         ['filesystem.read', 'filesystem.write'],
         { width: 720, height: 480, resizable: true },
       ],
-      ['clock', 'com.ageha.eclosion.clock', 1, ['storage'], { width: 420, height: 560, resizable: true }],
+      ['clock', 'com.ageha.eclosion.clock', 2, ['storage'], { width: 420, height: 560, resizable: true }],
     ])
     expect(findBasicSpec('nope')).toBeNull()
-    expect(basicCacheKey(calculatorSpec(), 'm')).toBe('basic:calculator:v1:m')
+    expect(basicCacheKey(calculatorSpec(), 'm')).toBe('basic:calculator:v2:m')
   })
 
   it('keeps every spec hint server-side (ADR 27: no client hint surface)', () => {
@@ -377,6 +381,43 @@ describe('eclosion basic spec table (server copy, §5.2)', () => {
     expect(clockUser).toContain('AgehaOS.storage：get(key)')
     expect(clockUser).toContain('已存值或 null')
     expect(clockUser).toContain('reject')
+  })
+
+  it('system contract pins the AgehaOS design + motion language (2026-10-03 taste 升级)', () => {
+    const calc = buildBasicMessages(findBasicSpec('calculator') as EclosionBasicSpec, 'zh-CN')
+    const sys = calc[0]?.content ?? ''
+    const user = calc[1]?.content ?? ''
+
+    // 主题变量清单 = 宿主实际注入子集：--ageha-primary 存在、不存在的
+    // --ageha-accent 不允许回潮（曾误导模型引用未定义变量）。
+    expect(user).toContain('--ageha-primary（强调）')
+    expect(user).toContain('--ageha-primary-contrast')
+    expect(user).toContain('--ageha-radius')
+    expect(user + sys).not.toContain('--ageha-accent')
+
+    // 视觉契约：冷静玻璃语言 + 玻璃配方 + 反俗套红线 + 行预算。
+    expect(sys).toContain('冷静玻璃')
+    expect(sys).toContain('backdrop-filter')
+    expect(sys).toContain('color-mix(in oklab')
+    expect(sys).toContain('实色回退')
+    expect(sys).toContain('紫色/蓝紫渐变')
+    expect(sys).toContain('纯黑 #000')
+    expect(sys).toContain('220 行')
+
+    // 动效契约：级联入场、按压反馈、缓动、单一循环、强制 reduced-motion。
+    expect(sys).toContain('prefers-reduced-motion')
+    expect(sys).toContain('cubic-bezier(0.16, 1, 0.3, 1)')
+    expect(sys).toContain('scale(0.98)')
+    expect(sys).toContain('animation:none')
+
+    // 三种 kind 共用同一系统契约（basic/today/imagine 全部带走设计语言）。
+    const today = buildTodayAppMessages(
+      { slug: 'x', name: 'X', tagline: 'x', category: 'tools', hint: '' },
+      'zh-CN',
+    )
+    const imagine = buildImagineMessages('番茄钟', 'zh-CN')
+    expect(today[0]?.content).toBe(sys)
+    expect(imagine[0]?.content).toBe(sys)
   })
 })
 
@@ -1072,11 +1113,7 @@ describe('DataStore eclosion surface (memory + file)', () => {
 
 // ── kind=imagine（§7 想象搜索，P3）：双端过滤 / 固定模板 / 个人版 / 审计 ─────
 
-import {
-  buildImagineMessages,
-  imagineQueryHash,
-  normalizeImagineQuery,
-} from '../src/eclosion/prompts'
+import { imagineQueryHash, normalizeImagineQuery } from '../src/eclosion/prompts'
 
 describe('POST /api/eclosion/generate × kind=imagine (§7)', () => {
   let app: FastifyInstance | null = null

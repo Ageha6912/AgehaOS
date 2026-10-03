@@ -38,7 +38,7 @@ export interface EclosionSpec {
   fallback: EclosionFallback
 }
 
-export const BASIC_ECLOSION_SPEC_VERSION = 1
+export const BASIC_ECLOSION_SPEC_VERSION = 2  // v2：视觉与动效契约升级（taste 优化）——旧版全局 HTML 缓存整体失效
 
 /**
  * L2/L3 运行时应用（今日世界 / 想象搜索 / 留存）的默认窗口（§5.3/§6.4）：
