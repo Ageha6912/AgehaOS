@@ -84,8 +84,9 @@ describe('TodayRail（今日应用列）', () => {
     render(<TodayRail />)
 
     const nav = screen.getByTestId('today-rail')
-    // 左缘 = 左栏右缘（left-4 16px + 栏宽 76px = 92px = token 80 + 0.75rem）。
-    expect(nav.className).toContain('left-[calc(var(--ag-rail-left-width)+0.75rem)]')
+    // 左缘 = 左栏右缘（left-4 16px + 栏宽 72px = 88px = token 80 + 0.5rem；
+    // Playwright 实测钉扎：0.5rem = 8px，右缘是 88 不是 92）。
+    expect(nav.className).toContain('left-[calc(var(--ag-rail-left-width)+0.5rem)]')
     // 中缝 = 左栏自己的右框线：本栏无左边框、左侧方角。
     expect(nav.className).toContain('rounded-r-xl')
     expect(nav.className).not.toContain('rounded-l')

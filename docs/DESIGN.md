@@ -806,10 +806,11 @@ Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌�
   空栏即装饰性谎言，拒绝；与启动器「今日」分类同一数据源（世界行 hue 着色
   AppIcon + §6.4 确定性徽章），点按同走 `launchApp` 按需生成（kind=today）。
 - **几何（2026-10-03 追加裁决：两栏无缝相连）**：`fixed
-  left-[calc(var(--ag-rail-left-width)+0.75rem)] top-1/2 -translate-y-1/2`——
-  左缘恰为左栏右缘（16px + 76px = 92px），零空隙；自身**无左边框、左侧方角**
-  （`rounded-r-xl` + `border-y border-r`），左栏右框线即两栏中缝分隔线，
-  毛玻璃连成一体。同款 surface-glass、z-40 chrome；<640px 随左栏隐藏（§25）。
+  left-[calc(var(--ag-rail-left-width)+0.5rem)] top-1/2 -translate-y-1/2`——
+  左缘恰为左栏右缘（16px + 72px = 88px；**0.5rem = 8px**，Playwright 实测
+  GAP=0 钉扎），零空隙；自身**无左边框、左侧方角**（`rounded-r-xl` +
+  `border-y border-r`），左栏右框线即两栏中缝分隔线，毛玻璃连成一体。
+  同款 surface-glass、z-40 chrome；<640px 随左栏隐藏（§25）。
 - **DOM 序约束**：必须渲染在 Sidebar **之前**（同 z-40 后绘者在上）——左栏
   tooltip 向右伸出须盖住今日列玻璃，顺序反了会被毛玻璃挡住。
 - **禁止 overflow**：overflow-y 非 visible 会连带把 overflow-x 变 auto，
