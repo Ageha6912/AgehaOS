@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 
-import { Sparkle } from '@phosphor-icons/react'
+import { ArrowClockwise, Sparkle } from '@phosphor-icons/react'
 
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
 import { usePopoverDismiss } from '@/components/use-popover-dismiss'
 import { ScrollFadeList } from '@/components/scroll-fade-list'
 import { useTranslation, formatMessage } from '@/core/i18n'
 import { utcDayKey } from '@/core/eclosion/world'
+import { systemEclosion } from '@/services/eclosion'
 import { useEclosionStore } from '@/store/eclosion-store'
 
 /**
@@ -15,12 +16,22 @@ import { useEclosionStore } from '@/store/eclosion-store'
  * （标题 + 来源链接）。弹层走 usePopoverDismiss 全局互斥（NotificationCenter
  * 同款；fixed 的包含块是菜单栏，坑 67——菜单栏贴视口顶部全宽，top/right
  * 等价于视口坐标）。纯想象降级（signalCount=0）无来源可列，不渲染。
+ *
+ * 2026-10-04 用户裁决：面板底部挂「重新生成今日世界」入口（§6.2 个人重生成，
+ * 耗 today 档额度）——世界信息与世界操作同处，语义归宿。
  */
-export function MenuBarWorldSignals() {
+export function MenuBarWorldSignals({
+  onRegenerate,
+}: {
+  /** 测试注入；缺省走编排器单例（POST /world/regenerate，耗 today 档）。 */
+  onRegenerate?: () => Promise<boolean>
+} = {}) {
   const { t } = useTranslation()
   const enabled = useEclosionStore((s) => s.enabled)
   const world = useEclosionStore((s) => s.world)
   const [open, setOpen] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
+  const [regenerateFailed, setRegenerateFailed] = useState(false)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
@@ -40,6 +51,18 @@ export function MenuBarWorldSignals() {
   // 当日世界才称「今日」：跨日未换新（会话跨 UTC 零点）时隐藏，避免陈旧文案。
   if (!enabled || !world || world.worldDate !== utcDayKey() || world.signalCount === 0) {
     return null
+  }
+
+  const regenerate = (): void => {
+    if (regenerating) return
+    setRegenerating(true)
+    setRegenerateFailed(false)
+    void (onRegenerate ?? (() => systemEclosion.regenerateWorld()))().then((ok) => {
+      setRegenerating(false)
+      // 成功时 store 已换新（applyWorld 响应式刷新列表与文案）；失败给出页内提示。
+      setRegenerateFailed(!ok)
+      if (!ok) window.setTimeout(() => setRegenerateFailed(false), 4000)
+    })
   }
 
   return (
@@ -95,6 +118,23 @@ export function MenuBarWorldSignals() {
               >
                 {t('menubar.worldSignals.visitSource')}
               </a>
+            )}
+          </div>
+          <div className="mt-2 border-t border-border-subtle px-1 pt-2">
+            <button
+              type="button"
+              data-testid="menubar-world-regenerate"
+              disabled={regenerating}
+              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[11px] font-medium text-text hover:bg-surface-raised disabled:cursor-default disabled:opacity-50"
+              onClick={regenerate}
+            >
+              <ArrowClockwise size={12} weight="regular" aria-hidden="true" />
+              {regenerating ? t('menubar.worldSignals.regenerating') : t('menubar.worldSignals.regenerate')}
+            </button>
+            {regenerateFailed && (
+              <p data-testid="menubar-world-regenerate-failed" className="mt-1 text-[11px] text-danger">
+                {t('menubar.worldSignals.regenerateFailed')}
+              </p>
             )}
           </div>
         </div>

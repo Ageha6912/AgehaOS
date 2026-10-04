@@ -1,4 +1,9 @@
 # AgehaOS 交付与部署日志
+
+## 2026-10-04 用户裁决：「重新生成今日世界」入口落位顶栏信号面板
+
+- `MenuBarWorldSignals` 面板底部新增入口（语义归宿：世界信息与世界操作同处）：点击 → 编排器 `regenerateWorld()`（POST /world/regenerate，耗 today 档，服务端只写个人键）→ 成功 store 换新（列表/文案/主题响应式刷新）+ 失败页内提示（4s 自动消退）；忙碌态禁用防连点。<640px 无顶栏小字不渲染（既有行为）。
+- 测试：WorldSignals ×5（新增忙碌/失败/成功三态用例，prop 注入编排器）；i18n 双语 3 键。前端-only，无需重启。
 ## 2026-10-04 羽化生成 v3 设计系统上线（taste v5 清新多巴胺 + 结构闸双检查）
 
 - **ax-* 设计系统预置进运行时页**（public/apps/runtime/eclosion.html 新增 style 块，随 ?v=0.2.1 破缓存）：玻璃面板/三色渐变焦点文字/彩色胶囊/漂移光晕/弹性过冲入场 ax-rise/焦点弹出 ax-pop/布局骨架 ax-stage·ax-center·ax-fit——生成代码只写应用专属样式，基础质感 100% 命中。

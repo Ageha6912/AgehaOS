@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { utcDayKey } from '@/core/eclosion/world'
 import { resetEclosionStore, seedEclosionForTests, useEclosionStore } from '@/store/eclosion-store'
@@ -99,5 +99,41 @@ describe('MenuBarWorldSignals（§6.3 顶栏小字与来源列表）', () => {
     fireEvent.click(screen.getByTestId('menubar-world-signals'))
     fireEvent.pointerDown(document.body)
     expect(screen.queryByTestId('menubar-world-signals-panel')).toBeNull()
+  })
+
+  it('shows a busy state while regenerating and surfaces failures inline (§6.2 个人重生成)', async () => {
+    seedEclosionForTests('u-1', true)
+    useEclosionStore.getState().applyWorld(worldSummary())
+    let resolveRegenerate: (ok: boolean) => void = () => {}
+    const regenerate = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRegenerate = resolve
+        }),
+    )
+    render(<MenuBarWorldSignals onRegenerate={regenerate} />)
+
+    fireEvent.click(screen.getByTestId('menubar-world-signals'))
+    const button = screen.getByTestId('menubar-world-regenerate')
+    expect(button).toBeInTheDocument()
+
+    // 忙碌态：禁用 + 生成中文案，连点无效。
+    fireEvent.click(button)
+    expect(regenerate).toHaveBeenCalledTimes(1)
+    expect(button).toBeDisabled()
+    expect(screen.getByTestId('menubar-world-regenerate').textContent).toContain('生成中')
+
+    // 失败：页内提示出现（4s 自动消退不在此测）。
+    resolveRegenerate(false)
+    await screen.findByTestId('menubar-world-regenerate-failed')
+    expect(screen.getByTestId('menubar-world-regenerate').textContent).toContain('重新生成今日世界')
+
+    // 成功：无失败提示，可再次触发。
+    fireEvent.click(screen.getByTestId('menubar-world-regenerate'))
+    resolveRegenerate(true)
+    await vi.waitFor(() => {
+      expect(screen.queryByTestId('menubar-world-regenerate-failed')).toBeNull()
+    })
+    expect(regenerate).toHaveBeenCalledTimes(2)
   })
 })
