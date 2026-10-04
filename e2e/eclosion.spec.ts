@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { dragWindowClearOfRails, revealTaskbar, taskbarStartButton } from './helpers'
+import { dragWindowClearOfRails, revealTaskbar, taskbarStartButton, waitEclosionFrame } from './helpers'
 
 /**
  * 羽化模式 P1 端到端（AI-GENERATED-APPS-DESIGN §12 P1 验收 / §9.3 准入）：
@@ -232,15 +232,15 @@ test.describe('开启态（按用户持久化偏好，route 桩驱动）', () =>
     await expect(iframe).toHaveAttribute('src', /\/apps\/runtime\/eclosion\.html\?v=/)
 
     // 破茧后生成代码真实执行（脚本由宿主截留、power-on 注入）。
-    const frame = page.frame({ url: /eclosion\.html/ })
-    expect(frame, 'sandboxed runner frame').toBeDefined()
-    await expect(frame!.locator('#result')).toHaveText('E2E-GEN-OK', { timeout: 15_000 })
+    // iframe 晚于窗口 chrome 挂载（异步生成管线）：poll 等附着（helpers 注）。
+    const frame = await waitEclosionFrame(page)
+    await expect(frame.locator('#result')).toHaveText('E2E-GEN-OK', { timeout: 15_000 })
 
     // 生成代码的事件绑定在沙箱内可用（点击 → 脚本改写结果）。
     // 先把窗口拖出系统栏组遮盖带（z 契约上轨盖窗，见 helpers）。
     await dragWindowClearOfRails(page, calcWindow)
-    await frame!.locator('#inc').click()
-    await expect(frame!.locator('#result')).toHaveText('E2E-CLICK-2')
+    await frame.locator('#inc').click()
+    await expect(frame.locator('#result')).toHaveText('E2E-CLICK-2')
 
     // 破茧完成：进度条消失、标题不回落、宿主配件在场。
     await expect(page.getByTestId('eclosion-progress')).toHaveCount(0)
@@ -275,9 +275,9 @@ test.describe('开启态（按用户持久化偏好，route 桩驱动）', () =>
 
     // power-on 能力声明按 clock 规格推导（theme + storage）→ AgehaOS.storage 在场，
     // 生成脚本 set→get 往返真实宿主桥（逐请求规格权限 + appId 命名空间）。
-    const frame = page.frame({ url: /eclosion\.html/ })
-    expect(frame, 'sandboxed runner frame').toBeDefined()
-    await expect(frame!.locator('#clocks')).toHaveText('CLOCKS-Asia/Tokyo|Europe/Berlin', {
+    // iframe 晚于窗口 chrome 挂载：poll 等附着（helpers 注）。
+    const frame = await waitEclosionFrame(page)
+    await expect(frame.locator('#clocks')).toHaveText('CLOCKS-Asia/Tokyo|Europe/Berlin', {
       timeout: 15_000,
     })
 
@@ -331,9 +331,8 @@ test.describe('想象搜索（开启态，P3）', () => {
     await expect(win).toBeVisible({ timeout: 15_000 })
     const iframe = win.locator('iframe')
     await expect(iframe).toHaveAttribute('sandbox', 'allow-scripts')
-    const frame = page.frame({ url: /eclosion\.html/ })
-    expect(frame, 'sandboxed runner frame').toBeDefined()
-    await expect(frame!.locator('#result')).toHaveText('E2E-GEN-OK', { timeout: 15_000 })
+    const frame = await waitEclosionFrame(page)
+    await expect(frame.locator('#result')).toHaveText('E2E-GEN-OK', { timeout: 15_000 })
     await expect(win.getByTestId('eclosion-regenerate')).toBeVisible()
   })
 

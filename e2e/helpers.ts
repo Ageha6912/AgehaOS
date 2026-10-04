@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from '@playwright/test'
+import { expect, type Frame, type Locator, type Page } from '@playwright/test'
 
 /**
  * 开机覆盖层（docs/DESIGN.md §11）：reload 后立即交互时，退场中的覆盖层会吞掉
@@ -64,4 +64,23 @@ export async function dragWindowClearOfRails(page: Page, region: Locator): Promi
   await page.waitForTimeout(400)
   const moved = (await region.boundingBox())!
   expect(moved.x).toBeGreaterThanOrEqual(170)
+}
+
+/**
+ * 等待羽化运行时 iframe 附着（生成是异步管线：窗口 chrome 先可见、iframe
+ * 后挂载）。⚠️ 不能写 `expect(page.frame(...)).toBeDefined()`——Playwright
+ * 1.63 对非 locator 值的 toBeDefined 不做重试、null 也误判为过（实测
+ * probe），高负载下 frame 未挂载时会以 TypeError 在下一行爆掉（坑：eclosion-
+ * world 举报用例第 3 轮门禁）。用 poll 轮询真实查找。
+ */
+export async function waitEclosionFrame(page: Page): Promise<Frame> {
+  const findFrame = (): Frame | null =>
+    page.frames().find((candidate) => /eclosion\.html/.test(candidate.url())) ?? null
+  await expect
+    .poll(findFrame, {
+      timeout: 15_000,
+      message: 'sandboxed runner frame (eclosion.html)',
+    })
+    .not.toBeNull()
+  return findFrame()!
 }

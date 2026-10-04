@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { revealTaskbar, taskbarStartButton } from './helpers'
+import { revealTaskbar, taskbarStartButton, waitEclosionFrame } from './helpers'
 
 /**
  * 羽化模式 P2/P4 端到端（AI-GENERATED-APPS-DESIGN §12 P2「今日世界」/ P4「治理
@@ -490,9 +490,9 @@ test.describe('P4 举报（§10 同意框 + ADR 22 样本链路 + 会话封禁�
     await page.getByTestId('launcher-grid').getByRole('button', { name: '计算器' }).last().click()
     const calc = page.getByRole('region', { name: '计算器' })
     await expect(calc).toBeVisible()
-    const frame = page.frame({ url: /eclosion\.html/ })
-    expect(frame, 'sandboxed runner frame').toBeDefined()
-    await expect(frame!.locator('#result')).toHaveText('E2E-GEN-OK', { timeout: 15_000 })
+    // iframe 晚于窗口 chrome 挂载（异步生成管线）：poll 等附着（helpers 注）。
+    const frame = await waitEclosionFrame(page)
+    await expect(frame.locator('#result')).toHaveText('E2E-GEN-OK', { timeout: 15_000 })
 
     // 同意框（§10）：先取消——不上报、窗口保留。
     await calc.getByTestId('eclosion-report').click()
