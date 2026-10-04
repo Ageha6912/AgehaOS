@@ -15,6 +15,10 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 
 ## 当前状态
 
+**🦋 羽化模式已全量上线**（2026-10-04，[设计文档](docs/AI-GENERATED-APPS-DESIGN.md)）——操作系统级的 AI 实时生成应用：**基础软件 AI 化**（计算器/记事本/时钟按固定规格现场生成，原生实现兜底）、**今日世界**（每日依据 GitHub Trending 热点生成主题配色与一批今日应用，定时调度跨日换新）、**想象搜索**（Ctrl+K 输入任何想法，即时羽化出一个可用的应用）、**治理与蝶谱**（举报链路、admin 复审、历史世界时间线回放）。安全底座：不透明 origin 沙箱 + `connect-src 'none'` 禁网 CSP + JS 语法闸 + Default Deny 权限（L2/L3 仅开放命名空间隔离的 storage），生成应用数据可跨重开持久化。
+
+**🚀 生产运行中**：[os.ageha.cn](https://os.ageha.cn)（阿里云 HK VPS，releases 原子切换 + 双路加密备份 + CI）。视觉大线为 Shell 2.0 **Floating OS Environment**（浮动玻璃 Chrome、左导航轨 + 右组件轨、液态玻璃材质，契约见 [docs/DESIGN.md](docs/DESIGN.md) §17-§33）。
+
 **🎉 v0.2.0 已发布**（2026-09-23）——v0.1 MVP 之上完成：应用生态（App Store + Type B 沙箱 + Type C SDK + Calculator + Terminal）、AI 动态桌面三域（壁纸/桌面编排/内容面板 + LLM 同源代理）、通知中心、全局搜索与快捷键、Milestone 5 后端认证（HttpOnly Cookie 会话）、用户资料与会话管理。
 
 **v0.1.0 基线**（2026-09-21）——MVP 功能面、E2E 与安全加固（PRD §51 第 01–05、07–15 步）：
@@ -44,7 +48,7 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 - 🆕 **LLM 同源代理与深度增强**（DDS §5.3 Phase B）：后端 `/api/ai/proxy`（Key 不下发、匿名化、2s 超时、响应过滤），前端词表门控 + LLM→缓存→本地三级降级；Settings 可开关（默认关）
 - 🆕 **桌面编排建议**（DDS §5.1 域②）：本地规则引擎按情境生成开始菜单分组 + 布局档位建议（单列/双列/宫格），动态面板一键应用/还原；系统应用位置永不漂移，AI 不直接移动窗口
 - 🆕 **用户资料与会话管理**（PRD §12.1）：Settings「账户」区——修改昵称/邮箱、修改密码（自动登出其他设备）、登出其他设备；任务栏显示昵称；本地/远程模式同等可用
-- ⏳ 下一步：头像上传（需存储方案）→ PostgreSQL 活库验证（需 Docker/PG）→ Phase C 自由文本过滤管线 / 文生图 → v0.2 收口
+- ✅ 头像上传 / Phase C 过滤管线 / 样本举报通道 / 视觉大线三轮演进 / 羽化模式——均已随后续版本上线（详见 [docs/CHANGELOG.md](CHANGELOG.md)）；⏳ 进行中：PostgreSQL 活库验证、App Store「羽化」AI 货架设计
 
 ## 快速开始
 
@@ -69,7 +73,7 @@ npm run dev:server   # 认证 API（tsx watch）→ http://127.0.0.1:8787
 npm run test:server  # 后端测试（vitest，node 环境）
 ```
 
-开发服务器带 `VITE_AUTH_BACKEND=1 npm run dev` 即切换为远程认证：登录/注册经同源 `/api`（Vite 代理 → :8787）走后端，会话变为 HttpOnly Cookie；不带该变量则维持本地 localStorage 认证。完整环境变量与端点说明见 [docs/API.md](docs/API.md)。
+开发服务器带 `VITE_AUTH_BACKEND=1 npm run dev` 即切换为远程认证：登录/注册经同源 `/api`（Vite 代理 → :8787）走后端，会话变为 HttpOnly Cookie；不带该变量则维持本地 localStorage 认证。羽化模式的后端需配置 LLM 上游（`AGEHA_ECLOSION_API_KEY / BASE_URL / MODEL`，OpenAI 兼容协议）；完整环境变量与端点说明见 [docs/API.md](docs/API.md)。
 
 ## 目录结构
 
@@ -81,7 +85,9 @@ src/
 │   ├── window/      # ✅ 窗口管理器（生命周期/焦点/z序/几何约束）
 │   ├── runtime/     # ✅ Manifest 校验 + AppRegistry + 生命周期跟踪
 │   ├── filesystem/  # ✅ VFS（文件树/CRUD/回收站/搜索 + IndexedDB 适配器）
-│   └── permissions/ # ✅ 权限系统（PermissionManager，Default Deny + 持久化）
+│   ├── permissions/ # ✅ 权限系统（PermissionManager，Default Deny + 持久化）
+│   ├── dynamic/     # ✅ AI 动态桌面纯引擎（决策/质量门/生成器）
+│   └── eclosion/    # ✅ 羽化模式纯模块（规格表/世界校验/SSE/HTML 切分/运行时协议）
 ├── desktop/         # 桌面环境 UI
 │   ├── boot/        # ✅ Boot Screen
 │   ├── window/      # ✅ WindowFrame / WindowLayer（拖拽、缩放、按钮）
@@ -101,12 +107,12 @@ src/
 
 ## 技术栈
 
-| 层           | 选型                                                        |
-| ------------ | ----------------------------------------------------------- |
-| 前端         | React 19 · TypeScript · Vite · Zustand · Tailwind CSS 4     |
-| 测试         | Vitest · Testing Library · jsdom · Playwright（E2E）        |
-| 工程化       | ESLint（flat config）· Prettier                             |
-| 后端         | Node.js 24 · Fastify 5 · pg（PostgreSQL，驱动就绪）· tsx    |
+| 层     | 选型                                                     |
+| ------ | -------------------------------------------------------- |
+| 前端   | React 19 · TypeScript · Vite · Zustand · Tailwind CSS 4  |
+| 测试   | Vitest · Testing Library · jsdom · Playwright（E2E）     |
+| 工程化 | ESLint（flat config）· Prettier                          |
+| 后端   | Node.js 24 · Fastify 5 · pg（PostgreSQL，驱动就绪）· tsx |
 
 ## 测试与质量基线
 
