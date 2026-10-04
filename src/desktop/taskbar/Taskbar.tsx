@@ -118,13 +118,14 @@ export function Taskbar() {
            （坑 13），移除会让包含块落到被钳制居中的胶囊上，窄视口溢出。 */
         style={{ transform: 'translateY(0)' }}
       >
-        {/* 悬浮胶囊 Dock（§20/§32；Shell 2.0 §4.1④ 材质：白22% 胶囊底 +
-            28px 默认 surface-glass blur + 白/42% 强边 + shadow-dock 专用档）：
+        {/* 悬浮 Dock（§20/§32；材质表④ 白22% 胶囊底 + 28px 默认
+            surface-glass blur + 强细边 + shadow-dock 专用档；Shell 3.0 STEP 6
+            视觉精修：全 pill 退役改 24px 圆角矩形玻璃舱——§33.2 档）：
             启动器 + 常驻瓷贴 + 运行中 + 回收站。自动隐藏/波浪/预览/锚点行为
             契约全部不变（§9/§13/§12）。 */}
         <nav
           aria-label={t('dock.label')}
-          className="desktop-chrome dock-glass surface-glass pointer-events-auto relative flex h-[var(--ag-dock-height)] max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-full border border-border-strong px-2 shadow-dock"
+          className="desktop-chrome dock-glass surface-glass pointer-events-auto relative flex h-[var(--ag-dock-height)] max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-[var(--ag-dock-radius)] border border-border-strong px-2 shadow-dock"
         >
           {/* Dock 高光滑过（§32.5 修订 10）：低频釉面扫光，覆盖层内裁剪，
               不裁波浪放大的图标；盖在图标上做「玻璃反光」（pointer-events-none）。 */}
@@ -168,9 +169,11 @@ export function Taskbar() {
                       <AppIcon appId={appId} size={48} />
                     </span>
                     {active && (
+                      // Active 指示条（Shell 3.0 STEP 6）：底部 2px×16px 细条
+                      // （原 4px 点）——primary 配额 = Active/Selected 语义。
                       <span
                         aria-hidden="true"
-                        className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary"
+                        className="absolute bottom-0 left-1/2 h-0.5 w-4 -translate-x-1/2 rounded-full bg-primary"
                       />
                     )}
                     {/* 名称气泡（2026-10-02 裁决：dock 气泡与左栏同款玻璃芯片，
@@ -243,9 +246,10 @@ export function Taskbar() {
                       <AppIcon appId={win.appId} size={48} />
                     </span>
                     {active && (
+                      // Active 指示条（Shell 3.0 STEP 6）：底部 2px×16px 细条。
                       <span
                         aria-hidden="true"
-                        className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary"
+                        className="absolute bottom-0 left-1/2 h-0.5 w-4 -translate-x-1/2 rounded-full bg-primary"
                       />
                     )}
                   </button>

@@ -126,6 +126,10 @@
      （44 ≤ 67.2）仍成立（§31 Round 2）。 */
   --ag-dock-item-pitch: 56px;
   --ag-dock-icon: 48px;
+  /* Dock 胶囊圆角（Shell 3.0 STEP 6 视觉精修，§33.2 档 24px）：全 pill
+     退役，参考图口径 = 圆角矩形玻璃舱；dock-sheen 覆盖层 border-radius:
+     inherit 自动随动。 */
+  --ag-dock-radius: 24px;
 
   /* ---- Desktop atmosphere（极轻氛围层：顶部环境光 + 暗角，静态零动画）---- */
   --ag-atmosphere-ambient: linear-gradient(

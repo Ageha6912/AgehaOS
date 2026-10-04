@@ -313,13 +313,14 @@ describe('Taskbar', () => {
     expect(bar.className).toContain('h-[calc(var(--ag-dock-height)+var(--ag-dock-gap))]')
     expect(bar.className).toContain('pb-[var(--ag-dock-gap)]')
 
-    // 胶囊本体（材质表④）：玻璃 + 白22% 胶囊底 + pill + 白/42% 强边 +
-    // shadow-dock 专用档 + 接指针；自动隐藏不复活（§32 修订 8）。
+    // 胶囊本体（材质表④）：玻璃 + 白22% 胶囊底 + 24px 圆角矩形（Shell 3.0
+    // STEP 6，§33.2 档——全 pill 退役）+ 强细边 + shadow-dock 专用档 + 接指针；
+    // 自动隐藏不复活（§32 修订 8）。
     const pill = bar.firstElementChild as HTMLElement
     for (const cls of [
       'surface-glass',
       'dock-glass',
-      'rounded-full',
+      'rounded-[var(--ag-dock-radius)]',
       'border',
       'border-border-strong',
       'shadow-dock',
@@ -346,6 +347,12 @@ describe('Taskbar', () => {
     )
     expect(button.className).toContain('h-12')
     expect(button.className).toContain('w-12')
+    // Active 指示条（Shell 3.0 STEP 6）：聚焦窗口底部 2px×16px 细条（原 4px 点），
+    // 恒为 primary（Active/Selected 配额）。
+    const indicator = button.querySelector('.bg-primary') as HTMLElement
+    expect(indicator).not.toBeNull()
+    expect(indicator.className).toContain('h-0.5')
+    expect(indicator.className).toContain('w-4')
     // 三类按钮（瓷贴/运行中/回收站）挂 dock-tile：hover 规则的域标记。
     expect(button.classList.contains('dock-tile')).toBe(true)
     expect(screen.getByTestId('dock-pin-com.ageha.files').classList.contains('dock-tile')).toBe(true)

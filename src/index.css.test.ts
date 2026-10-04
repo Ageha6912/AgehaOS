@@ -109,11 +109,13 @@ describe('index.css token contract (Token 2.0)', () => {
     // 用户裁决收窄至 296px）。
     expect(root).toMatch(/--ag-rail-right-width:\s*296px/)
     // §31 Round 2：Dock 胶囊 68px 恒驻；Shell 2.0 离底 20px、图标 48px
-    // （节距 56 = 48 + gap-2 8px，波浪 σ44 ≤ 1.2×56 仍成立）。
+    // （节距 56 = 48 + gap-2 8px，波浪 σ44 ≤ 1.2×56 仍成立）；Shell 3.0
+    // STEP 6 胶囊圆角 24px（§33.2 档，全 pill 退役）。
     expect(root).toMatch(/--ag-dock-height:\s*68px/)
     expect(root).toMatch(/--ag-dock-gap:\s*20px/)
     expect(root).toMatch(/--ag-dock-item-pitch:\s*56px/)
     expect(root).toMatch(/--ag-dock-icon:\s*48px/)
+    expect(root).toMatch(/--ag-dock-radius:\s*24px/)
   })
 
   it('scopes the desktop chrome white-on-glass material (sec 32)', () => {
