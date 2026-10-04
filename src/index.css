@@ -506,6 +506,23 @@ body {
 .glass-raise {
   backdrop-filter: blur(var(--ag-blur-md)) saturate(150%);
 }
+/* ③′ system-rails 液态玻璃（2026-10-02 用户裁决，ZenDesktop 观感的 Web
+   原创）：位移折射由 #ag-liquid-rail SVG 滤镜承担——feImage 位移图由
+   LiquidGlassFilter 运行时 canvas 生成（R/G 通道编码 X/Y 位移），feDisplacement
+   在边缘带内沿外法线推挤 backdrop，blur 只留 2px 保底柔化。高光描边 = 顶缘
+   强 + 侧缘弱 + 底缘中的 inset 组合（玻璃 rims）。位移图生成失败/jsdom 回落
+   .glass-raise；reduced-motion 与本滤镜无关（静态折射），降透明/无 bf 由下方
+   兜底接管（本块源序在其前，源序即降级）。backdrop-filter 只写标准属性
+   （坑 A）。 */
+.glass-liquid {
+  backdrop-filter: url(#ag-liquid-rail) blur(2px) saturate(160%);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 45%),
+    inset 1px 0 0 rgb(255 255 255 / 16%),
+    inset -1px 0 0 rgb(255 255 255 / 12%),
+    inset 0 -1px 0 rgb(255 255 255 / 20%),
+    var(--ag-shadow-float);
+}
 /* ⑤ 窗口面（blur 36px deep）。 */
 .glass-deep {
   backdrop-filter: blur(var(--ag-blur-xl)) saturate(160%);

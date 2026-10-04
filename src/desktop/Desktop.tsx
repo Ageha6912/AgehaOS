@@ -13,6 +13,8 @@ import { NotificationToasts } from '@/desktop/NotificationToasts'
 import { SearchPalette } from '@/desktop/search/SearchPalette'
 import { ContextMenu, type ContextMenuPosition } from '@/desktop/ContextMenu'
 import { WidgetRail } from '@/desktop/widgets/WidgetRail'
+import { useLiquidDisplacementMap } from '@/desktop/sidebar/liquid-glass'
+import { LiquidGlassDefs } from '@/desktop/sidebar/LiquidGlassFilter'
 import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
 import { useAurora } from '@/desktop/motion/use-aurora'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
@@ -54,6 +56,10 @@ export function Desktop() {
   }
   const orbRef = useRef<HTMLDivElement | null>(null)
   useCursorGlow(canvasRef, orbRef, glow)
+  // system-rails 液态玻璃（2026-10-02 用户裁决，ZenDesktop 观感）：位移图按组
+  // 实测尺寸运行时生成；jsdom/生成失败回落 .glass-raise 常规毛玻璃。
+  const railsRef = useRef<HTMLDivElement | null>(null)
+  const liquidMap = useLiquidDisplacementMap(railsRef)
   useGlobalShortcuts()
 
   // 2026-10-02 用户裁决：进桌面不再自动打开任何窗口——动态面板与随机小游戏
@@ -106,11 +112,15 @@ export function Desktop() {
           ⚠️ 组容器不得挂 overflow（会裁掉向右伸出的 os-tooltip）。 */}
       <div
         data-testid="system-rails"
-        className="desktop-chrome surface-glass glass-raise fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 flex-row-reverse items-stretch rounded-xl border border-border shadow-float sm:flex"
+        ref={railsRef}
+        className={`desktop-chrome surface-glass ${liquidMap ? 'glass-liquid' : 'glass-raise'} fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 flex-row-reverse items-stretch rounded-xl border border-border shadow-float sm:flex`}
       >
         <TodayRail />
         <Sidebar />
       </div>
+      {liquidMap && (
+        <LiquidGlassDefs id="ag-liquid-rail" mapUri={liquidMap} options={{ strength: 10 }} />
+      )}
       <WindowLayer />
       <WidgetRail />
       <Taskbar />
