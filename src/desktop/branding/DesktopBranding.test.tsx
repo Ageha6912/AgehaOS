@@ -1,30 +1,47 @@
-import { render, screen } from '@testing-library/react'
+import { Profiler } from 'react'
+
+import { act, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { resetLauncherStore, useLauncherStore } from '@/store/launcher-store'
+import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
+import { resetPopoverStore, usePopoverStore } from '@/store/popover-store'
+import { resetSearchStore, useSearchStore } from '@/store/search-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
 import { DesktopBranding } from './DesktopBranding'
 
 beforeEach(() => {
   resetWindowStore()
+  resetLauncherStore()
+  resetSearchStore()
+  resetNotificationStore()
+  resetPopoverStore()
 })
 
-describe('DesktopBranding（DESIGN.md §31 Round 2 中央品牌层）', () => {
-  it('shows on the idle desktop and stays invisible to a11y tree and pointers', () => {
+/** 在 act 内执行 store 变更（同步冲刷订阅渲染，渲染计数可精确断言）。 */
+function actStore(mutate: () => void): void {
+  act(() => {
+    mutate()
+  })
+}
+
+describe('DesktopBranding（STEP 5 Desktop Environment Branding 状态化）', () => {
+  it('keeps the wordmark block contract: position, decoration exemption, copy', () => {
     render(<DesktopBranding />)
 
-        // 2026-10-02 裁决：品牌块水平中心与 Dock 中线对齐（left-1/2，原 44%）。
-    expect(screen.getByTestId('desktop-branding').className).toContain('left-1/2')
-    expect(screen.getByTestId('desktop-branding').className).not.toContain('left-[44%]')
-
     const branding = screen.getByTestId('desktop-branding')
-    // Shell 2.0 视觉更轻：空闲态 opacity-90（v3 修订 ②：改三元分支值本身，
-    // 禁止类链追加同组工具类被覆盖）。
-    expect(branding.className).toContain('opacity-90')
-    expect(branding.className).not.toContain('opacity-100')
-    // 纯装饰：辅助树隐形 + 指针穿透（右键空白等桌面契约不受影响）。
+    // 位置基线不动（§33.4：50%x 与 Dock 中线对齐 / 30% y 对齐壁纸蝴蝶）。
+    expect(branding.className).toContain('left-1/2')
+    expect(branding.className).toContain('top-[30%]')
+    // 过渡复用既有 motion：300ms ease-out opacity 过渡，无第二套动效。
+    expect(branding.className).toContain('transition-opacity')
+    expect(branding.className).toContain('duration-300')
+    expect(branding.className).toContain('ease-out')
+    // 纯装饰恒成立：辅助树隐形 + 指针穿透（右键空白等桌面契约不受影响）。
     expect(branding.getAttribute('aria-hidden')).toBe('true')
     expect(branding.className).toContain('pointer-events-none')
+    // 文案保留（STEP 5 契约：AgehaOS / Your Web OS, Your Space. 不动）。
     expect(branding.textContent).toContain('AgehaOS')
     expect(branding.textContent).toContain('Your Web OS, Your Space.')
   })
@@ -32,34 +49,121 @@ describe('DesktopBranding（DESIGN.md §31 Round 2 中央品牌层）', () => {
   it('wears the cool-violet wordmark gradient (shell 2.0 裁决 C: no pink residue)', () => {
     render(<DesktopBranding />)
 
-    // 「OS」渐变提亮为浅冷紫（UI 评审 P0-1：#c4b5fd 尾色在亮天空上糊成一片）；
-    // 粉色残留禁止回潮。
     const osSpan = screen.getByTestId('desktop-branding').querySelector('p > span + span') as HTMLElement
     expect(osSpan.className).toContain('bg-gradient-to-r')
     expect(osSpan.classList.contains('to-[#d8ceff]')).toBe(true)
     expect(osSpan.className).not.toContain('to-[#f4bde4]')
   })
 
-  it('renders the taglines in full-strength text with a legibility shadow', () => {
+  it('idle desktop shows the brand at full strength (100%，取代 Shell 2.0 的 90%)', () => {
     render(<DesktopBranding />)
 
-    const tagline = screen.getByText('Your Web OS, Your Space.')
-    expect(tagline.classList.contains('text-text')).toBe(true)
-    expect(tagline.classList.contains('font-light')).toBe(false)
-    const sub = screen.getByText('在云端，打开属于你的数字世界')
-    expect(sub.classList.contains('text-text')).toBe(true)
-    expect(sub.classList.contains('text-text-muted')).toBe(false)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-100')
+    expect(screen.getByTestId('desktop-branding').className).not.toContain('opacity-90')
   })
 
-  it('fades out while a window is visible and returns when everything is minimized', () => {
+  it('steps down the ladder with visible windows: one → 40%, many → 15%', () => {
     const { rerender } = render(<DesktopBranding />)
 
-    const id = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    let first = ''
+    actStore(() => {
+      first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    })
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-40')
+
+    actStore(() => useWindowStore.getState().open({ appId: 'com.ageha.calculator', title: '计算器' }))
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-15')
+
+    // 最小化其一 → 回单窗档；全最小化 → 回空闲满档。
+    actStore(() => useWindowStore.getState().minimize(first))
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-40')
+
+    actStore(() =>
+      useWindowStore
+        .getState()
+        .windows.filter((win) => win.state !== 'minimized')
+        .forEach((win) => useWindowStore.getState().minimize(win.id)),
+    )
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-100')
+  })
+
+  it('hides while any chrome overlay is open and restores the window tier on close', () => {
+    const { rerender } = render(<DesktopBranding />)
+    actStore(() => useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' }))
+    rerender(<DesktopBranding />)
+
+    // ① 启动器（launcher-store 直接开关）。
+    actStore(() => useLauncherStore.getState().setLauncherOpen(true))
     rerender(<DesktopBranding />)
     expect(screen.getByTestId('desktop-branding').className).toContain('opacity-0')
-
-    useWindowStore.getState().minimize(id)
+    actStore(() => useLauncherStore.getState().setLauncherOpen(false))
     rerender(<DesktopBranding />)
-    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-90')
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-40')
+
+    // ② 全局搜索（search-store）。
+    actStore(() => useSearchStore.getState().setOpen(true))
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-0')
+    actStore(() => useSearchStore.getState().close())
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-40')
+
+    // ③ 通知中心（notification-store.panelOpen）。
+    actStore(() => useNotificationStore.getState().setPanelOpen(true))
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-0')
+    actStore(() => useNotificationStore.getState().setPanelOpen(false))
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-40')
+
+    // ④ popover 互斥槽兜底的其余弹层（菜单栏下拉/用户菜单/右键菜单等）。
+    actStore(() => usePopoverStore.getState().claim('menubar'))
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-0')
+    actStore(() => usePopoverStore.getState().release('menubar'))
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-40')
+  })
+
+  it('renders only on tier changes: high-frequency move/focus commits stay render-free', () => {
+    let renders = 0
+    render(
+      <Profiler
+        id="desktop-branding"
+        onRender={() => {
+          renders += 1
+        }}
+      >
+        <DesktopBranding />
+      </Profiler>,
+    )
+    const baseline = renders // 初始挂载后基准
+
+    // 开窗：full→dim，恰一次渲染。
+    let id = ''
+    actStore(() => {
+      id = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    })
+    expect(renders).toBe(baseline + 1)
+
+    // 高频 commit（拖拽 = 连续 move + focus，每次 commit 新数组引用）：
+    // 计数选择器输出不变 → 零重渲染（STEP 5 验收：状态切换不引发高频 re-render）。
+    for (let step = 0; step < 20; step += 1) {
+      actStore(() => {
+        useWindowStore.getState().move(id, 120 + step, 90)
+        useWindowStore.getState().focus(id)
+      })
+    }
+    expect(renders).toBe(baseline + 1)
+
+    // 再开一窗：dim→faint，又恰一次。
+    actStore(() =>
+      useWindowStore.getState().open({ appId: 'com.ageha.calculator', title: '计算器' }),
+    )
+    expect(renders).toBe(baseline + 2)
   })
 })
