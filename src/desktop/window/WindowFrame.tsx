@@ -218,7 +218,13 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       className={`surface-glass glass-deep absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
         maximized ? 'inset-0 rounded-none' : 'rounded-xl'
       } ${
-        win.focused ? 'border-primary/50 shadow-window' : 'border-border shadow-window-flat'
+        // Shell 3.0 STEP 7 深度层级：active = 中性细边（border-strong）+
+        // 更高面实度（window-glass-focus）+ 更强大气软影（shadow-window-
+        // active）；inactive = 常规细边 + flat 影。聚焦档只提实度不加色相
+        // （active 禁止整体变蓝）。
+        win.focused
+          ? 'window-glass-focus border-border-strong shadow-window-active'
+          : 'border-border shadow-window-flat'
       } ${tiltOn && !win.focused && !minimized ? 'is-tilt-dim' : ''} ${
         ghost ? 'pointer-events-none' : 'pointer-events-auto'
       }`}
@@ -227,7 +233,9 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
     >
       <header
         // 2026-10-02 用户裁决：拖动区保持默认箭头（cursor-move 十字观感差）。
-        className="flex h-9 shrink-0 select-none cursor-default items-center gap-2 border-b border-border-subtle px-3"
+        // Shell 3.0 STEP 7：头部 36→44px（ask 档 44-50）——App Icon + 标题 +
+        // 控制灯在更舒展的带内保持「干净、精确、轻」（标题常规字重不加重）。
+        className="flex h-11 shrink-0 select-none cursor-default items-center gap-2 border-b border-border-subtle px-3"
         onPointerDown={onTitlePointerDown}
         onPointerMove={onTitlePointerMove}
         onPointerUp={onTitlePointerUp}

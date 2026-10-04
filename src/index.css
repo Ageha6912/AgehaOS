@@ -59,6 +59,9 @@
   /* Shell 2.0 浮岛档（左栏 rail；panel→float→window 递进）。 */
   --ag-shadow-float: 0 12px 32px rgb(18 32 62 / 12%), 0 2px 6px rgb(18 32 62 / 6%);
   --ag-shadow-window: 0 16px 48px rgb(18 32 62 / 16%), 0 2px 8px rgb(18 32 62 / 8%);
+  /* Shell 3.0 STEP 7 聚焦窗口档（flat < window < window-active 递进；大气
+     软影，只加深不收窄）。非聚焦窗口沿用 --ag-shadow-window-flat。 */
+  --ag-shadow-window-active: 0 24px 64px rgb(18 32 62 / 20%), 0 4px 14px rgb(18 32 62 / 9%);
   --ag-shadow-window-flat: 0 8px 24px rgb(18 32 62 / 10%);
   /* Shell 2.0 Dock 专用档（18% 大半径；七面 shadow 阶梯逐格互异）。 */
   --ag-shadow-dock: 0 20px 56px rgb(18 32 62 / 18%), 0 4px 12px rgb(18 32 62 / 9%);
@@ -79,6 +82,10 @@
   --ag-glass-bg: rgb(255 255 255 / 72%);
   /* 深玻璃档（z-50 弹层；chrome 作用域内 remap 白26%，见 .desktop-chrome）。 */
   --ag-glass-bg-strong: rgb(255 255 255 / 86%);
+  /* Shell 3.0 STEP 7 聚焦窗口面实度档：比基底玻璃（72%）更实、比弹层
+     strong（86%）稍透——窗口明显脱离壁纸且聚焦层级「更高 opaque」；只提
+     实度不引入色相（active 禁止整体变蓝）。失焦窗口沿用 --ag-glass-bg。 */
+  --ag-window-face-active: rgb(255 255 255 / 84%);
   --ag-glass-border: rgb(18 32 62 / 8%);
   --ag-glass-highlight: rgb(255 255 255 / 70%);
   --ag-glass-blur: var(--ag-blur-lg);
@@ -231,6 +238,7 @@
   --ag-shadow-panel: 0 4px 16px rgb(0 0 0 / 28%), 0 1px 3px rgb(0 0 0 / 20%);
   --ag-shadow-float: 0 12px 32px rgb(0 0 0 / 34%), 0 2px 6px rgb(0 0 0 / 18%);
   --ag-shadow-window: 0 16px 48px rgb(0 0 0 / 45%), 0 2px 8px rgb(0 0 0 / 30%);
+  --ag-shadow-window-active: 0 24px 64px rgb(0 0 0 / 52%), 0 4px 14px rgb(0 0 0 / 34%);
   --ag-shadow-window-flat: 0 8px 24px rgb(0 0 0 / 28%);
   --ag-shadow-dock: 0 20px 56px rgb(0 0 0 / 50%), 0 4px 12px rgb(0 0 0 / 28%);
   --ag-shadow-popover: 0 24px 64px rgb(0 0 0 / 52%), 0 4px 12px rgb(0 0 0 / 32%);
@@ -240,6 +248,8 @@
   --ag-glass-bg: rgb(16 23 40 / 66%);
   /* 深玻璃档（z-50 弹层；chrome 作用域内 remap 白26%，见 .desktop-chrome）。 */
   --ag-glass-bg-strong: rgb(16 23 40 / 84%);
+  /* 聚焦窗口面实度档（浅色档的深色成对，见 :root 注）。 */
+  --ag-window-face-active: rgb(16 23 40 / 78%);
   --ag-glass-border: rgb(255 255 255 / 10%);
   --ag-glass-highlight: rgb(255 255 255 / 8%);
   --ag-glass-blur: var(--ag-blur-lg);
@@ -326,6 +336,7 @@
   --shadow-panel: var(--ag-shadow-panel);
   --shadow-float: var(--ag-shadow-float);
   --shadow-window: var(--ag-shadow-window);
+  --shadow-window-active: var(--ag-shadow-window-active);
   --shadow-window-flat: var(--ag-shadow-window-flat);
   --shadow-dock: var(--ag-shadow-dock);
   --shadow-popover: var(--ag-shadow-popover);
@@ -536,6 +547,14 @@ body {
 /* ⑤ 窗口面（blur 36px deep）。 */
 .glass-deep {
   backdrop-filter: blur(var(--ag-blur-xl)) saturate(160%);
+}
+/* ⑤′ 窗口聚焦面（Shell 3.0 STEP 7 深度层级）：active 窗口面实度更高
+   （--ag-window-face-active），窗口明显脱离壁纸；失焦窗口保持 .surface-glass
+   基底（面/标题/交通灯/边框/阴影五感降档）。只提实度不引入色相——active
+   禁止整体变蓝（用户一票否决）。源序纪律：必须位于 .surface-glass 基规则
+   之后、降透明/@supports 兜底之前（源序即降级，兜底块在后必胜）。 */
+.window-glass-focus {
+  background: var(--ag-window-face-active);
 }
 /* ④ Dock 胶囊底（blur 走默认 surface-glass 28px；白22% 胶囊面）。 */
 .dock-glass {

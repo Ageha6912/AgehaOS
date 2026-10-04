@@ -284,7 +284,7 @@ describe('index.css token contract (Token 2.0)', () => {
     const fallback = css.indexOf('prefers-reduced-transparency', base)
     expect(base).toBeGreaterThan(0)
     expect(fallback).toBeGreaterThan(base)
-    for (const marker of ['.glass-hint', '.glass-raise', '.glass-deep', '.dock-glass', '.glass-popover']) {
+    for (const marker of ['.glass-hint', '.glass-raise', '.glass-deep', '.window-glass-focus', '.dock-glass', '.glass-popover']) {
       const at = css.indexOf(marker)
       expect(at, `${marker} after the glass base rule`).toBeGreaterThan(base)
       expect(at, `${marker} before the reduced-transparency fallback`).toBeLessThan(fallback)
@@ -328,6 +328,21 @@ describe('index.css token contract (Token 2.0)', () => {
     // 浅=白86% / 深=墨84%；chrome 弹层由纸面块重声明（上方 paper 用例）。
     expect(root).toMatch(/--ag-glass-bg-strong:\s*rgb\(255 255 255 \/ 86%\)/)
     expect(dark).toMatch(/--ag-glass-bg-strong:\s*rgb\(16 23 40 \/ 84%\)/)
+  })
+
+  it('defines the shell 3.0 focused-window face and shadow tiers in both themes', () => {
+    // STEP 7 深度层级：聚焦窗口 = 更高面实度（72% 基底 < 84% < 弹层 strong
+    // 86%，只提实度不加色相——active 禁止整体变蓝）+ 更强大气软影（flat <
+    // window < window-active 递进）；失焦窗口沿用基底玻璃与 flat 档。
+    expect(root).toMatch(/--ag-window-face-active:\s*rgb\(255 255 255 \/ 84%\)/)
+    expect(dark).toMatch(/--ag-window-face-active:\s*rgb\(16 23 40 \/ 78%\)/)
+    expect(root).toMatch(/--ag-shadow-window-active:\s*0 24px 64px rgb\(18 32 62 \/ 20%\)/)
+    expect(dark).toMatch(/--ag-shadow-window-active:\s*0 24px 64px rgb\(0 0 0 \/ 52%\)/)
+    expect(has(theme, 'shadow-window-active'), 'shadow-window-active in @theme inline').toBe(true)
+    // 聚焦面增量类只换 background（blur/兜底全部继承 surface-glass 基规则）。
+    const at = css.indexOf('.window-glass-focus')
+    expect(css.slice(at, at + 120)).toContain('background: var(--ag-window-face-active)')
+    expect(css.slice(at, at + 200)).not.toContain('backdrop-filter')
   })
 
   it('bans the -webkit-backdrop-filter prefix everywhere (root cause A)', () => {

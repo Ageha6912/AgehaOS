@@ -76,9 +76,9 @@ describe('WindowFrame (via WindowLayer)', () => {
     render(<WindowLayer />)
 
     const region = screen.getByRole('region', { name: '记事' })
-    // 头部 44px + 窗体 radius-xl（非最大化）。
+    // 头部 44px（Shell 3.0 STEP 7 档 44-50）+ 窗体 radius-xl（非最大化）。
     const header = region.querySelector('header') as HTMLElement
-    expect(header.classList.contains('h-9')).toBe(true)
+    expect(header.classList.contains('h-11')).toBe(true)
     // 2026-10-02 用户裁决：拖动区保持默认箭头（cursor-move 十字观感差）。
     expect(header.className).not.toContain('cursor-move')
     expect(region.classList.contains('rounded-xl')).toBe(true)
@@ -183,7 +183,7 @@ describe('WindowFrame (via WindowLayer)', () => {
     expect(layer.className).toContain('z-[45]')
   })
 
-  it('wears the shell 2.0 window skin: deep glass face with OS-level focus hierarchy', () => {
+  it('wears the shell 3.0 window skin: deep glass face with OS-level focus hierarchy', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
     render(<WindowLayer />)
@@ -195,13 +195,18 @@ describe('WindowFrame (via WindowLayer)', () => {
     expect(focused.classList.contains('glass-deep')).toBe(true)
     expect(focused.classList.contains('rounded-xl')).toBe(true)
     expect(focused.classList.contains('inset-0')).toBe(false)
-    // 聚焦 = primary/50 描边 + shadow-window；失焦 = 常规边框 + window-flat
-    // （active/inactive 层级：像 OS 窗口，不像网页卡片）。
-    expect(focused.classList.contains('border-primary/50')).toBe(true)
-    expect(focused.classList.contains('shadow-window')).toBe(true)
+    // 聚焦 = 更高面实度（window-glass-focus）+ 中性细边（border-strong）+
+    // 更强大气软影（shadow-window-active）；失焦 = 基底玻璃面 + 常规边框 +
+    // window-flat（active/inactive 层级：像 OS 窗口，不像网页卡片）。
+    expect(focused.classList.contains('window-glass-focus')).toBe(true)
+    expect(focused.classList.contains('border-border-strong')).toBe(true)
+    expect(focused.classList.contains('shadow-window-active')).toBe(true)
+    // active 禁止整体变蓝：聚焦档不得再挂 primary 描边（Shell 3.0 STEP 7）。
+    expect(focused.className).not.toContain('border-primary')
     const unfocused = screen.getByRole('region', { name: '记事' })
     expect(unfocused.classList.contains('border-border')).toBe(true)
     expect(unfocused.classList.contains('shadow-window-flat')).toBe(true)
+    expect(unfocused.classList.contains('window-glass-focus')).toBe(false)
     expect(unfocused.classList.contains('glass-deep')).toBe(true)
   })
 
