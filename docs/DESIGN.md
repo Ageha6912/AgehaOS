@@ -777,6 +777,16 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   不右溢 ✓；桌面图标列 flex-wrap 限高 ✓。
 - **E2E**：`e2e/responsive.spec.ts`（375×812：无横向 overflow、顶栏完整、
   自动开窗不超视口、启动器在视口内）。
+- **桌面四分辨率探针（Shell 3.0 STEP 10 响应式收尾，2026-10-04）**：
+  `e2e/responsive-quad.spec.ts` 在 1280x720 / 1366x768 / 1920x1080 /
+  2560x1440 实测几何并写证据（`.tmp/responsive-probe/<WxH>.json + .png`，
+  永不提交）：①无横向 overflow；②system-rails 窄轨（left 16 / 内容 72 /
+  垂直居中）与展开态 Workspace Panel（组 318 = 316 内容 + 描边×2）均整体
+  在视口内、面板内容列自身无横向溢出；③右栏 Floating System Center 顶锚
+  48 / 右留白 20 / 底不越 Dock 带（视口-88）；④Dock 高 68 / 离底 20 /
+  水平居中；⑤窗口 launch 落点完整在工作区内（§33.4.1），向左拖出屏幕仍
+  保有 ≥80px 可见带（window-manager MIN_VISIBLE_EDGE）且可拖回工作区。
+  断言全部 boundingBox 实测；四档全绿，无需分辨率特例（几何全走 token）。
 
 ## 26. 左侧系统导航栏（Phase 2 P2-2，2026-09-30）
 
