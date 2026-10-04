@@ -335,18 +335,18 @@ describe('eclosion basic spec table (server copy, §5.2)', () => {
         spec.window,
       ]),
     ).toEqual([
-      ['calculator', 'com.ageha.eclosion.calculator', 2, [], { width: 300, height: 440, resizable: false }],
+      ['calculator', 'com.ageha.eclosion.calculator', 3, [], { width: 300, height: 440, resizable: false }],
       [
         'notes',
         'com.ageha.eclosion.notes',
-        2,
+        3,
         ['filesystem.read', 'filesystem.write'],
         { width: 720, height: 480, resizable: true },
       ],
-      ['clock', 'com.ageha.eclosion.clock', 2, ['storage'], { width: 420, height: 560, resizable: true }],
+      ['clock', 'com.ageha.eclosion.clock', 3, ['storage'], { width: 420, height: 560, resizable: true }],
     ])
     expect(findBasicSpec('nope')).toBeNull()
-    expect(basicCacheKey(calculatorSpec(), 'm')).toBe('basic:calculator:v2:m')
+    expect(basicCacheKey(calculatorSpec(), 'm')).toBe('basic:calculator:v3:m')
   })
 
   it('keeps every spec hint server-side (ADR 27: no client hint surface)', () => {
@@ -383,41 +383,74 @@ describe('eclosion basic spec table (server copy, §5.2)', () => {
     expect(clockUser).toContain('reject')
   })
 
-  it('system contract pins the AgehaOS design + motion language (2026-10-03 taste 升级)', () => {
+  it('system contract pins the AgehaOS design + motion language (2026-10-03 taste v5 清新多巴胺)', () => {
     const calc = buildBasicMessages(findBasicSpec('calculator') as EclosionBasicSpec, 'zh-CN')
     const sys = calc[0]?.content ?? ''
     const user = calc[1]?.content ?? ''
 
-    // 主题变量清单 = 宿主实际注入子集：--ageha-primary 存在、不存在的
+    // 主题变量清单 = 宿主实际注入子集（含扩展活泼色板）；不存在的
     // --ageha-accent 不允许回潮（曾误导模型引用未定义变量）。
     expect(user).toContain('--ageha-primary（强调）')
-    expect(user).toContain('--ageha-primary-contrast')
+    expect(user).toContain('--ageha-cyan / --ageha-lime / --ageha-orange（扩展活泼色板）')
     expect(user).toContain('--ageha-radius')
     expect(user + sys).not.toContain('--ageha-accent')
 
-    // 视觉契约：冷静玻璃语言 + 玻璃配方 + 反俗套红线 + 行预算。
-    expect(sys).toContain('冷静玻璃')
-    expect(sys).toContain('backdrop-filter')
-    expect(sys).toContain('color-mix(in oklab')
-    expect(sys).toContain('实色回退')
-    expect(sys).toContain('紫色/蓝紫渐变')
-    expect(sys).toContain('纯黑 #000')
-    expect(sys).toContain('220 行')
+    // ax-* 设计系统：类清单 + 结构配方 + 自适应（玻璃/按钮/动画基础实现禁止重写）。
+    expect(sys).toContain('.ax-panel')
+    expect(sys).toContain('.ax-display')
+    expect(sys).toContain('.ax-glow')
+    expect(sys).toContain('.ax-rise')
+    expect(sys).toContain('.ax-stage')
+    expect(sys).toContain('.ax-fit')
+    expect(sys).toContain('禁止重写')
 
-    // 动效契约：级联入场、按压反馈、缓动、单一循环、强制 reduced-motion。
+    // 反俗套红线（含用户裁决：绝对禁止蓝紫渐变）。
+    expect(sys).toContain('绝对禁止蓝紫渐变')
+    expect(sys).toContain('纯黑 #000')
+    expect(sys).toContain('150–220 行')
+
+    // 动效契约：级联/弹出/强制 reduced-motion 全关。
+    expect(sys).toContain('.ax-rise')
+    expect(sys).toContain('.ax-pop')
     expect(sys).toContain('prefers-reduced-motion')
-    expect(sys).toContain('cubic-bezier(0.16, 1, 0.3, 1)')
-    expect(sys).toContain('scale(0.98)')
     expect(sys).toContain('animation:none')
+
+    // 目标窗口尺寸注入（布局自适应的事实前提）。
+    expect(user).toContain('目标窗口约')
 
     // 三种 kind 共用同一系统契约（basic/today/imagine 全部带走设计语言）。
     const today = buildTodayAppMessages(
-      { slug: 'x', name: 'X', tagline: 'x', category: 'tools', hint: '' },
+      { slug: 'x', name: 'X', tagline: 'x', category: 'tools', hint: '', window: { width: 720, height: 480 } },
       'zh-CN',
     )
     const imagine = buildImagineMessages('番茄钟', 'zh-CN')
     expect(today[0]?.content).toBe(sys)
     expect(imagine[0]?.content).toBe(sys)
+  })
+
+  it('html gate truncates after </html> and rejects syntax-broken scripts (2026-10-03 双检查)', async () => {
+    const { applyHtmlGate } = await import('../src/eclosion/html-gate')
+
+    // 尾部自言自语截断：文档完整保留，</html> 后的一切不下发。
+    const doc = '<!doctype html><html><head></head><body>ok</body></html>'
+    const junk = doc + '\n<!-- 自言自语 -->Let me reconsider... ```'
+    const gated = applyHtmlGate(junk)
+    expect(gated.invalid).toBe(false)
+    expect(gated.html.endsWith('</html>')).toBe(true)
+    expect(gated.html).not.toContain('自言自语')
+
+    // 语法坏脚本 → bad-script（invalid-output），残次品不出闸。
+    const broken = applyHtmlGate(
+      '<!doctype html><html><body><script>function f(s){return s%60.toString()}</script></body></html>',
+    )
+    expect(broken.invalid).toBe(true)
+    expect(broken.reason).toBe('bad-script')
+
+    // 合法脚本照常通过。
+    const good = applyHtmlGate(
+      '<!doctype html><html><body><script>function f(s){return (s%60).toString()}</script></body></html>',
+    )
+    expect(good.invalid).toBe(false)
   })
 })
 

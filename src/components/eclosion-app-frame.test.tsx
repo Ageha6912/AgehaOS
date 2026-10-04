@@ -127,7 +127,7 @@ describe('EclosionAppFrame（宿主容器）', () => {
     await cache.writeBasic(frameUser, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 2,
+      specVersion: 3,
       html: DOC_HTML,
       createdAt: '',
     })
@@ -166,7 +166,7 @@ describe('EclosionAppFrame（宿主容器）', () => {
     await cache.writeBasic(frameUser, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 2,
+      specVersion: 3,
       html: DOC_HTML,
       createdAt: '',
     })
@@ -218,7 +218,7 @@ describe('EclosionAppFrame（宿主容器）', () => {
     await cache.writeBasic(frameUser, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 2,
+      specVersion: 3,
       html: DOC_HTML,
       createdAt: '',
     })
@@ -247,7 +247,7 @@ describe('EclosionAppFrame（宿主容器）', () => {
     await cache.writeBasic(frameUser, {
       appId: NOTES,
       specId: 'notes',
-      specVersion: 2,
+      specVersion: 3,
       html: DOC_HTML,
       createdAt: '',
     })
@@ -371,7 +371,7 @@ describe('EclosionAppFrame（宿主容器）', () => {
     await cache.writeBasic(frameUser, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 2,
+      specVersion: 3,
       html: DOC_HTML,
       createdAt: '',
     })
@@ -829,7 +829,7 @@ describe('EclosionAppFrame × 会话封禁（§10 举报后不可再打开）', 
     await cache.writeBasic(frameUser, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 2,
+      specVersion: 3,
       html: DOC_HTML,
       createdAt: '',
     })

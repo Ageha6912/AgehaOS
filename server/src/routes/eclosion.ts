@@ -546,6 +546,7 @@ export async function eclosionRoutes(
                 tagline: worldApp?.tagline ?? '',
                 category: worldApp?.category ?? '',
                 hint: worldApp?.hint ?? '',
+                window: worldApp?.window ?? { width: 720, height: 480 },
               },
               body.locale,
             )

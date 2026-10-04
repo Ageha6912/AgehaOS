@@ -25,6 +25,10 @@ const AGEHA_TOKEN_SUBSET: ReadonlyArray<{
   { ageha: '--ageha-danger', ag: '--ag-danger', light: '#dc2626', dark: '#f87171' },
   { ageha: '--ageha-success', ag: '--ag-success', light: '#059669', dark: '#34d399' },
   { ageha: '--ageha-warning', ag: '--ag-warning', light: '#b45309', dark: '#fbbf24' },
+  // 扩展活泼色板（2026-10-03 taste v5：清新多巴胺，禁蓝紫——仅注入沙箱供生成应用使用）。
+  { ageha: '--ageha-cyan', ag: '--ag-cyan', light: '#0891b2', dark: '#22d3ee' },
+  { ageha: '--ageha-lime', ag: '--ag-lime', light: '#65a30d', dark: '#a3e635' },
+  { ageha: '--ageha-orange', ag: '--ag-orange', light: '#ea580c', dark: '#fb923c' },
   { ageha: '--ageha-radius', ag: '--ag-radius-md', light: '12px', dark: '12px' },
 ]
 
