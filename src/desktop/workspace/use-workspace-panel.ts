@@ -123,6 +123,7 @@ export function useWorkspacePanel(
   }, [launcherOpen, notificationOpen, cancelLeave])
 
   // 焦点来源启发式（document 捕获阶段）：见 pointerFocusSuppressed 注释。
+  const expanded = hovered || pinned || focusWithin
   useEffect(() => {
     const onKey = (): void => {
       pointerFocusSuppressed.current = false
@@ -138,9 +139,11 @@ export function useWorkspacePanel(
     }
   }, [])
 
-  // pin 态的收起契约：Esc / 面板外按下（document 捕获阶段，边界内豁免）。
+  // 展开态的收起契约（不限于 pin）：Esc / 面板外按下（document 捕获阶段，
+  // 边界内豁免）。悬停态物理上不会有面板外按下（指针在外早已收起）——
+  // 此监听覆盖 240ms 宽限窗口与测试环境的指针瞬移。
   useEffect(() => {
-    if (!pinned) return
+    if (!expanded) return
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') collapse()
     }
@@ -155,12 +158,12 @@ export function useWorkspacePanel(
       document.removeEventListener('keydown', onKeyDown, true)
       document.removeEventListener('pointerdown', onPointerDown, true)
     }
-  }, [pinned, boundaryRef, collapse])
+  }, [expanded, boundaryRef, collapse])
 
   useEffect(() => cancelLeave, [cancelLeave])
 
   return {
-    expanded: hovered || pinned || focusWithin,
+    expanded,
     pinned,
     onMouseEnter,
     onMouseLeave,

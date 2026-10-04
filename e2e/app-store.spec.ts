@@ -35,7 +35,7 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
   // 打开应用商店，安装「时钟」（零权限 Web 应用）。
   await revealTaskbar(page)
   await startButton.click()
-  await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /应用商店/ }).click()
+  await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: '应用商店', exact: true }).click()
   const store = page.getByRole('region', { name: '应用商店' })
   await expect(store).toBeVisible()
 
@@ -102,7 +102,7 @@ test('store list keeps a visible scrollbar and a bottom fade while content overf
 
   await revealTaskbar(page)
   await taskbarStartButton(page).click()
-  await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /应用商店/ }).click()
+  await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: '应用商店', exact: true }).click()
   const store = page.getByRole('region', { name: '应用商店' })
   await expect(store).toBeVisible()
 

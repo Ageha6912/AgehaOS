@@ -186,6 +186,30 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     expect(nav.getAttribute('data-expanded')).toBeNull()
   })
 
+  it('Escape collapses the hover-expanded panel too（收起契约不限 pin）', () => {
+    render(<SidebarHarness />)
+
+    const nav = screen.getByTestId('sidebar')
+    fireEvent.mouseEnter(nav)
+    expect(nav.getAttribute('data-expanded')).toBe('true')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(nav.getAttribute('data-expanded')).toBeNull()
+  })
+
+  it('rail action clicks collapse the panel (打开的窗口立即脱离面板遮盖)', () => {
+    render(<SidebarHarness />)
+
+    const nav = screen.getByTestId('sidebar')
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+    expect(nav.getAttribute('data-expanded')).toBe('true')
+
+    // 动作条目（设置）：启动 + 面板收起——窗口左缘控件不被 324px 面板盖住。
+    fireEvent.click(screen.getByTestId('sidebar-settings'))
+    expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.settings')
+    expect(nav.getAttribute('data-expanded')).toBeNull()
+  })
+
   it('opening the shared launcher or notification panel collapses the rail panel（弹层互斥）', () => {
     render(<SidebarHarness />)
 

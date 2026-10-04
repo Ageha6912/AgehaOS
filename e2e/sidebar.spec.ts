@@ -40,6 +40,8 @@ test('sidebar: floating narrow rail with working actions, tooltips and capsules'
   //    （index.css [data-expanded] .os-tooltip）；轨道容器（及祖先）overflow
   //    恒 visible 的 §26 契约不回归（收起态气泡向右伸出依赖它）。
   const files = page.getByTestId('sidebar-files')
+  // ② 的点击让指针留在轨内（面板已随动作收起）：先移出再悬停才有 mouseenter。
+  await page.mouse.move(640, 660)
   await files.hover()
   await expect(rail).toHaveAttribute('data-expanded', 'true')
   await expect

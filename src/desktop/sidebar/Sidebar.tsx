@@ -316,7 +316,10 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
             testid="sidebar-desktop"
             label={t('sidebar.desktop')}
             icon={Monitor}
-            onClick={showDesktop}
+            onClick={() => {
+              showDesktop()
+              panel.collapse()
+            }}
           />
           <RailItem
             testid="sidebar-launcher"
@@ -327,29 +330,43 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
             expandable
             popoverTrigger="launcher"
           />
+          {/* 动作条目触发即收起面板：打开的窗口左缘控件不被 324px 面板遮盖
+              （真实指针移出面板也会收起；这里让「点击即走」不依赖移出）。 */}
           <RailItem
             testid="sidebar-files"
             label={t('sidebar.files')}
             icon={FolderOpen}
-            onClick={() => launchApp('com.ageha.files')}
+            onClick={() => {
+              launchApp('com.ageha.files')
+              panel.collapse()
+            }}
           />
           <RailItem
             testid="sidebar-notes"
             label={t('sidebar.notes')}
             icon={Notebook}
-            onClick={() => launchApp('com.ageha.notes')}
+            onClick={() => {
+              launchApp('com.ageha.notes')
+              panel.collapse()
+            }}
           />
           <RailItem
             testid="sidebar-terminal"
             label={t('sidebar.terminal')}
             icon={TerminalWindow}
-            onClick={() => launchApp('com.ageha.terminal')}
+            onClick={() => {
+              launchApp('com.ageha.terminal')
+              panel.collapse()
+            }}
           />
           <RailItem
             testid="sidebar-settings"
             label={t('sidebar.settings')}
             icon={GearSix}
-            onClick={() => launchApp('com.ageha.settings')}
+            onClick={() => {
+              launchApp('com.ageha.settings')
+              panel.collapse()
+            }}
           />
           <RailItem
             testid="sidebar-notifications"

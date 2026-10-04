@@ -24,6 +24,9 @@ test.describe('workspace panel', () => {
   }
 
   async function expandByHover(page: import('@playwright/test').Page): Promise<void> {
+    // 先把指针移出轨道再悬停：动作点击后面板收起、指针仍留在轨内（不离开
+    // 就没有 mouseenter，展开状态机按真实指针物理不重挂）。
+    await page.mouse.move(640, 660)
     await page.getByTestId('sidebar').hover()
     await expect(page.getByTestId('system-rails')).toHaveAttribute('data-expanded', 'true')
     await expect.poll(railWidth.bind(null, page), { timeout: 3000 }).toBeGreaterThanOrEqual(300)
