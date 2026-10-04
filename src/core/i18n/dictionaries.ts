@@ -143,10 +143,13 @@ export const dictionaries = {
     'search.placeholder': '搜索应用与文件…',
     'search.apps': '应用',
     'search.files': '文件',
-    'search.imagine': '意念',
-    'search.imagineItem': '✦ 即时羽化「{query}」应用',
+    'search.actions': '操作',
+    'search.imagineItem': '即时羽化「{query}」应用',
     'search.empty': '无匹配结果',
-    'search.hint': '↑↓ 选择 · Enter 打开 · Esc 关闭 · Ctrl+K 呼出',
+    'search.emptyQuery': '输入以搜索应用与文件',
+    'search.hint.navigate': '选择',
+    'search.hint.open': '打开',
+    'search.hint.close': '关闭',
 
 
     'taskbar.start': '开始',
@@ -666,10 +669,13 @@ export const dictionaries = {
     'search.placeholder': 'Search apps and files…',
     'search.apps': 'Apps',
     'search.files': 'Files',
-    'search.imagine': 'Ideas',
-    'search.imagineItem': '✦ Hatch “{query}” into an app',
+    'search.actions': 'Actions',
+    'search.imagineItem': 'Hatch “{query}” into an app',
     'search.empty': 'No results',
-    'search.hint': '↑↓ navigate · Enter opens · Esc closes · Ctrl+K toggles',
+    'search.emptyQuery': 'Type to search apps and files',
+    'search.hint.navigate': 'Navigate',
+    'search.hint.open': 'Open',
+    'search.hint.close': 'Close',
 
 
     'taskbar.start': 'Start',

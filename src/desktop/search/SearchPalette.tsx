@@ -1,34 +1,48 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { File } from '@phosphor-icons/react'
+import { File, MagnifyingGlass } from '@phosphor-icons/react'
 
 import { AppIcon } from '@/apps/app-icon'
 import { launchApp } from '@/apps/launch'
 import { componentFor } from '@/apps/builtin'
 import { formatMessage, useTranslation } from '@/core/i18n'
+import type { MessageKey } from '@/core/i18n'
 import { filterContentText } from '@/core/dynamic/content/filter'
 import { systemEclosion } from '@/services/eclosion'
 import { systemVfs } from '@/services/vfs'
 import { useAppStore } from '@/store/app-store'
 import { useEclosionStore } from '@/store/eclosion-store'
 import { useSearchStore } from '@/store/search-store'
+import { useUsageStore } from '@/store/usage-store'
 import type { VfsSearchResult } from '@/core/filesystem'
 
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
 import { usePopoverDismiss } from '@/components/use-popover-dismiss'
 
-import { limitFiles, rankApps } from './search'
+import { limitFiles, rankApps, type SearchableApp } from './search'
 
 /**
- * 全局搜索面板（PRD §15，Ctrl+K）：应用 + 文件两域 + 想象域（羽化 P3，
- * AI-GENERATED-APPS-DESIGN §7——恒排两域之后），键盘导航（↑↓ 选择、Enter
- * 打开/生成、Esc 关闭）。文件结果现阶段经 Files 应用打开——「携带文件参数
- * 启动应用」（§24.3）依赖 launch 参数化，属后续工作。
+ * 全局搜索面板（PRD §15，Ctrl+K；Shell 3.0 STEP 9 精修为 Raycast/Spotlight
+ * 形态）：视口居中 640px（600-720 档）大玻璃面板，结构自上而下 =
+ * Search（大号无边框搜索行 + 放大镜）→ 结果区（空查询 = 真实「最近使用」
+ * 速览；输入后 = Apps → Files → Actions 三段）→ 底部按键提示条（kbd 芯片）。
+ *
+ * 能力契约（§23 不变量，全部保留）：搜索逻辑（rankApps/VFS 搜索）、键盘
+ * 导航（↑↓ 选择、Enter 打开/生成、Esc 关闭）、testid（search-*）、激活行
+ * `bg-primary/10`、pop-motion 动效、bg-scrim 遮罩。
+ *
+ * Actions 区即想象域（羽化 P3，AI-GENERATED-APPS-DESIGN §7——恒排两域之后，
+ * 「✦ 即时羽化…」文案与 Enter 生成不变；从「结果」重归「动作」语义）。
+ * 文件结果现阶段经 Files 应用打开——「携带文件参数启动应用」（§24.3）
+ * 依赖 launch 参数化，属后续工作。
  *
  * 想象域门控（§7 双端过滤的客户端半场）：输入 trim ≥2 字、羽化模式开启、
  * filterContentText 非违规（违规直接不显示想象项）；服务端 classifier 是
  * 第二道闸。Enter/点击走生成而非 launchApp。
  */
+
+/** 空查询「最近使用」速览行数（usage-store 真数据，装不下的不显示）。 */
+const RECENT_RESULTS_LIMIT = 6
 
 export function SearchPalette() {
   const { t } = useTranslation()
@@ -36,6 +50,7 @@ export function SearchPalette() {
   const close = useSearchStore((s) => s.close)
   const apps = useAppStore((s) => s.apps)
   const eclosionEnabled = useEclosionStore((s) => s.enabled)
+  const recent = useUsageStore((s) => s.recent)
 
   const phase = useExitPhase(open)
   const [query, setQuery] = useState('')
@@ -45,17 +60,24 @@ export function SearchPalette() {
   // 自带遮罩点击与输入框 Esc，只参与弹层互斥（打开搜索即收起启动器等）。
   usePopoverDismiss('search', open, close, { dismissible: false })
 
-  const appHits = useMemo(
+  const searchableApps = useMemo(
     () =>
-      rankApps(
-        query,
-        apps.map((app) => {
-          const meta = componentFor(app.id)
-          return { id: app.id, name: app.name, title: meta ? t(meta.titleKey) : app.name }
-        }),
-      ),
-    [query, apps, t],
+      apps.map((app) => {
+        const meta = componentFor(app.id)
+        return { id: app.id, name: app.name, title: meta ? t(meta.titleKey) : app.name }
+      }),
+    [apps, t],
   )
+  const appHits = useMemo(() => rankApps(query, searchableApps), [query, searchableApps])
+  // 空查询速览：真实「最近使用」（usage-store，只记用户主动启动），仅显示
+  // 仍安装的应用；一旦输入即让位于搜索结果（Spotlight 建议语义）。
+  const recentHits = useMemo(() => {
+    if (query.trim().length > 0) return []
+    return recent
+      .map((entry) => searchableApps.find((app) => app.id === entry.appId))
+      .filter((app): app is SearchableApp => app !== undefined)
+      .slice(0, RECENT_RESULTS_LIMIT)
+  }, [query, recent, searchableApps])
   const fileHits = limitFiles(query.trim() ? files : [])
 
   useEffect(() => {
@@ -85,7 +107,7 @@ export function SearchPalette() {
   // 想象域（§7）：恒排应用/文件之后；门控 = 羽化开 + ≥2 字 + 客户端过滤通过。
   const imagineVisible =
     eclosionEnabled && trimmed.length >= 2 && filterContentText(trimmed).ok
-  const total = appHits.length + fileHits.length + (imagineVisible ? 1 : 0)
+  const total = recentHits.length + appHits.length + fileHits.length + (imagineVisible ? 1 : 0)
   const openApp = (appId: string): void => {
     launchApp(appId)
     close()
@@ -103,14 +125,53 @@ export function SearchPalette() {
     close()
   }
   const openActive = (): void => {
-    if (active < appHits.length) {
-      const hit = appHits[active]
+    if (active < recentHits.length) {
+      const hit = recentHits[active]
       if (hit) openApp(hit.id)
-    } else if (active < appHits.length + fileHits.length) {
+    } else if (active < recentHits.length + appHits.length) {
+      const hit = appHits[active - recentHits.length]
+      if (hit) openApp(hit.id)
+    } else if (active < recentHits.length + appHits.length + fileHits.length) {
       if (fileHits.length > 0) openFile()
     } else if (imagineVisible) {
       generateImagine()
     }
+  }
+
+  // 分组头（§22 STEP 8 同款 11px 标签；en 文案不经 uppercase 变换）。
+  const sectionLabel = (labelKey: MessageKey) => (
+    <p className="px-2 pb-1 pt-2 text-[11px] font-medium text-text-muted">{t(labelKey)}</p>
+  )
+  // 应用行（最近使用与应用域同款渲染；激活行 bg-primary/10 是 §23 契约）。
+  const appRow = (
+    hit: SearchableApp,
+    flatIndex: number,
+    testId: string,
+    onOpen: () => void,
+  ) => {
+    const isActive = flatIndex === active
+    return (
+      <li key={hit.id}>
+        <button
+          type="button"
+          data-testid={testId}
+          aria-label={hit.title}
+          className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm ${
+            isActive ? 'bg-primary/10 text-text' : 'text-text hover:bg-surface-raised'
+          }`}
+          onMouseEnter={() => setActive(flatIndex)}
+          onClick={onOpen}
+        >
+          <AppIcon appId={hit.id} size={16} />
+          <span className="min-w-0 truncate">{hit.title}</span>
+          {isActive && (
+            <span className="ml-auto shrink-0">
+              <Kbd>↵</Kbd>
+            </span>
+          )}
+        </button>
+      </li>
+    )
   }
 
   return (
@@ -123,134 +184,183 @@ export function SearchPalette() {
     >
       <div
         role="dialog"
+        aria-modal="true"
         aria-label={t('search.placeholder')}
         data-testid="search-palette"
-        className={`surface-glass glass-popover w-[38rem] max-w-[90%] rounded-xl border border-border p-3 shadow-popover ${popoverMotionClass(phase.exiting)}`}
+        className={`surface-glass glass-popover w-[40rem] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border shadow-popover ${popoverMotionClass(phase.exiting)}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <input
-          ref={inputRef}
-          value={query}
-          aria-label={t('search.placeholder')}
-          placeholder={t('search.placeholder')}
-          data-testid="search-input"
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus-visible:outline-primary"
-          onChange={(event) => {
-            setQuery(event.target.value)
-            setActive(0)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              close()
-            } else if (event.key === 'ArrowDown') {
-              event.preventDefault()
-              setActive((index) => Math.min(index + 1, total - 1))
-            } else if (event.key === 'ArrowUp') {
-              event.preventDefault()
-              setActive((index) => Math.max(index - 1, 0))
-            } else if (event.key === 'Enter') {
-              event.preventDefault()
-              openActive()
-            }
-          }}
-        />
+        {/* Search 行：Raycast 式大号无边框输入 + 放大镜（右键位提示交给底部条）。 */}
+        <div className="flex items-center gap-3 border-b border-border-subtle px-4 py-3">
+          <MagnifyingGlass size={18} weight="bold" aria-hidden="true" className="shrink-0 text-text-muted" />
+          <input
+            ref={inputRef}
+            value={query}
+            aria-label={t('search.placeholder')}
+            placeholder={t('search.placeholder')}
+            data-testid="search-input"
+            className="w-full min-w-0 bg-transparent text-[15px] text-text placeholder:text-text-tertiary focus:outline-none"
+            onChange={(event) => {
+              setQuery(event.target.value)
+              setActive(0)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                close()
+              } else if (event.key === 'ArrowDown') {
+                event.preventDefault()
+                setActive((index) => Math.min(index + 1, total - 1))
+              } else if (event.key === 'ArrowUp') {
+                event.preventDefault()
+                setActive((index) => Math.max(index - 1, 0))
+              } else if (event.key === 'Enter') {
+                event.preventDefault()
+                openActive()
+              }
+            }}
+          />
+        </div>
 
-        <div className="mt-2 max-h-80 overflow-y-auto" data-testid="search-results">
-          {total === 0 && query.trim() && (
-            <p className="px-2 py-4 text-center text-xs text-text-muted">{t('search.empty')}</p>
+        <div className="scroll-thin max-h-[24rem] overflow-y-auto px-2 py-2" data-testid="search-results">
+          {total === 0 &&
+            (trimmed ? (
+              <p className="px-2 py-6 text-center text-xs text-text-muted">{t('search.empty')}</p>
+            ) : (
+              <p className="px-2 py-6 text-center text-xs text-text-tertiary">
+                {t('search.emptyQuery')}
+              </p>
+            ))}
+
+          {/* 空查询：真实「最近使用」速览（launcher.recent 与启动器同一数据）。 */}
+          {recentHits.length > 0 && (
+            <section aria-label={t('launcher.recent')}>
+              {sectionLabel('launcher.recent')}
+              <ul data-testid="search-recent-list">
+                {recentHits.map((hit, index) => appRow(hit, index, 'search-result-recent', () => openApp(hit.id)))}
+              </ul>
+            </section>
           )}
 
           {appHits.length > 0 && (
-            <p className="px-2 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              {t('search.apps')}
-            </p>
+            <section aria-label={t('search.apps')}>
+              {sectionLabel('search.apps')}
+              <ul>
+                {appHits.map((hit, index) =>
+                  appRow(
+                    hit,
+                    recentHits.length + index,
+                    'search-result-app',
+                    () => openApp(hit.id),
+                  ),
+                )}
+              </ul>
+            </section>
           )}
-          <ul>
-            {appHits.map((hit, index) => (
-              <li key={hit.id}>
-                <button
-                  type="button"
-                  data-testid="search-result-app"
-                  aria-label={hit.title}
-                  className={`flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm ${
-                    index === active ? 'bg-primary/10 text-text' : 'text-text-muted hover:bg-surface-raised hover:text-text'
-                  }`}
-                  onMouseEnter={() => setActive(index)}
-                  onClick={() => openApp(hit.id)}
-                >
-                  <AppIcon appId={hit.id} size={16} />
-                  {hit.title}
-                </button>
-              </li>
-            ))}
-          </ul>
 
           {fileHits.length > 0 && (
-            <p className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              {t('search.files')}
-            </p>
+            <section aria-label={t('search.files')}>
+              {sectionLabel('search.files')}
+              <ul>
+                {fileHits.map((hit, index) => {
+                  const flatIndex = recentHits.length + appHits.length + index
+                  const isActive = flatIndex === active
+                  return (
+                    <li key={hit.path}>
+                      <button
+                        type="button"
+                        data-testid="search-result-file"
+                        className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm ${
+                          isActive ? 'bg-primary/10 text-text' : 'text-text hover:bg-surface-raised'
+                        }`}
+                        onMouseEnter={() => setActive(flatIndex)}
+                        onClick={openFile}
+                      >
+                        <File size={16} weight="regular" aria-hidden="true" className="shrink-0 text-text-muted" />
+                        <span className="min-w-0">
+                          <span className="block truncate">{hit.node.name}</span>
+                          <span className="block truncate text-[11px] text-text-tertiary">{hit.path}</span>
+                        </span>
+                        {isActive && (
+                          <span className="ml-auto shrink-0">
+                            <Kbd>↵</Kbd>
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
           )}
-          <ul>
-            {fileHits.map((hit, index) => {
-              const flatIndex = appHits.length + index
-              return (
-                <li key={hit.path}>
-                  <button
-                    type="button"
-                    data-testid="search-result-file"
-                    className={`flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm ${
-                      flatIndex === active ? 'bg-primary/10 text-text' : 'text-text-muted hover:bg-surface-raised hover:text-text'
-                    }`}
-                    onMouseEnter={() => setActive(flatIndex)}
-                    onClick={openFile}
-                  >
-                    <File size={15} weight="regular" aria-hidden="true" />
-                    <span className="min-w-0">
-                      <span className="block truncate text-text">{hit.node.name}</span>
-                      <span className="block truncate text-[11px] text-text-muted">{hit.path}</span>
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
 
-          {/* 想象域（§7）：恒排最后；形如「✦ 想象一个「<query>」应用」。 */}
+          {/* Actions 区 = 想象域（§7）：恒排最后；行首主色 ✦ 由组件着色，
+              词典文案只含「即时羽化「<query>」应用」（避免双 ✦）。 */}
           {imagineVisible && (
-            <>
-              <p className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-                {t('search.imagine')}
-              </p>
+            <section aria-label={t('search.actions')}>
+              {sectionLabel('search.actions')}
               <ul>
                 <li>
                   <button
                     type="button"
                     data-testid="search-result-imagine"
                     aria-label={formatMessage(t('search.imagineItem'), { query: trimmed })}
-                    className={`flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm ${
-                      total - 1 === active ? 'bg-primary/10 text-text' : 'text-text-muted hover:bg-surface-raised hover:text-text'
+                    className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm ${
+                      total - 1 === active ? 'bg-primary/10 text-text' : 'text-text hover:bg-surface-raised'
                     }`}
                     onMouseEnter={() => setActive(total - 1)}
                     onClick={generateImagine}
                   >
-                    <span aria-hidden="true" className="text-primary">
+                    <span aria-hidden="true" className="shrink-0 text-primary">
                       ✦
                     </span>
                     <span className="min-w-0 truncate">
                       {formatMessage(t('search.imagineItem'), { query: trimmed })}
                     </span>
+                    {total - 1 === active && (
+                      <span className="ml-auto shrink-0">
+                        <Kbd>↵</Kbd>
+                      </span>
+                    )}
                   </button>
                 </li>
               </ul>
-            </>
+            </section>
           )}
         </div>
 
-        <p className="mt-2 border-t border-border px-2 pt-2 text-[11px] text-text-muted">
-          {t('search.hint')}
-        </p>
+        {/* 底部按键提示条（Raycast 式 kbd 芯片；装饰性，真实键盘模型在输入框）。 */}
+        <footer
+          data-testid="search-footer"
+          className="flex items-center gap-4 border-t border-border-subtle px-4 py-2 text-[11px] text-text-muted"
+        >
+          <span className="flex items-center gap-1">
+            <Kbd>↑</Kbd>
+            <Kbd>↓</Kbd>
+            {t('search.hint.navigate')}
+          </span>
+          <span className="flex items-center gap-1">
+            <Kbd>↵</Kbd>
+            {t('search.hint.open')}
+          </span>
+          <span className="flex items-center gap-1">
+            <Kbd>esc</Kbd>
+            {t('search.hint.close')}
+          </span>
+        </footer>
       </div>
     </div>
+  )
+}
+
+/** 按键芯片（底部提示条 / 激活行行尾回车提示；纯装饰，10px 徽章豁免档）。 */
+function Kbd({ children }: { children: string }) {
+  return (
+    <kbd
+      aria-hidden="true"
+      className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border-subtle bg-surface-soft px-1 text-[11px] font-medium leading-none text-text-muted"
+    >
+      {children}
+    </kbd>
   )
 }

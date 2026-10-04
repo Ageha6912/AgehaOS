@@ -174,6 +174,18 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(css).toMatch(/box-shadow:\s*0 0 0 2px var\(--ag-focus-halo\)/)
   })
 
+  it('exempts self-focused inputs (terminal / Ctrl+K search) from the global ring', () => {
+    // 终端与搜索面板本身就是焦点上下文（光标已指示输入位）；豁免必须写
+    // 在 index.css 未分层区（工具类在 @layer utilities 必败，§0.3）。
+    // 搜索输入须同时中和 box-shadow——全局焦点环是 outline + halo 双环。
+    expect(css).toMatch(
+      /\[data-testid='terminal-input'\]:focus-visible\s*\{\s*outline:\s*none;/,
+    )
+    expect(css).toMatch(
+      /\[data-testid='search-input'\]:focus-visible\s*\{\s*outline:\s*none;\s*box-shadow:\s*none;/,
+    )
+  })
+
   it('defines the widget Acrylic knobs (sec 32, 用户可调模糊/遮罩)', () => {
     // 模糊半径 8px（3px 时壁纸细节透字，UI 评审 P0-1 提到 8px）+ 白纱遮罩
     // 配墨字；.widget-card 消费双旋钮，降透明回落纸面实色。

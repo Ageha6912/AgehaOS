@@ -6,6 +6,7 @@ import { registerBuiltinApps, resetAppStore } from '@/store/app-store'
 import { resetSearchStore, useSearchStore } from '@/store/search-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 import { resetNotificationStore } from '@/store/notification-store'
+import { resetUsageStore, useUsageStore } from '@/store/usage-store'
 import { systemVfs } from '@/services/vfs'
 
 import { SearchPalette } from './SearchPalette'
@@ -20,6 +21,7 @@ beforeEach(async () => {
   registerBuiltinApps()
   resetWindowStore()
   resetNotificationStore()
+  resetUsageStore()
   await seedFile()
 })
 
@@ -29,8 +31,8 @@ function openPalette(): void {
   })
 }
 
-describe('SearchPalette (PRD §15)', () => {
-  it('renders viewport-centered with the scrim token (§23)', () => {
+describe('SearchPalette (PRD §15 · Shell 3.0 STEP 9)', () => {
+  it('renders viewport-centered with the scrim token and Raycast panel chrome (§23/STEP 9)', () => {
     useSearchStore.setState({ open: true })
     render(<SearchPalette />)
 
@@ -40,7 +42,8 @@ describe('SearchPalette (PRD §15)', () => {
     expect(backdrop.classList.contains('bg-scrim')).toBe(true)
 
     const palette = screen.getByTestId('search-palette')
-    expect(palette.classList.contains('w-[38rem]')).toBe(true)
+    // STEP 9 宽度档：640px（600-720 Raycast/Spotlight 档）。
+    expect(palette.classList.contains('w-[40rem]')).toBe(true)
     expect(palette.classList.contains('shadow-popover')).toBe(true)
     expect(palette.classList.contains('rounded-xl')).toBe(true)
     // 材质表⑥（Shell 2.0 §4.2⑥）：弹层深玻璃档——glass-popover 挂上
@@ -48,6 +51,11 @@ describe('SearchPalette (PRD §15)', () => {
     // 档位独立于 z-30 窗口层的 surface-glass 基底（白72% + 28px）。
     expect(palette.classList.contains('surface-glass')).toBe(true)
     expect(palette.classList.contains('glass-popover')).toBe(true)
+
+    // 结构 Search → 结果区 → 底部按键提示条；空查询（无最近使用）显示
+    // 诚实的引导文案（无假数据）。
+    expect(screen.getByTestId('search-footer')).toBeInTheDocument()
+    expect(screen.getByText('输入以搜索应用与文件')).toBeInTheDocument()
   })
 
   it('is hidden until opened and shows app results while typing', async () => {
@@ -91,6 +99,40 @@ describe('SearchPalette (PRD §15)', () => {
     expect(results[2]?.className).toContain('bg-primary/10')
     fireEvent.keyDown(input, { key: 'ArrowUp' })
     expect(screen.getAllByTestId('search-result-app')[1]?.className).toContain('bg-primary/10')
+  })
+
+  it('shows real recent apps on empty query and reaches them by keyboard (STEP 9)', async () => {
+    // 最新在前（usage-store 语义）：终端 → 记事。
+    useUsageStore.getState().recordRecentApp('com.ageha.notes')
+    useUsageStore.getState().recordRecentApp('com.ageha.terminal')
+    render(<SearchPalette />)
+    openPalette()
+
+    // 空查询 = 真实「最近使用」速览（与启动器 Recent 同一数据源）。
+    const recents = screen.getAllByTestId('search-result-recent')
+    expect(recents).toHaveLength(2)
+    expect(recents[0]).toHaveAccessibleName('终端')
+    expect(recents[1]).toHaveAccessibleName('记事')
+    expect(screen.getByText('最近')).toBeInTheDocument()
+
+    // 无需输入即可键盘直达：↓ 到第二行（记事）→ Enter 开窗并关闭面板。
+    const input = screen.getByTestId('search-input')
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(recents[1]?.className).toContain('bg-primary/10')
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.notes')
+    expect(useSearchStore.getState().open).toBe(false)
+  })
+
+  it('hides the recents glance once a query is typed', async () => {
+    useUsageStore.getState().recordRecentApp('com.ageha.notes')
+    render(<SearchPalette />)
+    openPalette()
+    expect(screen.getAllByTestId('search-result-recent')).toHaveLength(1)
+
+    await userEvent.type(screen.getByTestId('search-input'), '记')
+    await waitFor(() => expect(screen.getAllByTestId('search-result-app')).toHaveLength(1))
+    expect(screen.queryByTestId('search-result-recent')).toBeNull()
   })
 
   it('shows the empty state for queries with no matches', async () => {
@@ -178,6 +220,10 @@ describe('SearchPalette 想象域（§7）', () => {
     const filesHeader = screen.getByText('文件')
     expect(appsHeader.compareDocumentPosition(filesHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(filesHeader.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // STEP 9：想象域落位 Actions 区（「操作」头在文件头之后、想象项之前）。
+    const actionsHeader = screen.getByText('操作')
+    expect(filesHeader.compareDocumentPosition(actionsHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(actionsHeader.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('hides the imagine item for violations and while eclosion is off (客户端过滤半场)', async () => {

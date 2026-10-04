@@ -396,6 +396,17 @@ body {
   outline: none;
 }
 
+/* Ctrl+K 搜索面板输入（Shell 3.0 STEP 9 Raycast/Spotlight 形态）：面板即
+   焦点上下文——光标闪烁 + 面板级 aria-modal 已指示输入位置，输入框上的
+   焦点环与 Search 行的整宽 border-b 叠成双框（视觉噪音）。豁免与终端同
+   款写法：必须落在 index.css 未分层区（§0.3 层叠铁律——工具类
+   focus:outline-none 在 @layer utilities 里必败），键盘模型（↑↓/Enter/
+   Esc）不受影响。 */
+[data-testid='search-input']:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 /* Interactive chrome shares one motion baseline (transform/opacity only). */
 :where(button, [role='switch'], input[type='range'], input[type='checkbox']) {
   transition-property:
