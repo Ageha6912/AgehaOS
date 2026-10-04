@@ -1062,7 +1062,7 @@ describe('POST /api/eclosion/generate kind=today', () => {
     expect(unknown.json).toEqual({ error: 'unknown-slug' })
   })
 
-  it('sends zero-permission capability lines and world-row hint in the upstream messages', async () => {
+  it('sends storage-capability lines and world-row hint in the upstream messages (2026-10-04 持久化裁决)', async () => {
     const seenBatches: Array<Array<{ role: string; content: string }>> = []
     let upstreamCalls = 0
     const handle = await startUpstream(async (record, res) => {
@@ -1090,8 +1090,10 @@ describe('POST /api/eclosion/generate kind=today', () => {
     expect(seenMessages.length).toBe(2)
     expect(seenMessages[0].role).toBe('system')
     expect(seenMessages[0].content).toContain('自包含')
-    // L2 权限恒空：零权限能力面（§2 铁律 Default Deny）。
-    expect(seenMessages[1].content).toContain('无持久化能力')
+    // L2 权限 = storage（2026-10-04 用户裁决：生成应用数据必须持久化）。
+    expect(seenMessages[1].content).toContain('AgehaOS.storage：get(key)')
+    expect(seenMessages[1].content).toContain('持久化纪律')
+    expect(seenMessages[1].content).toContain('目标窗口约')
     // 世界行 hint（服务端唯一事实源）进入规格位。
     expect(seenMessages[1].content).toContain('这是应用0的功能规格')
   })

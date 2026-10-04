@@ -104,7 +104,7 @@ describe('EclosionOrchestrator：缓存命中秒开（§4.2/§5.2）', () => {
     await cache.writeBasic(user, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 3,
+      specVersion: 4,
       html: DOC_HTML,
       createdAt: '2026-10-02T00:00:00.000Z',
     })
@@ -136,7 +136,7 @@ describe('EclosionOrchestrator：缓存命中秒开（§4.2/§5.2）', () => {
     await cache.writeBasic(user, {
       appId: NOTES,
       specId: 'notes',
-      specVersion: 3,
+      specVersion: 4,
       html: '<!doctype html><html><body><input type="password" id="p"></body></html>',
       createdAt: '',
     })
@@ -212,7 +212,7 @@ describe('EclosionOrchestrator：SSE 流式生成（§5.3）', () => {
     expect('hint' in (calls[0]?.body ?? {})).toBe(false)
 
     // 落缓存：重开秒开。
-    const cached = await cache.readBasic(user, 'calculator', 3)
+    const cached = await cache.readBasic(user, 'calculator', 4)
     expect(cached?.html).toContain('evil()') // 缓存存全文（下次由分片器截留）
     const replay = makeOrchestrator(makeTransport([]).fetcher, cache)
     const second = replay.ensureSession(CALCULATOR)!
@@ -303,7 +303,7 @@ describe('EclosionOrchestrator：质量回退与重新羽化（§5.2/§5.4）', 
     await cache.writeBasic(user, {
       appId: NOTES,
       specId: 'notes',
-      specVersion: 3,
+      specVersion: 4,
       html: '<!doctype html><html><body>old</body></html>',
       createdAt: '',
     })
@@ -323,7 +323,7 @@ describe('EclosionOrchestrator：质量回退与重新羽化（§5.2/§5.4）', 
     expect(snapshot.source).toBe('network')
     expect(calls[0]?.body).toMatchObject({ regenerate: true })
     // 新版本覆盖本地缓存。
-    expect((await cache.readBasic(user, 'notes', 3))?.html).toContain('new')
+    expect((await cache.readBasic(user, 'notes', 4))?.html).toContain('new')
   })
 
   it('reuses an in-flight session instead of duplicating generation (§5.4)', async () => {
@@ -434,7 +434,7 @@ describe('EclosionOrchestrator：预取与额度（§5.2/§9）', () => {
     await cache.writeBasic(user, {
       appId: NOTES,
       specId: 'notes',
-      specVersion: 3,
+      specVersion: 4,
       html: '<!doctype html><html><body>cached</body></html>',
       createdAt: '',
     })
@@ -447,8 +447,8 @@ describe('EclosionOrchestrator：预取与额度（§5.2/§9）', () => {
     await orchestrator.prefetchMissing()
 
     expect(calls.map((call) => (call.body as { specId: string }).specId)).toEqual(['calculator', 'clock'])
-    expect(await cache.readBasic(user, 'calculator', 3)).not.toBeNull()
-    expect(await cache.readBasic(user, 'clock', 3)).not.toBeNull()
+    expect(await cache.readBasic(user, 'calculator', 4)).not.toBeNull()
+    expect(await cache.readBasic(user, 'clock', 4)).not.toBeNull()
   })
 
   it('does not prefetch when the mode is off or the user is missing', async () => {
@@ -493,13 +493,13 @@ describe('systemEclosion 单例与 clearData', () => {
     await cache.writeBasic(user, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 3,
+      specVersion: 4,
       html: '<!doctype html>',
       createdAt: '',
     })
     systemEclosion.configureForTests({ cache })
     await systemEclosion.clearData()
-    expect(await cache.readBasic(user, 'calculator', 3)).toBeNull()
+    expect(await cache.readBasic(user, 'calculator', 4)).toBeNull()
   })
 
   it('wires login/logout through start(): hydrate + quota, then session cleanup', async () => {
@@ -993,7 +993,7 @@ describe('EclosionOrchestrator：想象搜索（§7）', () => {
     expect(manifest?.permissions).toEqual([]) // L3 恒零权限
     expect(manifest?.window).toEqual({ width: 720, height: 480, resizable: true })
     // §8：想象应用 HTML 只存内存——不落任何 IndexedDB store。
-    expect(await cache.readBasic(user, 'calculator', 3)).toBeNull()
+    expect(await cache.readBasic(user, 'calculator', 4)).toBeNull()
     expect(await cache.readToday(user, new Date().toISOString().slice(0, 10), 'x')).toBeNull()
     expect(await cache.readKept(user, IMAGINE_APP)).toBeNull()
   })
@@ -1173,7 +1173,7 @@ describe('EclosionOrchestrator × 举报与会话封禁（§10）', () => {
     await cache.writeBasic(user, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 3,
+      specVersion: 4,
       html: DOC_HTML,
       createdAt: '',
     })

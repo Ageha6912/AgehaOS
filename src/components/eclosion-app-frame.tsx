@@ -262,6 +262,8 @@ function themeOf(): 'light' | 'dark' {
 
 /** L2/L3（今日/想象应用）恒为空权限：SDK 一律拒绝（§4.1 第 4 条 Default Deny）。 */
 const NO_SDK_PERMISSIONS: readonly Permission[] = []
+/** L2/L3（今日/想象应用）的持久化面（2026-10-04 用户裁决：生成应用数据必须跨重开存活）。 */
+const L2_L3_SDK_PERMISSIONS: readonly Permission[] = ['storage']
 
 export function EclosionAppFrame({
   appId,
@@ -274,10 +276,14 @@ export function EclosionAppFrame({
   const banned = useEclosionStore((s) => s.bannedAppIds.includes(appId))
   const spec = findEclosionSpecByAppId(appId)
   const kind = eclosionAppKind(appId)
-  // SDK 权限恒来自规格表（§5.2：L1 按各自 permissions；L2/L3 恒空 → 一律拒绝）。
-  // 不读 permissionManager 的运行时授予——规格是系统定义的唯一事实源，防止把
-  // 授予面放宽到规格之外；同一来源同时喂能力声明与逐请求门禁。
-  const sdkPermissions = spec !== null ? spec.permissions : NO_SDK_PERMISSIONS
+  // SDK 权限恒来自规格表与设计裁决（§5.2：L1 按各自 permissions）。2026-10-04
+  // 用户裁决：L2/L3（今日/想象应用）开放 storage 持久化——生成应用的数据必须
+  // 跨重开存活；storage 按 appId 命名空间隔离且配额封顶（64 键/256KB），是
+  // 除 theme 外唯一对零规格应用安全的面。不读 permissionManager 的运行时授予
+  // ——规格/裁决是唯一事实源，防止把授予面放宽到规格之外；同一来源同时喂
+  // 能力声明与逐请求门禁。
+  const sdkPermissions =
+    spec !== null ? spec.permissions : kind !== null ? L2_L3_SDK_PERMISSIONS : NO_SDK_PERMISSIONS
   const hasSpecPermission = useCallback(
     (permission: Permission) => sdkPermissions.includes(permission),
     [sdkPermissions],

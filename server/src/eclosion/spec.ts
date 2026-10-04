@@ -25,7 +25,7 @@ export interface EclosionBasicSpec {
   hint: string
 }
 
-export const BASIC_ECLOSION_SPEC_VERSION = 3  // v3：taste v5 设计系统（ax-*）+ 动效契约——旧版全局 HTML 缓存整体失效  // v2：视觉与动效契约升级（taste 优化）——旧版全局 HTML 缓存整体失效
+export const BASIC_ECLOSION_SPEC_VERSION = 4  // v4：功能完备性契约 + L2/L3 storage 持久化——旧版全局 HTML 缓存整体失效  // v3：taste v5 设计系统（ax-*）+ 动效契约——旧版全局 HTML 缓存整体失效  // v2：视觉与动效契约升级（taste 优化）——旧版全局 HTML 缓存整体失效
 
 export const BASIC_ECLOSION_SPECS: readonly EclosionBasicSpec[] = [
   {

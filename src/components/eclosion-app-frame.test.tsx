@@ -127,7 +127,7 @@ describe('EclosionAppFrame（宿主容器）', () => {
     await cache.writeBasic(frameUser, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 3,
+      specVersion: 4,
       html: DOC_HTML,
       createdAt: '',
     })
@@ -166,7 +166,7 @@ describe('EclosionAppFrame（宿主容器）', () => {
     await cache.writeBasic(frameUser, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 3,
+      specVersion: 4,
       html: DOC_HTML,
       createdAt: '',
     })
@@ -218,7 +218,7 @@ describe('EclosionAppFrame（宿主容器）', () => {
     await cache.writeBasic(frameUser, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 3,
+      specVersion: 4,
       html: DOC_HTML,
       createdAt: '',
     })
@@ -247,7 +247,7 @@ describe('EclosionAppFrame（宿主容器）', () => {
     await cache.writeBasic(frameUser, {
       appId: NOTES,
       specId: 'notes',
-      specVersion: 3,
+      specVersion: 4,
       html: DOC_HTML,
       createdAt: '',
     })
@@ -354,6 +354,74 @@ describe('EclosionAppFrame（宿主容器）', () => {
     })
   })
 
+  it('L2/L3（规格查无）开放 storage 持久化——命名空间按 appId 隔离（2026-10-04 用户裁决）', async () => {
+    // 用户裁决：生成应用的数据必须跨重开存活。今日/想象应用（spec 查无）的
+    // 权限面 = ['storage']：storage 放行（按 appId 命名空间隔离），越界面
+    // （user/permissions/system）依旧拒绝。
+    const IMAGINE_APP = imagineAppIdForQuery('番茄钟')
+    const { orchestrator } = makeOrchestrator([
+      new Response(frame('delta', { text: DOC_HTML }) + frame('done', {}), {
+        headers: { 'content-type': 'text/event-stream' },
+      }),
+    ])
+    orchestrator.ensureImagineSession('番茄钟')
+    const windowId = useWindowStore.getState().open({ appId: IMAGINE_APP, title: '番茄钟' })
+    render(
+      <EclosionAppFrame appId={IMAGINE_APP} windowId={windowId} title="番茄钟" orchestrator={orchestrator} />,
+    )
+    const iframe = document.querySelector('iframe') as HTMLIFrameElement
+    const runner = iframe.contentWindow as Window
+    const posted: Posted[] = []
+    runner.postMessage = vi.fn(((message: Posted) => {
+      posted.push(message)
+    }) as never)
+    fireEvent.load(iframe)
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'agehaos:ready' }))
+    })
+    await waitFor(() => expect(posted.some((message) => message.type === 'eclosion:power-on')).toBe(true))
+
+    // power-on 能力声明应含 storage（runner 据此安装 window.AgehaOS.storage）。
+    const powerOn = posted.find((m) => m.type === 'eclosion:power-on') as {
+      capabilities?: { apis?: string[] }
+    }
+    expect(powerOn.capabilities?.apis).toContain('storage')
+
+    // 直呼 storage set：放行并落入本应用命名空间。
+    act(() => {
+      window.dispatchEvent(
+        eventFrom(runner, {
+          type: 'agehaos:sdk',
+          reqId: 'r1',
+          api: 'storage',
+          action: 'set',
+          params: { key: 'cards', value: '[]' },
+        }),
+      )
+    })
+    await waitFor(() => {
+      expect(posted.find((m) => m.type === 'agehaos:sdk-result' && m.reqId === 'r1')).toMatchObject({
+        reqId: 'r1',
+        ok: true,
+      })
+    })
+    expect(localStorage.getItem(`agehaos.sdk.storage.${IMAGINE_APP}`)).toContain('cards')
+
+    // 越界面依旧拒绝：直呼 user（不在 L2/L3 能力交集内）。
+    act(() => {
+      window.dispatchEvent(
+        eventFrom(runner, { type: 'agehaos:sdk', reqId: 'r2', api: 'user', action: 'get', params: {} }),
+      )
+    })
+    await waitFor(() => {
+      expect(posted.find((m) => m.type === 'agehaos:sdk-result' && m.reqId === 'r2')).toMatchObject({
+        reqId: 'r2',
+        ok: false,
+        error: 'permission-denied',
+      })
+    })
+  })
+
   it('SDK 请求按声明能力面求交集：绕过特性检测直呼 user/permissions/system 一律拒绝', async () => {
     // 攻击面：生成代码与 runner 同帧，可不经过 window.AgehaOS 特性检测直接
     // postMessage。宿主即便已登录（getUser 有值），未声明命名空间也不得经
@@ -371,7 +439,7 @@ describe('EclosionAppFrame（宿主容器）', () => {
     await cache.writeBasic(frameUser, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 3,
+      specVersion: 4,
       html: DOC_HTML,
       createdAt: '',
     })
@@ -829,7 +897,7 @@ describe('EclosionAppFrame × 会话封禁（§10 举报后不可再打开）', 
     await cache.writeBasic(frameUser, {
       appId: CALCULATOR,
       specId: 'calculator',
-      specVersion: 3,
+      specVersion: 4,
       html: DOC_HTML,
       createdAt: '',
     })

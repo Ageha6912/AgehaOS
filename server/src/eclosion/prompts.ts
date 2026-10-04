@@ -30,12 +30,13 @@ function systemContract(locale: 'zh-CN' | 'en'): string {
     '8. 【自适应·违反即废】窗口可能只有 480×480 也可能有 1200×900：布局必须弹性自适应（flex/grid、min()/clamp()、aspect-ratio），禁止固定像素高度；核心内容与操作按钮在任何窗口尺寸下都完整可见，绝不溢出画布或被裁切。',
     '9. 【标志性瞬间·必须】设计一个夸张、有戏剧性的 CSS 记忆点（粒子绽放、3D 翻牌、涟漪扩散、彩带喷发、进度环爆闪），与成功/完成时刻绑定、可重复触发；它是应用的灵魂，reduced-motion 下静止。',
     '10. 【活泼配色·禁蓝紫】大胆用满扩展色板：--ageha-cyan / --ageha-lime / --ageha-orange 与 --ageha-primary 组成 3-4 色活泼组合（模式胶囊、统计卡描边、双色渐变描边、悬停光晕）；每个应用有自己的「配色性格」，不许单一蓝色。**绝对禁止蓝紫渐变**：任何蓝→紫/紫罗兰/violet 过渡、紫色光晕、紫色描边一律禁止；渐变只允许 蓝→青→绿、青→绿、橙→暖黄 这类非紫组合。',
-    '11. 【动效要夸张】入场用 .ax-rise 弹性过冲级联 + 焦点 .ax-pop；悬停态复合变化（缩放+光晕+位移）；数字/状态变化用过渡动画；循环动画 2-3 处（光晕漂移已内置、焦点呼吸、悬浮摇摆）——整页是活的。全部 CSS、只动 transform/opacity；必须包含 @media (prefers-reduced-motion: reduce){ *,*::before,*::after{ animation:none !important; transition:none !important } }。',
-    '12. 【视觉红线·违反即废】纯黑 #000 与纯白 #fff（用变量）；霓虹白光外发光；emoji 当功能图标；三个一模一样的等宽卡片阵列；「—」破折号；给每个区块贴大写小标签；全页一套圆角（var(--ageha-radius) 及其半值/倍值）；按钮文字与底色对比足够；数字 tabular-nums。',
-    '13. 【预算与自检】150–220 行（不含预置样式表），不足即视觉完成度不够（补状态完备性：空态/加载/错误、微交互与细节，不许注水）。输出前必须通读你的 <script> 做语法自检：括号配对、运算符优先级（如 (s%60).toString() 要加括号）、模板字符串闭合——一个语法错误整个应用就黑屏。先 <style> 后骨架再脚本。',
-    '14. 直接输出文档本体：不解释、不寒暄、不输出思考过程、不加 Markdown 围栏、</html> 后立即停止。',
-    '15. 禁止仿冒登录框、索要密码或支付信息、出现真实商标。',
-    '16. 需要持久化时，只能使用你的脚本执行前注入的 window.AgehaOS（仅规格明示的命名空间；缺失即不可用，改用内存态），其余一律内存态。',
+    '11. 【功能完备性·违反即废】这是**可用的工具**，不是展示稿：每一个按钮/胶囊/输入框/菜单都必须绑定真实事件处理并有可感知的响应（数据变化、弹出表单或对话框、状态切换），**严禁无任何反馈的死按钮与静态展示页**；管理数据的应用必须支持完整的增删改查——每项操作有明确入口与完整流程（如「新建」→弹出表单→填写→提交→列表出现新条目→成功提示；「编辑」→回填表单；「删除」→确认后移除）；空态/加载/错误/成功四种状态都要有页内呈现，绝不允许静默失败。',
+    '12. 【动效要夸张】入场用 .ax-rise 弹性过冲级联 + 焦点 .ax-pop；悬停态复合变化（缩放+光晕+位移）；数字/状态变化用过渡动画；循环动画 2-3 处（光晕漂移已内置、焦点呼吸、悬浮摇摆）——整页是活的。全部 CSS、只动 transform/opacity；必须包含 @media (prefers-reduced-motion: reduce){ *,*::before,*::after{ animation:none !important; transition:none !important } }。',
+    '13. 【视觉红线·违反即废】纯黑 #000 与纯白 #fff（用变量）；霓虹白光外发光；emoji 当功能图标；三个一模一样的等宽卡片阵列；「—」破折号；给每个区块贴大写小标签；全页一套圆角（var(--ageha-radius) 及其半值/倍值）；按钮文字与底色对比足够；数字 tabular-nums。',
+    '14. 【预算与自检】150–220 行（不含预置样式表）。功能逻辑优先于装饰——行数不够先砍视觉花饰，不砍功能与状态完备性。输出前必须通读你的 <script> 做语法自检：括号配对、运算符优先级（如 (s%60).toString() 要加括号）、模板字符串闭合——一个语法错误整个应用就黑屏。先 <style> 后骨架再脚本。',
+    '15. 直接输出文档本体：不解释、不寒暄、不输出思考过程、不加 Markdown 围栏、</html> 后立即停止。',
+    '16. 禁止仿冒登录框、索要密码或支付信息、出现真实商标。',
+    '17. 需要持久化时，只能使用你的脚本执行前注入的 window.AgehaOS（仅规格明示的命名空间；缺失即不可用，改用内存态），其余一律内存态。',
   ].join('\n')
 }
 
@@ -77,7 +78,8 @@ function capabilityLine(permissions: readonly string[]): string {
   if (permissions.includes('storage')) {
     granted.push(
       'AgehaOS.storage：get(key) → Promise<已存值或 null>；set(key, value) / remove(key) → Promise<true>' +
-        '（键限大小写字母/数字/_/./-，1–64 字符）',
+        '（键限大小写字母/数字/_/./-，1–64 字符，单值 ≤32KB）。**持久化纪律**：加载时先读 storage 重建界面，' +
+        '每次增删改后立即 set 保存（序列化整个状态对象为一个键即可）；刷新或重开应用数据不丢失',
     )
   }
   if (permissions.includes('notification')) {
@@ -207,7 +209,7 @@ export function buildTodayAppMessages(
         '定位：一句话介绍——' + app.tagline,
         '功能规格（必须全部满足，缺一即废）：',
         app.hint.length > 0 ? app.hint : '围绕定位做一个专注、好用的小工具，首屏即可用。',
-        capabilityLine([]),
+        capabilityLine(['storage']),
         THEME_VARS_LINE,
         '现在输出完整 HTML 文档。',
       ].join('\n'),
@@ -237,7 +239,7 @@ export function imagineQueryHash(raw: string): string {
  * 「用户想要一个应用：<query>。按应用生成契约输出。」——query 只占据槽位，
  * 前后文案与系统契约（systemContract）均由服务端固化，用户文本只能影响
  * 「做什么应用」，无法改写生成契约。空白折叠防止换行「逃出」模板句子。
- * 权限恒空（L3 零权限，capabilityLine([]) 与 kind=today 同口径）。
+ * 权限 = storage（2026-10-04 用户裁决：生成应用数据必须持久化；kind=today 同口径）。
  */
 export function buildImagineMessages(
   query: string,
@@ -254,7 +256,7 @@ export function buildImagineMessages(
       role: 'user',
       content: [
         requestLine,
-        capabilityLine([]),
+        capabilityLine(['storage']),
         THEME_VARS_LINE,
         '现在输出完整 HTML 文档。',
       ].join('\n'),

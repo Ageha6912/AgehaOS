@@ -335,18 +335,18 @@ describe('eclosion basic spec table (server copy, §5.2)', () => {
         spec.window,
       ]),
     ).toEqual([
-      ['calculator', 'com.ageha.eclosion.calculator', 3, [], { width: 300, height: 440, resizable: false }],
+      ['calculator', 'com.ageha.eclosion.calculator', 4, [], { width: 300, height: 440, resizable: false }],
       [
         'notes',
         'com.ageha.eclosion.notes',
-        3,
+        4,
         ['filesystem.read', 'filesystem.write'],
         { width: 720, height: 480, resizable: true },
       ],
-      ['clock', 'com.ageha.eclosion.clock', 3, ['storage'], { width: 420, height: 560, resizable: true }],
+      ['clock', 'com.ageha.eclosion.clock', 4, ['storage'], { width: 420, height: 560, resizable: true }],
     ])
     expect(findBasicSpec('nope')).toBeNull()
-    expect(basicCacheKey(calculatorSpec(), 'm')).toBe('basic:calculator:v3:m')
+    expect(basicCacheKey(calculatorSpec(), 'm')).toBe('basic:calculator:v4:m')
   })
 
   it('keeps every spec hint server-side (ADR 27: no client hint surface)', () => {
@@ -1225,7 +1225,7 @@ describe('POST /api/eclosion/generate × kind=imagine (§7)', () => {
     const userContent = messages[1].content
     expect(userContent.split(injection).length).toBe(2) // 恰一次
     expect(userContent).toContain(`用户想要一个应用：${injection}。按应用生成契约输出。`)
-    expect(userContent).toContain('无持久化能力') // L3 能力面恒空权限口径
+    expect(userContent).toContain('AgehaOS.storage：get(key)') // L3 权限 = storage（2026-10-04 持久化裁决）
   })
 
   it('collapses whitespace inside the template slot (换行无法逃出模板句)', () => {
