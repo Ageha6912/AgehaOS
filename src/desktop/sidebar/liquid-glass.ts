@@ -116,29 +116,40 @@ export function buildDisplacementMapDataUri(o: LiquidMapOptions): string {
 /**
  * 测量 ref 指向的组容器并生成位移图（挂载后延迟一拍测量，坑 62 的
  * 「测量进 effect、结果延迟进 state」合规格式）。组过小/无 canvas → ''。
+ *
+ * `signal`（Desktop Shell 3.0 STEP 2）：可选的几何变更信号（如 Workspace
+ * Panel 展开态）——变化时在展开过渡落定后（300ms > --ag-motion-base）重测
+ * 重建位移图；中途测量会拿到动画时相里的过渡尺寸。
  */
 export function useLiquidDisplacementMap(
   ref: RefObject<HTMLElement | null>,
   overrides?: Partial<Omit<LiquidMapOptions, 'width' | 'height'>>,
+  signal?: unknown,
 ): string {
   const [mapUri, setMapUri] = useState('')
   const latest = useRef<Partial<Omit<LiquidMapOptions, 'width' | 'height'>> | undefined>(undefined)
+  const firstRun = useRef(true)
   latest.current = overrides
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const el = ref.current
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      if (rect.width < 40 || rect.height < 80) return
-      const uri = buildDisplacementMapDataUri({
-        ...LIQUID_MAP_DEFAULTS,
-        ...latest.current,
-        width: Math.min(Math.round(rect.width), 256),
-        height: Math.min(Math.round(rect.height), 640),
-      })
-      if (uri) setMapUri(uri)
-    }, 0)
+    const settleMs = firstRun.current ? 0 : 300
+    firstRun.current = false
+    const timer = window.setTimeout(
+      () => {
+        const el = ref.current
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        if (rect.width < 40 || rect.height < 80) return
+        const uri = buildDisplacementMapDataUri({
+          ...LIQUID_MAP_DEFAULTS,
+          ...latest.current,
+          width: Math.min(Math.round(rect.width), 256),
+          height: Math.min(Math.round(rect.height), 640),
+        })
+        if (uri) setMapUri(uri)
+      },
+      settleMs,
+    )
     return () => window.clearTimeout(timer)
-  }, [ref])
+  }, [ref, signal])
   return mapUri
 }

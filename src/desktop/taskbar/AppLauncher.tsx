@@ -25,9 +25,16 @@ import { appDisplayName, launchApp } from '@/apps/launch'
 import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { pruneLayoutSuggestion } from '@/core/dynamic/layout/engine'
+import {
+  LAUNCHER_CATEGORY_MEMBERS,
+  launcherWorkspaceScore,
+  rankByScore,
+  worldWorkspaceScore,
+} from '@/desktop/workspace/affinity'
 import { useAppStore } from '@/store/app-store'
 import { useLauncherStore } from '@/store/launcher-store'
 import { useUsageStore } from '@/store/usage-store'
+import { useWorkspaceStore } from '@/store/workspace-store'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { useEclosionStore } from '@/store/eclosion-store'
 import { systemEclosion } from '@/services/eclosion'
@@ -57,34 +64,9 @@ type CategoryId =
   | 'tools'
   | 'settings'
 
-/** 分类成员（静态映射，纯展示过滤；交集成员可归属多分类）。 */
-const CATEGORY_MEMBERS: Record<
-  Exclude<CategoryId, 'recent' | 'today' | 'eclosion-kept'>,
-  readonly string[]
-> = {
-  system: ['com.ageha.files', 'com.ageha.store', 'com.ageha.settings', 'com.ageha.dynamic.panel'],
-  dev: ['com.ageha.terminal'],
-  office: ['com.ageha.notes', 'com.ageha.files'],
-  fun: [
-    'com.ageha.games.snake',
-    'com.ageha.games.2048',
-    'com.ageha.games.memory',
-    'com.ageha.games.mines',
-    'com.ageha.samples.sketch',
-    'com.ageha.samples.clock',
-  ],
-  tools: [
-    'com.ageha.calculator',
-    'com.ageha.terminal',
-    'com.ageha.samples.sticky',
-    'com.ageha.samples.clock',
-    // 羽化三件套（开关开且该应用为羽化版时才可见）。
-    'com.ageha.eclosion.calculator',
-    'com.ageha.eclosion.notes',
-    'com.ageha.eclosion.clock',
-  ],
-  settings: ['com.ageha.settings'],
-}
+// 分类成员（静态映射，纯展示过滤；交集成员可归属多分类）上收至
+// src/desktop/workspace/affinity.ts——Workspace Panel 的最近使用排序与
+// 本组件消费同一份映射，禁止第二套（Desktop Shell 3.0 STEP 2）。
 
 /** 采纳的布局档位 → 启动器宽度（§5.4 三档；§32 左锚定参考图比例 410px 档）。 */
 const TIER_WIDTH_CLASS: Record<string, string> = {
@@ -150,18 +132,31 @@ export function AppLauncher() {
       worldHueByAppId.set(`com.ageha.eclosion.${app.slug}`, app.hue)
     }
   }
-  /** 分类成员：静态映射 + 动态域（今日世界清单 / 「获取」留存）。 */
+  /** 分类成员：静态映射 + 动态域（今日世界清单 / 「获取」留存）。今日世界
+   *  行按工作空间亲和稳定重排——同分保持世界生成序。 */
   const categoryMembers = (id: CategoryId): readonly string[] => {
     if (id === 'today') {
-      return world !== null ? world.apps.map((app) => `com.ageha.eclosion.${app.slug}`) : []
+      if (world === null) return []
+      const rows = world.apps
+      return rankByScore(
+        rows.map((app) => `com.ageha.eclosion.${app.slug}`),
+        (appId) => {
+          const slug = appId.replace('com.ageha.eclosion.', '')
+          const row = rows.find((candidate) => candidate.slug === slug)
+          return row ? worldWorkspaceScore(row.category, workspace) : 0
+        },
+      )
     }
     if (id === 'eclosion-kept') return keptAppIds
     if (id === 'recent') return [] // recent 分支在 gridAppIds 上层处理，不会走到
-    return CATEGORY_MEMBERS[id]
+    return LAUNCHER_CATEGORY_MEMBERS[id]
   }
   const appliedLayout = useDynamicDesktopStore((s) => s.appliedLayout)
   const resetAppliedLayout = useDynamicDesktopStore((s) => s.resetAppliedLayout)
   const recent = useUsageStore((s) => s.recent)
+  // 工作空间偏好（STEP 2）：只影响排序——推荐/最近/今日世界按亲和稳定重排
+  // （affinity.ts 纯函数），不增删任何应用。
+  const workspace = useWorkspaceStore((s) => s.workspace)
   // 最近区（§22 P2-5）：只显示仍安装的应用，前 8。
   const recentApps = recent
     .map((entry) => apps.find((app) => app.id === entry.appId))
@@ -184,27 +179,34 @@ export function AppLauncher() {
   const layout = appliedLayout ? pruneLayoutSuggestion(appliedLayout, apps.map((app) => app.id)) : null
 
   // 网格成员：搜索词优先跨全应用；最近使用分类 = 最近置顶的全量网格
-  // （参考图形态：选中「最近使用」仍展示完整应用网格）；其余分类严格过滤。
+  // （参考图形态：选中「最近使用」仍展示完整应用网格）；其余分类按成员序
+  // 装配——今日世界的成员序经工作空间亲和重排（STEP 2），静态分类保持
+  // 映射内声明序。
   const layoutOrder = layout
     ? [
         ...layout.groups.flatMap((group) => group.appIds),
         ...apps.map((app) => app.id).filter((id) => !layout.groups.some((g) => g.appIds.includes(id))),
       ]
     : apps.map((app) => app.id)
-  const recentIds = recentApps.map((app) => app.id)
+  const recentIds = rankByScore(
+    recentApps.map((app) => app.id),
+    (id) => launcherWorkspaceScore(id, workspace),
+  )
   const gridAppIds =
     needle !== ''
       ? layoutOrder.filter(matches)
       : category === 'recent'
         ? [...recentIds, ...layoutOrder.filter((id) => !recentIds.includes(id))].filter(matches)
-        : layoutOrder.filter((id) => categoryMembers(category).includes(id) && matches(id))
+        : categoryMembers(category).flatMap((id) =>
+            layoutOrder.includes(id) && matches(id) ? [id] : [],
+          )
 
-  // 推荐行：最近使用优先（排除当前网格已展示的前排），不足补布局建议。
+  // 推荐行：最近使用优先 + 工作空间亲和稳定重排（同分保持时序），不足补
+  // 布局建议——selector 选择真实影响本排序（STEP 2 验收点）。
   const recommendationIds = (() => {
-    const base = recentApps.map((app) => app.id)
-    if (base.length >= 3) return base.slice(0, 3)
+    const base = recentIds
     const extra = layoutOrder.filter((id) => !base.includes(id))
-    return [...base, ...extra].slice(0, 3)
+    return rankByScore([...base, ...extra], (id) => launcherWorkspaceScore(id, workspace)).slice(0, 3)
   })()
 
   const searchBox = (
@@ -366,7 +368,12 @@ export function AppLauncher() {
                     </p>
                     <ul className="space-y-0.5">
                       {recommendationIds.map((appId) => (
-                        <RecommendRow key={`rec-${appId}`} appId={appId} onLaunch={launch} />
+                        <RecommendRow
+                          key={`rec-${appId}`}
+                          appId={appId}
+                          onLaunch={launch}
+                          testId="launcher-recommend-item"
+                        />
                       ))}
                     </ul>
                   </div>
@@ -432,7 +439,15 @@ function LauncherTile({
 }
 
 /** 推荐行（§32 参考图）：缩略徽章 + 名称 + 分类副标 + 右箭头，点击启动。 */
-function RecommendRow({ appId, onLaunch }: { appId: string; onLaunch: (appId: string) => void }) {
+function RecommendRow({
+  appId,
+  onLaunch,
+  testId,
+}: {
+  appId: string
+  onLaunch: (appId: string) => void
+  testId?: string
+}) {
   const { t } = useTranslation()
   const app = useAppStore((s) => s.apps.find((candidate) => candidate.id === appId))
   if (!app) return null
@@ -441,6 +456,7 @@ function RecommendRow({ appId, onLaunch }: { appId: string; onLaunch: (appId: st
     <li>
       <button
         type="button"
+        data-testid={testId}
         className="flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left hover:bg-surface-raised"
         onClick={() => onLaunch(app.id)}
       >

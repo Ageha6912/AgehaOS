@@ -14,6 +14,7 @@ import { ContextMenu, type ContextMenuPosition } from '@/desktop/ContextMenu'
 import { WidgetRail } from '@/desktop/widgets/WidgetRail'
 import { useLiquidDisplacementMap } from '@/desktop/sidebar/liquid-glass'
 import { LiquidGlassDefs } from '@/desktop/sidebar/LiquidGlassFilter'
+import { useWorkspacePanel } from '@/desktop/workspace/use-workspace-panel'
 import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
 import { useAurora } from '@/desktop/motion/use-aurora'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
@@ -58,7 +59,10 @@ export function Desktop() {
   // system-rails 液态玻璃（2026-10-02 用户裁决，ZenDesktop 观感）：位移图按组
   // 实测尺寸运行时生成；jsdom/生成失败回落 .glass-raise 常规毛玻璃。
   const railsRef = useRef<HTMLDivElement | null>(null)
-  const liquidMap = useLiquidDisplacementMap(railsRef)
+  // Workspace Panel 展开状态机（STEP 2）：hover/click(pin)/键盘三路触发；
+  // 边界判定与焦点交还都锚在组容器上。展开信号同时驱动位移图重测。
+  const panel = useWorkspacePanel(railsRef)
+  const liquidMap = useLiquidDisplacementMap(railsRef, undefined, panel.expanded)
   useGlobalShortcuts()
 
   // 2026-10-02 用户裁决：进桌面不再自动打开任何窗口——动态面板与随机小游戏
@@ -105,18 +109,24 @@ export function Desktop() {
       <MenuBar />
       {/* 系统栏组（Desktop Shell 3.0 STEP 1）：单一玻璃面板承载左侧
           Workspace Rail——一道边框、一份圆角、一份投影。 */}
-      {/* system-rails（Desktop Shell 3.0 STEP 1 Workspace Rail，§33.2 浮岛
+      {/* system-rails（Desktop Shell 3.0 STEP 2 Workspace Panel，§33.2 浮岛
           基线）：窄轨漂浮垂直居中——left 16px、top 50% + translateY(-50%)、
           圆角 20px（--ag-radius-xl）、半透明玻璃 + subtle border + soft
-          shadow（shadow-float），浮于壁纸之上；今日应用列已退役，面板内容
-          （hover/click 展开 Workspace Panel）在下一切片。⚠️ 组容器不得挂
-          overflow（会裁掉向右伸出的 os-tooltip，§26 教训）。 */}
+          shadow（shadow-float），浮于壁纸之上；hover/click(pin)/键盘展开
+          Workspace Panel（324px，纯浮层几何——窗口钳制仍钉 80px）。⚠️ 组容
+          器不得挂 overflow（会裁掉向右伸出的 os-tooltip，§26 教训）；展开态
+          气泡经 [data-expanded] .os-tooltip 退出，无需 overflow。 */}
       <div
         data-testid="system-rails"
         ref={railsRef}
+        data-expanded={panel.expanded || undefined}
+        onMouseEnter={panel.onMouseEnter}
+        onMouseLeave={panel.onMouseLeave}
+        onFocusCapture={panel.onFocusCapture}
+        onBlurCapture={panel.onBlurCapture}
         className={`desktop-chrome surface-glass ${liquidMap ? 'glass-liquid' : 'glass-raise'} fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 flex-col rounded-xl border border-border shadow-float sm:flex`}
       >
-        <Sidebar />
+        <Sidebar panel={panel} />
       </div>
       {liquidMap && (
         <LiquidGlassDefs id="ag-liquid-rail" mapUri={liquidMap} options={{ strength: 10 }} />

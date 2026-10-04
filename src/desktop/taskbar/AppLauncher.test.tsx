@@ -1,11 +1,12 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { registerRuntimeApp, resetAppStore } from '@/store/app-store'
 import { resetLauncherStore } from '@/store/launcher-store'
 import { systemEclosion } from '@/services/eclosion'
 import { resetEclosionStore, seedEclosionForTests, useEclosionStore } from '@/store/eclosion-store'
-import { resetUsageStore } from '@/store/usage-store'
+import { resetUsageStore, useUsageStore } from '@/store/usage-store'
+import { resetWorkspaceStore, useWorkspaceStore } from '@/store/workspace-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
 import { AppLauncher } from './AppLauncher'
@@ -38,6 +39,7 @@ beforeEach(() => {
   resetWindowStore()
   resetAppStore()
   resetUsageStore()
+  resetWorkspaceStore()
   resetEclosionStore()
   resetLauncherStore()
 })
@@ -226,5 +228,91 @@ describe('AppLauncher × 今日/我的羽化（§6.4/§8）', () => {
 
     expect(gridIn().getByRole('button', { name: '边缘神谕' })).toBeInTheDocument()
     expect(screen.queryByTestId(`launcher-unkeep-${TODAY_APP_1}`)).toBeNull()
+  })
+})
+
+describe('AppLauncher × 工作空间排序（Desktop Shell 3.0 STEP 2）', () => {
+  const openLauncher = (): void => {
+    render(<AppLauncher />)
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+  }
+
+  it('recommendations flip with the workspace choice (selector 真实影响推荐)', () => {
+    useUsageStore.getState().recordRecentApp('com.ageha.notes')
+
+    useWorkspaceStore.getState().setWorkspace('personal')
+    const personal = render(<AppLauncher />)
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+    const personalTop = screen.getAllByTestId('launcher-recommend-item')[0]!.textContent ?? ''
+    expect(personalTop).not.toContain('终端')
+    personal.unmount()
+
+    useWorkspaceStore.getState().setWorkspace('dev')
+    resetLauncherStore()
+    openLauncher()
+    const devRows = screen.getAllByTestId('launcher-recommend-item')
+    expect(devRows[0]!.textContent).toContain('终端')
+  })
+
+  it('reorders the recent grid by workspace affinity, keeping recency among equals', () => {
+    useUsageStore.getState().recordRecentApp('com.ageha.notes')
+    useUsageStore.getState().recordRecentApp('com.ageha.terminal')
+    useWorkspaceStore.getState().setWorkspace('dev')
+
+    openLauncher()
+    // recent 分类 = 最近置顶的全量网格：亲和高者优先，同分保持时序。
+    const recentItems = screen.getAllByTestId('launcher-recent-item')
+    expect(recentItems[0]!.textContent).toContain('终端')
+    expect(recentItems[1]!.textContent).toContain('记事')
+  })
+
+  it('reorders the today world rows by workspace affinity (今日世界建议)', () => {
+    seedEclosionForTests('u-ws-today', true)
+    useEclosionStore.getState().applyWorld({
+      worldDate: new Date().toISOString().slice(0, 10),
+      headline: '工作空间排序验收',
+      paletteId: 'nebula-violet',
+      accentHue: 212,
+      degraded: false,
+      signalCount: 1,
+      signals: { titles: ['信号甲'], sourceName: 'GitHub Trending', sourceUrl: '' },
+      apps: [
+        { slug: 'edge-oracle', name: '边缘神谕', hue: 268, tagline: '一句话', category: 'tools', window: { width: 720, height: 480 } },
+        { slug: 'signal-weaver', name: '信号织机', hue: 190, tagline: '一句话', category: 'creative', window: { width: 720, height: 480 } },
+      ],
+    })
+    for (const [id, name] of [
+      ['com.ageha.eclosion.edge-oracle', '边缘神谕'],
+      ['com.ageha.eclosion.signal-weaver', '信号织机'],
+    ] as Array<[string, string]>) {
+      const result = registerRuntimeApp({
+        id,
+        name,
+        version: '1.0.0',
+        entry: '/apps/runtime/eclosion.html',
+        permissions: [],
+        window: { width: 720, height: 480, resizable: true },
+      })
+      expect(result.ok).toBe(true)
+    }
+
+    const expectGridOrder = (first: string, second: string): void => {
+      const grid = within(screen.getByTestId('launcher-grid'))
+      const [a, b] = [grid.getByRole('button', { name: first }), grid.getByRole('button', { name: second })]
+      expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+
+    // 创作空间：creative 行（信号织机）浮到 tools 行之前。
+    useWorkspaceStore.getState().setWorkspace('creative')
+    render(<AppLauncher />)
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+    fireEvent.click(screen.getByTestId('launcher-category-today'))
+    expectGridOrder('信号织机', '边缘神谕')
+
+    // 开发空间：tools 行（边缘神谕）回到最前——store 驱动的实时重排。
+    act(() => {
+      useWorkspaceStore.getState().setWorkspace('dev')
+    })
+    expectGridOrder('边缘神谕', '信号织机')
   })
 })

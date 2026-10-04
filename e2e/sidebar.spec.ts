@@ -35,17 +35,21 @@ test('sidebar: floating narrow rail with working actions, tooltips and capsules'
   await page.getByTestId('sidebar-files').click()
   await expect(page.getByRole('region', { name: '文件' })).toBeVisible()
 
-  // ③ 悬停 tooltip 完整可见：锚定条目右缘向右伸出；轨道容器（及祖先）
-  //    overflow 恒 visible——§26 教训（overflow-y 连带裁剪 tooltip）不回归。
+  // ③ Workspace Panel（Desktop Shell 3.0 STEP 2）：悬停条目即向右展开
+  //    （324px 档）——名称由面板常显承载，收起态 os-tooltip 在展开态退出
+  //    （index.css [data-expanded] .os-tooltip）；轨道容器（及祖先）overflow
+  //    恒 visible 的 §26 契约不回归（收起态气泡向右伸出依赖它）。
   const files = page.getByTestId('sidebar-files')
   await files.hover()
-  await expect(files.locator('.os-tooltip')).toHaveCSS('opacity', '1', { timeout: 2000 })
-  const buttonBox = (await files.boundingBox())!
-  const tooltipBox = (await files.locator('.os-tooltip').boundingBox())!
-  expect(tooltipBox.x).toBeGreaterThanOrEqual(buttonBox.x + buttonBox.width + 7)
-  expect(tooltipBox.x + tooltipBox.width).toBeLessThanOrEqual(vp.width)
-  expect(tooltipBox.y).toBeGreaterThanOrEqual(0)
-  expect(tooltipBox.y + tooltipBox.height).toBeLessThanOrEqual(vp.height)
+  await expect(rail).toHaveAttribute('data-expanded', 'true')
+  await expect
+    .poll(
+      async () => (await page.getByTestId('system-rails').boundingBox())!.width,
+      { timeout: 3000 },
+    )
+    .toBeGreaterThanOrEqual(300)
+  await expect(files.locator('.os-tooltip')).toBeHidden()
+  await expect(page.getByTestId('workspace-panel')).toBeVisible()
   const overflowPair = await rail.evaluate((el) => {
     const collect = (node: Element): string[] => {
       const style = getComputedStyle(node)
@@ -57,7 +61,9 @@ test('sidebar: floating narrow rail with working actions, tooltips and capsules'
   for (const overflow of overflowPair) {
     expect(overflow).toBe('visible')
   }
+  // 鼠标离开（240ms 宽限 + 过渡）收起回窄轨。
   await page.mouse.move(vp.width / 2, vp.height / 2 + 120)
+  await expect(rail).not.toHaveAttribute('data-expanded', 'true')
 
   // ④ 启动器项唤起共享启动器面板（launcher-store 与 Dock 触发器同源）。
   await page.getByTestId('sidebar-launcher').click()

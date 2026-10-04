@@ -112,6 +112,11 @@
      窄轨漂浮 left 16px / 垂直居中（Desktop system-rails 组容器）。<640px
      隐藏（与组容器 hidden sm:flex 同步）。 */
   --ag-rail-left-width: 80px;
+  /* Workspace Panel 展开态宽度（Desktop Shell 3.0 STEP 2；简报 300-340 档
+     取 324）：hover/click 展开时组容器的目标宽（var 消费自动得 316px 内容
+     宽）。纯浮层几何——悬浮于工作区之上，不参与窗口布局钳制（viewport.ts
+     的 RAIL_LEFT_WIDTH_PX 仍钉 80，窗口几何不随展开迁移）。 */
+  --ag-rail-left-expanded-width: 324px;
   /* 右侧小组件栏（§27/§32）：<1280px 隐藏（与 WidgetRail hidden xl:flex 同步）。 */
   --ag-rail-right-width: 296px;
   --ag-dock-height: 68px;
@@ -596,6 +601,12 @@ body {
 .group:hover .os-tooltip--dock,
 .group:focus-visible .os-tooltip--dock {
   transform: translateX(-50%) translateY(0);
+}
+/* Workspace Panel 展开态（Desktop Shell 3.0 STEP 2）：条目名称已在面板内
+   常显，气泡退出——display 退出文档流，展开动画期间不与滑出的面板交叠。
+   置于 reveal 规则之后（同 (0,2,0) 特异性，源序取胜）。 */
+[data-expanded] .os-tooltip {
+  display: none;
 }
 
 /* Dock 图标悬停（2026-10-02 用户裁决：只浮起被悬浮的那一枚——§13 波浪引擎
