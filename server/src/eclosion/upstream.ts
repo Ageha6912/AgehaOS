@@ -70,7 +70,14 @@ export async function streamEclosionCompletion(params: {
     messages,
     stream_options: { include_usage: true },
   }
-  if (config.reasoningEffort) body.reasoning_effort = config.reasoningEffort
+  // reasoning_effort 与 GLM 原生 thinking 开关（2026-10-04）：GLM 系模型不尊重
+  // OpenAI 风格 reasoning_effort（实测思考照旧失控，坑 76 同族），只认原生
+  // thinking.type；'disabled' 翻译为 thinking 关闭（实测 43s 完整生成 vs 277s 超时）。
+  if (config.reasoningEffort === 'disabled') {
+    body.thinking = { type: 'disabled' }
+  } else if (config.reasoningEffort) {
+    body.reasoning_effort = config.reasoningEffort
+  }
 
   let response: Response
   try {

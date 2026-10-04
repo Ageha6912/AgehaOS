@@ -1228,6 +1228,41 @@ describe('POST /api/eclosion/generate × kind=imagine (§7)', () => {
     expect(userContent).toContain('AgehaOS.storage：get(key)') // L3 权限 = storage（2026-10-04 持久化裁决）
   })
 
+  it('reasoningEffort=disabled maps to the GLM native thinking switch; low maps to reasoning_effort (2026-10-04)', async () => {
+    const { streamEclosionCompletion } = await import('../src/eclosion/upstream')
+    const bodies: Array<Record<string, unknown>> = []
+    const fakeFetcher = (async (_url: string | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+          controller.close()
+        },
+      })
+      return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } })
+    }) as typeof fetch
+    const signal = new AbortController().signal
+    const messages = [{ role: 'user' as const, content: 'x' }]
+
+    await streamEclosionCompletion({
+      fetcher: fakeFetcher,
+      config: { ...BASE_ECLOSION_CONFIG, reasoningEffort: 'disabled' },
+      messages,
+      signal,
+    })
+    expect(bodies[0]?.thinking).toEqual({ type: 'disabled' })
+    expect(bodies[0]?.reasoning_effort).toBeUndefined()
+
+    await streamEclosionCompletion({
+      fetcher: fakeFetcher,
+      config: { ...BASE_ECLOSION_CONFIG, reasoningEffort: 'low' },
+      messages,
+      signal,
+    })
+    expect(bodies[1]?.reasoning_effort).toBe('low')
+    expect(bodies[1]?.thinking).toBeUndefined()
+  })
+
   it('collapses whitespace inside the template slot (换行无法逃出模板句)', () => {
     const messages = buildImagineMessages('番茄钟\n  +\t白噪音', 'zh-CN')
     const user = messages[1]!.content
