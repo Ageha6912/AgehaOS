@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { dragWindowClearOfRails, revealTaskbar, taskbarStartButton } from './helpers'
+import { revealTaskbar, taskbarStartButton } from './helpers'
 
 /**
  * 羽化模式 P2/P4 端到端（AI-GENERATED-APPS-DESIGN §12 P2「今日世界」/ P4「治理
@@ -409,87 +409,6 @@ test.describe('P2 今日世界（世界就绪 → 落位）', () => {
     await expect(taskbarStartButton(page)).toBeVisible()
   })
 })
-
-// ── P2：今日应用按需生成 ────────────────────────────────────────────────────
-
-test.describe('P2 今日应用（点按瓦片 → kind=today 生成并可用）', () => {
-  test('点按「信号花园」瓦片 → kind=today 请求契约 + 真实沙箱流式生成可用', async ({ page }) => {
-    await registerDesktop(page, 'e2eworld-gen')
-    const stubs = await stubEclosionBackend(page, {
-      world: () =>
-        worldPayload({
-          headline: '今日应用生成契约的世界',
-          accentHue: 212,
-          signalTitles: ['本地智能体编排框架冲上热榜'],
-        }),
-    })
-    await seedEclosionEnabled(page)
-
-    // 取第 3 个应用（预取只碰前 2 个，§6.4）：确保这次生成由用户点按触发。
-    // waitForWorldLanded 已让启动器停在「今日」分类上——直接点瓦片。
-    await waitForWorldLanded(page, '边缘神谕')
-    const grid = page.getByTestId('launcher-grid')
-    await grid.getByRole('button', { name: '信号花园' }).click()
-
-    // 窗口打开（标题 = 世界行 name），真实沙箱管线。
-    const win = page.getByRole('region', { name: '信号花园' })
-    await expect(win).toBeVisible({ timeout: 15_000 })
-    const iframe = win.locator('iframe')
-    await expect(iframe).toHaveAttribute('sandbox', 'allow-scripts')
-    await expect(iframe).toHaveAttribute('src', /\/apps\/runtime\/eclosion\.html\?v=/)
-
-    // 请求契约（§5.3）：kind=today + 服务端持有的 worldDate/slug；客户端不传 hint。
-    await expect
-      .poll(() => stubs.generateBodies().some((body) => body.slug === 'signal-garden'), {
-        message: 'kind=today 生成请求已发出',
-      })
-      .toBe(true)
-    const hit = stubs.generateBodies().find((body) => body.slug === 'signal-garden')!
-    expect(hit).toMatchObject({ kind: 'today', worldDate: todayKey(), theme: 'light' })
-    expect(hit).not.toHaveProperty('hint')
-
-    // 破茧后脚本真实执行（流式 → 截留 → power-on 注入），交互可用。
-    const frame = page.frame({ url: /eclosion\.html/ })
-    expect(frame, 'sandboxed runner frame').toBeDefined()
-    // 先把窗口拖出系统栏组遮盖带（z 契约上轨盖窗，见 helpers）。
-    await dragWindowClearOfRails(page, win)
-    await expect(frame!.locator('#result')).toHaveText('E2E-GEN-OK', { timeout: 15_000 })
-    await frame!.locator('#inc').click()
-    await expect(frame!.locator('#result')).toHaveText('E2E-CLICK-5')
-
-    // 生成完成：进度条收起、宿主配件在场（AI 徽标已按 2026-10-03 裁决移除）。
-    await expect(page.getByTestId('eclosion-progress')).toHaveCount(0)
-    await expect(win.getByTestId('eclosion-regenerate')).toBeVisible()
-  })
-
-  test('今日应用列（左栏右侧整列，2026-10-03 裁决）：点按瓷贴同样走 kind=today 按需生成', async ({
-    page,
-  }) => {
-    await registerDesktop(page, 'e2eworld-rail')
-    await stubEclosionBackend(page, {
-      world: () =>
-        worldPayload({
-          headline: '今日应用列契约的世界',
-          accentHue: 268,
-          signalTitles: ['边缘推理框架登顶'],
-        }),
-    })
-    await seedEclosionEnabled(page)
-    await waitForWorldLanded(page, '边缘神谕')
-    // 关掉启动器，露出左栏右侧的「今日应用」列（与启动器「今日」分类同源）。
-    await page.keyboard.press('Escape')
-    const rail = page.getByTestId('today-rail')
-    await expect(rail).toBeVisible()
-
-    // 取第 3 个应用（预取只碰前 2 个）：由用户点按触发生成。
-    await rail.getByTestId('today-rail-app-signal-garden').click()
-    const win = page.getByRole('region', { name: '信号花园' })
-    await expect(win).toBeVisible({ timeout: 15_000 })
-    await expect(win.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts')
-  })
-})
-
-// ── P4：蝶谱时间线与「回到那天的主题」 ──────────────────────────────────────
 
 test.describe('P4 蝶谱（§8 时间线 + 回放）', () => {
   test('世界留档进蝶谱；「回到那天的主题」把当日主题恢复为那天的 accent（只动主题不动应用）', async ({

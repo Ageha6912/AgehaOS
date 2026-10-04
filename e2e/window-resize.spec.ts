@@ -31,6 +31,15 @@ test('window resize: free edge/corner drag grows and shrinks with west compensat
     await expect(page.getByTestId(`window-resize-${dir}`)).toBeAttached()
   }
 
+  // 级联起点 176 让 SE 角落在右栏遮盖带（1280 视口下 ≥964）内——先把窗口
+  // 拖左 96px（x→80），SE 角回到右栏左侧的可达区。
+  const cascadeBox = (await region.boundingBox())!
+  expect(cascadeBox.width).toBeGreaterThan(400)
+  await page.mouse.move(cascadeBox.x + 220, cascadeBox.y + 14)
+  await page.mouse.down()
+  await page.mouse.move(cascadeBox.x + 124, cascadeBox.y + 14, { steps: 6 })
+  await page.mouse.up()
+  await page.waitForTimeout(400)
   const before = (await region.boundingBox())!
   expect(before.width).toBeGreaterThan(400)
 

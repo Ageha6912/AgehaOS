@@ -43,7 +43,7 @@ describe('getWorkspaceViewport', () => {
     // 一侧都会红（§32；Shell 2.0 切片一：互指从菜单栏扩到双栏，防 TS 常量
     // 漏改/回漂无红测——左栏漏改 = 工作区钳制宽度错 52px）。
     expect(MENUBAR_HEIGHT_PX).toBe(32)
-    expect(RAIL_LEFT_WIDTH_PX).toBe(80)
+    expect(RAIL_LEFT_WIDTH_PX).toBe(150)
     expect(RAIL_RIGHT_WIDTH_PX).toBe(296)
   })
 })

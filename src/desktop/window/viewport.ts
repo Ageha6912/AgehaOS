@@ -11,7 +11,7 @@ import type { Viewport } from '@/core/window'
  * 测量（提示词 §36 禁），故双常量互指。
  */
 export const MENUBAR_HEIGHT_PX = 32
-export const RAIL_LEFT_WIDTH_PX = 80
+export const RAIL_LEFT_WIDTH_PX = 150
 /** Tailwind sm 断点：侧栏 <640px 隐藏（Sidebar 的 hidden sm:flex 同值）。 */
 export const RAIL_LEFT_BREAKPOINT_PX = 640
 export const RAIL_RIGHT_WIDTH_PX = 296

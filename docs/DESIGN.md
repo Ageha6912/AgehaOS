@@ -1099,6 +1099,17 @@ Wallpaper → Desktop → Window → Popover → Modal 递进成立；大面=玻
 - **品牌层**：50%x（与 Dock 中线对齐，2026-10-02 裁决，原 44%）/29% 位置基线不变，视觉更轻；文案 AgehaOS +
   「Your Web OS, Your Space.」；无可见窗口才显示的既有语义保留。
 
+### 33.4.1 单栏拉长（2026-10-02 用户三连裁决）
+
+- system-rails 组上下锚定（上 = 菜单栏 +12px、下 = Dock 上 16px）拉长全高；
+  今日应用列退役，组内单栏。
+- 左栏条目改行式：瓷贴左 + 名称右（13px 常显，气泡 tooltip 退役，原生
+  title 保留）；栏宽 Token --ag-rail-left-width 80→150px（viewport 常量/
+  启动器锚点随动）。
+- 连带 §25：launch 位置兜底升级为「完整落在左右浮轨之间的工作区」——宽度
+  钳到工作区内宽、水平居中、y 钳进纵带（Token 实测轨道宽，防 apps→desktop
+  循环不经模块导入）。
+
 ### 33.4 验收
 
 - 六切片各过完整五门禁（typecheck/lint/test/build/test:e2e 逐切片跑真）；

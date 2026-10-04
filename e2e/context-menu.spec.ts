@@ -32,15 +32,17 @@ test('desktop context menu: open at pointer, clamp to viewport, run actions', as
   await page.getByTestId('context-menu-renew-wallpaper').click()
   await expect(menu).toBeHidden()
 
-  // 再开 → 打开设置（面板左侧空白：左栏 16-92，Shell 2.0 浮岛；面板 344 起）
-  await page.mouse.click(200, 400, { button: 'right' })
+  // 再开 → 打开设置（设置窗经级联 176 起锚、右缘约 836；取其与右侧小组件
+  // 栏 964 起之间的稳定空白；拉伸后的系统栏组占 16-166 全高）。
+  await page.mouse.click(900, 400, { button: 'right' })
   await expect(menu).toBeVisible()
   await page.getByTestId('context-menu-open-settings').click()
   await expect(page.getByRole('region', { name: '设置' })).toBeVisible()
   await expect(menu).toBeHidden()
 
-  // 再开 → Esc 关闭（点设置窗下方空白；窗口/图标上不出菜单是预期行为）
-  await page.mouse.click(300, 690, { button: 'right' })
+  // 再开 → Esc 关闭（级联 176 + 840×560 的设置窗经入屏钳制占 176-1016×
+  // 152-712，下部已被覆盖——取其上方的壁纸带；窗口/图标上不出菜单是预期）。
+  await page.mouse.click(400, 120, { button: 'right' })
   await expect(menu).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()

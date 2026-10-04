@@ -61,25 +61,43 @@ describe('launchApp', () => {
   })
 
   it('keeps a no-geometry launch inside a narrow viewport (§25 位置兜底)', async () => {
-    // 375px 视口：记事 720 → 尺寸钳 359；级联起点 x=80 曾把右缘推到 439。
+    // 375px 视口（<640 左组隐藏，railLeft=8）：记事 720 → 工作区内宽钳 343，
+    // x=16，右缘 359 贴合视口（工作区口径）。
     vi.stubGlobal('innerWidth', 375)
     vi.stubGlobal('innerHeight', 812)
     try {
       launchApp('com.ageha.notes')
 
       const win = useWindowStore.getState().windows[0]
-      expect(win?.width).toBe(359)
-      expect(win!.x).toBeGreaterThanOrEqual(8)
+      expect(win?.width).toBe(343)
+      expect(win!.x).toBe(16)
       expect(win!.x + win!.width).toBeLessThanOrEqual(375 - 8 + 0.5)
     } finally {
       vi.unstubAllGlobals()
     }
   })
 
-  it('keeps the cascade position untouched on wide viewports', () => {
-    // jsdom 默认 innerWidth=1024：80 + 720 = 800 在视口内，级联起点不动。
+  it('clamps the y position into short viewports（§25 位置兜底纵轴）', async () => {
+    // 1280×600：工作区纵带 40-504，记事 480 → y 钳到 40（底部 520）。
+    vi.stubGlobal('innerWidth', 1280)
+    vi.stubGlobal('innerHeight', 600)
+    try {
+      launchApp('com.ageha.notes')
+      const win = useWindowStore.getState().windows[0]!
+      expect(win.y).toBe(40)
+      expect(win.y + win.height).toBeLessThanOrEqual(504 + 0.5)
+      // jsdom 无样式表：Token 读 0 → railLeft 24/railRight 28 → x = 32+(1232-720)/2 = 278。
+      expect(win.x).toBe(278)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('centers the window in the workspace on wide viewports（单栏拉长连带）', () => {
+    // jsdom 1024（Token 缺省 railLeft 24/railRight 8）：工作区 992，记事
+    // 720 居中 → x = 32+(976-720)/2 = 160。
     launchApp('com.ageha.notes')
-    expect(useWindowStore.getState().windows[0]?.x).toBe(80)
+    expect(useWindowStore.getState().windows[0]?.x).toBe(160)
   })
 
   it('refuses to launch when a requested permission is not granted', () => {

@@ -100,7 +100,7 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(root).toMatch(/--ag-menubar-height:\s*32px/)
     // 左侧系统导航栏宽度与 RAIL_LEFT_WIDTH_PX 常量互指（§26；Shell 2.0
     // icon-first 收窄 80px，内容宽 76px）。
-    expect(root).toMatch(/--ag-rail-left-width:\s*80px/)
+    expect(root).toMatch(/--ag-rail-left-width:\s*150px/)
     // 右侧小组件栏宽度与 RAIL_RIGHT_WIDTH_PX 常量互指（§27；2026-10-01
     // 用户裁决收窄至 296px）。
     expect(root).toMatch(/--ag-rail-right-width:\s*296px/)

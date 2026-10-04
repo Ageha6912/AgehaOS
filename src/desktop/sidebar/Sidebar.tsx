@@ -21,18 +21,16 @@ import { unreadCount, useNotificationStore } from '@/store/notification-store'
 import { useWindowStore } from '@/store/window-store'
 
 /**
- * 左侧系统导航栏（docs/DESIGN.md §26；Shell 2.0 Floating System Rail，
- * 2026-10-02）：icon-first 浮岛——80px 窄栏（内容 72px）+ 真垂直居中；
- * 八项瓷贴（36px，各自彩色渐变圆角方块）保留原导航目标，文字标签退役为
- * 悬停/聚焦 tooltip（原生 title 双轨保留，§1③）。顺序 = 桌面/商店/文件/
- * 终端/设置/云同步/通知/用户中心。只放真实动作（拒绝装饰性谎言）：桌面=
- * 最小化全部、商店/文件/终端/设置=启动器、用户中心=Settings 落账户分区
- * （深链）、云同步=真实开关（本地模式禁用）、通知=唤起共享通知中心。
- * 无「当前项」语义，不设常亮选中底（轻透明胶囊 = hover bg-surface-raised
- * 瞬态）。
- * 2026-10-03 追加裁决「两栏毛玻璃连成一体」：本栏的玻璃面（背景/边框/
- * 圆角/投影）上移到 Desktop 的 system-rails 组容器，本组件只保留列布局——
- * 与今日应用列共用同一块玻璃（中缝 = 今日列的 border-l 内部分隔线）。
+ * 左侧系统导航栏（docs/DESIGN.md §26；2026-10-03 用户裁决「单栏 + 名称右置 +
+ * 拉长」）：行式条目——瓷贴（36px 彩色渐变方块）在左、应用名称在右；组容器
+ * （system-rails）从菜单栏下方一点锚到 Dock 上方一点，整列拉长。八项顺序 =
+ * 桌面/商店/文件/终端/设置/云同步/通知/用户中心，只放真实动作：桌面=最小化
+ * 全部、商店/文件/终端/设置=启动器、用户中心=Settings 落账户分区（深链）、
+ * 云同步=真实开关（本地模式禁用）、通知=唤起共享通知中心。无「当前项」语义，
+ * 不设常亮选中底（hover bg-surface-raised 瞬态）。名称常显后自绘气泡 tooltip
+ * 退役（原生 title 保留承载云同步组合提示）。
+ * 2026-10-03「两栏毛玻璃连成一体」：玻璃面仍归 Desktop 的 system-rails 组
+ * 容器；今日应用列随「合并为一栏」裁决退役。
  */
 
 /** 瓷贴渐变（参考图取色；每项独立配色，白字形统一）。 */
@@ -103,7 +101,7 @@ export function Sidebar() {
     <nav
       aria-label={t('sidebar.label')}
       data-testid="sidebar"
-      className="flex w-[calc(var(--ag-rail-left-width)-0.5rem)] flex-col items-center gap-2 px-2 py-3"
+      className="scroll-thin flex min-h-0 w-[calc(var(--ag-rail-left-width)-0.5rem)] flex-col gap-1 overflow-y-auto px-2 py-3"
     >
       <SidebarItem
         testid="sidebar-desktop"
@@ -195,9 +193,9 @@ function SidebarItem({
       title={hint ?? label}
       disabled={disabled}
       onClick={onClick}
-      className="group relative flex h-11 w-11 items-center justify-center rounded-xl text-text hover:bg-surface-raised disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+      className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-text hover:bg-surface-raised disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
     >
-      <span className="relative">
+      <span className="relative shrink-0">
         {tile}
         {stateDot && (
           <span
@@ -215,12 +213,9 @@ function SidebarItem({
           </span>
         )}
       </span>
-      {/* 自绘气泡 tooltip（§1③ 双轨的视觉主轨）：显隐全部由 index.css 的
-          .os-tooltip / .group:hover .os-tooltip 承担（工具类变体压不过未分层
-          规则）；气泡 aria-hidden 不进可达树（可达名 = aria-label）。 */}
-      <span aria-hidden="true" className="os-tooltip">
-        {hint ?? label}
-      </span>
+      {/* 名称常显（2026-10-03 裁决「名称在图标右方」）：自绘气泡 tooltip 退役，
+          原生 title 保留承载云同步组合提示。 */}
+      <span className="min-w-0 flex-1 truncate text-left text-[13px]">{label}</span>
     </button>
   )
 }

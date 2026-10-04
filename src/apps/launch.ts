@@ -54,13 +54,30 @@ export function launchApp(
 
   const title = appDisplayName(appId)
 
-  // 窄屏兜底：manifest 默认尺寸可能超过视口（如 375px 手机宽度 < 900px 窗口）。
-  const maxWidth = Math.max(320, window.innerWidth - 16)
-  const maxHeight = Math.max(240, window.innerHeight - 48)
-  const width =
-    manifest.window?.width !== undefined ? Math.min(manifest.window.width, maxWidth) : undefined
-  const height =
-    manifest.window?.height !== undefined ? Math.min(manifest.window.height, maxHeight) : undefined
+  // 工作区（2026-10-03 裁决「单栏拉长」连带）：左右浮轨拉长后常驻占据两侧
+  // （左组 16+150；右小组件栏 xl 断点起 20+296）——窗口宽度钳到工作区内宽、
+  // 位置在工作区内居中（级联错位保留在 y 向）。轨道宽度从 Token 实测，
+  // 不经模块导入（apps 层不得反向依赖 desktop 层）。
+  const rootStyle = getComputedStyle(document.documentElement)
+  const railLeft = window.innerWidth >= 640
+    ? (parseFloat(rootStyle.getPropertyValue('--ag-rail-left-width')) || 0) + 24 // left-4 + 8 缓冲
+    : 8 // <640 左组隐藏（sm:flex 断点）
+  const railRight = window.innerWidth >= 1280
+    ? (parseFloat(rootStyle.getPropertyValue('--ag-rail-right-width')) || 0) + 28 // right-5 + 8 缓冲
+    : 8
+  const wsWidth = Math.max(320, window.innerWidth - railLeft - railRight)
+  const wsTop = 40 // 菜单栏 32 + 8
+  const wsBottom = window.innerHeight - 96 // Dock 68 + gap 20 + 8
+
+  // 尺寸钳到工作区内宽/内高（窄屏兜底原语义，边界改为工作区）。
+  const width = Math.max(
+    320,
+    Math.min(manifest.window?.width ?? Number.MAX_SAFE_INTEGER, wsWidth - 16),
+  )
+  const height = Math.max(
+    200,
+    Math.min(manifest.window?.height ?? Number.MAX_SAFE_INTEGER, wsBottom - wsTop),
+  )
 
   const windowId = useWindowStore.getState().open({
     appId,
@@ -69,18 +86,18 @@ export function launchApp(
     height,
     ...geometry,
   })
-  if (windowId !== null && geometry?.x === undefined && width !== undefined) {
-    // §25 窄屏兜底第二段：无显式几何时 create() 用级联起点（x=80 起），
-    // 窄视口下「级联 x + 尺寸钳制宽」仍会横向溢出（375px：80+359=439）。
-    // 把右缘收进视口（8px 余量）；宽视口下该条件恒假，级联位置原样保留。
+  if (windowId !== null && !geometry) {
+    // 无显式几何：工作区内水平居中（级联 y 错位钳进工作区纵带）。
     const viewport = { width: window.innerWidth, height: window.innerHeight }
     const created = useWindowStore
       .getState()
       .windows.find((win) => win.id === windowId)
-    if (created && created.x + created.width > viewport.width - 8) {
-      useWindowStore
-        .getState()
-        .move(windowId, Math.max(8, viewport.width - created.width - 8), created.y, viewport)
+    if (created) {
+      const x = railLeft + 8 + Math.max(0, (wsWidth - 16 - created.width) / 2)
+      const y = Math.max(wsTop, Math.min(wsBottom - created.height, created.y))
+      if (x !== created.x || y !== created.y) {
+        useWindowStore.getState().move(windowId, x, y, viewport)
+      }
     }
   }
   if (windowId !== null && source === 'user') {

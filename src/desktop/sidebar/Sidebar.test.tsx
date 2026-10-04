@@ -32,39 +32,35 @@ describe('Sidebar', () => {
     )
   })
 
-  it('renders icon-first tiles with the label moved out of the inline flow (shell 2.0 §4.2③)', () => {
+  it('renders icon-left label-right rows（2026-10-03 裁决「名称在图标右方」）', () => {
     render(<Sidebar />)
 
     const item = screen.getByTestId('sidebar-files')
-    // icon-first：44px 方按钮居中一颗 36px 瓷贴（渐变圆角方块保留）。
-    for (const cls of ['h-11', 'w-11', 'items-center', 'justify-center', 'rounded-xl', 'group']) {
+    // 行式条目：全宽行 + 图标（36px 瓷贴保留）在左 + 名称在右。
+    for (const cls of ['w-full', 'items-center', 'gap-3', 'rounded-xl', 'px-2', 'py-1.5']) {
       expect(item.classList.contains(cls), cls).toBe(true)
     }
     const wrapper = item.firstElementChild as HTMLElement
     expect(wrapper.classList.contains('relative')).toBe(true)
+    expect(wrapper.classList.contains('shrink-0')).toBe(true)
     const tile = wrapper.firstElementChild as HTMLElement
     expect(tile.style.backgroundImage).toContain('linear-gradient')
     expect(tile.classList.contains('rounded-lg')).toBe(true)
     expect(tile.classList.contains('h-9')).toBe(true)
     expect(tile.classList.contains('w-9')).toBe(true)
-    // 行内文字标签退役（进 tooltip）：旧标签 span（min-w-0 truncate）不复存在。
-    expect(item.querySelector('.truncate')).toBeNull()
+    // 名称常显（文本 = sidebar.files 词条，13px 截断式）。
+    const label = item.querySelector('.truncate') as HTMLElement
+    expect(label).not.toBeNull()
+    expect(label.textContent).toBe('文件管理')
+    expect(label.className).toContain('text-[13px]')
   })
 
-  it('shows labels as hover/focus tooltips via the os-tooltip bubble (§1③)', () => {
+  it('retires the tooltip bubble—labels are always visible（2026-10-03 裁决）', () => {
     render(<Sidebar />)
 
     const item = screen.getByTestId('sidebar-files')
-    const bubble = item.querySelector('.os-tooltip') as HTMLElement | null
-    expect(bubble).not.toBeNull()
-    // 点亮由 index.css 的未分层 `.group:hover .os-tooltip` 规则承担：Tailwind
-    // 的 group-hover:opacity-100 在 @layer utilities 里，压不过未分层的 opacity:0。
-    expect(bubble!.className).toBe('os-tooltip')
-    expect(item.classList.contains('group')).toBe(true)
-    expect(bubble!.getAttribute('aria-hidden')).toBe('true')
-    // 气泡文本 = 词条（复用 sidebar.* 双语键，零新增词条）。
-    expect(bubble!.textContent).toBe('文件管理')
-    // 原生 title 双轨保留（可达性 + 触屏兜底）。
+    // 名称常显后自绘气泡退役；原生 title 保留承载云同步组合提示。
+    expect(item.querySelector('.os-tooltip')).toBeNull()
     expect(item.getAttribute('title')).toBe('文件管理')
   })
 
@@ -125,16 +121,18 @@ describe('Sidebar', () => {
     render(<Sidebar />)
 
     const nav = screen.getByTestId('sidebar')
-    // 2026-10-03 裁决「两栏毛玻璃连成一体」：玻璃面（背景/边框/圆角/投影/
-    // 定位）上移到 Desktop 的 system-rails 组容器——本栏只保留列布局与
-    // 80px 栏宽（内容 72px），今日列不在场时组即纯左栏，外观不变。
+    // 2026-10-03 裁决「单栏拉长」：名称右置行式条目，列内容随组容器高度
+    // 拉长（内部滚动兜底短视口）；150px 栏宽容纳「图标 + 四字名称」。
     for (const cls of [
       'flex',
       'flex-col',
-      'items-center',
       'w-[calc(var(--ag-rail-left-width)-0.5rem)]',
       'px-2',
       'py-3',
+      'gap-1',
+      'overflow-y-auto',
+      'scroll-thin',
+      'min-h-0',
     ]) {
       expect(nav.classList.contains(cls), cls).toBe(true)
     }
@@ -154,6 +152,9 @@ describe('Sidebar', () => {
       'left-0',
       'rounded-2xl',
       'shadow-popover',
+      'flex-row-reverse',
+      'items-stretch',
+      'top-1/2',
     ]) {
       expect(nav.classList.contains(cls), `no ${cls}`).toBe(false)
     }

@@ -14,6 +14,12 @@ import { resetUsageStore } from '@/store/usage-store'
 
 import { Desktop } from './Desktop'
 
+// 液态玻璃路径开关（vi.mock 提升，2026-10-02 裁决用例注入位移图就绪态）。
+const liquidState = vi.hoisted(() => ({ map: "" }))
+vi.mock('@/desktop/sidebar/liquid-glass', () => ({
+  useLiquidDisplacementMap: () => liquidState.map,
+}))
+
 beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-09-21T10:30:00'))
@@ -42,13 +48,40 @@ describe('Desktop', () => {
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('widget-rail')).toBeInTheDocument()
 
-    // 系统栏组（2026-10-03 裁决「两栏毛玻璃连成一体」）：单一玻璃面板承载
-    // 左栏 + 今日应用列——玻璃面在组容器上，今日列未就绪时组即纯左栏。
+    // 系统栏组（2026-10-03 裁决「单栏拉长」）：单一玻璃面板只承载左栏——
+    // 上锚菜单栏下 12px、下锚 Dock 上 16px；今日列退役，flex-row-reverse
+    // （两栏主轴反转）随之退役。
     const rails = screen.getByTestId('system-rails')
-    for (const cls of ['surface-glass', 'rounded-xl', 'shadow-float', 'flex-row-reverse']) {
+    for (const cls of ['surface-glass', 'rounded-xl', 'shadow-float', 'flex-col']) {
       expect(rails.classList.contains(cls), cls).toBe(true)
     }
+    for (const cls of ['flex-row-reverse', 'top-1/2', '-translate-y-1/2']) {
+      expect(rails.classList.contains(cls), `no ${cls}`).toBe(false)
+    }
+    expect(rails.className).toContain('top-[calc(var(--ag-menubar-height)+0.75rem)]')
+    expect(rails.className).toContain('bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+1rem)]')
     expect(rails.className).not.toContain('overflow')
+  })
+
+  it('applies glass-liquid + renders the displacement filter when the map is ready（2026-10-02 液态玻璃裁决）', () => {
+    liquidState.map = 'data:image/png;base64,fake'
+    render(<Desktop />)
+
+    const group = screen.getByTestId('system-rails')
+    expect(group.className).toContain('glass-liquid')
+    expect(group.className).not.toContain('glass-raise')
+    const filter = document.querySelector('svg filter#ag-liquid-rail')
+    expect(filter).not.toBeNull()
+    expect(filter?.querySelector('feDisplacementMap')?.getAttribute('scale')).toBe('20')
+  })
+
+  it('falls back to glass-raise without a map（jsdom/生成失败回落）', () => {
+    liquidState.map = ''
+    render(<Desktop />)
+    const group = screen.getByTestId('system-rails')
+    expect(group.className).toContain('glass-raise')
+    expect(group.className).not.toContain('glass-liquid')
+    expect(document.querySelector('svg filter#ag-liquid-rail')).toBeNull()
   })
 
   it('exposes landmarks and a DOM order that matches the visual order (UI review P2-7)', () => {
