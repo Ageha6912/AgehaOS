@@ -125,7 +125,7 @@ export const dictionaries = {
     'search.apps': '应用',
     'search.files': '文件',
     'search.imagine': '想象',
-    'search.imagineItem': '✦ 想象一个「{query}」应用',
+    'search.imagineItem': '✦ 即时羽化「{query}」应用',
     'search.empty': '无匹配结果',
     'search.hint': '↑↓ 选择 · Enter 打开 · Esc 关闭 · Ctrl+K 呼出',
 
@@ -628,7 +628,7 @@ export const dictionaries = {
     'search.apps': 'Apps',
     'search.files': 'Files',
     'search.imagine': 'Imagine',
-    'search.imagineItem': '✦ Imagine a “{query}” app',
+    'search.imagineItem': '✦ Hatch “{query}” into an app',
     'search.empty': 'No results',
     'search.hint': '↑↓ navigate · Enter opens · Esc closes · Ctrl+K toggles',
 

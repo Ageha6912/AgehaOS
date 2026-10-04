@@ -309,11 +309,11 @@ test.describe('想象搜索（开启态，P3）', () => {
     const input = page.getByTestId('search-input')
     await expect(input).toBeVisible()
 
-    // 想象域出现在两域之后；文案形如「✦ 想象一个「番茄钟」应用」。
+    // 想象域出现在两域之后；文案形如「✦ 即时羽化「番茄钟」应用」。
     const item = page.getByTestId('search-result-imagine')
     await input.fill('番茄钟')
     await expect(item).toBeVisible()
-    await expect(item).toContainText('想象一个「番茄钟」应用')
+    await expect(item).toContainText('即时羽化「番茄钟」应用')
 
     // 违规词（客户端 filterContentText violation）：不显示想象项，无生成。
     await input.fill('赌博')

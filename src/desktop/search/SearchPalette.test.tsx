@@ -172,7 +172,7 @@ describe('SearchPalette 想象域（§7）', () => {
 
     const item = screen.getByTestId('search-result-imagine')
     expect(item).toBeInTheDocument()
-    expect(item.textContent).toContain('想象一个「notes」应用')
+    expect(item.textContent).toContain('即时羽化「notes」应用')
     // 域序恒定：应用头 → 文件头 → 想象项（§7 始终排最后）。
     const appsHeader = screen.getByText('应用')
     const filesHeader = screen.getByText('文件')
