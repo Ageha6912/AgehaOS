@@ -33,17 +33,17 @@ describe('BASIC_ECLOSION_SPECS（客户端副本，§5.2）', () => {
         spec.window,
       ]),
     ).toEqual([
-      ['calculator', 'com.ageha.eclosion.calculator', 4, [], { width: 300, height: 440, resizable: false }],
+      ['calculator', 'com.ageha.eclosion.calculator', 5, [], { width: 300, height: 440, resizable: false }],
       [
         'notes',
         'com.ageha.eclosion.notes',
-        4,
+        5,
         ['filesystem.read', 'filesystem.write'],
         { width: 720, height: 480, resizable: true },
       ],
-      ['clock', 'com.ageha.eclosion.clock', 4, ['storage'], { width: 420, height: 560, resizable: true }],
+      ['clock', 'com.ageha.eclosion.clock', 5, ['storage'], { width: 420, height: 560, resizable: true }],
     ])
-    expect(BASIC_ECLOSION_SPEC_VERSION).toBe(4)
+    expect(BASIC_ECLOSION_SPEC_VERSION).toBe(5)
   })
 
   it('never carries a hint to the client (ADR 27: server-side prompt surface)', () => {

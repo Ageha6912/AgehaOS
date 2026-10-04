@@ -335,18 +335,18 @@ describe('eclosion basic spec table (server copy, §5.2)', () => {
         spec.window,
       ]),
     ).toEqual([
-      ['calculator', 'com.ageha.eclosion.calculator', 4, [], { width: 300, height: 440, resizable: false }],
+      ['calculator', 'com.ageha.eclosion.calculator', 5, [], { width: 300, height: 440, resizable: false }],
       [
         'notes',
         'com.ageha.eclosion.notes',
-        4,
+        5,
         ['filesystem.read', 'filesystem.write'],
         { width: 720, height: 480, resizable: true },
       ],
-      ['clock', 'com.ageha.eclosion.clock', 4, ['storage'], { width: 420, height: 560, resizable: true }],
+      ['clock', 'com.ageha.eclosion.clock', 5, ['storage'], { width: 420, height: 560, resizable: true }],
     ])
     expect(findBasicSpec('nope')).toBeNull()
-    expect(basicCacheKey(calculatorSpec(), 'm')).toBe('basic:calculator:v4:m')
+    expect(basicCacheKey(calculatorSpec(), 'm')).toBe('basic:calculator:v5:m')
   })
 
   it('keeps every spec hint server-side (ADR 27: no client hint surface)', () => {
@@ -401,7 +401,7 @@ describe('eclosion basic spec table (server copy, §5.2)', () => {
     expect(sys).toContain('.ax-glow')
     expect(sys).toContain('.ax-rise')
     expect(sys).toContain('.ax-stage')
-    expect(sys).toContain('.ax-fit')
+    expect(sys).toContain('.ax-fill')
     expect(sys).toContain('禁止重写')
 
     // 反俗套红线（含用户裁决：绝对禁止蓝紫渐变）。
