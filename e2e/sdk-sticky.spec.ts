@@ -25,7 +25,7 @@ test('sdk sticky notes: install, write through the sandbox bridge, persist acros
   // 安装便签（申请 storage + window 权限，对话框默认全选）。
   await revealTaskbar(page)
   await startButton.click()
-  await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: '应用商店', exact: true }).click()
+  await page.getByTestId('launcher-grid').getByRole('button', { name: '应用商店', exact: true }).click()
   const store = page.getByRole('region', { name: '应用商店' })
   await expect(store).toBeVisible()
 

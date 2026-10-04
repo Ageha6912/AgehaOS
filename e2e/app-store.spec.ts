@@ -19,10 +19,11 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
   const startButton = taskbarStartButton(page)
   await expect(startButton).toBeVisible()
 
-  // 内置应用里现在有计算器（P1 系统应用）。
+  // 内置应用里现在有计算器（P1 系统应用）。STEP 8 起 Pinned 行与网格同列
+  // 同名瓦片，启动一律取 Categories 网格项（core-path 同口径）。
   await revealTaskbar(page)
   await startButton.click()
-  await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: /计算器/ }).click()
+  await page.getByTestId('launcher-grid').getByRole('button', { name: /计算器/ }).click()
   const calculator = page.getByRole('region', { name: '计算器' })
   await expect(calculator).toBeVisible()
   await page.getByTestId('calculator-key-7').click()
@@ -35,7 +36,7 @@ test('app store: install a sandboxed web app, launch it, uninstall it', async ({
   // 打开应用商店，安装「时钟」（零权限 Web 应用）。
   await revealTaskbar(page)
   await startButton.click()
-  await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: '应用商店', exact: true }).click()
+  await page.getByTestId('launcher-grid').getByRole('button', { name: '应用商店', exact: true }).click()
   const store = page.getByRole('region', { name: '应用商店' })
   await expect(store).toBeVisible()
 
@@ -102,7 +103,7 @@ test('store list keeps a visible scrollbar and a bottom fade while content overf
 
   await revealTaskbar(page)
   await taskbarStartButton(page).click()
-  await page.getByRole('list', { name: /开始/ }).getByRole('button', { name: '应用商店', exact: true }).click()
+  await page.getByTestId('launcher-grid').getByRole('button', { name: '应用商店', exact: true }).click()
   const store = page.getByRole('region', { name: '应用商店' })
   await expect(store).toBeVisible()
 
