@@ -11,19 +11,10 @@ import { useWindowStore } from '@/store/window-store'
 
 import { AppLauncher } from './AppLauncher'
 import { WindowPreview } from './WindowPreview'
+import { PINNED_APP_IDS } from './pinned-apps'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 
 const HOVER_DELAY_MS = 350
-
-/** 常驻瓷贴（§32 参考图 Dock 位；全部真实应用）。 */
-const PINNED_APP_IDS = [
-  'com.ageha.files',
-  'com.ageha.notes',
-  'com.ageha.calculator',
-  'com.ageha.terminal',
-  'com.ageha.store',
-  'com.ageha.settings',
-] as const
 
 /**
  * 常驻 Dock（docs/DESIGN.md §9/§20 + §32 修订 8，2026-10-01 用户裁决）：

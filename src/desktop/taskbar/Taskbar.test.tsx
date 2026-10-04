@@ -168,14 +168,17 @@ describe('Taskbar', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
 
-    // 采纳后的菜单：档位宽度 + 重置入口；分类轨照常。
+    // 采纳后的菜单：档位宽度 + 重置入口；分类芯片照常。
     expect(screen.getByTestId('launcher-layout-double')).toBeInTheDocument()
     expect(screen.getByTestId('launcher-layout-reset')).toBeInTheDocument()
     expect(screen.getByTestId('launcher-category-recent')).toBeInTheDocument()
 
-    // 从网格启动应用照常工作（建议成员排序在前列；限定网格 ul——推荐行也用应用名）。
+    // 从网格启动应用照常工作（建议成员排序在前列；STEP 8 起面板含
+    // Pinned 行等 6 列网格，取 Categories 区的末位网格）。
     const menu = screen.getByTestId('launcher-layout-double')
-    const grid = menu.querySelector('ul.grid') as HTMLElement
+    const grids = menu.querySelectorAll('ul.grid')
+    expect(grids.length).toBeGreaterThan(1)
+    const grid = grids[grids.length - 1] as HTMLElement
     fireEvent.click(within(grid).getByRole('button', { name: /计算器/ }))
     expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.calculator')
   })
@@ -197,8 +200,9 @@ describe('Taskbar', () => {
     render(<Taskbar />)
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
-    const grid = within(screen.getByTestId('launcher-grid'))
     fireEvent.change(screen.getByTestId('launcher-search'), { target: { value: '记' } })
+    // STEP 8：搜索态是独立的结果网格（浏览网格卸载重挂），输入后重新取位。
+    const grid = within(screen.getByTestId('launcher-grid'))
     expect(grid.getByRole('button', { name: '记事' })).toBeInTheDocument()
     expect(grid.queryByRole('button', { name: '文件' })).not.toBeInTheDocument()
 
@@ -365,22 +369,22 @@ describe('Taskbar', () => {
     expect(button.querySelector('[data-wave-icon]')).not.toBeNull()
   })
 
-  it('opens the launcher as a left-anchored two-pane panel above the dock (§32)', () => {
+  it('opens the launcher as a centered large glass panel (Shell 3.0 STEP 8)', () => {
     render(<Taskbar />)
 
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
     const search = screen.getByTestId('launcher-search')
     const menu = search.closest('menu') as HTMLElement
-    // 左侧锚定（贴左栏），锚在 Dock 上方（dock-gap token 计算式），宽 410px、4 列网格。
-    expect(menu.className).toContain('left-[calc(var(--ag-rail-left-width)+1.125rem)]')
-    expect(menu.className).toContain('bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+0.75rem)]')
-    expect(menu.className).toContain('w-[410px]')
-    expect(menu.querySelector('ul.grid')?.className).toContain('grid-cols-4')
-    // 尺寸恒定（2026-10-02 裁决：分类切换面板不变形）；高度 427px（用户
-    // 裁决「降低至原先的三分之二」= 640×2/3≈427；min() 安全帽防短视口溢
-    // 顶，内容内部滚动）；右列按分类 key 重挂 + os-pop-in 淡入微动。
-    expect(menu.className).toContain('h-[min(427px,calc(100vh-var(--ag-dock-height)-3rem))]')
+    // 居中：pointer-events-none 满视口容器 + 上（菜单栏带）下（Dock 带）
+    // 让位后取视觉中心；portal 到 body（包含块恒为视口，坑 13）。
+    expect(menu.className).toContain('w-[600px]')
+    expect(menu.className).toContain('max-w-[calc(100vw-1.5rem)]')
+    // 尺寸恒定（2026-10-02 裁决：分类切换面板不变形）；高度 520px（STEP 8
+    // 居中档；min() 安全帽防短视口溢顶，内容内部滚动）。
+    expect(menu.className).toContain('h-[min(520px,calc(100vh-13rem))]')
     expect(menu.className).not.toContain('max-h-')
+    // 6 列网格 + 分类切换淡入微动（os-pop-in 契约不变）。
+    expect(menu.querySelector('ul.grid')?.className).toContain('grid-cols-6')
     expect(menu.innerHTML).toContain('animate-os-pop-in')
   })
 

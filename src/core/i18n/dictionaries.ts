@@ -161,7 +161,8 @@ export const dictionaries = {
     'launcher.cat.fun': '娱乐休闲',
     'launcher.cat.tools': '工具',
     'launcher.cat.settings': '设置',
-    'launcher.recommend': '推荐',
+    'launcher.section.pinned': '常驻',
+    'launcher.section.categories': '分类',
     'launcher.recent': '最近',
     'taskbar.preview.minimized': '窗口已最小化',
 
@@ -683,7 +684,8 @@ export const dictionaries = {
     'launcher.cat.fun': 'Entertainment',
     'launcher.cat.tools': 'Utilities',
     'launcher.cat.settings': 'Settings',
-    'launcher.recommend': 'Recommended',
+    'launcher.section.pinned': 'Pinned',
+    'launcher.section.categories': 'Categories',
     'launcher.recent': 'Recent',
     'taskbar.preview.minimized': 'Window minimized',
 

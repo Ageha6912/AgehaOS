@@ -262,33 +262,39 @@ describe('AppLauncher × 工作空间排序（Desktop Shell 3.0 STEP 2）', () =
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
   }
 
-  it('recommendations flip with the workspace choice (selector 真实影响推荐)', () => {
+  it('recent row order flips with the workspace choice (selector 真实影响最近/推荐序)', () => {
     useUsageStore.getState().recordRecentApp('com.ageha.notes')
+    useUsageStore.getState().recordRecentApp('com.ageha.terminal')
 
+    // 个人空间：office 亲和的「记事」排前，终端不浮到行首。
     useWorkspaceStore.getState().setWorkspace('personal')
     const personal = render(<AppLauncher />)
     fireEvent.click(screen.getByRole('button', { name: /开始/ }))
-    const personalTop = screen.getAllByTestId('launcher-recommend-item')[0]!.textContent ?? ''
-    expect(personalTop).not.toContain('终端')
+    const personalRows = screen.getAllByTestId('launcher-recent-item')
+    expect(personalRows[0]!.textContent).toContain('记事')
+    expect(personalRows[1]!.textContent).toContain('终端')
     personal.unmount()
 
+    // 开发空间：亲和高的「终端」浮到行首——selector 驱动的实时重排。
     useWorkspaceStore.getState().setWorkspace('dev')
     resetLauncherStore()
     openLauncher()
-    const devRows = screen.getAllByTestId('launcher-recommend-item')
+    const devRows = screen.getAllByTestId('launcher-recent-item')
     expect(devRows[0]!.textContent).toContain('终端')
+    expect(devRows[1]!.textContent).toContain('记事')
   })
 
-  it('reorders the recent grid by workspace affinity, keeping recency among equals', () => {
+  it('keeps recency among equals in the recent row (同分保持时序)', () => {
+    // dev 空间下 文件 与 记事（system/office 均不在 dev 亲和表内）同分 0
+    // ——保持最近使用时序（记事后录 → 行首）。
+    useUsageStore.getState().recordRecentApp('com.ageha.files')
     useUsageStore.getState().recordRecentApp('com.ageha.notes')
-    useUsageStore.getState().recordRecentApp('com.ageha.terminal')
     useWorkspaceStore.getState().setWorkspace('dev')
 
     openLauncher()
-    // recent 分类 = 最近置顶的全量网格：亲和高者优先，同分保持时序。
-    const recentItems = screen.getAllByTestId('launcher-recent-item')
-    expect(recentItems[0]!.textContent).toContain('终端')
-    expect(recentItems[1]!.textContent).toContain('记事')
+    const rows = screen.getAllByTestId('launcher-recent-item')
+    expect(rows[0]!.textContent).toContain('记事')
+    expect(rows[1]!.textContent).toContain('文件')
   })
 
   it('reorders the today world rows by workspace affinity (今日世界建议)', () => {
@@ -339,5 +345,61 @@ describe('AppLauncher × 工作空间排序（Desktop Shell 3.0 STEP 2）', () =
       useWorkspaceStore.getState().setWorkspace('dev')
     })
     expectGridOrder('边缘神谕', '信号织机')
+  })
+})
+
+describe('AppLauncher × 键盘导航（Desktop Shell 3.0 STEP 8 验收）', () => {
+  const openLauncher = (): HTMLElement => {
+    render(<AppLauncher />)
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+    return screen.getByRole('list', { name: /开始/ }) as HTMLElement
+  }
+  const activeText = (menu: HTMLElement): string =>
+    menu.querySelector('[data-active="true"]')?.textContent ?? ''
+
+  it('arrows move the highlight across Recent → Pinned → Categories, Enter launches', () => {
+    useUsageStore.getState().recordRecentApp('com.ageha.notes')
+    const menu = openLauncher()
+
+    // 打开即高亮扁平动作序第一项（Recent 行首 = 记事）。
+    expect(activeText(menu)).toContain('记事')
+    // ↓ 越过 Recent 行，落到 Pinned 行首（文件）。
+    fireEvent.keyDown(screen.getByTestId('launcher-search'), { key: 'ArrowDown' })
+    expect(activeText(menu)).toContain('文件')
+    // ↑ 回到 Recent 行首。
+    fireEvent.keyDown(screen.getByTestId('launcher-search'), { key: 'ArrowUp' })
+    expect(activeText(menu)).toContain('记事')
+    // Enter 启动当前高亮项，面板关闭。
+    fireEvent.keyDown(screen.getByTestId('launcher-search'), { key: 'Enter' })
+    expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.notes')
+    expect(screen.queryByRole('list', { name: /开始/ })).toBeNull()
+  })
+
+  it('search mode: browse rows yield, arrows clamp and Enter launches the active match', () => {
+    const menu = openLauncher()
+    fireEvent.change(screen.getByTestId('launcher-search'), { target: { value: '记' } })
+
+    // 搜索态结果即目标：Recent/Pinned 行不在场，高亮落首个命中。
+    expect(screen.queryByTestId('launcher-recent-item')).toBeNull()
+    expect(screen.queryByTestId('launcher-pinned-list')).toBeNull()
+    expect(activeText(menu)).toContain('记事')
+    // 唯一命中：↑↓ 均钳制在首项，越界不崩。
+    fireEvent.keyDown(screen.getByTestId('launcher-search'), { key: 'ArrowDown' })
+    expect(activeText(menu)).toContain('记事')
+    fireEvent.keyDown(screen.getByTestId('launcher-search'), { key: 'ArrowUp' })
+    expect(activeText(menu)).toContain('记事')
+    fireEvent.keyDown(screen.getByTestId('launcher-search'), { key: 'Enter' })
+    expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.notes')
+  })
+
+  it('category chips reset the highlight; Enter always acts on the clamped highlight', () => {
+    const menu = openLauncher()
+    fireEvent.click(screen.getByTestId('launcher-category-today'))
+    // 今日世界为空（未种子世界）：芯片选中态切换，高亮归零钳制在合法范围。
+    expect(screen.getByTestId('launcher-category-today').getAttribute('aria-pressed')).toBe('true')
+    // 高亮恒有落点（钳到 Pinned 行首），Enter 依高亮启动、空分类不崩溃。
+    expect(activeText(menu)).toContain('文件')
+    fireEvent.keyDown(screen.getByTestId('launcher-search'), { key: 'Enter' })
+    expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.files')
   })
 })
