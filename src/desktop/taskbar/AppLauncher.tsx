@@ -26,6 +26,7 @@ import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { pruneLayoutSuggestion } from '@/core/dynamic/layout/engine'
 import { useAppStore } from '@/store/app-store'
+import { useLauncherStore } from '@/store/launcher-store'
 import { useUsageStore } from '@/store/usage-store'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { useEclosionStore } from '@/store/eclosion-store'
@@ -93,7 +94,12 @@ const TIER_WIDTH_CLASS: Record<string, string> = {
 }
 
 export function AppLauncher() {
-  const [open, setOpen] = useState(false)
+  // 开合入 store（Desktop Shell 3.0 STEP 1）：Dock 触发器与左侧 Workspace
+  // Rail 的「启动器」项共享同一面板（notification-store.panelOpen 同模式）；
+  // 搜索词/分类仍是本组件的本地 UI 态。
+  const open = useLauncherStore((s) => s.launcherOpen)
+  const setLauncherOpen = useLauncherStore((s) => s.setLauncherOpen)
+  const toggleLauncher = useLauncherStore((s) => s.toggleLauncher)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<CategoryId>('recent')
   const menuPhase = useExitPhase(open)
@@ -104,7 +110,7 @@ export function AppLauncher() {
   const searchRef = useRef<HTMLInputElement | null>(null)
 
   const closeMenu = (): void => {
-    setOpen(false)
+    setLauncherOpen(false)
     setQuery('')
   }
   // 弹层契约（§24 + UI 评审 P0-2）：Esc / 外部按下 / 被其他弹层顶替即关闭；
@@ -296,7 +302,7 @@ export function AppLauncher() {
         aria-label={t('taskbar.start')}
         title={t('taskbar.start')}
         className="flex h-12 w-12 items-center justify-center rounded-xl"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => toggleLauncher()}
       >
         {/* 启动器瓷贴（§32 参考图 Launchpad 位）：浅底四宫格。 */}
         <span

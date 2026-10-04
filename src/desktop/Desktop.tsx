@@ -103,19 +103,18 @@ export function Desktop() {
           Dock。菜单栏 z-[41] 略高于其余 z-40 chrome，其下拉/通知面板不会被
           随后渲染的左右栏盖住（层级靠 z-index，不靠渲染顺序）。 */}
       <MenuBar />
-      {/* 系统栏组（2026-10-03 用户裁决「两栏毛玻璃连成一体」）：单一玻璃
-          面板承载左栏 + 今日应用列——一道边框、一份圆角、一份投影，中缝
-          只是今日列的 border-l 内部分隔线（今日列未就绪时组即纯左栏，外观
-          不变）。flex-row-reverse：DOM 序 TodayRail 在前（先绘在下），左栏
-          及其向右伸出的 tooltip 恒在其上；视觉上左栏仍在左（主轴反转）。
-          ⚠️ 组容器不得挂 overflow（会裁掉向右伸出的 os-tooltip）。 */}
-      {/* system-rails（2026-10-03 裁决「单栏拉长」；同日追加「离顶离底等
-          距」）：上沿菜单栏下 12px（44px），下沿距视口底 44px（Dock 高
-          68 + gap 20 悬在其上）；今日应用列随「合并为一栏」退役。 */}
+      {/* 系统栏组（Desktop Shell 3.0 STEP 1）：单一玻璃面板承载左侧
+          Workspace Rail——一道边框、一份圆角、一份投影。 */}
+      {/* system-rails（Desktop Shell 3.0 STEP 1 Workspace Rail，§33.2 浮岛
+          基线）：窄轨漂浮垂直居中——left 16px、top 50% + translateY(-50%)、
+          圆角 20px（--ag-radius-xl）、半透明玻璃 + subtle border + soft
+          shadow（shadow-float），浮于壁纸之上；今日应用列已退役，面板内容
+          （hover/click 展开 Workspace Panel）在下一切片。⚠️ 组容器不得挂
+          overflow（会裁掉向右伸出的 os-tooltip，§26 教训）。 */}
       <div
         data-testid="system-rails"
         ref={railsRef}
-        className={`desktop-chrome surface-glass ${liquidMap ? 'glass-liquid' : 'glass-raise'} fixed left-4 top-[calc(var(--ag-menubar-height)+0.75rem)] bottom-[2.75rem] z-40 hidden flex-col rounded-xl border border-border shadow-float sm:flex`}
+        className={`desktop-chrome surface-glass ${liquidMap ? 'glass-liquid' : 'glass-raise'} fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 flex-col rounded-xl border border-border shadow-float sm:flex`}
       >
         <Sidebar />
       </div>

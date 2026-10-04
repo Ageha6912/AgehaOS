@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { resetAppStore } from '@/store/app-store'
+import { resetLauncherStore, useLauncherStore } from '@/store/launcher-store'
 import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
@@ -12,64 +13,93 @@ beforeEach(() => {
   resetWindowStore()
   resetAppStore()
   resetNotificationStore()
+  resetLauncherStore()
 })
 
-describe('Sidebar', () => {
-  it('renders the eight real-action items in reference order (§26/§32)', () => {
+describe('Sidebar（Workspace Rail）', () => {
+  it('renders the rail entries in order: mark + desktop/launcher/files/notes/terminal/settings/notifications（Shell 3.0 STEP 1）', () => {
     render(<Sidebar />)
 
-    for (const name of ['桌面', '应用商店', '文件管理', '终端', '设置', '云同步', '通知中心', '用户中心']) {
+    // Ageha Mark 是装饰位（非按钮）；七个动作条目按裁决顺序排列。
+    for (const name of ['桌面', '启动器', '文件管理', '记事', '终端', '设置', '通知中心']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
-    // 参考图顺序：桌面 → 应用商店 → 文件管理 → 终端 → 设置 → 云同步 → 通知中心 → 用户中心。
-    const order = ['desktop', 'store', 'files', 'terminal', 'settings', 'sync', 'notifications', 'user-center']
-      .map((id) => screen.getByTestId(`sidebar-${id}`))
-    expect(order.indexOf(screen.getByTestId('sidebar-desktop'))).toBeLessThan(
-      order.indexOf(screen.getByTestId('sidebar-store')),
-    )
-    expect(order.indexOf(screen.getByTestId('sidebar-store'))).toBeLessThan(
-      order.indexOf(screen.getByTestId('sidebar-files')),
-    )
-  })
-
-  it('renders icon-left label-right rows（2026-10-03 裁决「名称在图标右方」）', () => {
-    render(<Sidebar />)
-
-    const item = screen.getByTestId('sidebar-files')
-    // 行式条目：全宽行 + 图标（36px 瓷贴保留）在左 + 名称在右。
-    for (const cls of ['w-full', 'items-center', 'gap-3', 'rounded-xl', 'px-2', 'py-1.5']) {
-      expect(item.classList.contains(cls), cls).toBe(true)
+    // 商店/云同步/用户中心退出版面（入口仍在：Dock 常驻瓷贴/顶栏 Cloud/顶栏用户菜单）。
+    for (const name of ['应用商店', '云同步', '用户中心']) {
+      expect(screen.queryByRole('button', { name })).toBeNull()
     }
-    const wrapper = item.firstElementChild as HTMLElement
-    expect(wrapper.classList.contains('relative')).toBe(true)
-    expect(wrapper.classList.contains('shrink-0')).toBe(true)
-    const tile = wrapper.firstElementChild as HTMLElement
-    expect(tile.style.backgroundImage).toContain('linear-gradient')
-    expect(tile.classList.contains('rounded-lg')).toBe(true)
-    expect(tile.classList.contains('h-9')).toBe(true)
-    expect(tile.classList.contains('w-9')).toBe(true)
-    // 名称常显（文本 = sidebar.files 词条，13px 截断式）。
-    const label = item.querySelector('.truncate') as HTMLElement
-    expect(label).not.toBeNull()
-    expect(label.textContent).toBe('文件管理')
-    expect(label.className).toContain('text-[13px]')
+    const order = ['desktop', 'launcher', 'files', 'notes', 'terminal', 'settings', 'notifications'].map(
+      (id) => screen.getByTestId(`sidebar-${id}`),
+    )
+    for (let index = 1; index < order.length; index += 1) {
+      const relation = order[index - 1]!.compareDocumentPosition(order[index]!)
+      expect(relation & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
   })
 
-  it('retires the tooltip bubble—labels are always visible（2026-10-03 裁决）', () => {
+  it('keeps the Ageha Mark decorative (aria-hidden, out of the button tree)', () => {
+    render(<Sidebar />)
+
+    const mark = screen.getByTestId('sidebar').querySelector('img')
+    expect(mark).not.toBeNull()
+    expect(mark?.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('is icon-first: labels live in os-tooltip bubbles, not as visible rows (§33.3)', () => {
     render(<Sidebar />)
 
     const item = screen.getByTestId('sidebar-files')
-    // 名称常显后自绘气泡退役；原生 title 保留承载云同步组合提示。
-    expect(item.querySelector('.os-tooltip')).toBeNull()
-    expect(item.getAttribute('title')).toBe('文件管理')
+    expect(item.getAttribute('aria-label')).toBe('文件管理')
+    // 气泡 tooltip 回归（窄轨名称弱化）：文本由 os-tooltip 承载。
+    const tooltip = item.querySelector('.os-tooltip')
+    expect(tooltip).not.toBeNull()
+    expect(tooltip?.textContent).toBe('文件管理')
+    expect(tooltip?.getAttribute('aria-hidden')).toBe('true')
+    // 行式名称/彩瓷贴退役：无可见标签 span，无渐变底。
+    expect(item.querySelector('.truncate')).toBeNull()
+    expect((item.firstElementChild as HTMLElement).style.backgroundImage).toBe('')
   })
 
-  it('user center deep-links Settings to the account partition (§32)', () => {
+  it('uses light translucent capsules (44px round, token hovers) — no solid primary blocks', () => {
     render(<Sidebar />)
 
-    fireEvent.click(screen.getByTestId('sidebar-user-center'))
-    const settings = useWindowStore.getState().windows.find((win) => win.appId === 'com.ageha.settings')
-    expect(settings).toBeDefined()
+    for (const testid of ['sidebar-desktop', 'sidebar-launcher', 'sidebar-files', 'sidebar-notes', 'sidebar-terminal', 'sidebar-settings', 'sidebar-notifications']) {
+      const item = screen.getByTestId(testid)
+      for (const cls of ['h-11', 'w-11', 'rounded-full', 'hover:bg-surface-raised', 'active:bg-surface-elevated', 'data-[active]:bg-surface-raised']) {
+        expect(item.classList.contains(cls), `${testid} missing ${cls}`).toBe(true)
+      }
+      // 禁实心蓝色块（用户一票否决）：条目永不挂 bg-primary。
+      expect(item.classList.contains('bg-primary'), `${testid} has bg-primary`).toBe(false)
+    }
+  })
+
+  it('stays an overflow-free static column — tooltips must never be clipped (§26)', () => {
+    render(<Sidebar />)
+
+    const nav = screen.getByTestId('sidebar')
+    for (const cls of ['flex', 'flex-col', 'items-center', 'gap-1', 'w-[calc(var(--ag-rail-left-width)-0.5rem)]']) {
+      expect(nav.classList.contains(cls), cls).toBe(true)
+    }
+    // overflow-y 会连带把 overflow-x 变 auto，向右伸出的 os-tooltip 被裁掉。
+    expect(nav.className).not.toContain('overflow')
+    expect(nav.className).not.toContain('scroll-thin')
+  })
+
+  it('toggles the shared launcher panel via the launcher store', () => {
+    render(<Sidebar />)
+
+    const launcher = screen.getByTestId('sidebar-launcher')
+    expect(launcher.getAttribute('aria-expanded')).toBe('false')
+    expect(launcher.getAttribute('data-active')).toBeNull()
+
+    fireEvent.click(launcher)
+    expect(useLauncherStore.getState().launcherOpen).toBe(true)
+    expect(launcher.getAttribute('aria-expanded')).toBe('true')
+    expect(launcher.getAttribute('data-active')).toBe('true')
+
+    fireEvent.click(launcher)
+    expect(useLauncherStore.getState().launcherOpen).toBe(false)
+    expect(launcher.getAttribute('aria-expanded')).toBe('false')
   })
 
   it('show-desktop minimizes every open window', () => {
@@ -89,9 +119,13 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByTestId('sidebar-files'))
     expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.files')
 
+    fireEvent.click(screen.getByTestId('sidebar-notes'))
     fireEvent.click(screen.getByTestId('sidebar-terminal'))
+    fireEvent.click(screen.getByTestId('sidebar-settings'))
     const ids = useWindowStore.getState().windows.map((win) => win.appId)
+    expect(ids).toContain('com.ageha.notes')
     expect(ids).toContain('com.ageha.terminal')
+    expect(ids).toContain('com.ageha.settings')
   })
 
   it('toggles the shared notification center panel and shows the unread badge', () => {
@@ -100,64 +134,14 @@ describe('Sidebar', () => {
 
     expect(screen.getByTestId('sidebar-unread').textContent).toBe('1')
 
-    fireEvent.click(screen.getByTestId('sidebar-notifications'))
+    const bell = screen.getByTestId('sidebar-notifications')
+    fireEvent.click(bell)
     expect(useNotificationStore.getState().panelOpen).toBe(true)
+    expect(bell.getAttribute('aria-expanded')).toBe('true')
+    expect(bell.getAttribute('data-active')).toBe('true')
 
-    fireEvent.click(screen.getByTestId('sidebar-notifications'))
+    fireEvent.click(bell)
     expect(useNotificationStore.getState().panelOpen).toBe(false)
-  })
-
-  it('disables cloud sync in local mode with an explanatory hint', () => {
-    render(<Sidebar />)
-
-    const sync = screen.getByTestId('sidebar-sync')
-    expect(sync).toBeDisabled()
-    expect(sync.getAttribute('title')).toContain('远程模式登录后可用')
-    // 状态圆点不出现（未开启）。
-    expect(sync.querySelector('.bg-primary')).toBeNull()
-  })
-
-  it('renders as a static column inside the system-rails group; glass chrome lives on the group (2026-10-03 两栏连成一体)', () => {
-    render(<Sidebar />)
-
-    const nav = screen.getByTestId('sidebar')
-    // 2026-10-03 裁决「单栏拉长」：名称右置行式条目，列内容随组容器高度
-    // 拉长（内部滚动兜底短视口）；150px 栏宽容纳「图标 + 四字名称」。
-    for (const cls of [
-      'flex',
-      'flex-col',
-      'w-[calc(var(--ag-rail-left-width)-0.5rem)]',
-      'px-2',
-      'py-3',
-      'gap-1',
-      'overflow-y-auto',
-      'scroll-thin',
-      'min-h-0',
-    ]) {
-      expect(nav.classList.contains(cls), cls).toBe(true)
-    }
-    // 旧的自绘玻璃/定位退役（归组容器）；通栏贴边（Web Sidebar）残留同样
-    // 不允许回归。
-    for (const cls of [
-      'fixed',
-      'surface-glass',
-      'glass-raise',
-      'rounded-xl',
-      'shadow-float',
-      'left-4',
-      'top-1/2',
-      'border-r',
-      'border-border-subtle',
-      'bottom-0',
-      'left-0',
-      'rounded-2xl',
-      'shadow-popover',
-      'flex-row-reverse',
-      'items-stretch',
-      'top-1/2',
-    ]) {
-      expect(nav.classList.contains(cls), `no ${cls}`).toBe(false)
-    }
-    expect(nav.className).not.toContain('top-[calc')
+    expect(bell.getAttribute('data-active')).toBeNull()
   })
 })

@@ -98,9 +98,9 @@ describe('index.css token contract (Token 2.0)', () => {
     // 顶栏高度与 viewport.ts 的 MENUBAR_HEIGHT_PX 常量互指（§19；Shell 2.0
     // 精修 32px：h-7(28px) 触发器 + 上下 2px 呼吸）。
     expect(root).toMatch(/--ag-menubar-height:\s*32px/)
-    // 左侧系统导航栏宽度与 RAIL_LEFT_WIDTH_PX 常量互指（§26；Shell 2.0
-    // icon-first 收窄 80px，内容宽 76px）。
-    expect(root).toMatch(/--ag-rail-left-width:\s*150px/)
+    // 左侧 Workspace Rail 宽度与 RAIL_LEFT_WIDTH_PX 常量互指（§26；Shell
+    // 3.0 STEP 1 窄轨浮岛 80px = 44px 圆钮 ×2 + 呼吸，内容宽 72px）。
+    expect(root).toMatch(/--ag-rail-left-width:\s*80px/)
     // 右侧小组件栏宽度与 RAIL_RIGHT_WIDTH_PX 常量互指（§27；2026-10-01
     // 用户裁决收窄至 296px）。
     expect(root).toMatch(/--ag-rail-right-width:\s*296px/)

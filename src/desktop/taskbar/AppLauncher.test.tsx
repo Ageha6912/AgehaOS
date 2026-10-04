@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { registerRuntimeApp, resetAppStore } from '@/store/app-store'
+import { resetLauncherStore } from '@/store/launcher-store'
 import { systemEclosion } from '@/services/eclosion'
 import { resetEclosionStore, seedEclosionForTests, useEclosionStore } from '@/store/eclosion-store'
 import { resetUsageStore } from '@/store/usage-store'
@@ -38,6 +39,7 @@ beforeEach(() => {
   resetAppStore()
   resetUsageStore()
   resetEclosionStore()
+  resetLauncherStore()
 })
 
 describe('filterLauncherAppIds（纯函数）', () => {

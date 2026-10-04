@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildWallpaperPlan, COMPOSITIONS } from '@/core/dynamic/generative/templates'
 import { useBootStore } from '@/store/boot-store'
 import { installApp, resetAppStore } from '@/store/app-store'
+import { resetLauncherStore } from '@/store/launcher-store'
 import { STORE_CATALOG } from '@/apps/store/catalog'
 import {
   resetDynamicDesktopStore,
@@ -30,6 +31,7 @@ beforeEach(() => {
   resetAppStore()
   resetDynamicDesktopStore()
   resetUsageStore()
+  resetLauncherStore()
 })
 
 function launchFromStartMenu(appName: RegExp) {
@@ -48,19 +50,18 @@ describe('Desktop', () => {
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('widget-rail')).toBeInTheDocument()
 
-    // 系统栏组（2026-10-03 裁决「单栏拉长」）：单一玻璃面板只承载左栏——
-    // 上锚菜单栏下 12px、下锚 Dock 上 16px；今日列退役，flex-row-reverse
-    // （两栏主轴反转）随之退役。
+    // 系统栏组（Shell 3.0 STEP 1 Workspace Rail）：单一玻璃面板承载窄轨，
+    // 漂浮垂直居中（left-16px / top 50% + translateY(-50%)）；面板内容在
+    // 下一切片，flex-row-reverse（两栏主轴反转）不回归。
     const rails = screen.getByTestId('system-rails')
-    for (const cls of ['surface-glass', 'rounded-xl', 'shadow-float', 'flex-col']) {
+    for (const cls of ['surface-glass', 'rounded-xl', 'shadow-float', 'flex-col', 'left-4', 'top-1/2', '-translate-y-1/2']) {
       expect(rails.classList.contains(cls), cls).toBe(true)
     }
-    for (const cls of ['flex-row-reverse', 'top-1/2', '-translate-y-1/2']) {
+    for (const cls of ['flex-row-reverse', 'bottom-[2.75rem]']) {
       expect(rails.classList.contains(cls), `no ${cls}`).toBe(false)
     }
-    expect(rails.className).toContain('top-[calc(var(--ag-menubar-height)+0.75rem)]')
-    // 同日追加「离顶离底等距」：下沿距视口底 44px（= 上沿的菜单栏 32+12）。
-    expect(rails.className).toContain('bottom-[2.75rem]')
+    expect(rails.className).not.toContain('top-[calc(var(--ag-menubar-height)')
+    // 无 overflow：向右伸出的 os-tooltip 不得被组容器裁剪（§26）。
     expect(rails.className).not.toContain('overflow')
   })
 
@@ -141,8 +142,9 @@ describe('Desktop', () => {
 
     // 零自动开窗后：启动器开「记事」= 唯一窗口。
     expect(useWindowStore.getState().windows).toHaveLength(1)
-    // 桌面图标层已移除（2026-10-01 用户裁决）：「记事」只在窗口标题栏。
-    expect(screen.getAllByText('记事').length).toBe(1)
+    // 桌面图标层已移除（2026-10-01 用户裁决）：「记事」在窗口层只在标题栏
+    // （Workspace Rail 的 os-tooltip 也含应用名，主地标作用域内仍唯一）。
+    expect(within(screen.getByRole('main', { name: '窗口' })).getAllByText('记事').length).toBe(1)
 
     // 关闭记事窗口。
     fireEvent.click(

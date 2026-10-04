@@ -5,6 +5,7 @@ import { resetWindowStore, useWindowStore } from '@/store/window-store'
 import { resetUsageStore, useUsageStore } from '@/store/usage-store'
 import { resetAppStore } from '@/store/app-store'
 import { resetDynamicDesktopStore, useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
+import { resetLauncherStore } from '@/store/launcher-store'
 
 import { Taskbar } from './Taskbar'
 
@@ -15,6 +16,7 @@ beforeEach(() => {
   resetAppStore()
   resetDynamicDesktopStore()
   resetUsageStore()
+  resetLauncherStore()
 })
 
 describe('Taskbar', () => {

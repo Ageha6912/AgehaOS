@@ -6,13 +6,13 @@ import type { Viewport } from '@/core/window'
  * 工作区之上（§9）——不为任务栏预留高度。
  *
  * 与 index.css 的 --ag-menubar-height / --ag-rail-left-width 同值钉扎
- * （src/index.css.test.ts + viewport.test 双侧互指；Shell 2.0 精修
- * 2026-10-02：菜单栏 32px / 左栏 80px），运行时读 computedStyle 属同步
- * 测量（提示词 §36 禁），故双常量互指。
+ * （src/index.css.test.ts + viewport.test 双侧互指；Desktop Shell 3.0
+ * STEP 1：菜单栏 32px / 左侧 Workspace Rail 回归窄轨 80px），运行时读
+ * computedStyle 属同步测量（提示词 §36 禁），故双常量互指。
  */
 export const MENUBAR_HEIGHT_PX = 32
-export const RAIL_LEFT_WIDTH_PX = 150
-/** Tailwind sm 断点：侧栏 <640px 隐藏（Sidebar 的 hidden sm:flex 同值）。 */
+export const RAIL_LEFT_WIDTH_PX = 80
+/** Tailwind sm 断点：左轨 <640px 隐藏（system-rails 组容器的 hidden sm:flex 同值）。 */
 export const RAIL_LEFT_BREAKPOINT_PX = 640
 export const RAIL_RIGHT_WIDTH_PX = 296
 /** Tailwind xl 断点：小组件栏 <1280px 隐藏（WidgetRail 的 hidden xl:flex 同值）。 */
