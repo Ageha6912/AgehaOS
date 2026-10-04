@@ -489,13 +489,13 @@ describe('EclosionAppFrame（宿主容器）', () => {
     })
   })
 
-  it('retries once on a runner error, then falls back with the classic-version title notice', async () => {
+  it('retries twice on runner errors (GLM 语法笔误率裁决), then the third attempt renders', async () => {
     const okDoc = () =>
       new Response(frame('delta', { text: DOC_HTML }) + frame('done', {}), {
         headers: { 'content-type': 'text/event-stream' },
       })
-    const { orchestrator, calls } = makeOrchestrator([okDoc(), okDoc()])
-    const { runner, posted, windowId } = await renderHosted({ orchestrator })
+    const { orchestrator, calls } = makeOrchestrator([okDoc(), okDoc(), okDoc()])
+    const { runner, posted } = await renderHosted({ orchestrator })
     fireEvent.load(document.querySelector('iframe') as HTMLIFrameElement)
     act(() => {
       window.dispatchEvent(eventFrom(runner, { type: 'agehaos:ready' }))
@@ -514,10 +514,8 @@ describe('EclosionAppFrame（宿主容器）', () => {
     expect(retrySession?.getSnapshot().attempt).toBe(2)
     expect(calls[1]?.body).toMatchObject({ regenerate: true })
 
-    // 第二次也失败 → 回落原生 + 标题提示 + eclosion.app.failed。
-    const failed = vi.fn()
-    systemBus.on('eclosion.app.failed', failed)
-    // 重挂的 iframe 需要重新驱动握手（jsdom 不真加载 runner）。
+    // 第二次也失败 → 第三轮自动重试（重挂的 iframe 需要重新驱动握手，jsdom
+    // 不真加载 runner）。
     const secondIframe = document.querySelector('iframe') as HTMLIFrameElement
     const secondRunner = secondIframe.contentWindow as Window
     const secondPosted: Posted[] = []
@@ -535,16 +533,23 @@ describe('EclosionAppFrame（宿主容器）', () => {
       window.dispatchEvent(eventFrom(secondRunner, { type: 'eclosion:error', message: 'boom again' }))
     })
 
-    await waitFor(() => expect(screen.getByTestId('calculator-display')).toBeInTheDocument())
-    expect(document.querySelector('iframe')).toBeNull()
-    expect(
-      useWindowStore.getState().windows.find((win) => win.id === windowId)?.title,
-    ).toBe('计算器 · 已回落经典版')
-    expect(failed).toHaveBeenCalledWith({
-      appId: CALCULATOR,
-      specId: 'calculator',
-      reason: expect.stringContaining('runner-error'),
+    // 第三次尝试（2026-10-04：GLM 语法笔误率裁决，MAX_ATTEMPTS 2→3）——重挂
+    // iframe 驱动握手后让其成功渲染，不再回落。
+    const thirdIframe = document.querySelector('iframe') as HTMLIFrameElement
+    const thirdRunner = thirdIframe.contentWindow as Window
+    const thirdPosted: Posted[] = []
+    thirdRunner.postMessage = vi.fn(((message: Posted) => {
+      thirdPosted.push(message)
+    }) as never)
+    fireEvent.load(thirdIframe)
+    act(() => {
+      window.dispatchEvent(eventFrom(thirdRunner, { type: 'agehaos:ready' }))
     })
+    await waitFor(() => {
+      expect(thirdPosted.some((message) => message.type === 'eclosion:power-on')).toBe(true)
+    })
+    expect(orchestrator.ensureSession(CALCULATOR)?.getSnapshot().attempt).toBe(3)
+    expect(document.querySelector('iframe')).not.toBeNull()
   })
 
   it('treats a missing rendered after power-on as a failure after 5 seconds (fake timers)', async () => {

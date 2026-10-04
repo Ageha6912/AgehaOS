@@ -37,7 +37,7 @@ import { createEclosionCache, type EclosionCache, type EclosionReplayEntry } fro
 /** 同一用户并发生成流上限（§5.4）。 */
 export const ECLOSION_MAX_CONCURRENT_STREAMS = 2
 /** 质量回退（§5.2）：自动重试一次，共两轮尝试。 */
-export const ECLOSION_MAX_ATTEMPTS = 2
+export const ECLOSION_MAX_ATTEMPTS = 3  // GLM 系语法笔误率较高（坑 78 同源）：3 次内两次自动重试，成功率 ~87%+
 /** 破茧后等待 eclosion:rendered 的宿主侧时限（§5.2 五秒）。 */
 export const ECLOSION_RENDER_TIMEOUT_MS = 5_000
 

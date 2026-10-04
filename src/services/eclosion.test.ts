@@ -267,10 +267,11 @@ describe('EclosionOrchestrator：SSE 流式生成（§5.3）', () => {
 })
 
 describe('EclosionOrchestrator：质量回退与重新羽化（§5.2/§5.4）', () => {
-  it('retries once on retryable failures, then falls back and emits eclosion.app.failed', async () => {
+  it('retries twice on retryable failures (GLM 语法笔误率裁决), then falls back and emits eclosion.app.failed', async () => {
     const { fetcher, calls } = makeTransport([
       sseResponse([frame('meta', {}), frame('error', { code: 'ai-upstream' })]),
       sseResponse([frame('meta', {}), frame('error', { code: 'ai-timeout' })]),
+      sseResponse([frame('meta', {}), frame('error', { code: 'invalid-output' })]),
     ])
     const orchestrator = makeOrchestrator(fetcher)
     const failed = vi.fn()
@@ -288,14 +289,20 @@ describe('EclosionOrchestrator：质量回退与重新羽化（§5.2/§5.4）', 
     expect(session.getSnapshot().attempt).toBe(2)
     expect(calls[1]?.body).toMatchObject({ regenerate: true })
 
-    // 第二次失败 → 终态回落 + 事件（通知桥只消费这一态）。
-    expect(orchestrator.requestRetry(CLOCK, 'run-timeout')).toBe(false)
+    // 第二次失败 → 再自动重试一次（2026-10-04：GLM 语法笔误率高，预算 3 次）。
+    expect(orchestrator.requestRetry(CLOCK, 'run-timeout')).toBe(true)
+    await session.settled()
+    expect(session.getSnapshot().attempt).toBe(3)
+    expect(calls[2]?.body).toMatchObject({ regenerate: true })
+
+    // 第三次失败 → 终态回落 + 事件（通知桥只消费这一态）。
+    expect(orchestrator.requestRetry(CLOCK, 'run-invalid')).toBe(false)
     expect(session.getSnapshot().fellBack).toBe(true)
-    expect(failed).toHaveBeenCalledWith({ appId: CLOCK, specId: 'clock', reason: 'run-timeout' })
+    expect(failed).toHaveBeenCalledWith({ appId: CLOCK, specId: 'clock', reason: 'run-invalid' })
     expect(decision).toHaveBeenCalledWith({ domain: 'app', source: 'local' })
     // 再试不再产生请求。
     expect(orchestrator.requestRetry(CLOCK, 'again')).toBe(false)
-    expect(calls).toHaveLength(2)
+    expect(calls).toHaveLength(3)
   })
 
   it('regenerate drops the local cache and asks the server to bypass the shared one', async () => {
