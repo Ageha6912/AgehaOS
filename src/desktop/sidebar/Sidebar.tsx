@@ -9,6 +9,7 @@ import {
   Monitor,
   Notebook,
   PaintBrush,
+  Sparkle,
   SquaresFour,
   TerminalWindow,
   User,
@@ -17,13 +18,16 @@ import {
 import { AppIcon } from '@/apps/app-icon'
 import { appDisplayName, launchApp } from '@/apps/launch'
 import { BrandLogo } from '@/components/brand-logo'
+import { utcDayKey } from '@/core/eclosion/world'
 import { greetingTitleKey } from '@/core/dynamic/content/engine'
 import { timePhaseOf } from '@/core/dynamic/generative/seed'
-import { useTranslation } from '@/core/i18n'
+import { useTranslation, formatMessage } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { launcherWorkspaceScore, rankByScore } from '@/desktop/workspace/affinity'
 import type { WorkspacePanelController } from '@/desktop/workspace/use-workspace-panel'
+import { requestLauncherCategory } from '@/desktop/taskbar/launcher-intent'
 import { useAppStore } from '@/store/app-store'
+import { useEclosionStore } from '@/store/eclosion-store'
 import { useLauncherStore } from '@/store/launcher-store'
 import { unreadCount, useNotificationStore } from '@/store/notification-store'
 import { useSessionStore } from '@/store/session-store'
@@ -45,7 +49,9 @@ import type { WorkspaceId } from '@/store/workspace-store'
  * 钉 RAIL_LEFT_WIDTH_PX=80）。面板是连续的 Workspace Environment（不切成
  * 一堆 card）：品牌区（BrandLogo + 字标 + 标语）→ 今日空间（真实日期 +
  * 按当前用户问候，greeting 引擎 timePhase）→ 工作空间 selector（真实持久
- * 化，排序影响见 affinity.ts）→ 最近使用（usage-store 真实数据）。收起：
+ * 化，排序影响见 affinity.ts）→ 最近使用（usage-store 真实数据）→ 底部垫
+ * 今日世界品牌入口（STEP 3，复用 eclosion-store 世界摘要 + 「查看世界」
+ * 直达启动器「今日」分类，WorkspaceTodayWorld）。收起：
  * 鼠标离开（240ms 宽限）/ Esc / 面板外按下（pin 态）；展开态下条目名称
  * 常显，os-tooltip 经 index.css `[data-expanded] .os-tooltip` 退出。
  * 组容器仍不得挂 overflow（收起态气泡向右伸出，§26 教训）——内容列的
@@ -131,6 +137,66 @@ function useNow(intervalMs = 30_000): Date {
     return () => window.clearInterval(timer)
   }, [intervalMs])
   return now
+}
+
+/**
+ * 今日世界分区（Desktop Shell 3.0 STEP 3）：AgehaOS 独有的品牌入口，垫在
+ * 面板底部（mt-auto 锚底 + hairline 分隔）。数据零新取数——复用羽化编排器
+ * 写入 eclosion-store 的世界摘要（新应用数 = apps.length、趋势主题 =
+ * headline、今日更新状态 = worldDate 对 utcDayKey），禁止假数据：
+ * - 羽化关（默认）→ 整区不渲染（WorldSignals 同款门控；桌面保持安静）；
+ * - 开但世界未落地（拉取中/503 静默降级）→ 安静空态，不渲染跳转钮
+ *   （无数据可看时「查看世界」即死按钮，拒绝装饰性谎言）。
+ * 「查看世界 →」= 打开启动器并直接落在「今日」分类（launcher-intent 一次
+ * 性意图；面板收起走既有的弹层互斥，不在此重复收起逻辑）。
+ */
+function WorkspaceTodayWorld() {
+  const { t } = useTranslation()
+  const enabled = useEclosionStore((s) => s.enabled)
+  const world = useEclosionStore((s) => s.world)
+  const setLauncherOpen = useLauncherStore((s) => s.setLauncherOpen)
+
+  if (!enabled) return null
+
+  // 「今日已更新」以当日世界为准（会话跨 UTC 零点的陈旧摘要如实标注）。
+  const fresh = world !== null && world.worldDate === utcDayKey()
+
+  return (
+    <section aria-label={t('workspace.panel.world')} className="mt-auto border-t border-border-subtle pt-2">
+      <PanelHeading>{t('workspace.panel.world')}</PanelHeading>
+      {world === null ? (
+        <p data-testid="workspace-world-empty" className="px-1 text-[11px] leading-snug text-text-tertiary">
+          {t('workspace.panel.world.empty')}
+        </p>
+      ) : (
+        <button
+          type="button"
+          data-testid="workspace-world-entry"
+          aria-label={`${t('workspace.panel.world.view')}：${world.headline}`}
+          onClick={() => {
+            requestLauncherCategory('today')
+            setLauncherOpen(true)
+          }}
+          className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-surface-raised"
+        >
+          <Sparkle size={14} weight="fill" aria-hidden="true" className="shrink-0 text-primary" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-xs font-medium leading-snug text-text">
+              {world.headline}
+            </span>
+            <span className="mt-0.5 block truncate text-[11px] leading-snug text-text-muted">
+              {formatMessage(t('workspace.panel.world.apps'), { count: String(world.apps.length) })}
+              {' · '}
+              {t(fresh ? 'workspace.panel.world.fresh' : 'workspace.panel.world.stale')}
+            </span>
+          </span>
+          <span aria-hidden="true" className="shrink-0 text-[11px] font-medium text-primary">
+            {t('workspace.panel.world.view')} →
+          </span>
+        </button>
+      )}
+    </section>
+  )
 }
 
 /** 展开态内容列（Workspace Environment）：品牌区 → 今日空间 → 工作空间 → 最近使用。 */
@@ -258,6 +324,10 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
             </p>
           )}
         </section>
+
+        {/* 今日世界（STEP 3）：品牌入口垫底——真实世界摘要 + 「查看世界」。
+            羽化关不渲染（默认桌面保持安静）。 */}
+        <WorkspaceTodayWorld />
       </div>
     </div>
   )

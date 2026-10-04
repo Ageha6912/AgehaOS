@@ -3,6 +3,7 @@ import { useRef } from 'react'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resetAppStore } from '@/store/app-store'
+import { resetEclosionStore, seedEclosionForTests, useEclosionStore } from '@/store/eclosion-store'
 import { resetLauncherStore, useLauncherStore } from '@/store/launcher-store'
 import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
@@ -11,6 +12,11 @@ import { resetWindowStore, useWindowStore } from '@/store/window-store'
 import { resetWorkspaceStore, useWorkspaceStore } from '@/store/workspace-store'
 
 import { Sidebar } from './Sidebar'
+import { utcDayKey } from '@/core/eclosion/world'
+import {
+  consumeLauncherCategory,
+  resetLauncherIntent,
+} from '@/desktop/taskbar/launcher-intent'
 import { useWorkspacePanel } from '@/desktop/workspace/use-workspace-panel'
 
 /**
@@ -44,6 +50,8 @@ beforeEach(() => {
   resetUsageStore()
   resetWorkspaceStore()
   resetSessionStore()
+  resetEclosionStore()
+  resetLauncherIntent()
 })
 
 afterEach(() => {
@@ -379,5 +387,95 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     fireEvent.click(bell)
     expect(useNotificationStore.getState().panelOpen).toBe(false)
     expect(bell.getAttribute('data-active')).toBeNull()
+  })
+
+  // ── STEP 3：面板底部「今日世界」品牌入口（复用 eclosion-store 世界摘要）──
+
+  /** 种当日世界摘要（编排器 applyWorld 同形；测试注入不走网络）。 */
+  function seedWorld(worldDate: string = utcDayKey()): void {
+    seedEclosionForTests('u-sidebar-world', true)
+    useEclosionStore.getState().applyWorld({
+      worldDate,
+      headline: '边缘推理的浪潮',
+      paletteId: 'aurora-borealis',
+      accentHue: 212,
+      degraded: false,
+      signalCount: 3,
+      signals: {
+        titles: ['本地智能体编排框架冲上热榜'],
+        sourceName: 'GitHub Trending',
+        sourceUrl: 'https://example.com/trending',
+      },
+      apps: [
+        {
+          slug: 'edge-oracle',
+          name: '边缘神谕',
+          hue: 268,
+          tagline: '在你的浏览器里预言下一行代码',
+          category: 'tools',
+          window: { width: 720, height: 480 },
+        },
+        {
+          slug: 'trend-compass',
+          name: '趋势罗盘',
+          hue: 210,
+          tagline: '把六条趋势折叠成一张导航图',
+          category: 'tools',
+          window: { width: 720, height: 480 },
+        },
+      ],
+    })
+  }
+
+  it('today world entry renders the real world summary and jumps to the launcher today category', () => {
+    seedWorld()
+    render(<SidebarHarness />)
+
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+
+    // 真实摘要：趋势主题（headline）+ 新应用数 + 今日更新状态。
+    const entry = screen.getByTestId('workspace-world-entry')
+    expect(entry.textContent).toContain('边缘推理的浪潮')
+    expect(entry.textContent).toContain('2 款新应用')
+    expect(entry.textContent).toContain('今日已更新')
+
+    // 「查看世界」：打开共享启动器 + 排队「今日」分类定位意图（取走即清）。
+    fireEvent.click(entry)
+    expect(useLauncherStore.getState().launcherOpen).toBe(true)
+    expect(consumeLauncherCategory()).toBe('today')
+    expect(consumeLauncherCategory()).toBeNull()
+    // 弹层互斥：启动器打开即收起面板（既有契约，不由入口重复收起）。
+    expect(screen.getByTestId('sidebar').getAttribute('data-expanded')).toBeNull()
+  })
+
+  it('today world entry shows a quiet empty state (no dead jump) when the world has not landed', () => {
+    seedEclosionForTests('u-sidebar-world-empty', true)
+    render(<SidebarHarness />)
+
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+
+    expect(screen.getByTestId('workspace-world-empty').textContent).toContain('还未织成')
+    // 无数据 → 无「查看世界」死按钮。
+    expect(screen.queryByTestId('workspace-world-entry')).toBeNull()
+  })
+
+  it('today world entry is absent entirely when eclosion is off (default quiet desktop)', () => {
+    render(<SidebarHarness />)
+
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+
+    expect(screen.queryByTestId('workspace-world-entry')).toBeNull()
+    expect(screen.queryByTestId('workspace-world-empty')).toBeNull()
+  })
+
+  it('a stale world (session crossed UTC midnight) is labeled honestly as awaiting refresh', () => {
+    seedWorld('2026-01-01')
+    render(<SidebarHarness />)
+
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+
+    const entry = screen.getByTestId('workspace-world-entry')
+    expect(entry.textContent).toContain('等待换新')
+    expect(entry.textContent).not.toContain('今日已更新')
   })
 })

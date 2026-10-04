@@ -347,6 +347,41 @@ test.describe('P2 今日世界（世界就绪 → 落位）', () => {
     ).toHaveCount(1)
   })
 
+  test('Workspace Panel 底部「今日世界」入口：真实摘要 + 「查看世界」直达启动器「今日」分类', async ({
+    page,
+  }) => {
+    const world = worldPayload({
+      headline: '面板入口的世界：边缘推理与本地智能体',
+      accentHue: 160,
+      signalTitles: ['本地智能体编排框架冲上热榜', '边缘推理网关发布 2.0'],
+    })
+    await registerDesktop(page, 'e2eworld-panel-entry')
+    await stubEclosionBackend(page, { world: () => world })
+    await seedEclosionEnabled(page)
+
+    // 世界先落地（启动器「今日」分组可见），关启动器回桌面。
+    await waitForWorldLanded(page, '边缘神谕')
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('launcher-grid')).toHaveCount(0)
+
+    // pin 展开面板 → 底部入口在场：趋势主题（headline）+ 新应用数 + 今日更新状态。
+    await page.getByTestId('sidebar-brand').click()
+    const entry = page.getByTestId('workspace-world-entry')
+    await expect(entry).toBeVisible()
+    await expect(entry).toContainText('面板入口的世界：边缘推理与本地智能体')
+    await expect(entry).toContainText('6 款新应用')
+    await expect(entry).toContainText('今日已更新')
+
+    // 「查看世界 →」：打开共享启动器并直接落在「今日」分类（aria-pressed），
+    // 面板经既有弹层互斥收起。
+    await entry.click()
+    await expect(page.getByTestId('launcher-category-today')).toHaveAttribute('aria-pressed', 'true')
+    await expect(
+      page.getByTestId('launcher-grid').getByRole('button', { name: '边缘神谕' }),
+    ).toBeVisible()
+    await expect(page.getByTestId('system-rails')).not.toHaveAttribute('data-expanded', 'true')
+  })
+
   test('主题双主题对比度过质量门：世界 accent 落地后浅/深两主题 WCAG ≥3（计算值实算）', async ({
     page,
   }) => {
@@ -407,6 +442,12 @@ test.describe('P2 今日世界（世界就绪 → 落位）', () => {
     expect(stubs.worldHits()).toBeGreaterThanOrEqual(1)
     await page.keyboard.press('Escape')
     await expect(taskbarStartButton(page)).toBeVisible()
+
+    // 面板入口：世界未落地 → 安静空态（无数据不建「查看世界」死按钮）。
+    await page.getByTestId('sidebar-brand').click()
+    await expect(page.getByTestId('workspace-world-empty')).toBeVisible()
+    await expect(page.getByTestId('workspace-world-empty')).toContainText('还未织成')
+    await expect(page.getByTestId('workspace-world-entry')).toHaveCount(0)
   })
 })
 
@@ -547,5 +588,11 @@ test.describe('回归：默认配置（羽化关）', () => {
     await expect(page.getByText('无匹配结果')).toBeVisible()
     await expect(page.getByTestId('menubar-world-signals')).toHaveCount(0)
     expect(await worldAccentInline(page)).toBe('')
+
+    // 面板入口整区不渲染（羽化关 → 默认桌面保持安静）。
+    await page.keyboard.press('Escape')
+    await page.getByTestId('sidebar-brand').click()
+    await expect(page.getByTestId('workspace-world-entry')).toHaveCount(0)
+    await expect(page.getByTestId('workspace-world-empty')).toHaveCount(0)
   })
 })

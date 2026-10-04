@@ -38,6 +38,7 @@ import { useWorkspaceStore } from '@/store/workspace-store'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { useEclosionStore } from '@/store/eclosion-store'
 import { systemEclosion } from '@/services/eclosion'
+import { consumeLauncherCategory } from './launcher-intent'
 import { filterLauncherAppIds } from './launcher-visibility'
 
 /**
@@ -107,9 +108,17 @@ export function AppLauncher() {
     },
     { insideRefs: [wrapperRef, menuRef] },
   )
-  // 打开即可输入：聚焦搜索框。
+  // 打开即可输入：聚焦搜索框；外部入口的「打开即定位」意图（Desktop Shell
+  // 3.0 STEP 3：Workspace Panel「查看世界」落「今日」分类）在打开瞬间消费
+  // ——取走即清，未消费的普通打开维持上次的分类。
   useEffect(() => {
-    if (open) searchRef.current?.focus()
+    if (!open) return
+    const requested = consumeLauncherCategory()
+    if (requested) {
+      setQuery('')
+      setCategory(requested)
+    }
+    searchRef.current?.focus()
   }, [open])
   const installedApps = useAppStore((s) => s.apps)
   const eclosionEnabled = useEclosionStore((s) => s.enabled)

@@ -10,6 +10,11 @@ import { resetWorkspaceStore, useWorkspaceStore } from '@/store/workspace-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
 import { AppLauncher } from './AppLauncher'
+import {
+  consumeLauncherCategory,
+  requestLauncherCategory,
+  resetLauncherIntent,
+} from './launcher-intent'
 import { filterLauncherAppIds } from './launcher-visibility'
 
 /**
@@ -42,6 +47,7 @@ beforeEach(() => {
   resetWorkspaceStore()
   resetEclosionStore()
   resetLauncherStore()
+  resetLauncherIntent()
 })
 
 describe('filterLauncherAppIds（纯函数）', () => {
@@ -188,6 +194,25 @@ describe('AppLauncher × 今日/我的羽化（§6.4/§8）', () => {
     // 单击瓦片 = 打开即按需生成（2026-10-02 落位裁决：不设双击）。
     fireEvent.click(gridIn().getByRole('button', { name: '边缘神谕' }))
     expect(useWindowStore.getState().windows[0]?.appId).toBe(TODAY_APP_1)
+  })
+
+  it('consumes the open-with-intent: an external「查看世界」lands on the today category', () => {
+    seedEclosionForTests('u-world-intent', true)
+    seedWorld()
+    registerRuntime(TODAY_APP_1, '边缘神谕')
+    registerRuntime(TODAY_APP_2, '信号织机')
+    // Workspace Panel「查看世界」的排队路径：打开前写入一次性意图。
+    requestLauncherCategory('today')
+
+    render(<AppLauncher />)
+    fireEvent.click(screen.getByRole('button', { name: /开始/ }))
+
+    // 打开即消费：直接落在「今日」分类（aria-pressed）且世界瓦片在场。
+    expect(screen.getByTestId('launcher-category-today').getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('launcher-category-recent').getAttribute('aria-pressed')).toBe('false')
+    expect(gridIn().getByRole('button', { name: '边缘神谕' })).toBeInTheDocument()
+    // 取走即清：意图只消费一次，不污染后续普通打开。
+    expect(consumeLauncherCategory()).toBeNull()
   })
 
   it('hides the today group entirely while eclosion is off', () => {
