@@ -1,5 +1,17 @@
 # AgehaOS 交付与部署日志
 
+## 2026-10-02 用户裁决：system-rails 毛玻璃换液态玻璃（ZenDesktop 观感）
+
+- 左栏组（system-rails）的毛玻璃（.glass-raise 20px blur）替换为**液态玻璃**：SVG feDisplacementMap 位移折射（位移图运行时 canvas 生成，R/G 通道编码 X/Y 位移，边缘带内沿外法线 smoothstep 推挤）+ blur 2px 保底柔化 + inset 高光 rims（顶缘强/侧缘弱/底缘中）。
+- 原创 Web 实现（ZenDesktop 为 Windows C++ Windhawk 工具，无可移植代码——只对标观感）；位移图生成失败/jsdom 回落 .glass-raise；降透明/无 bf 源序兜底不变。
+- 测试：纯数学 4 例（SDF/曲线/法线/回落）+ Desktop 液态/回落路径 2 例 + CSS 材质源序钉扎；eslint 忽略 .tmp/**。
+## 2026-10-03 羽化生成提示词注入设计语言与动效契约（taste-skill 蒸馏）
+
+- `server/src/eclosion/prompts.ts` systemContract 重写：在既有安全契约外固化 **AgehaOS「冷静玻璃」视觉语言**（蓝白冷色/单一强调 --ageha-primary/玻璃拟态配方含实色回退/一套圆角/留白与字阶体系）与**反俗套红线**（禁紫渐变/纯黑纯白/霓虹发光/三等分卡片阵/emoji 当图标/— 破折号）与 **CSS 动效契约**（入场 fade+上移 60ms 级联/hover 抬升/:active 按压 scale(0.98)/150-250ms cubic-bezier(0.16,1,0.3,1)/至多一处循环动画/**强制 prefers-reduced-motion 全关**）；只动 transform/opacity。
+- 行预算 150→**220**（给视觉完成度留空间，60KB 上限不变）；修真 bug：提示词示例引用不存在的 `--ageha-accent`（宿主实际注入 `--ageha-primary`），变量清单改为与 eclosion-theme.ts 逐项对齐并抽 THEME_VARS_LINE 常量。
+- `BASIC_ECLOSION_SPEC_VERSION` 1→**2**（双侧 + 测试字面量同步）：L1 全局 HTML 缓存按 (specId,specVersion,model) 失效——下次打开三件套即得新版式；今日应用当日缓存照旧（「重新羽化」立即得新版，次日世界换新自动带新风格）。
+- 服务端新增设计契约钉扎测试（prompt 含玻璃/reduced-motion/反俗套关键句、三种 kind 共用同一契约）；夹具版本同步。部署 ㉚ release 20261003143935，服务重启即生效。
+
 ## 2026-10-02 用户裁决：Dock 悬停预览可移入（悬停桥）
 
 - **根因**：预览卡片经 createPortal 挂在 body（坑 13 防包含块劫持），DOM 上不属于瓷贴 wrapper——wrapper 的 `mouseleave` 在指针离开图标的瞬间就触发 `endHover`，预览必消失，指针根本没机会移进去。

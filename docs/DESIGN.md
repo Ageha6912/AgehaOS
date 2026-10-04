@@ -1059,7 +1059,7 @@ Wallpaper → Desktop → Window → Popover → Modal 递进成立；大面=玻
 | --- | --- | --- | --- | --- |
 | menubar | `.glass-hint` | 12px | menubar-glass 白10% | 无（细底边 10%） |
 | widget | `.widget-card`（Acrylic 特例） | `--ag-widget-blur`=3px | Acrylic tint 渐变 | shadow-panel |
-| rail 左栏 | `.glass-raise` | 20px | surface-glass 基底 | `--ag-shadow-float` |
+| rail 左栏（system-rails 组） | `.glass-liquid`（2026-10-02 液态玻璃裁决） | 2px 保底柔化 + SVG 位移折射（#ag-liquid-rail） | surface-glass 基底 | `--ag-shadow-float` + inset 高光 rims |
 | dock | `.dock-glass` | 28px | 白22% | `--ag-shadow-dock` |
 | window | `.glass-deep` | 36px（`--ag-blur-xl`） | surface-glass 白72% | shadow-popover 档 |
 | popover | `.popover-panel` / `.glass-popover` | 44px（`--ag-blur-2xl`） | `--ag-glass-bg-strong` 白86% / 墨84%（chrome remap 白26%） | shadow-popover |
