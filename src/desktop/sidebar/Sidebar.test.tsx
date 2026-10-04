@@ -80,10 +80,22 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     // 宽度过渡走 --ag-motion-base（既有 motion Token，不另起系统）。
     expect(nav.className).toContain('transition-[width]')
     expect(nav.className).toContain('[transition-duration:var(--ag-motion-base)]')
+  })
 
+  it('mounts the panel body lazily on first expansion（净桌面启动不为面板付费）', () => {
+    render(<SidebarHarness />)
+
+    // 收起态：内容列不挂载（PRD §29.1 reload 预算）。
+    expect(screen.queryByTestId('workspace-panel')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
     const panelBody = screen.getByTestId('workspace-panel')
-    expect(panelBody.hasAttribute('inert')).toBe(true)
-    expect(panelBody.getAttribute('aria-hidden')).toBe('true')
+    expect(panelBody.hasAttribute('inert')).toBe(false)
+    expect(panelBody.getAttribute('aria-hidden')).toBe('false')
+
+    // 首展后常挂：收起只是 inert，不卸载（展开动画与滚动状态不丢）。
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+    expect(screen.getByTestId('workspace-panel').hasAttribute('inert')).toBe(true)
   })
 
   it('the Ageha Mark stays decorative; the brand button carries the accessible name', () => {

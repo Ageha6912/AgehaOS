@@ -47,8 +47,8 @@ test.describe('workspace panel', () => {
     expect(await rails.getAttribute('data-expanded')).toBeNull()
     expect(await railWidth(page)).toBeGreaterThanOrEqual(72)
     expect(await railWidth(page)).toBeLessThanOrEqual(88)
-    // 收起态面板不可达（inert）。
-    await expect(page.getByTestId('workspace-panel')).toHaveAttribute('aria-hidden', 'true')
+    // 收起态内容列不挂载（首展才挂载：净桌面 reload 预算不为面板付费）。
+    await expect(page.getByTestId('workspace-panel')).toHaveCount(0)
 
     // ② hover 展开：300-340 档（token 324）。
     await expandByHover(page)

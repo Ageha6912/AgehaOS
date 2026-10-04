@@ -169,7 +169,7 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
       aria-hidden={!expanded}
       // 收起态整列 inert：不可聚焦、不进可达树（展开动画期间同帧生效）。
       inert={!expanded}
-      className="h-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto scroll-thin opacity-0 -translate-x-2 pointer-events-none [transition:opacity_var(--ag-motion-fast)_var(--ag-motion-ease),transform_var(--ag-motion-fast)_var(--ag-motion-ease)] data-[expanded]:pointer-events-auto data-[expanded]:opacity-100 data-[expanded]:translate-x-0 data-[expanded]:[transition:opacity_var(--ag-motion-base)_var(--ag-motion-ease)_60ms,transform_var(--ag-motion-base)_var(--ag-motion-ease)_60ms]"
+      className="h-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto scroll-thin opacity-0 -translate-x-2 pointer-events-none animate-os-fade-in [transition:opacity_var(--ag-motion-fast)_var(--ag-motion-ease),transform_var(--ag-motion-fast)_var(--ag-motion-ease)] data-[expanded]:pointer-events-auto data-[expanded]:opacity-100 data-[expanded]:translate-x-0 data-[expanded]:[transition:opacity_var(--ag-motion-base)_var(--ag-motion-ease)_60ms,transform_var(--ag-motion-base)_var(--ag-motion-ease)_60ms]"
     >
       <div className="flex w-[15.25rem] flex-col gap-2.5 pb-1 pl-1 pr-2 pt-0.5">
         {/* 品牌区（§10 BrandLogo 复用）：字标 + 标语，纯展示。 */}
@@ -273,6 +273,13 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
   const launcherOpen = useLauncherStore((s) => s.launcherOpen)
   const toggleLauncher = useLauncherStore((s) => s.toggleLauncher)
   const unread = unreadCount(items)
+  // 面板内容列首展才挂载（渲染期派生重置，React 官方模式，坑 4）：收起态
+  // 不渲染问候/日期/最近——净桌面 reload 恢复预算（PRD §29.1 <3s）不为本
+  // 面板付费；首次展开经 animate-os-fade-in 保持淡入观感，此后常挂不重放。
+  const [panelEverExpanded, setPanelEverExpanded] = useState(false)
+  if (panel.expanded && !panelEverExpanded) {
+    setPanelEverExpanded(true)
+  }
 
   const showDesktop = (): void => {
     for (const win of [...windows]) {
@@ -379,8 +386,9 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
             badge={unread}
           />
         </div>
-        {/* 内容列：Workspace Panel（展开时经宽度过渡揭示；收起 inert）。 */}
-        <WorkspacePanelBody expanded={panel.expanded} />
+        {/* 内容列：Workspace Panel（展开时经宽度过渡揭示；收起 inert）；
+            首展才挂载（见 panelEverExpanded）。 */}
+        {panelEverExpanded ? <WorkspacePanelBody expanded={panel.expanded} /> : null}
       </div>
     </nav>
   )
