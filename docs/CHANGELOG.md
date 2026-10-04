@@ -1,4 +1,11 @@
 # AgehaOS 交付与部署日志
+## 2026-10-04 羽化生成 v3 设计系统上线（taste v5 清新多巴胺 + 结构闸双检查）
+
+- **ax-* 设计系统预置进运行时页**（public/apps/runtime/eclosion.html 新增 style 块，随 ?v=0.2.1 破缓存）：玻璃面板/三色渐变焦点文字/彩色胶囊/漂移光晕/弹性过冲入场 ax-rise/焦点弹出 ax-pop/布局骨架 ax-stage·ax-center·ax-fit——生成代码只写应用专属样式，基础质感 100% 命中。
+- **扩展色板**：--ageha-cyan/lime/orange 注入沙箱（eclosion-theme.ts 子集）；**用户裁决：绝对禁止蓝紫渐变**——渐变只允许 蓝→青→绿、橙→暖黄，提示词红线+预置样式双落实。
+- **提示词 v4**：ax 类菜谱化（结构配方/自适应红线/标志性瞬间/语法自检要求）+ 目标窗口尺寸注入（basic=规格表尺寸、today=世界行 window——布局不再瞎猜画布）。
+- **结构闸双检查**（html-gate）：① </html> 后缀截断（模型尾部自言自语不入流，流式封口早于外链扫描的次序已测试钉死）；② JS 语法检查（bad-script → invalid-output 自动重试，语法残次品不出闸；检查跑在**未剥离外链的原始文档**上——剥离可能制造合法→非法残句）。
+- **specVersion 3**：L1 全局缓存再失效，三件套下次打开即新版式。package.json 0.2.0→0.2.1（运行时页 ?v= 破缓存，坑 70）；Settings 关于区版本改从 package.json 导入（原硬编码 0.2.0 漂移）。部署㉞ release 20261004022057。采样留档：.tmp/sample-{timer,notes,memory}-*.png（三轮迭代：v3 素净→v4 活泼但蓝紫（用户否决）→v5 清新多巴胺定稿）。
 
 ## 2026-10-02 用户裁决：system-rails 毛玻璃换液态玻璃（ZenDesktop 观感）
 
