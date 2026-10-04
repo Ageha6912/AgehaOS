@@ -109,12 +109,13 @@ export function Desktop() {
           不变）。flex-row-reverse：DOM 序 TodayRail 在前（先绘在下），左栏
           及其向右伸出的 tooltip 恒在其上；视觉上左栏仍在左（主轴反转）。
           ⚠️ 组容器不得挂 overflow（会裁掉向右伸出的 os-tooltip）。 */}
-      {/* system-rails（2026-10-03 裁决「单栏拉长」）：上锚菜单栏下 12px、
-          下锚 Dock 上 16px；今日应用列随「合并为一栏」退役。 */}
+      {/* system-rails（2026-10-03 裁决「单栏拉长」；同日追加「离顶离底等
+          距」）：上沿菜单栏下 12px（44px），下沿距视口底 44px（Dock 高
+          68 + gap 20 悬在其上）；今日应用列随「合并为一栏」退役。 */}
       <div
         data-testid="system-rails"
         ref={railsRef}
-        className={`desktop-chrome surface-glass ${liquidMap ? 'glass-liquid' : 'glass-raise'} fixed left-4 top-[calc(var(--ag-menubar-height)+0.75rem)] bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+1rem)] z-40 hidden flex-col rounded-xl border border-border shadow-float sm:flex`}
+        className={`desktop-chrome surface-glass ${liquidMap ? 'glass-liquid' : 'glass-raise'} fixed left-4 top-[calc(var(--ag-menubar-height)+0.75rem)] bottom-[2.75rem] z-40 hidden flex-col rounded-xl border border-border shadow-float sm:flex`}
       >
         <Sidebar />
       </div>

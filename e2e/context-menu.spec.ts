@@ -32,9 +32,11 @@ test('desktop context menu: open at pointer, clamp to viewport, run actions', as
   await page.getByTestId('context-menu-renew-wallpaper').click()
   await expect(menu).toBeHidden()
 
-  // 再开 → 打开设置（设置窗经级联 176 起锚、右缘约 836；取其与右侧小组件
-  // 栏 964 起之间的稳定空白；拉伸后的系统栏组占 16-166 全高）。
-  await page.mouse.click(900, 400, { button: 'right' })
+  // 再开 → 打开设置（等距组 44-1036 + 级联起点 176：设置窗 y 钳 40-560、
+  // x 居中 160-1000。右缘 1000 与右栏 964 之间的缝不存在——点位取设置窗
+  // 上方壁纸带 (400,120) 之前需先确认窗顶：工作区居中后 y=40，窗顶贴
+  // 菜单栏。改取左下角 (300,690)：组左缘 16-166，窗底 560+40=600，以下空白。
+  await page.mouse.click(300, 690, { button: 'right' })
   await expect(menu).toBeVisible()
   await page.getByTestId('context-menu-open-settings').click()
   await expect(page.getByRole('region', { name: '设置' })).toBeVisible()
@@ -42,7 +44,7 @@ test('desktop context menu: open at pointer, clamp to viewport, run actions', as
 
   // 再开 → Esc 关闭（级联 176 + 840×560 的设置窗经入屏钳制占 176-1016×
   // 152-712，下部已被覆盖——取其上方的壁纸带；窗口/图标上不出菜单是预期）。
-  await page.mouse.click(400, 120, { button: 'right' })
+  await page.mouse.click(180, 690, { button: 'right' })
   await expect(menu).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()

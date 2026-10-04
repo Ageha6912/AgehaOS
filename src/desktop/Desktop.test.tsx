@@ -59,7 +59,8 @@ describe('Desktop', () => {
       expect(rails.classList.contains(cls), `no ${cls}`).toBe(false)
     }
     expect(rails.className).toContain('top-[calc(var(--ag-menubar-height)+0.75rem)]')
-    expect(rails.className).toContain('bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+1rem)]')
+    // 同日追加「离顶离底等距」：下沿距视口底 44px（= 上沿的菜单栏 32+12）。
+    expect(rails.className).toContain('bottom-[2.75rem]')
     expect(rails.className).not.toContain('overflow')
   })
 
