@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from 'react'
 
+import { version as appVersion } from '../../../package.json'
+
 import { consumeSettingsSection } from '@/apps/app-deep-link'
 import { appDisplayName } from '@/apps/launch'
 
@@ -281,7 +283,7 @@ function AboutSection() {
         <div>
           <p className="font-medium text-text">AgehaOS</p>
           <p className="font-mono text-[11px] text-text-muted">
-            {t('settings.aboutVersion')} 0.2.0 · {t('settings.aboutDescription')}
+            {t('settings.aboutVersion')} {appVersion} · {t('settings.aboutDescription')}
           </p>
         </div>
       </div>
