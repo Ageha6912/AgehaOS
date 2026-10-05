@@ -160,11 +160,18 @@ export function NotificationCenter() {
           {items.length === 0 ? (
             <p className="px-2 py-6 text-center text-xs text-text-muted">{t('notification.empty')}</p>
           ) : (
-            <ScrollFadeList className="space-y-1.5" testId="notification-list">
-              {items.map((item) => (
-                <NotificationRow key={item.id} item={item} />
-              ))}
-            </ScrollFadeList>
+            // 列表区必须定高：ScrollFadeList 的 ul 绝对铺满包装层（固有高度 0），
+            // 而本面板只有 max-h-96 没有确定高度，flex-1 无自由空间可分——有通知
+            // 时整个面板会塌缩到只剩标题行（QA 2026-10-04 通知面板态 0 高）。
+            // 沿用 EclosionSection 的「定高 flex-col 容器 + ScrollFadeList」既有
+            // 模式：条目多时列表内部滚动，面板仍落在 max-h-96 之内。
+            <div data-testid="notification-list-area" className="flex h-60 flex-col">
+              <ScrollFadeList className="space-y-1.5" testId="notification-list">
+                {items.map((item) => (
+                  <NotificationRow key={item.id} item={item} />
+                ))}
+              </ScrollFadeList>
+            </div>
           )}
         </div>
       )}

@@ -345,6 +345,12 @@ test.describe('P2 今日世界（世界就绪 → 落位）', () => {
     await expect(
       page.getByTestId('notification-item').filter({ hasText: '今日世界已就绪' }),
     ).toHaveCount(1)
+    // 列表区必须有真实几何高度：toBeVisible 检测不到「有布局盒但被 0 高
+    // overflow 容器裁剪」的塌缩（QA 2026-10-04 通知面板态），直接量盒子。
+    const listBox = await page.getByTestId('notification-list').boundingBox()
+    const panelBox = await page.getByTestId('notification-panel').boundingBox()
+    expect(listBox?.height ?? 0).toBeGreaterThan(120)
+    expect(panelBox?.height ?? 0).toBeGreaterThan(200)
   })
 
   test('Workspace Panel 底部「今日世界」入口：真实摘要 + 「查看世界」直达启动器「今日」分类', async ({

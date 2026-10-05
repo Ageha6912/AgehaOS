@@ -132,6 +132,23 @@ describe('NotificationCenter (PRD §16.2)', () => {
     expect(panel.classList.contains('popover-panel')).toBe(true)
   })
 
+  it('keeps the list area at a definite height so it cannot collapse to zero (QA 2026-10-04)', () => {
+    pushSample()
+    render(<NotificationCenter />)
+    fireEvent.click(screen.getByTestId('notification-bell'))
+
+    // ScrollFadeList 的 ul 绝对铺满包装层（固有高度 0），而面板只有 max-h 没有
+    // 确定高度——列表区必须由定高 flex-col 容器撑起，否则面板塌缩到只剩标题行
+    // （jsdom 无布局，这里断言结构契约；真实几何由 e2e/eclosion-world 量盒子）。
+    const area = screen.getByTestId('notification-list-area')
+    expect(area.className).toContain('flex')
+    expect(area.className).toContain('h-60')
+    expect(area).toContainElement(screen.getByTestId('notification-list'))
+    // 有通知时不渲染空态文案，条目仍走列表滚动区。
+    expect(screen.queryByText('暂无通知')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('notification-item')).toHaveLength(1)
+  })
+
   it('keeps the history capped at the store limit', () => {
     for (let index = 0; index < 35; index += 1) {
       pushSample()
