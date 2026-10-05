@@ -223,7 +223,7 @@ function WorkspaceTodayWorld() {
           {/* ✦ 渐变角标（§34 参考图的缩略位）：品牌入口气质，非假数据图片。 */}
           <span
             aria-hidden="true"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--ag-capsule-active)] shadow-sm"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg [background:var(--ag-capsule-active)] shadow-sm"
           >
             <Sparkle size={18} weight="fill" className="text-primary-contrast" />
           </span>
@@ -338,7 +338,7 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
                   aria-pressed={checked}
                   className={`flex h-9 items-center gap-2.5 rounded-xl px-2 text-left text-xs transition-colors ${
                     checked
-                      ? 'bg-[var(--ag-capsule-active)] font-medium text-primary-contrast shadow-sm'
+                      ? '[background:var(--ag-capsule-active)] font-medium text-primary-contrast shadow-sm'
                       : 'text-text-muted hover:bg-surface-raised hover:text-text'
                   }`}
                   onClick={() => setWorkspace(id)}
@@ -434,8 +434,8 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         aria-label={t('sidebar.label')}
         data-testid="sidebar"
         data-expanded={panel.expanded || undefined}
-        className={`desktop-chrome pointer-events-auto surface-glass flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-1 rounded-xl border border-border py-3 shadow-float ${
-          liquidMap ? 'glass-liquid' : 'glass-raise'
+        className={`chrome-paper pointer-events-auto surface-glass glass-bright flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-1 rounded-xl border border-border py-3 shadow-float ${
+          liquidMap ? 'glass-liquid' : ''
         }`}
       >
         {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。§34 参考图
@@ -447,7 +447,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
           aria-controls="workspace-panel"
           aria-label={brandLabel}
           onClick={panel.togglePin}
-          className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--ag-capsule-active)] shadow-sm transition-transform hover:scale-[1.04] focus-visible:scale-[1.04]"
+          className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl [background:var(--ag-capsule-active)] shadow-sm transition-transform hover:scale-[1.04] focus-visible:scale-[1.04]"
         >
           {/* Ageha Mark（§10 品牌主视觉）：装饰位，可访问名由按钮承载。 */}
           <BrandLogo size={26} />
@@ -564,7 +564,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         >
           <div
             data-testid="workspace-panel-surface"
-            className="desktop-chrome surface-glass glass-raise h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border shadow-float"
+            className="chrome-paper surface-glass glass-bright h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border shadow-float"
           >
             <WorkspacePanelBody expanded={panel.expanded} />
           </div>

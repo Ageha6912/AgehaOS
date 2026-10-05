@@ -156,11 +156,9 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(paperAt).toBeGreaterThan(css.indexOf('.surface-glass {'))
   })
 
-  it('darkens the menubar strip so its white text stays legible', () => {
-    const at = css.indexOf('.menubar-glass {')
-    const block = css.slice(at, css.indexOf('}', at))
-    expect(block).toMatch(/background:\s*rgb\(18 30 66 \/ 50%\)/)
-    expect(block).toMatch(/--ag-text-muted:\s*rgb\(255 255 255 \/ 92%\)/)
+  it('keeps the menubar on the bright paper glass via chrome-paper + glass-bright', () => {
+    // 组件侧钉扎在 Desktop.test；此处确认旧暗条材质类已整体退役。
+    expect(css).not.toContain('.menubar-glass')
   })
 
   it('lights sidebar tooltips with an unlayered rule (Tailwind utilities cannot beat opacity:0)', () => {
@@ -296,7 +294,7 @@ describe('index.css token contract (Token 2.0)', () => {
     const fallback = css.indexOf('prefers-reduced-transparency', base)
     expect(base).toBeGreaterThan(0)
     expect(fallback).toBeGreaterThan(base)
-    for (const marker of ['.glass-hint', '.glass-raise', '.glass-deep', '.window-glass-focus', '.dock-glass', '.glass-popover']) {
+    for (const marker of ['.glass-hint', '.glass-raise', '.glass-bright', '.glass-deep', '.window-glass-focus', '.dock-glass', '.glass-popover']) {
       const at = css.indexOf(marker)
       expect(at, `${marker} after the glass base rule`).toBeGreaterThan(base)
       expect(at, `${marker} before the reduced-transparency fallback`).toBeLessThan(fallback)
@@ -422,6 +420,24 @@ describe('index.css token contract (Token 2.0)', () => {
     // primary 同族明暗渐变，非新色相；双主题同形重声明。
     expect(root).toMatch(/--ag-capsule-active:\s*linear-gradient/)
     expect(dark).toMatch(/--ag-capsule-active:\s*linear-gradient/)
+  })
+
+  it('lifts the menubar and left islands onto bright paper glass (2026-10-05 裁决, §34)', () => {
+    // 亮白毛玻璃材质：strong 玻璃底（chrome-paper 作用域浅=白86%/深=墨84%）
+    // + rail 档 20px blur；旧「暗藏蓝半透条」.menubar-glass 退役。
+    const at = css.indexOf('.glass-bright {')
+    expect(at).toBeGreaterThan(css.indexOf('.surface-glass {'))
+    const rule = css.slice(at, css.indexOf('}', at))
+    expect(rule).toContain('background: var(--ag-glass-bg-strong)')
+    expect(rule).toContain('blur(var(--ag-blur-md))')
+    expect(css).not.toContain('.menubar-glass')
+    // 源序纪律：材质在玻璃基规则后、降透明兜底前；降透明/无 bf 回落实色
+    // modal 面（浅=白/深=墨，墨字对比不变）。兜底取材质之后的块（早段
+    // chrome 作用域另有降透明块，与亮白材质无关）。
+    const fallback = css.indexOf('@media (prefers-reduced-transparency: reduce)', at)
+    expect(css.slice(fallback, fallback + 800)).toContain('.glass-bright')
+    const supportsAt = css.indexOf('@supports not (backdrop-filter: blur(1px))', at)
+    expect(css.slice(supportsAt, supportsAt + 400)).toContain('.glass-bright')
   })
 
   it('documents the accent quota and the glass/solid material rules in the token header', () => {

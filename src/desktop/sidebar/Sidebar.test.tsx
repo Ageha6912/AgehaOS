@@ -368,7 +368,7 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     fireEvent.click(screen.getByTestId('sidebar-brand'))
     const active = screen.getByTestId('workspace-option-personal')
     // 选中 = 同族明暗渐变胶囊（--ag-capsule-active）；禁实心 bg-primary。
-    expect(active.className).toContain('bg-[var(--ag-capsule-active)]')
+    expect(active.className).toContain('[background:var(--ag-capsule-active)]')
     expect(active.className).not.toContain('bg-primary')
     // 未选中行保留 hover capsule；行尾 ›（aria-hidden 装饰）。
     const idle = screen.getByTestId('workspace-option-study')
@@ -401,7 +401,7 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     // 品牌钮 = 渐变 squircle 徽章（§34 参考图口径，同族明暗非新色相）。
     const brand = screen.getByTestId('sidebar-brand')
     expect(brand.className).toContain('rounded-xl')
-    expect(brand.className).toContain('bg-[var(--ag-capsule-active)]')
+    expect(brand.className).toContain('[background:var(--ag-capsule-active)]')
     expect(brand.className).not.toContain('bg-primary')
   })
 
