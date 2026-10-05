@@ -7,7 +7,8 @@ import { resetAppStore } from '@/store/app-store'
 import { resetDynamicDesktopStore, useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { resetLauncherStore } from '@/store/launcher-store'
 
-import { dockWaveTransform, DOCK_WAVE_SIGMA_PX, Taskbar } from './Taskbar'
+import { dockWaveTransform, DOCK_WAVE_SIGMA_PX } from './dock-wave'
+import { Taskbar } from './Taskbar'
 
 beforeEach(() => {
   vi.useFakeTimers()
