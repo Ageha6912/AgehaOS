@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test'
 
 /**
- * 左侧 Workspace Rail（Desktop Shell 3.0 STEP 1，docs/DESIGN.md §33.2 浮岛
- * 基线）：窄轨漂浮垂直居中、icon-first + os-tooltip、轻 translucent capsule；
- * 真实动作轨——启动应用、共享启动器面板、共享通知中心。
+ * 左侧 Workspace Rail + Workspace Panel（Desktop Shell 3.0，docs/DESIGN.md
+ * §34 双岛口径）：窄轨与面板是两块独立玻璃岛、顶锚菜单栏下方通高到 Dock
+ * 上方；icon-first + os-tooltip、轻 translucent capsule；真实动作轨——启动
+ * 应用、共享启动器面板、共享通知中心。
  */
 test('sidebar: floating narrow rail with working actions, tooltips and capsules', async ({
   page,
@@ -22,42 +23,48 @@ test('sidebar: floating narrow rail with working actions, tooltips and capsules'
   await expect(sidebar).toBeVisible({ timeout: 15_000 })
   const vp = page.viewportSize()!
 
-  // ① 窄轨漂浮 + 垂直居中：left 16px、宽 72-88px、中线 ≈ 视口中线。
-  const rail = page.getByTestId('system-rails')
+  // ① 双岛顶锚（§34）：窄轨岛 left 16px、宽 72-88px、顶边 = 菜单栏（32px）
+  //    +12px、岛高撑满定位带（视口 − 顶 44 − 底 100）；面板岛收起态不存在。
+  const rail = page.getByTestId('sidebar')
   const railBox = (await rail.boundingBox())!
   expect(railBox.x).toBeGreaterThanOrEqual(15.5)
   expect(railBox.x).toBeLessThanOrEqual(16.5)
   expect(railBox.width).toBeGreaterThanOrEqual(72)
   expect(railBox.width).toBeLessThanOrEqual(88)
-  expect(Math.abs(railBox.y + railBox.height / 2 - vp.height / 2)).toBeLessThanOrEqual(2)
+  expect(Math.abs(railBox.y - 44)).toBeLessThanOrEqual(2)
+  expect(Math.abs(railBox.height - (vp.height - 144))).toBeLessThanOrEqual(4)
+  await expect(page.getByTestId('workspace-panel-island')).toHaveCount(0)
 
   // ② Rail 启动文件管理器（与 Dock/启动器正交的快捷入口）。
   await page.getByTestId('sidebar-files').click()
   await expect(page.getByRole('region', { name: '文件' })).toBeVisible()
 
-  // ③ Workspace Panel（Desktop Shell 3.0 STEP 2）：悬停条目即向右展开
-  //    （324px 档）——名称由面板常显承载，收起态 os-tooltip 在展开态退出
-  //    （index.css [data-expanded] .os-tooltip）；轨道容器（及祖先）overflow
-  //    恒 visible 的 §26 契约不回归（收起态气泡向右伸出依赖它）。
+  // ③ Workspace Panel：悬停条目即揭示独立面板岛（316px 档）——两岛顶边
+  //    对齐、等高、岛间 ≥10px 缝隙；名称由面板常显承载，收起态 os-tooltip
+  //    在展开态退出（index.css [data-expanded] .os-tooltip）；组容器与窄轨
+  //    overflow 恒 visible 的 §26 契约不回归（收起态气泡向右伸出依赖它）。
   const files = page.getByTestId('sidebar-files')
   // ② 的点击让指针留在轨内（面板已随动作收起）：先移出再悬停才有 mouseenter。
   await page.mouse.move(640, 660)
   await files.hover()
   await expect(rail).toHaveAttribute('data-expanded', 'true')
+  const island = page.getByTestId('workspace-panel-island')
+  await expect(island).toBeVisible()
   await expect
-    .poll(
-      async () => (await page.getByTestId('system-rails').boundingBox())!.width,
-      { timeout: 3000 },
-    )
+    .poll(async () => (await island.boundingBox())!.width, { timeout: 3000 })
     .toBeGreaterThanOrEqual(300)
+  const islandBox = (await island.boundingBox())!
+  expect(islandBox.x - (railBox.x + railBox.width)).toBeGreaterThanOrEqual(10)
+  expect(Math.abs(islandBox.y - railBox.y)).toBeLessThanOrEqual(2)
+  expect(Math.abs(islandBox.height - railBox.height)).toBeLessThanOrEqual(2)
   await expect(files.locator('.os-tooltip')).toBeHidden()
   await expect(page.getByTestId('workspace-panel')).toBeVisible()
-  const overflowPair = await rail.evaluate((el) => {
+  const overflowPair = await page.getByTestId('system-rails').evaluate((el) => {
     const collect = (node: Element): string[] => {
       const style = getComputedStyle(node)
       return [style.overflowX, style.overflowY]
     }
-    // 组容器 + 轨 nav 自身不得裁剪（桌面画布根的 overflow-hidden 不在此列）。
+    // 定位带 + 窄轨岛自身不得裁剪（面板岛 overflow-hidden 只裁自身内容）。
     return [...collect(el), ...collect(el.querySelector('[data-testid="sidebar"]')!)]
   })
   for (const overflow of overflowPair) {
@@ -66,6 +73,16 @@ test('sidebar: floating narrow rail with working actions, tooltips and capsules'
   // 鼠标离开（240ms 宽限 + 过渡）收起回窄轨。
   await page.mouse.move(vp.width / 2, vp.height / 2 + 120)
   await expect(rail).not.toHaveAttribute('data-expanded', 'true')
+  // 岛间缝隙穿透桌面：pointer-events-none 的定位带不截胡点击
+  // （elementFromPoint 落点不在 system-rails 子树内）。
+  const gapHit = await page.evaluate(
+    ([x, y]) => {
+      const el = document.elementFromPoint(x, y)
+      return el?.closest('[data-testid="system-rails"]') !== null
+    },
+    [railBox.x + railBox.width + 7, railBox.y + 40],
+  )
+  expect(gapHit).toBe(false)
 
   // ④ 启动器项唤起共享启动器面板（launcher-store 与 Dock 触发器同源）。
   await page.getByTestId('sidebar-launcher').click()

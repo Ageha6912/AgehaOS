@@ -79,15 +79,38 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     }
   })
 
-  it('starts collapsed: no data-expanded, width token class, panel inert + aria-hidden', () => {
+  it('starts collapsed: rail island narrow capsule, no data-expanded, panel island unmounted', () => {
     render(<SidebarHarness />)
 
-    const nav = screen.getByTestId('sidebar')
-    expect(nav.getAttribute('data-expanded')).toBeNull()
-    expect(nav.className).toContain('w-[calc(var(--ag-rail-left-width)-0.5rem)]')
-    // 宽度过渡走 --ag-motion-base（既有 motion Token，不另起系统）。
-    expect(nav.className).toContain('transition-[width]')
-    expect(nav.className).toContain('[transition-duration:var(--ag-motion-base)]')
+    const rail = screen.getByTestId('sidebar')
+    expect(rail.getAttribute('data-expanded')).toBeNull()
+    // 窄轨岛两态恒宽（72px = token − 0.5rem）；宽度过渡移到面板岛。
+    expect(rail.className).toContain('w-[calc(var(--ag-rail-left-width)-0.5rem)]')
+    expect(rail.className).toContain('pointer-events-auto')
+    expect(screen.queryByTestId('workspace-panel-island')).toBeNull()
+  })
+
+  it('renders two separate glass islands once expanded（§34 双岛：rail 与 panel 各自成岛）', () => {
+    render(<SidebarHarness />)
+
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+    const rail = screen.getByTestId('sidebar')
+    const island = screen.getByTestId('workspace-panel-island')
+    // 玻璃面/圆角/投影在面板岛的内层定宽面上（外层只做宽度裁剪揭示，
+    // 收起态零边框投影残影）；窄轨岛自带玻璃面。
+    const surface = screen.getByTestId('workspace-panel-surface')
+    for (const el of [rail, surface]) {
+      expect(el.className).toContain('surface-glass')
+      expect(el.className).toContain('rounded-xl')
+      expect(el.className).toContain('shadow-float')
+    }
+    // 幕帘结构：外层 overflow-hidden（内容列无 os-tooltip；§26 只约束组容器
+    // 与窄轨），内层定宽（= 展开档）动画期间内容不回流。
+    expect(island.className).toContain('overflow-hidden')
+    expect(rail.className).not.toContain('overflow-hidden')
+    expect(surface.className).toContain('w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)]')
+    // 面板体仍在（id 供品牌钮 aria-controls）。
+    expect(screen.getByTestId('workspace-panel')).not.toBeNull()
   })
 
   it('mounts the panel body lazily on first expansion（净桌面启动不为面板付费）', () => {
@@ -125,9 +148,13 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     const brand = screen.getByTestId('sidebar-brand')
     fireEvent.click(brand)
 
+    // 展开态：面板岛揭示到 316px 档（宽度过渡在岛自身，motion Token）。
+    const island = screen.getByTestId('workspace-panel-island')
     expect(nav.getAttribute('data-expanded')).toBe('true')
     expect(brand.getAttribute('aria-expanded')).toBe('true')
-    expect(nav.className).toContain('w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)]')
+    expect(island.className).toContain('w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)]')
+    expect(island.className).toContain('transition-[width,opacity]')
+    expect(island.className).toContain('[transition-duration:var(--ag-motion-base)]')
     expect(screen.getByTestId('workspace-panel').hasAttribute('inert')).toBe(false)
 
     // pin 态下鼠标离开不收起。
@@ -138,6 +165,9 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
 
     fireEvent.click(brand)
     expect(nav.getAttribute('data-expanded')).toBeNull()
+    // 收起 = 岛 0 宽 + 不可交互（常挂，不卸载）。
+    expect(island.className).toContain('w-0')
+    expect(island.className).toContain('pointer-events-none')
   })
 
   it('hover expands, and mouse leave collapses after the grace period', () => {

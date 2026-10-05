@@ -10,8 +10,8 @@ import { revealTaskbar } from './helpers'
  * 口径）：1280x720 / 1366x768 / 1920x1080 / 2560x1440 四个桌面分辨率实测
  * 几何——
  * ① 无横向 overflow；
- * ② 左侧 system-rails 窄轨（收起 72px 浮岛 / 垂直居中）与展开态 Workspace
- *    Panel（316px 内容 = token 324 - 8）都不撑爆视口；
+ * ② 左侧双岛（§34）：窄轨岛（收起 72px、顶锚菜单栏下、通高到 Dock 上方）
+ *    与展开态 Workspace Panel（316px 幕帘岛）都不撑爆视口；
  * ③ 右侧 Floating System Center 顶锚 48 / 右留白 20 / 底不越 Dock 带；
  * ④ Dock 胶囊 68px、离底 20px、水平居中、不越界；
  * ⑤ 窗口 launch 落点完整在工作区内，向左拖出屏幕后仍保有 ≥80px 可见带
@@ -84,29 +84,28 @@ for (const vp of RESOLUTIONS) {
       expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth)
       await record('horizontalOverflow', overflow)
 
-      // ② 窄轨收起态：left 16px / 宽 72px（token 80 - 0.5rem）+ 组容器 1px
-      //    描边 ×2 = 实测 74 / 垂直居中 / 上下都在视口内。
-      const rail = await box(page, 'system-rails')
+      // ② 窄轨收起态（§34 双岛）：left 16px / 宽 72px（token 80 - 0.5rem）/
+      //    顶锚菜单栏（32px）+12px / 岛高撑满定位带（视口 − 顶 44 − 底 100）。
+      const rail = await box(page, 'sidebar')
       expect(rail.x).toBeGreaterThanOrEqual(15.5)
       expect(rail.x).toBeLessThanOrEqual(16.5)
       expect(rail.width).toBeGreaterThanOrEqual(72)
       expect(rail.width).toBeLessThanOrEqual(75)
-      expect(Math.abs(rail.y + rail.height / 2 - vp.height / 2)).toBeLessThanOrEqual(1)
-      expect(rail.y).toBeGreaterThanOrEqual(0)
-      expect(rail.y + rail.height).toBeLessThanOrEqual(vp.height)
+      expect(Math.abs(rail.y - 44)).toBeLessThanOrEqual(2)
+      expect(Math.abs(rail.height - (vp.height - 144))).toBeLessThanOrEqual(4)
       await record('railCollapsed', rail)
 
-      // ③ 展开态 Workspace Panel（click pin → Esc 收起）：宽 316px（token
-      //    324 - 0.5rem）+ 描边 ×2，整组仍在视口内；内容列自身无横向溢出。
+      // ③ 展开态 Workspace Panel（click pin → Esc 收起）：面板岛宽 316px
+      //    （token 324 - 0.5rem），岛不越视口；内容列自身无横向溢出。
       await page.getByTestId('sidebar-brand').click()
       await expect(page.getByTestId('system-rails')).toHaveAttribute('data-expanded', 'true')
       await expect(page.getByTestId('workspace-panel')).toBeVisible()
       await expect
-        .poll(async () => (await box(page, 'system-rails')).width, { timeout: 5_000 })
+        .poll(async () => (await box(page, 'workspace-panel-island')).width, { timeout: 5_000 })
         .toBeGreaterThanOrEqual(316)
-      const expanded = await box(page, 'system-rails')
+      const expanded = await box(page, 'workspace-panel-island')
       expect(expanded.width).toBeLessThanOrEqual(320)
-      expect(expanded.x).toBeGreaterThanOrEqual(15.5)
+      expect(expanded.x).toBeGreaterThanOrEqual(90)
       expect(expanded.x + expanded.width).toBeLessThanOrEqual(vp.width + 0.5)
       expect(expanded.y).toBeGreaterThanOrEqual(0)
       expect(expanded.y + expanded.height).toBeLessThanOrEqual(vp.height)
@@ -121,8 +120,8 @@ for (const vp of RESOLUTIONS) {
       await page.keyboard.press('Escape')
       await expect(page.getByTestId('system-rails')).not.toHaveAttribute('data-expanded', 'true')
       await expect
-        .poll(async () => (await box(page, 'system-rails')).width, { timeout: 5_000 })
-        .toBeLessThanOrEqual(75)
+        .poll(async () => (await box(page, 'workspace-panel-island')).width, { timeout: 5_000 })
+        .toBeLessThanOrEqual(2)
 
       // ④ 右侧 Floating System Center：顶锚 48（菜单栏 32 + 1rem）、右留白
       //    20（right-5）、底不越 Dock 带（视口 - 88）。

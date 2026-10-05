@@ -12,8 +12,6 @@ import { NotificationToasts } from '@/desktop/NotificationToasts'
 import { SearchPalette } from '@/desktop/search/SearchPalette'
 import { ContextMenu, type ContextMenuPosition } from '@/desktop/ContextMenu'
 import { WidgetRail } from '@/desktop/widgets/WidgetRail'
-import { useLiquidDisplacementMap } from '@/desktop/sidebar/liquid-glass'
-import { LiquidGlassDefs } from '@/desktop/sidebar/LiquidGlassFilter'
 import { useWorkspacePanel } from '@/desktop/workspace/use-workspace-panel'
 import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
 import { useAurora } from '@/desktop/motion/use-aurora'
@@ -56,13 +54,12 @@ export function Desktop() {
   }
   const orbRef = useRef<HTMLDivElement | null>(null)
   useCursorGlow(canvasRef, orbRef, glow)
-  // system-rails 液态玻璃（2026-10-02 用户裁决，ZenDesktop 观感）：位移图按组
-  // 实测尺寸运行时生成；jsdom/生成失败回落 .glass-raise 常规毛玻璃。
+  // system-rails 双岛定位带（§34）：玻璃面（含液态玻璃）都在岛上，带容器
+  // 只负责顶锚定位与 hover/焦点边界；jsdom 位移图回落逻辑随岛走（Sidebar）。
   const railsRef = useRef<HTMLDivElement | null>(null)
-  // Workspace Panel 展开状态机（STEP 2）：hover/click(pin)/键盘三路触发；
-  // 边界判定与焦点交还都锚在组容器上。展开信号同时驱动位移图重测。
+  // Workspace Panel 展开状态机：hover/click(pin)/键盘三路触发；边界判定与
+  // 焦点交还都锚在定位带上（两块岛都在边界内）。
   const panel = useWorkspacePanel(railsRef)
-  const liquidMap = useLiquidDisplacementMap(railsRef, undefined, panel.expanded)
   useGlobalShortcuts()
 
   // 2026-10-02 用户裁决：进桌面不再自动打开任何窗口——动态面板与随机小游戏
@@ -109,13 +106,13 @@ export function Desktop() {
       <MenuBar />
       {/* 系统栏组（Desktop Shell 3.0 STEP 1）：单一玻璃面板承载左侧
           Workspace Rail——一道边框、一份圆角、一份投影。 */}
-      {/* system-rails（Desktop Shell 3.0 STEP 2 Workspace Panel，§33.2 浮岛
-          基线）：窄轨漂浮垂直居中——left 16px、top 50% + translateY(-50%)、
-          圆角 20px（--ag-radius-xl）、半透明玻璃 + subtle border + soft
-          shadow（shadow-float），浮于壁纸之上；hover/click(pin)/键盘展开
-          Workspace Panel（324px，纯浮层几何——窗口钳制仍钉 80px）。⚠️ 组容
-          器不得挂 overflow（会裁掉向右伸出的 os-tooltip，§26 教训）；展开态
-          气泡经 [data-expanded] .os-tooltip 退出，无需 overflow。 */}
+      {/* system-rails（Desktop Shell 3.0，§34 双岛口径）：纯定位带——顶锚
+          菜单栏（32px）+12px、Dock 上方 12px 收尾，横向 flex 承载两块独立
+          玻璃岛（窄轨岛 + Workspace Panel 岛，岛间 gap-3.5 缝隙）。带自身
+          无玻璃无背景且 pointer-events-none：缝隙与岛外带区点击穿透桌面，
+          交互面全部在岛上。液态玻璃归窄轨岛（Sidebar 内接线）。⚠️ 带容器
+          与窄轨岛不得挂 overflow（会裁掉向右伸出的 os-tooltip，§26 教训）；
+          展开态气泡经 [data-expanded] .os-tooltip 退出，无需 overflow。 */}
       <div
         data-testid="system-rails"
         ref={railsRef}
@@ -124,13 +121,10 @@ export function Desktop() {
         onMouseLeave={panel.onMouseLeave}
         onFocusCapture={panel.onFocusCapture}
         onBlurCapture={panel.onBlurCapture}
-        className={`desktop-chrome surface-glass ${liquidMap ? 'glass-liquid' : 'glass-raise'} fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 flex-col rounded-xl border border-border shadow-float sm:flex`}
+        className="pointer-events-none fixed left-4 top-[calc(var(--ag-menubar-height)+12px)] bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+12px)] z-40 hidden flex-row items-stretch gap-3.5 sm:flex"
       >
         <Sidebar panel={panel} />
       </div>
-      {liquidMap && (
-        <LiquidGlassDefs id="ag-liquid-rail" mapUri={liquidMap} options={{ strength: 10 }} />
-      )}
       <WindowLayer />
       <WidgetRail />
       <Taskbar />

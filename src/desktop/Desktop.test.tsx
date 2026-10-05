@@ -43,46 +43,52 @@ function launchFromStartMenu(appName: RegExp) {
 }
 
 describe('Desktop', () => {
-  it('mounts the top menu bar and both rails (§19/§26/§27)', () => {
+  it('mounts the top menu bar and the two left islands (§19/§26/§34 双岛)', () => {
     render(<Desktop />)
 
     expect(screen.getByTestId('menu-bar')).toBeInTheDocument()
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('widget-rail')).toBeInTheDocument()
 
-    // 系统栏组（Shell 3.0 STEP 1 Workspace Rail）：单一玻璃面板承载窄轨，
-    // 漂浮垂直居中（left-16px / top 50% + translateY(-50%)）；面板内容在
-    // 下一切片，flex-row-reverse（两栏主轴反转）不回归。
+    // 双岛口径（§34 参考图）：组容器退化为纯定位带——顶锚菜单栏下 12px、
+    // Dock 上方 12px 收尾，pointer-events-none（岛间缝隙穿透桌面）；
+    // 玻璃/圆角/投影各自在岛上。
     const rails = screen.getByTestId('system-rails')
-    for (const cls of ['surface-glass', 'rounded-xl', 'shadow-float', 'flex-col', 'left-4', 'top-1/2', '-translate-y-1/2']) {
+    for (const cls of ['left-4', 'pointer-events-none', 'items-stretch', 'gap-3.5']) {
       expect(rails.classList.contains(cls), cls).toBe(true)
     }
-    for (const cls of ['flex-row-reverse', 'bottom-[2.75rem]']) {
+    expect(rails.className).toContain('top-[calc(var(--ag-menubar-height)+12px)]')
+    expect(rails.className).toContain('bottom-[calc(var(--ag-dock-height)+var(--ag-dock-gap)+12px)]')
+    for (const cls of ['top-1/2', '-translate-y-1/2', 'surface-glass', 'rounded-xl', 'shadow-float']) {
       expect(rails.classList.contains(cls), `no ${cls}`).toBe(false)
     }
-    expect(rails.className).not.toContain('top-[calc(var(--ag-menubar-height)')
-    // 无 overflow：向右伸出的 os-tooltip 不得被组容器裁剪（§26）。
     expect(rails.className).not.toContain('overflow')
+    // 岛一（窄轨）自带玻璃面 + 交互；面板岛收起态未挂载（首展才挂载）。
+    const rail = screen.getByTestId('sidebar')
+    for (const cls of ['surface-glass', 'glass-raise', 'rounded-xl', 'shadow-float', 'pointer-events-auto', 'h-full']) {
+      expect(rail.classList.contains(cls), `rail ${cls}`).toBe(true)
+    }
+    expect(screen.queryByTestId('workspace-panel-island')).toBeNull()
   })
 
-  it('applies glass-liquid + renders the displacement filter when the map is ready（2026-10-02 液态玻璃裁决）', () => {
+  it('applies glass-liquid to the rail island + renders the displacement filter when the map is ready（2026-10-02 液态玻璃裁决）', () => {
     liquidState.map = 'data:image/png;base64,fake'
     render(<Desktop />)
 
-    const group = screen.getByTestId('system-rails')
-    expect(group.className).toContain('glass-liquid')
-    expect(group.className).not.toContain('glass-raise')
+    const rail = screen.getByTestId('sidebar')
+    expect(rail.className).toContain('glass-liquid')
+    expect(rail.className).not.toContain('glass-raise')
     const filter = document.querySelector('svg filter#ag-liquid-rail')
     expect(filter).not.toBeNull()
     expect(filter?.querySelector('feDisplacementMap')?.getAttribute('scale')).toBe('20')
   })
 
-  it('falls back to glass-raise without a map（jsdom/生成失败回落）', () => {
+  it('falls back to glass-raise on the rail island without a map（jsdom/生成失败回落）', () => {
     liquidState.map = ''
     render(<Desktop />)
-    const group = screen.getByTestId('system-rails')
-    expect(group.className).toContain('glass-raise')
-    expect(group.className).not.toContain('glass-liquid')
+    const rail = screen.getByTestId('sidebar')
+    expect(rail.className).toContain('glass-raise')
+    expect(rail.className).not.toContain('glass-liquid')
     expect(document.querySelector('svg filter#ag-liquid-rail')).toBeNull()
   })
 

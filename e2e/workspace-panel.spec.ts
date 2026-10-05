@@ -20,7 +20,11 @@ test.describe('workspace panel', () => {
   }
 
   async function railWidth(page: import('@playwright/test').Page): Promise<number> {
-    return (await page.getByTestId('system-rails').boundingBox())!.width
+    return (await page.getByTestId('sidebar').boundingBox())!.width
+  }
+
+  async function panelWidth(page: import('@playwright/test').Page): Promise<number> {
+    return (await page.getByTestId('workspace-panel-island').boundingBox())!.width
   }
 
   async function expandByHover(page: import('@playwright/test').Page): Promise<void> {
@@ -29,24 +33,25 @@ test.describe('workspace panel', () => {
     await page.mouse.move(640, 660)
     await page.getByTestId('sidebar').hover()
     await expect(page.getByTestId('system-rails')).toHaveAttribute('data-expanded', 'true')
-    await expect.poll(railWidth.bind(null, page), { timeout: 3000 }).toBeGreaterThanOrEqual(300)
-    expect(await railWidth(page)).toBeLessThanOrEqual(340)
+    await expect.poll(panelWidth.bind(null, page), { timeout: 3000 }).toBeGreaterThanOrEqual(300)
+    expect(await panelWidth(page)).toBeLessThanOrEqual(340)
   }
 
   async function collapseByLeave(page: import('@playwright/test').Page): Promise<void> {
     await page.mouse.move(640, 360)
     await expect(page.getByTestId('system-rails')).not.toHaveAttribute('data-expanded', 'true')
-    await expect.poll(railWidth.bind(null, page), { timeout: 3000 }).toBeLessThanOrEqual(88)
+    await expect.poll(panelWidth.bind(null, page), { timeout: 3000 }).toBeLessThanOrEqual(2)
   }
 
   test('收起 → hover 展开 → 选择工作空间 → 刷新后保持 → 鼠标离开收起', async ({ page }) => {
     await registerDesktop(page, 'ws-panel-e2e')
 
-    // ① 收起基线：窄轨 72-88px、无 data-expanded。
+    // ① 收起基线：窄轨岛 72-88px、无 data-expanded、面板岛未挂载。
     const rails = page.getByTestId('system-rails')
     expect(await rails.getAttribute('data-expanded')).toBeNull()
     expect(await railWidth(page)).toBeGreaterThanOrEqual(72)
     expect(await railWidth(page)).toBeLessThanOrEqual(88)
+    await expect(page.getByTestId('workspace-panel-island')).toHaveCount(0)
     // 收起态内容列不挂载（首展才挂载：净桌面 reload 预算不为面板付费）。
     await expect(page.getByTestId('workspace-panel')).toHaveCount(0)
 

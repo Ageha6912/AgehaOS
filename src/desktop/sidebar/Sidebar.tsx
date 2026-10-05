@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react'
 
 import {
   Bell,
@@ -18,6 +18,8 @@ import {
 import { AppIcon } from '@/apps/app-icon'
 import { appDisplayName, launchApp } from '@/apps/launch'
 import { BrandLogo } from '@/components/brand-logo'
+import { useLiquidDisplacementMap } from '@/desktop/sidebar/liquid-glass'
+import { LiquidGlassDefs } from '@/desktop/sidebar/LiquidGlassFilter'
 import { utcDayKey } from '@/core/eclosion/world'
 import { greetingTitleKey } from '@/core/dynamic/content/engine'
 import { timePhaseOf } from '@/core/dynamic/generative/seed'
@@ -37,25 +39,27 @@ import { useWorkspaceStore } from '@/store/workspace-store'
 import type { WorkspaceId } from '@/store/workspace-store'
 
 /**
- * 左侧 Workspace Rail + Workspace Panel（Desktop Shell 3.0 STEP 2，§33.2
- * 浮岛基线）：窄轨漂浮垂直居中，玻璃面归 Desktop 的 system-rails 组容器。
- * icon-first——44px 圆钮 + 20px 字形，名称走自绘 os-tooltip 气泡（group
- * hover/focus 点亮，不进可达树），hover/active 一律轻 translucent capsule
- * （chrome 作用域 surface-raised/elevated 白玻璃），禁实心色块。
+ * 左侧 Workspace Rail + Workspace Panel（Desktop Shell 3.0，§34 双岛口径）：
+ * 窄轨与面板是**两块独立玻璃岛**——组容器（Desktop 的 system-rails）退化为
+ * 纯定位层（顶锚菜单栏下方、Dock 上方收尾，pointer-events-none，岛间缝隙
+ * 可穿透桌面），玻璃面/圆角/投影各自成岛。icon-first——44px 圆钮 + 20px
+ * 字形，名称走自绘 os-tooltip 气泡（group hover/focus 点亮，不进可达树），
+ * hover/active 一律轻 translucent capsule（chrome 作用域 surface-raised/
+ * elevated 白玻璃），禁实心色块。液态玻璃（2026-10-02 裁决）仍由窄轨岛
+ * 承担，位移图按岛实测尺寸生成。
  *
- * STEP 2 展开（docs/DESIGN.md §33.4.1 之后的 Workspace Panel 切片）：hover /
- * click（品牌钮 pin）/ 键盘聚焦任一路触发 `data-expanded`，轨道由 80px 宽
- * 过渡到 324px（--ag-rail-left-expanded-width，纯浮层几何，窗口布局钳制仍
- * 钉 RAIL_LEFT_WIDTH_PX=80）。面板是连续的 Workspace Environment（不切成
- * 一堆 card）：品牌区（BrandLogo + 字标 + 标语）→ 今日空间（真实日期 +
- * 按当前用户问候，greeting 引擎 timePhase）→ 工作空间 selector（真实持久
- * 化，排序影响见 affinity.ts）→ 最近使用（usage-store 真实数据）→ 底部垫
- * 今日世界品牌入口（STEP 3，复用 eclosion-store 世界摘要 + 「查看世界」
- * 直达启动器「今日」分类，WorkspaceTodayWorld）。收起：
- * 鼠标离开（240ms 宽限）/ Esc / 面板外按下（pin 态）；展开态下条目名称
- * 常显，os-tooltip 经 index.css `[data-expanded] .os-tooltip` 退出。
- * 组容器仍不得挂 overflow（收起态气泡向右伸出，§26 教训）——内容列的
- * overflow 是其自身盒子，不含气泡元素。
+ * 展开（docs/DESIGN.md §34）：hover / click（品牌钮 pin）/ 键盘聚焦任一路
+ * 触发 `data-expanded`，面板岛由 0 宽过渡到 316px（--ag-rail-left-expanded-
+ * width，纯浮层几何，窗口布局钳制仍钉 RAIL_LEFT_WIDTH_PX=80）。面板是连续
+ * 的 Workspace Environment（不切成一堆 card）：品牌区（BrandLogo + 字标 +
+ * 标语）→ 今日空间（真实日期 + 按当前用户问候，greeting 引擎 timePhase）→
+ * 工作空间 selector（真实持久化，排序影响见 affinity.ts）→ 最近使用
+ * （usage-store 真实数据）→ 底部垫今日世界品牌入口（复用 eclosion-store
+ * 世界摘要 + 「查看世界」直达启动器「今日」分类，WorkspaceTodayWorld）。
+ * 收起：鼠标离开（240ms 宽限）/ Esc / 面板外按下（pin 态）；展开态下条目
+ * 名称常显，os-tooltip 经 index.css `[data-expanded] .os-tooltip` 退出。
+ * 组容器与窄轨岛仍不得挂 overflow（收起态气泡向右伸出，§26 教训）——
+ * 面板岛自身的 overflow-hidden 只裁内容列（其内无 os-tooltip 元素）。
  */
 
 /** Rail 条目：图标 + 弱化文案（tooltip 承载）。 */
@@ -235,9 +239,9 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
       aria-hidden={!expanded}
       // 收起态整列 inert：不可聚焦、不进可达树（展开动画期间同帧生效）。
       inert={!expanded}
-      className="h-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto scroll-thin opacity-0 -translate-x-2 pointer-events-none animate-os-fade-in [transition:opacity_var(--ag-motion-fast)_var(--ag-motion-ease),transform_var(--ag-motion-fast)_var(--ag-motion-ease)] data-[expanded]:pointer-events-auto data-[expanded]:opacity-100 data-[expanded]:translate-x-0 data-[expanded]:[transition:opacity_var(--ag-motion-base)_var(--ag-motion-ease)_60ms,transform_var(--ag-motion-base)_var(--ag-motion-ease)_60ms]"
+      className="h-full min-w-0 overflow-x-hidden overflow-y-auto scroll-thin opacity-0 -translate-x-2 pointer-events-none [transition:opacity_var(--ag-motion-fast)_var(--ag-motion-ease),transform_var(--ag-motion-fast)_var(--ag-motion-ease)] data-[expanded]:pointer-events-auto data-[expanded]:opacity-100 data-[expanded]:translate-x-0 data-[expanded]:[transition:opacity_var(--ag-motion-base)_var(--ag-motion-ease)_60ms,transform_var(--ag-motion-base)_var(--ag-motion-ease)_60ms]"
     >
-      <div className="flex w-[15.25rem] flex-col gap-2.5 pb-1 pl-1 pr-2 pt-0.5">
+      <div className="flex w-full flex-col gap-3 px-3.5 pb-3 pt-3">
         {/* 品牌区（§10 BrandLogo 复用）：字标 + 标语，纯展示。 */}
         <div className="flex items-center gap-2.5 px-1 py-0.5">
           <BrandLogo size={26} className="shrink-0" />
@@ -357,109 +361,137 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
     }
   }
 
+  const railRef = useRef<HTMLElement | null>(null)
+  // 液态玻璃（2026-10-02 裁决）随窄轨岛走：位移图按岛实测尺寸生成，
+  // 展开过渡落定后重测（signal = expanded）。
+  const liquidMap = useLiquidDisplacementMap(railRef, undefined, panel.expanded)
   const brandLabel = panel.expanded ? t('workspace.panel.collapse') : t('workspace.panel.expand')
 
   return (
-    <nav
-      aria-label={t('sidebar.label')}
-      data-testid="sidebar"
-      data-expanded={panel.expanded || undefined}
-      className={`flex flex-col py-3 transition-[width] [transition-duration:var(--ag-motion-base)] [transition-timing-function:var(--ag-motion-ease)] ${
-        panel.expanded
-          ? 'w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)]'
-          : 'w-[calc(var(--ag-rail-left-width)-0.5rem)]'
-      }`}
-    >
-      <div className="flex items-start">
-        {/* 图标列：窄轨本体（两态恒 72px，展开时原地不动）。 */}
-        <div className="flex w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-1">
-          {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。 */}
-          <button
-            type="button"
-            data-testid="sidebar-brand"
-            aria-expanded={panel.expanded}
-            aria-controls="workspace-panel"
-            aria-label={brandLabel}
-            onClick={panel.togglePin}
-            className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-surface-raised focus-visible:bg-surface-raised active:bg-surface-elevated"
+    <>
+      {/* 岛一：Workspace Rail——通高窄轨玻璃岛（§34 双岛口径：顶锚/收尾由
+          组容器统一定，岛 h-full 撑满带高）。液态玻璃裁决仍由窄轨承担；
+          不得挂 overflow（收起态气泡向右伸出，§26）。 */}
+      <nav
+        ref={railRef}
+        aria-label={t('sidebar.label')}
+        data-testid="sidebar"
+        data-expanded={panel.expanded || undefined}
+        className={`desktop-chrome pointer-events-auto surface-glass flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-1 rounded-xl border border-border py-3 shadow-float ${
+          liquidMap ? 'glass-liquid' : 'glass-raise'
+        }`}
+      >
+        {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。 */}
+        <button
+          type="button"
+          data-testid="sidebar-brand"
+          aria-expanded={panel.expanded}
+          aria-controls="workspace-panel"
+          aria-label={brandLabel}
+          onClick={panel.togglePin}
+          className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-surface-raised focus-visible:bg-surface-raised active:bg-surface-elevated"
+        >
+          {/* Ageha Mark（§10 品牌主视觉）：装饰位，可访问名由按钮承载。 */}
+          <BrandLogo size={28} className="opacity-90" />
+          <span aria-hidden="true" className="os-tooltip">
+            {brandLabel}
+          </span>
+        </button>
+        <RailItem
+          testid="sidebar-desktop"
+          label={t('sidebar.desktop')}
+          icon={Monitor}
+          onClick={() => {
+            showDesktop()
+            panel.collapse()
+          }}
+        />
+        <RailItem
+          testid="sidebar-launcher"
+          label={t('sidebar.launcher')}
+          icon={SquaresFour}
+          onClick={toggleLauncher}
+          active={launcherOpen}
+          expandable
+          popoverTrigger="launcher"
+        />
+        {/* 动作条目触发即收起面板：打开的窗口左缘控件不被 316px 面板遮盖
+            （真实指针移出面板也会收起；这里让「点击即走」不依赖移出）。 */}
+        <RailItem
+          testid="sidebar-files"
+          label={t('sidebar.files')}
+          icon={FolderOpen}
+          onClick={() => {
+            launchApp('com.ageha.files')
+            panel.collapse()
+          }}
+        />
+        <RailItem
+          testid="sidebar-notes"
+          label={t('sidebar.notes')}
+          icon={Notebook}
+          onClick={() => {
+            launchApp('com.ageha.notes')
+            panel.collapse()
+          }}
+        />
+        <RailItem
+          testid="sidebar-terminal"
+          label={t('sidebar.terminal')}
+          icon={TerminalWindow}
+          onClick={() => {
+            launchApp('com.ageha.terminal')
+            panel.collapse()
+          }}
+        />
+        <RailItem
+          testid="sidebar-settings"
+          label={t('sidebar.settings')}
+          icon={GearSix}
+          onClick={() => {
+            launchApp('com.ageha.settings')
+            panel.collapse()
+          }}
+        />
+        <RailItem
+          testid="sidebar-notifications"
+          label={t('sidebar.notifications')}
+          icon={Bell}
+          onClick={togglePanel}
+          active={panelOpen}
+          expandable
+          popoverTrigger="notifications"
+          badge={unread}
+        />
+      </nav>
+      {/* 岛二：Workspace Panel——独立玻璃卡（岛间 14px 缝隙由组容器 gap
+          提供，缝隙穿透桌面）。首展才挂载（渲染期派生重置，React 官方模式，
+          坑 4）：净桌面 reload 恢复预算（PRD §29.1 <3s）不为本面板付费；
+          首展经 animate-os-fade-in 淡入，此后常挂——收起只是 0 宽 + 内容列
+          inert，展开动画与滚动状态不丢。宽度过渡复用 motion Token：外层
+          只做 0→316 裁剪揭示（幕帘），玻璃面/圆角/投影在内层定宽面上——
+          收起态零边框投影残影，展开动画内容不回流。 */}
+      {panelEverExpanded ? (
+        <aside
+          data-testid="workspace-panel-island"
+          data-expanded={panel.expanded || undefined}
+          className={`pointer-events-auto h-full animate-os-fade-in overflow-hidden transition-[width,opacity] [transition-duration:var(--ag-motion-base)] [transition-timing-function:var(--ag-motion-ease)] ${
+            panel.expanded
+              ? 'w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] opacity-100'
+              : 'w-0 opacity-0 pointer-events-none'
+          }`}
+        >
+          <div
+            data-testid="workspace-panel-surface"
+            className="desktop-chrome surface-glass glass-raise h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border shadow-float"
           >
-            {/* Ageha Mark（§10 品牌主视觉）：装饰位，可访问名由按钮承载。 */}
-            <BrandLogo size={28} className="opacity-90" />
-            <span aria-hidden="true" className="os-tooltip">
-              {brandLabel}
-            </span>
-          </button>
-          <RailItem
-            testid="sidebar-desktop"
-            label={t('sidebar.desktop')}
-            icon={Monitor}
-            onClick={() => {
-              showDesktop()
-              panel.collapse()
-            }}
-          />
-          <RailItem
-            testid="sidebar-launcher"
-            label={t('sidebar.launcher')}
-            icon={SquaresFour}
-            onClick={toggleLauncher}
-            active={launcherOpen}
-            expandable
-            popoverTrigger="launcher"
-          />
-          {/* 动作条目触发即收起面板：打开的窗口左缘控件不被 324px 面板遮盖
-              （真实指针移出面板也会收起；这里让「点击即走」不依赖移出）。 */}
-          <RailItem
-            testid="sidebar-files"
-            label={t('sidebar.files')}
-            icon={FolderOpen}
-            onClick={() => {
-              launchApp('com.ageha.files')
-              panel.collapse()
-            }}
-          />
-          <RailItem
-            testid="sidebar-notes"
-            label={t('sidebar.notes')}
-            icon={Notebook}
-            onClick={() => {
-              launchApp('com.ageha.notes')
-              panel.collapse()
-            }}
-          />
-          <RailItem
-            testid="sidebar-terminal"
-            label={t('sidebar.terminal')}
-            icon={TerminalWindow}
-            onClick={() => {
-              launchApp('com.ageha.terminal')
-              panel.collapse()
-            }}
-          />
-          <RailItem
-            testid="sidebar-settings"
-            label={t('sidebar.settings')}
-            icon={GearSix}
-            onClick={() => {
-              launchApp('com.ageha.settings')
-              panel.collapse()
-            }}
-          />
-          <RailItem
-            testid="sidebar-notifications"
-            label={t('sidebar.notifications')}
-            icon={Bell}
-            onClick={togglePanel}
-            active={panelOpen}
-            expandable
-            popoverTrigger="notifications"
-            badge={unread}
-          />
-        </div>
-        {/* 内容列：Workspace Panel（展开时经宽度过渡揭示；收起 inert）；
-            首展才挂载（见 panelEverExpanded）。 */}
-        {panelEverExpanded ? <WorkspacePanelBody expanded={panel.expanded} /> : null}
-      </div>
-    </nav>
+            <WorkspacePanelBody expanded={panel.expanded} />
+          </div>
+        </aside>
+      ) : null}
+      {liquidMap && (
+        <LiquidGlassDefs id="ag-liquid-rail" mapUri={liquidMap} options={{ strength: 10 }} />
+      )}
+    </>
   )
 }
