@@ -380,9 +380,10 @@ describe('Taskbar', () => {
     // 让位后取视觉中心；portal 到 body（包含块恒为视口，坑 13）。
     expect(menu.className).toContain('w-[600px]')
     expect(menu.className).toContain('max-w-[calc(100vw-1.5rem)]')
-    // 尺寸恒定（2026-10-02 裁决：分类切换面板不变形）；高度 520px（STEP 8
-    // 居中档；min() 安全帽防短视口溢顶，内容内部滚动）。
-    expect(menu.className).toContain('h-[min(520px,calc(100vh-13rem))]')
+    // 尺寸恒定（2026-10-02 裁决：分类切换面板不变形）；高度 560px（STEP 8
+    // 居中档 520——Shell 3.1 场景 F 抬档：分类网格随世界清单扩到两行后 520
+    // 档裁第二行瓦片名称标签；min() 安全帽防短视口溢顶，内容内部滚动）。
+    expect(menu.className).toContain('h-[min(560px,calc(100vh-10.5rem))]')
     expect(menu.className).not.toContain('max-h-')
     // 6 列网格 + 分类切换淡入微动（os-pop-in 契约不变）。
     expect(menu.querySelector('ul.grid')?.className).toContain('grid-cols-6')

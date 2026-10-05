@@ -118,9 +118,10 @@ test('taskbar 启动器：分类切换面板尺寸恒定（2026-10-02 裁决「�
   await page.waitForTimeout(450) // 弹入动画落定。
 
   const open = (await panel.boundingBox())!
-  // Shell 3.0 STEP 8（居中 Ageha Application Launcher）：固定高度 520px
-  // 大幅玻璃面板（min(520, 100vh-13rem)，视口 900 取 520，内容内部滚动）。
-  expect(Math.abs(open.height - 520)).toBeLessThanOrEqual(2)
+  // Shell 3.0 STEP 8（居中 Ageha Application Launcher）：固定高度 560px
+  // 大幅玻璃面板（min(560, 100vh-10.5rem)，视口 900 取 560，内容内部滚动；
+  // Shell 3.1 场景 F：分类网格两行时代高度档 520→560，见 launcher-visual）。
+  expect(Math.abs(open.height - 560)).toBeLessThanOrEqual(2)
   // 切到应用数更少的分类：面板宽高必须纹丝不动（高度恒定，内容内部滚动）。
   await page.getByTestId('launcher-category-system').click()
   await page.waitForTimeout(400) // 淡入微动落定。

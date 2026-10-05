@@ -186,6 +186,21 @@ test.describe('widgets: Floating System Center (STEP 4)', () => {
     await expect(page.getByTestId('widgets-clock')).toBeVisible()
     await expect(page.getByTestId('widgets-system')).toBeVisible()
     await expect(page.getByTestId('widgets-notifications')).toBeVisible()
+
+    // Shell 3.1 F2 权重分级：通知卡投影弱于时钟卡——quiet 档 shadow-soft
+    // （最大 blur 8px）vs 全档 shadow-panel（主影 0 4px 16px）。computed
+    // style 实测禁心算（window-visual.spec.ts 同款手法）；双主题阴影透明
+    // 度不同但模糊半径同值，断言与主题无关。
+    const shadows = await page.evaluate(() => {
+      const read = (testId: string): string => {
+        const el = document.querySelector(`[data-testid="${testId}"]`)
+        return el ? getComputedStyle(el).boxShadow : ''
+      }
+      return { clock: read('widgets-clock'), notifications: read('widgets-notifications') }
+    })
+    expect(shadows.clock).toContain('16px')
+    expect(shadows.notifications).not.toContain('16px')
+    expect(shadows.notifications).toContain('8px')
     // 品牌横幅退役（中央品牌层承载）；羽化默认关 → 世界层整卡不渲染。
     await expect(page.getByTestId('widgets-brand')).toHaveCount(0)
     await expect(page.getByTestId('widgets-world')).toHaveCount(0)

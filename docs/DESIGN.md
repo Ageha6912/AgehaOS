@@ -1228,6 +1228,20 @@ rAF 连续 60 帧实测 fps / performance.memory / connection.downlink，行内�
 进度条只来自测量值本身，源不可用显「—」不画条）→ 最近通知（3 条 + 清空 +
 「查看更多」复用通知中心面板）→ 今日世界（羽化世界卡，门控同 34.3，替代
 原品牌横幅——品牌已由中央层与 Panel 品牌区承载）。≥1280px（xl）显示。
+**Shell 3.1 STEP 2 权重分级（F2：Clock > System > Notification > Today
+World）**：统一卡材质拆两档——Clock/System 保持全档卡（p-4 + border-subtle
+发丝边 + shadow-panel；System 标题降为 11px muted caption，三行指标
+label muted + 等宽数值 + h-1 行内细条不变）；Notification/World 降 quiet
+档（p-3 + 无边框 + shadow-soft，标题 caption 化）——投影几乎贴桌面、明显
+后退。通知默认 2 条（原 3 条，**收纳入口「查看更多」仅 items.length > 2 时
+渲染**——视觉评审第 2/3 轮打回修正：无「其余」时入口即死链接；「清空」仅
+有通知时渲染，空态隐藏）；空态 = §3 构图（居中半透明铃铛 + `notification.empty`
+原文案 + 指向通知中心的弱化链接——链接文案用 `notification.center`
+（「通知中心」，**不借用「查看更多」**：0 条通知与「查看更多」同框即折叠
+语义自相矛盾，第 3 轮打回修正），i18n 零新增），通知中心弹层空态同构图
+（铃铛 + 原文案，无跳转链接——本尊即中心，视觉评审 H-notification-empty
+打回后同步）。数据面零新增：系统状态仍只有流畅度/内存/网络三项（禁
+GPU/Disk/Battery/进程数），时钟卡无假天气（§0.5）。
 
 ### 34.5 中央品牌层状态化（STEP 5）
 
@@ -1267,7 +1281,10 @@ radius 20px（rounded-xl）/ 深玻璃 blur 36px（§33.1 window 档）不变；
 
 弃左侧分类轨的 Windows 开始菜单形态（§22），改**视口居中的大幅玻璃面板**
 （`createPortal` 至 body，坑 13 包含块铁律）：宽度档 **600/640/680**（采纳
-布局建议三档，560-680 带内），结构自上而下 = **Search → Recent → Pinned →
+布局建议三档，560-680 带内），高度档 **560**（`min(560, 100vh-10.5rem)`；
+STEP 8 原 520——Shell 3.1 场景 F 修正：分类网格随世界清单扩到两行后 520 档
+裁第二行瓦片名称标签，高度抬档 + 瓦片 py-2.5→py-2 + 主区 gap-3→gap-2 同步
+容纳），结构自上而下 = **Search → Recent → Pinned →
 Categories**（分类降为芯片行 + 6 列瓦片网格，AppIcon 44 + 11px 标签）。
 Recent = 真实 usage-store 最近 × 工作空间亲和稳定重排（推荐语义）；Pinned
 与 Dock 常驻瓷贴消费同一份 `PINNED_APP_IDS`（单一来源）；搜索跨全应用，

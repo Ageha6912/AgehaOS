@@ -29,7 +29,10 @@ describe('NotificationCenter (PRD §16.2)', () => {
 
     fireEvent.click(screen.getByTestId('notification-bell'))
     expect(screen.getByTestId('notification-panel')).toBeInTheDocument()
+    // 空态 = §3 构图（Shell 3.1 F2，与右栏「最近通知」卡同款）：居中半透明
+    // 铃铛 + notification.empty 原文案——不再孤零零一行字挂白卡（§16 反模式）。
     expect(screen.getByText('暂无通知')).toBeInTheDocument()
+    expect(screen.getByTestId('notification-panel-empty-icon')).toBeInTheDocument()
   })
 
   it('lists history with unread badge and parameterized body', () => {

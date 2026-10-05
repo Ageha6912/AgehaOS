@@ -438,7 +438,7 @@ export function AppLauncher() {
               ref={menuRef}
               aria-label={t('taskbar.start')}
               data-testid={layout ? `launcher-layout-${layout.tier}` : undefined}
-              className={`popover-panel surface-glass pointer-events-auto flex h-[min(520px,calc(100vh-13rem))] flex-col overflow-hidden p-4 ${
+              className={`popover-panel surface-glass pointer-events-auto flex h-[min(560px,calc(100vh-10.5rem))] flex-col overflow-hidden p-4 ${
                 TIER_WIDTH_CLASS[layout?.tier ?? 'single'] ?? 'w-[600px]'
               } max-w-[calc(100vw-1.5rem)] ${popoverMotionClass(menuPhase.exiting)}`}
             >
@@ -471,7 +471,10 @@ export function AppLauncher() {
                     )}
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-3 px-0.5">
+                  /* Shell 3.1 场景 F 打回修正：分类网格随世界清单扩到两行后，
+                     原 gap-3 + 520px 面板装不下第二行瓦片的名称标签（底缘裁
+                     切）——间距收至 gap-2，配合面板高度档 520→560（见上）。 */
+                  <div className="flex flex-col gap-2 px-0.5">
                     {quickRow('launcher.recent', recentRowIds, 0, 'launcher-recent-list', 'launcher-recent-item')}
                     {quickRow('launcher.section.pinned', pinnedRowIds, pinnedOffset, 'launcher-pinned-list')}
                     {categoriesSection}
@@ -517,13 +520,16 @@ function LauncherTile({
   const name = appDisplayName(app.id)
   return (
     <li className="group relative">
+      {/* py-2（原 2.5）：Shell 3.1 场景 F——分类网格扩到两行后与 560px
+          面板档同步收紧瓦片垂直密度（44px 图标上下 8px 呼吸仍充足），
+          保证第二行名称标签完整可见（底缘不再裁切）。 */}
       <button
         type="button"
         title={name}
         data-testid={testId}
         data-active={active || undefined}
         onMouseEnter={onHover}
-        className={`flex w-full flex-col items-center gap-1.5 rounded-xl px-1 py-2.5 text-center ${
+        className={`flex w-full flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-center ${
           active ? 'bg-primary/10' : ''
         }`}
         onClick={() => onLaunch(app.id)}

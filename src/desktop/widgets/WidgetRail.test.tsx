@@ -145,7 +145,7 @@ describe('WidgetRail (STEP 4 Floating System Center)', () => {
     expect(screen.getByTestId('widgets-system-network').textContent).toContain('网络')
   })
 
-  it('lists the three most recent notifications newest-first, clears all, and offers the center', () => {
+  it('lists the two most recent notifications newest-first with no dead center entry', () => {
     const push = useNotificationStore.getState().push
     push({ appId: 'com.ageha.notes', title: '应用更新', body: '3 个应用可更新' })
     push({ appId: 'system', title: '系统提示', body: '壁纸已更新' })
@@ -154,26 +154,57 @@ describe('WidgetRail (STEP 4 Floating System Center)', () => {
     const card = screen.getByTestId('widgets-notifications')
     expect(card.textContent).toContain('应用更新')
     expect(card.textContent).toContain('系统提示')
+    // 恰 2 条 = 全部展示、无「其余」：「查看更多」不渲染（Shell 3.1 视觉评审
+    // 打回修正——收纳入口只在 items.length > 2 时存在，防死链接）。
+    expect(screen.queryByTestId('widgets-notifications-more')).toBeNull()
 
-    // 「查看更多」进入通知中心：复用 panelOpen 槽（铃铛/左栏/此处三口共用）。
-    fireEvent.click(screen.getByTestId('widgets-notifications-more'))
-    expect(useNotificationStore.getState().panelOpen).toBe(true)
-
+    // 清空在有通知时渲染且可点。
     fireEvent.click(screen.getByTestId('widgets-notifications-clear'))
     expect(useNotificationStore.getState().items).toHaveLength(0)
-    // 空态保留整卡（真实空态文案），且不再渲染「查看更多」（进中心无内容可看）。
-    expect(screen.getByTestId('widgets-notifications').textContent).toContain('暂无通知')
+    // 空态 = §3 构图（Shell 3.1 F2）：notification.empty 原文案保留 + 居中
+    // 半透明铃铛 + 指向中心的弱化链接（独立 testid）——不再孤零零一行字；
+    // 「查看更多」与「清空」双双退出：无其余可看、无东西可清（视觉评审
+    // 打回修正——死链接与无意义按钮不得出现在空态构图里）。
+    const empty = screen.getByTestId('widgets-notifications')
+    expect(empty.textContent).toContain('暂无通知')
     expect(screen.queryByTestId('widgets-notifications-more')).toBeNull()
+    expect(screen.queryByTestId('widgets-notifications-clear')).toBeNull()
+    expect(screen.getByTestId('widgets-notifications-empty-icon')).toBeInTheDocument()
+    // 空态链接语义 = 「打开通知中心」（notification.center 现成键，i18n 零
+    // 新增）：不借用「查看更多」——0 条通知无「更多」可言（第 3 轮视觉
+    // 评审打回：暂无通知与查看更多同框即折叠语义自相矛盾）。
+    expect(screen.getByTestId('widgets-notifications-empty-open').textContent).toBe('通知中心')
+    expect(empty.textContent).not.toContain('查看更多')
+    fireEvent.click(screen.getByTestId('widgets-notifications-empty-open'))
+    expect(useNotificationStore.getState().panelOpen).toBe(true)
   })
 
-  it('disables clear when there are no notifications', () => {
+  it('caps the recent list at two entries and drops the oldest（Shell 3.1 F2）', () => {
+    const push = useNotificationStore.getState().push
+    push({ appId: 'com.ageha.notes', title: '第一条', body: '最早' })
+    push({ appId: 'system', title: '第二条', body: '次新' })
+    push({ appId: 'com.ageha.terminal', title: '第三条', body: '最新' })
     render(<WidgetRail />)
 
-    const clear = screen.getByTestId('widgets-notifications-clear')
-    expect(clear).toBeDisabled()
-    // 禁用态用 disabled 文字 token，不靠整体降透明度（玻璃上会糊成一片）。
-    expect(clear.classList.contains('disabled:text-text-disabled')).toBe(true)
-    expect(clear.classList.contains('disabled:opacity-40')).toBe(false)
+    // 默认最多 2 条（原 3 条收档，F2「明显弱于 System」）：最新在前，
+    // 更早的收进「查看更多」（通知中心）。
+    const card = screen.getByTestId('widgets-notifications')
+    const rows = card.querySelectorAll('li')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]!.textContent).toContain('第三条')
+    expect(rows[1]!.textContent).toContain('第二条')
+    expect(card.textContent).not.toContain('第一条')
+    // 有「其余」被收进（3 > 2）→「查看更多」在位并进入通知中心
+    // （panelOpen 槽，铃铛/左栏/此处三口共用）。
+    fireEvent.click(screen.getByTestId('widgets-notifications-more'))
+    expect(useNotificationStore.getState().panelOpen).toBe(true)
+  })
+
+  it('hides clear in the empty state（视觉评审打回修正：空态无东西可清）', () => {
+    render(<WidgetRail />)
+
+    // §3 减法：空态头部只剩 caption 标题，禁用态「清空」按钮不再挂在那里。
+    expect(screen.queryByTestId('widgets-notifications-clear')).toBeNull()
   })
 
   it('floats as separate glass cards: container passes pointers through, cards take them (§31/§32)', () => {
@@ -190,11 +221,25 @@ describe('WidgetRail (STEP 4 Floating System Center)', () => {
       expect(card.className).toContain('surface-glass')
       expect(card.className).toContain('pointer-events-auto')
       expect(card.className).toContain('rounded-2xl')
-      // 材质表②：subtle 档 shadow-panel（自 shadow-popover 降档）；禁跨层
-      // 借用 rail 的 shadow-float / 弹层的 shadow-popover（§6.2 规则 3）。
-      expect(card.classList.contains('shadow-panel'), `shadow-panel on ${testId}`).toBe(true)
+      // 禁跨层借用 rail 的 shadow-float / 弹层的 shadow-popover（§6.2 规则 3）。
       expect(card.classList.contains('shadow-popover'), `no shadow-popover on ${testId}`).toBe(false)
       expect(card.classList.contains('shadow-float'), `no shadow-float on ${testId}`).toBe(false)
+    }
+    // Shell 3.1 F2 权重分级（brief §1「Notification 必须明显弱于 System」+
+    // 任务书 §16）：Clock/System = 全档卡 shadow-panel；Notification/World =
+    // quiet 档 shadow-soft（分卡断言为本轮契约目标的授权更新，非掩盖问题）。
+    for (const testId of ['widgets-clock', 'widgets-system']) {
+      const card = screen.getByTestId(testId)
+      expect(card.classList.contains('shadow-panel'), `shadow-panel on ${testId}`).toBe(true)
+      expect(card.classList.contains('shadow-soft'), `no shadow-soft on ${testId}`).toBe(false)
+      expect(card.classList.contains('p-4'), `p-4 on ${testId}`).toBe(true)
+    }
+    for (const testId of ['widgets-notifications', 'widgets-world']) {
+      const card = screen.getByTestId(testId)
+      expect(card.classList.contains('shadow-soft'), `shadow-soft on ${testId}`).toBe(true)
+      expect(card.classList.contains('shadow-panel'), `no shadow-panel on ${testId}`).toBe(false)
+      expect(card.classList.contains('border'), `no border on quiet ${testId}`).toBe(false)
+      expect(card.classList.contains('p-3'), `p-3 on ${testId}`).toBe(true)
     }
   })
 

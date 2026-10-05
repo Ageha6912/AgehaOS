@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test'
  * Shell 3.0 STEP 8 启动器精修契约（几何/材质全部 Playwright 探针实测，
  * 禁止心算 rem）：
  * - 居中 Ageha Application Launcher：视口水平居中的大幅玻璃面板，
- *   宽 560-680 档（实现 600），固定高 520；不压菜单栏带与 Dock 带。
+ *   宽 560-680 档（实现 600），固定高 560（Shell 3.1 场景 F：分类网格随世界清单扩到两行，520 档裁第二行瓦片名称标签——高度档同步抬升）；不压菜单栏带与 Dock 带。
  * - 材质 = popover-panel 深玻璃：44px backdrop blur + 白86% 面 + 16px
  *   弹层圆角 + shadow-popover 档（§33.1 材质表⑥）。
  * - 结构序 Search → Recent → Pinned → Categories（DOM 序探针）。
@@ -45,11 +45,11 @@ test('launcher: centered large glass panel with Search → Recent → Pinned →
 
   await openLauncher(page)
 
-  // 几何：宽 600（560-680 档）× 高 520；水平中心 = 视口中心（±2px）；
+  // 几何：宽 600（560-680 档）× 高 560（Shell 3.1 场景 F 抬档，见文件头）；水平中心 = 视口中心（±2px）；
   // 面板整体落在菜单栏带之下、Dock 带之上（Dock 顶 = 1080 − 68 − 20 = 992）。
   const box = (await page.getByRole('list', { name: /开始/ }).boundingBox())!
   expect(Math.abs(box.width - 600)).toBeLessThanOrEqual(2)
-  expect(Math.abs(box.height - 520)).toBeLessThanOrEqual(2)
+  expect(Math.abs(box.height - 560)).toBeLessThanOrEqual(2)
   expect(Math.abs(box.x + box.width / 2 - 960)).toBeLessThanOrEqual(2)
   expect(box.y).toBeGreaterThanOrEqual(32)
   expect(box.y + box.height).toBeLessThanOrEqual(992)

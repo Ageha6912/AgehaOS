@@ -158,7 +158,20 @@ export function NotificationCenter() {
           </div>
 
           {items.length === 0 ? (
-            <p className="px-2 py-6 text-center text-xs text-text-muted">{t('notification.empty')}</p>
+            /* Shell 3.1 F2 空态构图同步（任务书 §16：孤行「暂无通知」挂白卡是
+               点名反模式，视觉评审 H-notification-empty.png 打回）：居中半透明
+               铃铛 + notification.empty 原文案——与右栏「最近通知」卡同一构图
+               语言；此处即通知中心本尊，不另设跳转链接。i18n 零新增。 */
+            <div className="flex flex-col items-center gap-1.5 px-2 py-8 text-center">
+              <span
+                data-testid="notification-panel-empty-icon"
+                aria-hidden="true"
+                className="flex h-8 w-8 items-center justify-center text-text-tertiary opacity-60"
+              >
+                <Bell size={30} weight="regular" />
+              </span>
+              <p className="text-[11px] text-text-tertiary">{t('notification.empty')}</p>
+            </div>
           ) : (
             // 列表区必须定高：ScrollFadeList 的 ul 绝对铺满包装层（固有高度 0），
             // 而本面板只有 max-h-96 没有确定高度，flex-1 无自由空间可分——有通知

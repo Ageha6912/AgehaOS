@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import {
   ArrowDown,
+  Bell,
   CaretDown,
   CaretRight,
   Gauge,
@@ -38,6 +39,9 @@ import {
  * navigator.connection / rAF 实测帧率（不可用显「—」且不画进度条）；通知走
  * 通知 store，「查看更多」复用通知中心面板；今日世界走 eclosion-store 世界
  * 摘要（羽化关整卡不渲染，WorldSignals 同款门控）。≥1280px 显示（xl）。
+ * Shell 3.1 F2 权重分级：Clock > System > Notification > Today World——
+ * 前两者全档卡（p-4 + subtle 边 + shadow-panel），后两者 quiet 档（p-3 +
+ * 无边框 + shadow-soft），标题统一 caption 化（见 CARD_CLASS_QUIET 注）。
  */
 export function WidgetRail() {
   const { t } = useTranslation()
@@ -56,8 +60,17 @@ export function WidgetRail() {
   )
 }
 
+/* Shell 3.1 F2 权重分级（brief §1 + 任务书 §13-§16：Clock > System >
+   Notification > Today World）：统一卡材质拆两档，四卡权重拉开——
+   - 全档卡（Clock/System）：p-4 + subtle 发丝边 + shadow-panel，Clock 保持
+     最高权重（32px 等宽时间），System 次之；
+   - quiet 档（Notification/World）：p-3 + 无边框 + shadow-soft——更小更平、
+     投影近无（几乎贴在桌面上），明显后退为次级信息。零新增 CSS 类，全部
+     消费既有 Tailwind 令牌档。 */
 const CARD_CLASS =
   'widget-card surface-glass pointer-events-auto shrink-0 rounded-2xl border border-border-subtle p-4 shadow-panel'
+const CARD_CLASS_QUIET =
+  'widget-card surface-glass pointer-events-auto shrink-0 rounded-2xl p-3 shadow-soft'
 
 function ClockCard() {
   const locale = useLocaleStore((s) => s.locale)
@@ -277,7 +290,9 @@ function SystemCard() {
 
   return (
     <section className={CARD_CLASS} data-testid="widgets-system">
-      <p className="text-[13px] font-semibold text-text">{t('widgets.system')}</p>
+      {/* Shell 3.1 F2：标题降为 11px muted caption（弱于 Clock 的主标题位），
+          三行指标本身已合规（label muted + 等宽数值 + h-1 细条）不动。 */}
+      <p className="text-[11px] font-medium text-text-muted">{t('widgets.system')}</p>
       {/* 进度条不铺满 widget（STEP 4 验收）：条是指标行内的次级元素（上下留
           行距、左右在卡 padding 内），不是卡片宽的仪表条——Dashboard 感来源。 */}
       <ul className="mt-2.5 space-y-2.5">
@@ -320,28 +335,62 @@ function NotificationsCard() {
   const clear = useNotificationStore((s) => s.clear)
   const setPanelOpen = useNotificationStore((s) => s.setPanelOpen)
   const unread = unreadCount(items)
-  // 最近 3 条（最新在前）；空态整卡保留（真实空态即「暂无通知」）。
-  const recent = [...items].reverse().slice(0, 3)
+  // Shell 3.1 F2：默认 2 条（原 3 条）——其余收进「查看更多」（通知中心）；
+  // quiet 档整卡（明显弱于 System）。空态整卡保留（真实空态即「暂无通知」）。
+  // store push 为 prepend（items 恒最新在前，NotificationCenter 同款直渲染）：
+  // 直接取前 2 条 = 最近 2 条。原 `[...items].reverse()` 是 c33bcee 引入的
+  // 顺序反置（实际取到最旧条目，与「最新在前」注释矛盾）——预存 bug 恰落
+  // 在本步授权修改的 recent 表达式上，同线修正（证据见新单测 cap 用例）。
+  const recent = items.slice(0, 2)
 
   return (
-    <section className={CARD_CLASS} data-testid="widgets-notifications">
+    <section className={CARD_CLASS_QUIET} data-testid="widgets-notifications">
       <div className="flex items-center justify-between">
-        <p className="text-[13px] font-semibold text-text">
+        <p className="text-[11px] font-medium text-text-muted">
           {t('widgets.recent')}
           {unread > 0 && <span className="ml-1.5 text-[11px] text-text-muted">{unread}</span>}
         </p>
-        <button
-          type="button"
-          data-testid="widgets-notifications-clear"
-          className="rounded-md px-1.5 py-0.5 text-[11px] text-text-muted hover:bg-surface-raised hover:text-text disabled:cursor-default disabled:text-text-disabled disabled:hover:bg-transparent"
-          disabled={items.length === 0}
-          onClick={clear}
-        >
-          {t('widgets.clearAll')}
-        </button>
+        {/* Shell 3.1 视觉评审打回修正：清空仅在有通知时渲染——空态无东西
+            可清，禁用态按钮挂在头部同样是噪音（§3 减法：隐藏而非禁用）。 */}
+        {items.length > 0 && (
+          <button
+            type="button"
+            data-testid="widgets-notifications-clear"
+            className="rounded-md px-1.5 py-0.5 text-[11px] text-text-muted hover:bg-surface-raised hover:text-text"
+            onClick={clear}
+          >
+            {t('widgets.clearAll')}
+          </button>
+        )}
       </div>
       {recent.length === 0 ? (
-        <p className="mt-2 text-[11px] text-text-tertiary">{t('notification.empty')}</p>
+        /* Shell 3.1 F2 空态优雅化（§3 构图）：居中半透明铃铛 + 提示
+            （notification.empty 原文案，i18n 零新增）+ 指向通知中心的弱化
+            链接——不再孤零零一行字。链接用独立 testid，与「有其余才渲染
+            （>2 条）」的 widgets-notifications-more 区分（空态下两者均不
+            渲染，构图保持「居中图标+提示」纯净组合）。 */
+        <div className="mt-3 flex flex-col items-center gap-1.5 py-2 text-center">
+          <span
+            data-testid="widgets-notifications-empty-icon"
+            aria-hidden="true"
+            className="flex h-8 w-8 items-center justify-center text-text-tertiary opacity-60"
+          >
+            <Bell size={30} weight="regular" />
+          </span>
+          <p className="text-[11px] text-text-tertiary">{t('notification.empty')}</p>
+          {/* Shell 3.1 视觉评审第 3 轮打回修正：链接文案用 notification.center
+              （「打开通知中心」语义，i18n 现成键零新增）——不再借用
+              widgets.more（「查看更多」）：0 条通知时不存在「更多」，两词
+              同框即折叠语义自相矛盾。 */}
+          <button
+            type="button"
+            data-testid="widgets-notifications-empty-open"
+            className="rounded-md px-1.5 py-0.5 text-[11px] text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+            onClick={() => setPanelOpen(true)}
+          >
+            {t('notification.center')}
+          </button>
+        </div>
       ) : (
         <>
           <ul className="mt-2.5 space-y-2.5">
@@ -369,16 +418,21 @@ function NotificationsCard() {
             ))}
           </ul>
           {/* 「查看更多」进入通知中心（STEP 4）：复用 panelOpen 槽（P2-2 同一
-              面板，铃铛/左栏/此处三口共用），≥1280px 面板停靠右栏左侧不盖卡。 */}
-          <button
-            type="button"
-            data-testid="widgets-notifications-more"
-            className="mx-auto mt-2.5 flex items-center gap-0.5 rounded-md px-2 py-1 text-[11px] text-text-muted hover:bg-surface-raised hover:text-text"
-            onClick={() => setPanelOpen(true)}
-          >
-            {t('widgets.more')}
-            <CaretRight size={9} weight="bold" aria-hidden="true" />
-          </button>
+              面板，铃铛/左栏/此处三口共用），≥1280px 面板停靠右栏左侧不盖卡。
+              Shell 3.1 视觉评审打回修正：仅当通知数 > 2（确有「其余」被收进）
+              才渲染——≤2 条全展示、无其余，入口即死链接（§5 收纳语义），
+              也不得嵌进空态构图破坏「居中图标+提示」的纯净组合。 */}
+          {items.length > 2 && (
+            <button
+              type="button"
+              data-testid="widgets-notifications-more"
+              className="mx-auto mt-2.5 flex items-center gap-0.5 rounded-md px-2 py-1 text-[11px] text-text-muted hover:bg-surface-raised hover:text-text"
+              onClick={() => setPanelOpen(true)}
+            >
+              {t('widgets.more')}
+              <CaretRight size={9} weight="bold" aria-hidden="true" />
+            </button>
+          )}
         </>
       )}
     </section>
@@ -407,11 +461,13 @@ function WorldCard() {
 
   return (
     <section
-      className={CARD_CLASS}
+      className={CARD_CLASS_QUIET}
       data-testid="widgets-world"
       aria-label={t('workspace.panel.world')}
     >
-      <p className="text-[13px] font-semibold text-text">{t('workspace.panel.world')}</p>
+      {/* Shell 3.1 F2：四者中最低调——quiet 档 + caption 标题；入口行
+          （Sparkle + headline + 查看世界 →）原样保留。 */}
+      <p className="text-[11px] font-medium text-text-muted">{t('workspace.panel.world')}</p>
       {world === null ? (
         <p data-testid="widgets-world-empty" className="mt-2 text-[11px] leading-snug text-text-tertiary">
           {t('workspace.panel.world.empty')}
