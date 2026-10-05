@@ -290,16 +290,16 @@ describe('MenuBar', () => {
     expect(view).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('wears the bright paper menubar material and 13px menu type (§4.2①, §34 亮白裁决)', () => {
+  it('wears the shell 2.0 menubar material and 13px menu type (§4.2①)', () => {
     render(<MenuBar />)
 
-    // 材质（2026-10-05 亮白毛玻璃裁决）：chrome-paper 墨字域 + glass-bright
-    // （strong 玻璃底 + 20px blur）——旧「暗藏蓝半透条 + 白字」退役。
+    // 材质表①：desktop-chrome 白字域 + menubar-glass 半透底 + surface-glass
+    // 基础 + glass-hint（12px blur，地基切片材质块）。2026-10-05 裁决：保留
+    // 原毛玻璃样式、整体透明度调高（menubar-glass 50%→38%）。
     const header = screen.getByTestId('menu-bar')
-    for (const cls of ['chrome-paper', 'glass-bright']) {
+    for (const cls of ['desktop-chrome', 'menubar-glass', 'surface-glass', 'glass-hint']) {
       expect(header.classList.contains(cls), cls).toBe(true)
     }
-    expect(header.classList.contains('desktop-chrome')).toBe(false)
     // 菜单文字 13px（触发器 + 菜单项；裁决 J：时钟/电池数据读出豁免）。
     expect(screen.getByRole('button', { name: '文件' }).classList.contains('text-[13px]')).toBe(true)
     expect(screen.getByRole('button', { name: '视图' }).classList.contains('text-[13px]')).toBe(true)

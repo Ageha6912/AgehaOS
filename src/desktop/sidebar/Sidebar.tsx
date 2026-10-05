@@ -434,8 +434,8 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         aria-label={t('sidebar.label')}
         data-testid="sidebar"
         data-expanded={panel.expanded || undefined}
-        className={`chrome-paper pointer-events-auto surface-glass glass-bright flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-1 rounded-xl border border-border py-3 shadow-float ${
-          liquidMap ? 'glass-liquid' : ''
+        className={`desktop-chrome pointer-events-auto surface-glass flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-1 rounded-xl border border-border py-3 shadow-float ${
+          liquidMap ? 'glass-liquid' : 'glass-raise'
         }`}
       >
         {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。§34 参考图
@@ -564,7 +564,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         >
           <div
             data-testid="workspace-panel-surface"
-            className="chrome-paper surface-glass glass-bright h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border shadow-float"
+            className="desktop-chrome surface-glass glass-raise h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border shadow-float"
           >
             <WorkspacePanelBody expanded={panel.expanded} />
           </div>

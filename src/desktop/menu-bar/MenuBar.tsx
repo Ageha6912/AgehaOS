@@ -241,13 +241,10 @@ export function MenuBar() {
   }).format(new Date())
 
   return (
-    // 亮白毛玻璃顶栏（2026-10-05 用户裁决，§34 参考图）：材质走 .glass-bright
-    // （strong 玻璃底 + rail 档 blur）、墨字走 .chrome-paper 作用域——旧
-    // 「暗藏蓝半透条 + 白字」（menubar-glass）退役。
     <header
       ref={rootRef}
       data-testid="menu-bar"
-      className="chrome-paper glass-bright fixed inset-x-0 top-0 z-[41] flex h-[var(--ag-menubar-height)] items-center gap-1 border-b border-border-subtle px-2.5 shadow-soft"
+      className="desktop-chrome glass-hint menubar-glass surface-glass fixed inset-x-0 top-0 z-[41] flex h-[var(--ag-menubar-height)] items-center gap-1 border-b border-border-subtle px-2.5 shadow-soft"
     >
       <div className="flex items-center gap-1.5 pr-1">
         <BrandLogo size={18} />

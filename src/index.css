@@ -446,7 +446,9 @@ body {
   --ag-surface-soft: rgb(255 255 255 / 16%);
   --ag-surface-elevated: rgb(255 255 255 / 22%);
   --ag-surface-popover: rgb(255 255 255 / 12%);
-  --ag-glass-bg: rgb(255 255 255 / 14%);
+  /* 顶栏/左栏双岛的玻璃底（2026-10-05 用户裁决：保留原毛玻璃样式但透明
+     度调高 14%→8%——壁纸更透；Dock/右栏卡有各自底色不受影响）。 */
+  --ag-glass-bg: rgb(255 255 255 / 8%);
   --ag-glass-border: rgb(255 255 255 / 30%);
   --ag-glass-highlight: rgb(255 255 255 / 42%);
   --ag-primary: #5b8def;
@@ -542,14 +544,6 @@ body {
 }
 /* ③ 左栏 rail 浮岛（blur 20px raise）。 */
 .glass-raise {
-  backdrop-filter: blur(var(--ag-blur-md)) saturate(150%);
-}
-/* ③″ 亮白毛玻璃（2026-10-05 用户裁决，§34 参考图口径）：左栏双岛 + 顶栏
-   亮白纸面玻璃——strong 玻璃底（浅=白 86% / 深=墨 84%，chrome-paper 作用
-   域重声明）+ rail 档 20px blur；墨字/浅字由 chrome-paper 承担。源序纪律：
-   玻璃基规则后、降透明兜底前（与本文件全部七面材质同规矩）。 */
-.glass-bright {
-  background: var(--ag-glass-bg-strong);
   backdrop-filter: blur(var(--ag-blur-md)) saturate(150%);
 }
 /* ③′ system-rails 液态玻璃（2026-10-02 用户裁决，ZenDesktop 观感的 Web
@@ -684,17 +678,10 @@ body {
     background: var(--ag-surface-popover);
     backdrop-filter: none;
   }
-  .glass-bright {
-    background: var(--ag-surface-modal);
-    backdrop-filter: none;
-  }
 }
 @supports not (backdrop-filter: blur(1px)) {
   .surface-glass {
     background: var(--ag-surface-popover);
-  }
-  .glass-bright {
-    background: var(--ag-surface-modal);
   }
 }
 
@@ -763,9 +750,13 @@ body {
 
 /* 菜单栏暗藏青条：白字在壁纸最亮段（≈#88bbff）上仍 ≥5:1；次级白字提到
    92%（78% 在此底上仅 ≈4:1）。 */
-/* 顶栏亮白毛玻璃（2026-10-05 用户裁决，§34 参考图）：材质由亮白玻璃类
-   （glass-bright）承担、墨字由纸面作用域（chrome-paper）承担——旧「暗藏
-   蓝半透条 + 白字」顶栏材质随亮白裁决整体退役。 */
+.menubar-glass {
+  /* 暗藏蓝半透条（白字可读兜底）——2026-10-05 用户裁决保留原样式，但
+     整体透明度调高：50% → 38%（壁纸更透，白字对比仍达标）。 */
+  background: rgb(18 30 66 / 38%);
+  --ag-text-muted: rgb(255 255 255 / 92%);
+  --ag-text-tertiary: rgb(255 255 255 / 80%);
+}
 /* 文字/表面 Token 由上方 Chrome 纸面块提供（白纱 + 墨字）。 */
 .dark .widget-card {
   --ag-surface-soft: rgb(255 255 255 / 7%);

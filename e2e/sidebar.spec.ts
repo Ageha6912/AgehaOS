@@ -90,22 +90,23 @@ test('sidebar: floating narrow rail with working actions, tooltips and capsules'
   await page.keyboard.press('Escape')
   await expect(page.getByTestId('launcher-grid')).toBeHidden()
 
-  // ⑤ 通知项唤起与顶栏铃铛共享的面板；展开态 = 纸面 elevated 实色白底座
-  //    （chrome-paper 作用域，§34 亮白毛玻璃：小控件=实色纪律）。
+  // ⑤ 通知项唤起与顶栏铃铛共享的面板；展开态 = 轻 translucent capsule
+  //    （data-active 走 chrome 白玻璃 token，非实心色块）。
   const bell = page.getByTestId('sidebar-notifications')
   await bell.click()
   await expect(page.getByTestId('notification-panel')).toBeVisible()
   await expect(bell).toHaveAttribute('aria-expanded', 'true')
   await expect(bell).toHaveAttribute('data-active', 'true')
-  // chrome-paper 作用域 --ag-surface-elevated = #ffffff 实色：rgba 口径
-  // alpha = 1。（按钮带 120ms background-color 过渡——index.css
-  // :where(button) 基线，须等过渡落定再采样。）
+  // chrome 作用域 --ag-surface-raised = 白 16%：轻透 capsule 而非实心块。
+  // （按钮带 120ms background-color 过渡——index.css :where(button) 基线，
+  // 须等过渡落定再采样。）
   const capsuleAlpha = () =>
     bell.evaluate((el) => {
       const color = getComputedStyle(el).backgroundColor
       return color.startsWith('rgba') ? Number(color.slice(5, -1).split(',')[3]) : 1
     })
-  await expect.poll(capsuleAlpha, { timeout: 2000 }).toBeGreaterThan(0.5)
+  await expect.poll(capsuleAlpha, { timeout: 2000 }).toBeGreaterThan(0)
+  expect(await capsuleAlpha()).toBeLessThan(0.5)
   await bell.click()
   await expect(page.getByTestId('notification-panel')).toBeHidden()
   await expect(bell).toHaveAttribute('aria-expanded', 'false')

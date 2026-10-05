@@ -63,9 +63,9 @@ describe('Desktop', () => {
       expect(rails.classList.contains(cls), `no ${cls}`).toBe(false)
     }
     expect(rails.className).not.toContain('overflow')
-    // 岛一（窄轨）自带亮白纸面玻璃 + 交互；面板岛收起态未挂载（首展才挂载）。
+    // 岛一（窄轨）自带玻璃面 + 交互；面板岛收起态未挂载（首展才挂载）。
     const rail = screen.getByTestId('sidebar')
-    for (const cls of ['chrome-paper', 'surface-glass', 'glass-bright', 'rounded-xl', 'shadow-float', 'pointer-events-auto', 'h-full']) {
+    for (const cls of ['desktop-chrome', 'surface-glass', 'glass-raise', 'rounded-xl', 'shadow-float', 'pointer-events-auto', 'h-full']) {
       expect(rail.classList.contains(cls), `rail ${cls}`).toBe(true)
     }
     expect(screen.queryByTestId('workspace-panel-island')).toBeNull()
@@ -77,19 +77,17 @@ describe('Desktop', () => {
 
     const rail = screen.getByTestId('sidebar')
     expect(rail.className).toContain('glass-liquid')
-    // 亮白底（glass-bright）恒在：液态玻璃只换 backdrop-filter（折射），
-    // 玻璃底色仍是 strong 白纸面（2026-10-05 亮白裁决）。
-    expect(rail.className).toContain('glass-bright')
+    expect(rail.className).not.toContain('glass-raise')
     const filter = document.querySelector('svg filter#ag-liquid-rail')
     expect(filter).not.toBeNull()
     expect(filter?.querySelector('feDisplacementMap')?.getAttribute('scale')).toBe('20')
   })
 
-  it('keeps the bright paper glass on the rail island without a map（jsdom/生成失败回落）', () => {
+  it('falls back to glass-raise on the rail island without a map（jsdom/生成失败回落）', () => {
     liquidState.map = ''
     render(<Desktop />)
     const rail = screen.getByTestId('sidebar')
-    expect(rail.className).toContain('glass-bright')
+    expect(rail.className).toContain('glass-raise')
     expect(rail.className).not.toContain('glass-liquid')
     expect(document.querySelector('svg filter#ag-liquid-rail')).toBeNull()
   })
