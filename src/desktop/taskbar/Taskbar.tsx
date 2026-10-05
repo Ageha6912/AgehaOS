@@ -16,9 +16,8 @@ import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 
 const HOVER_DELAY_MS = 350
 
-/** 波浪参数（2026-10-05 用户裁决恢复 §13 前的邻位联动）：σ 对齐图标节距
-    56px，邻位最大轻浮 8px / scale 1.08——悬停枚的强浮起（-3px / 1.18 +
-    光晕）仍由 index.css 的 :hover 规则承担，引擎跳过最近一枚避免叠加。 */
+/** 波浪参数（2026-10-05 用户裁决终态：波浪是 Dock 唯一浮起）：σ 对齐图标
+    节距 56px，峰值轻浮 8px / scale 1.08——作用于距指针最近的一枚。 */
 export const DOCK_WAVE_SIGMA_PX = 56
 export const DOCK_WAVE_MAX_LIFT_PX = 8
 export const DOCK_WAVE_MAX_SCALE = 1.08
@@ -49,11 +48,9 @@ export function Taskbar() {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [anchorLeft, setAnchorLeft] = useState(0)
   const hoverTimer = useRef<number | null>(null)
-  // 悬停强浮起（2026-10-02 用户裁决：被悬浮那枚 -3px/1.18 + 光晕）仍走
-  // index.css 的 button:hover > [data-wave-icon] 规则。邻位波浪（2026-10-05
-  // 用户裁决恢复 §13 前联动）：高斯衰减轻浮，rAF 节流 + 直写 inline
-  // transform——零 React 渲染；引擎跳过距指针最近的一枚（那是 :hover 的
-  // 强浮起位，避免 inline 覆盖 CSS）；reduced-motion 不启用；离开 Dock 全清。
+  // 波浪（2026-10-05 用户裁决终态：高斯波浪是 Dock 唯一浮起，悬停强浮起
+  // 已退役）：rAF 节流 + 直写 inline transform——零 React 渲染；峰值作用于
+  // 距指针最近的一枚；reduced-motion 不启用；离开 Dock 全清。
   const dockRef = useRef<HTMLDivElement | null>(null)
   const waveFrame = useRef<number | null>(null)
   const waveX = useRef(0)
@@ -63,22 +60,11 @@ export function Taskbar() {
     const dock = dockRef.current
     if (!dock) return
     const spans = dock.querySelectorAll<HTMLElement>('[data-wave-icon]')
-    let nearest: HTMLElement | null = null
-    let nearestDistance = Number.POSITIVE_INFINITY
-    const entries: Array<{ el: HTMLElement; distance: number }> = []
     spans.forEach((el) => {
       const rect = el.getBoundingClientRect()
-      const distance = Math.abs(waveX.current - (rect.left + rect.width / 2))
-      entries.push({ el, distance })
-      if (distance < nearestDistance) {
-        nearestDistance = distance
-        nearest = el
-      }
+      const transform = dockWaveTransform(Math.abs(waveX.current - (rect.left + rect.width / 2)))
+      el.style.transform = transform ?? ''
     })
-    for (const { el, distance } of entries) {
-      // 最近一枚交给 CSS :hover（指针在间隙时它只是不动，视觉可接受）。
-      el.style.transform = el === nearest ? '' : dockWaveTransform(distance) ?? ''
-    }
   }
 
   const onDockPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {

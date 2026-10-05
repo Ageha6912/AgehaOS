@@ -349,38 +349,18 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(css).not.toContain('-webkit-backdrop-filter')
   })
 
-  it('lifts the hovered dock icon with glow via CSS（邻位波浪归 Taskbar 波浪引擎，2026-10-05 恢复）', () => {
-    // 前置契约：Taskbar 图标 span 挂 data-wave-icon（CSS 钩子，不加则规则
-    // 永不命中 = 静默丢需求）。hover 规则 = 浮起（translateY+scale）+ 光晕
-    // （drop-shadow，品牌 cobalt 28%，Active/Highlight 配额内）；写入域限定
-    // 在 button:hover 的直接子级 = CSS 域只管被悬浮的那一枚（邻位高斯轻浮
-    // 由 Taskbar 波浪引擎写 inline transform，2026-10-05 用户裁决恢复）；
-    // 触屏与 reduced-motion 不浮起；不声明 background（按钮零底色裁决不回退）。
-    const at = css.indexOf('button:hover > [data-wave-icon]')
-    expect(at).toBeGreaterThan(0)
-    const rule = css.slice(at, at + 320)
-    expect(rule).toContain('transform: translateY(-3px) scale(1.18)')
-    expect(rule).toContain('filter: drop-shadow(')
-    expect(rule).toContain('rgb(47 95 232 / 28%)')
-    expect(rule).not.toContain('background')
-    // 作用域护栏：hover 浮起必须包在 (hover:hover)+(no-preference) 媒体内，
-    // 基态 transition 存在（回落动画）。
-    expect(css).toContain('@media (hover: hover) and (prefers-reduced-motion: no-preference)')
-    expect(css.indexOf('[data-wave-icon] {')).toBeGreaterThan(-1)
-    expect(css.slice(css.indexOf('[data-wave-icon] {'), css.indexOf('[data-wave-icon] {') + 140)).toContain(
-      'transition:',
-    )
-  })
-
-  it('raises the hovered dock icon slowly and settles back faster（2026-10-02 裁决「缓慢浮起」）', () => {
-    // 非对称过渡：入场 380ms easeOutQuint（cubic-bezier(0.22,1,0.36,1)）软
-    // 减速丝滑浮起，写在 hover 态；回落 220ms 常规缓动，写在基态。
-    const hoverAt = css.indexOf('button:hover > [data-wave-icon]')
-    const hoverRule = css.slice(hoverAt, hoverAt + 320)
-    expect(hoverRule).toContain('transform 380ms cubic-bezier(0.22, 1, 0.36, 1)')
+  it('keeps the wave transition base and retires the hover strong lift（2026-10-05 终态：波浪唯一浮起）', () => {
+    // 波浪引擎直写 inline transform（rAF 逐帧），基态 220ms transform 过渡
+    // 提供轻阻尼与离开软回落；2026-10-02 的悬停强浮起规则（-3px/1.18 +
+    // 光晕，(hover:hover) 媒体块）已随波浪恢复裁决一并退役。
     const baseAt = css.indexOf('[data-wave-icon] {')
+    expect(baseAt).toBeGreaterThan(-1)
     const baseRule = css.slice(baseAt, baseAt + 160)
+    expect(baseRule).toContain('transition:')
     expect(baseRule).toContain('transform 220ms var(--ag-motion-ease)')
+    expect(css).not.toContain('button:hover > [data-wave-icon]')
+    expect(css).not.toContain('translateY(-3px) scale(1.18)')
+    expect(css).not.toContain('drop-shadow(0 4px 10px rgb(47 95 232 / 28%))')
   })
 
   it('styles the sidebar tooltip as a glass ink chip with slide-in (2026-10-02 裁决「太简陋」)', () => {

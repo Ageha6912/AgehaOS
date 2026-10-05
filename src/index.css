@@ -634,29 +634,15 @@ body {
   display: none;
 }
 
-/* Dock 图标悬停（2026-10-02 用户裁决「只浮起被悬浮的那一枚 + 缓慢浮起」，
-   2026-10-05 用户裁决恢复邻位波浪后本块保持不变：悬停枚的强浮起（-3px/
-   1.18 + 光晕）仍由本块 :hover 规则承担，邻位轻浮由 Taskbar 波浪引擎直写
-   inline transform（高斯衰减，跳过最近一枚）——不会命中 :hover 枚，两者
-   不打架。非对称过渡：入场 380ms easeOutQuint 软减速（丝滑），回落 220ms
-   常规收拢）。
-   transform 只写 [data-wave-icon] 包裹层（按钮本体零底色，2026-10-01 裁决
-   不回退）。scale 变换会撑出容器的可滚动区域 → 运行中行保持 .no-scrollbar
-   （修订 11）。触屏（无 hover）与 prefers-reduced-motion 不浮起，保留按钮
-   原生反馈。回收站按钮无 wave 图标后代，规则空命中无害。 */
+/* Dock 图标波浪（2026-10-05 用户裁决终态：高斯邻位波浪是 Dock 唯一浮起
+   ——2026-10-02 的悬停强浮起（-3px/1.18 + 光晕）随同日波浪恢复一并退役）。
+   transform 由 Taskbar 波浪引擎直写 [data-wave-icon] inline（rAF 逐帧），
+   本块只保留 220ms transform 过渡：波浪轻阻尼跟手、指针离开软回落。
+   scale 变换会撑出容器的可滚动区域 → 运行中行保持 .no-scrollbar
+   （修订 11）。触屏（无 hover）与 prefers-reduced-motion 无波浪（引擎侧
+   关闭），保留按钮原生反馈。回收站按钮无 wave 图标后代，规则空命中无害。 */
 [data-wave-icon] {
-  transition:
-    transform 220ms var(--ag-motion-ease),
-    filter 220ms var(--ag-motion-ease);
-}
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  button:hover > [data-wave-icon] {
-    transition:
-      transform 380ms cubic-bezier(0.22, 1, 0.36, 1),
-      filter 380ms cubic-bezier(0.22, 1, 0.36, 1);
-    transform: translateY(-3px) scale(1.18);
-    filter: drop-shadow(0 4px 10px rgb(47 95 232 / 28%));
-  }
+  transition: transform 220ms var(--ag-motion-ease);
 }
 
 @media (prefers-reduced-transparency: reduce) {

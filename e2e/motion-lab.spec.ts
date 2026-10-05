@@ -4,14 +4,14 @@ import { taskbarStartButton } from './helpers'
 
 /**
  * 动效实验室集成契约（docs/DESIGN.md §15/§32.5 修订 10，2026-10-01 用户裁决；
- * §13 悬停浮起修订 2026-10-02 + 波浪恢复 2026-10-05 用户裁决）：进阶炫技档
- * 四项 + 指针光晕默认开——流光氛围画布、主题光晕呼吸、Dock 扫光覆盖层在桌面
- * 就位；Dock 悬停枚强浮起（CSS）+ 邻位高斯轻浮（Taskbar 波浪引擎，inline）；
+ * §13 波浪终态 2026-10-05 用户裁决）：进阶炫技档四项 + 指针光晕默认开——
+ * 流光氛围画布、主题光晕呼吸、Dock 扫光覆盖层在桌面就位；Dock 高斯波浪是
+ * 唯一浮起（悬停强浮起已退役）：峰值作用于距指针最近的一枚，随距离衰减；
  * 设置「外观」开关可即时关闭对应效果。
  */
 test.describe.configure({ retries: 2 })
 
-test('motion lab: aurora/glow/sheen present, hovered dock icon lifts alone, toggles cut effects', async ({
+test('motion lab: aurora/glow/sheen present, dock wave peaks at pointer, toggles cut effects', async ({
   page,
 }) => {
   await page.goto('/')
@@ -30,11 +30,10 @@ test('motion lab: aurora/glow/sheen present, hovered dock icon lifts alone, togg
   await expect(page.getByTestId('ambient-glow')).toHaveClass(/is-on/)
   await expect(page.getByTestId('dock-sheen')).toBeAttached()
 
-  // ② 悬停强浮起 + 邻位波浪（2026-10-05 裁决）：悬停瓷贴 → 该图标 computed
-  //    transform = 强浮起（scale 1.18，CSS hover 域）；相邻瓷贴（terminal 与
-  //    store 在常驻序相邻，节距 56 = σ）= 波浪轻浮（scale 1 < n < 1.18，
-  //    Taskbar 引擎 inline 域）；隔两枚以上（files 距 terminal 3σ）已出波浪
-  //    截止，transform 归 none。
+  // ② 波浪（2026-10-05 终态：波浪唯一浮起）：悬停瓷贴 = 波浪峰值（scale
+  //    1.08，Taskbar 引擎 inline 域）；相邻瓷贴（terminal 与 store 在常驻序
+  //    相邻，节距 56 = σ）= 轻浮（scale 1 < n < 1.08）；隔两枚以上（files 距
+  //    terminal 3σ）已出波浪截止，transform 归 none。
   const terminalPin = page.getByTestId('dock-pin-com.ageha.terminal')
   const storePin = page.getByTestId('dock-pin-com.ageha.store')
   const filesPin = page.getByTestId('dock-pin-com.ageha.files')
@@ -42,15 +41,15 @@ test('motion lab: aurora/glow/sheen present, hovered dock icon lifts alone, togg
     locator.locator('[data-wave-icon]').evaluate((el) => getComputedStyle(el).transform)
   const scaleOf = (matrix: string) => Number(matrix.slice(7, matrix.indexOf(',')))
   await terminalPin.hover()
-  await page.waitForTimeout(500) // CSS hover 380ms + 波浪 inline 220ms 落定。
+  await page.waitForTimeout(500) // 波浪 inline 220ms 过渡落定。
   const hoveredTransform = await computedTransform(terminalPin)
   const neighborTransform = await computedTransform(storePin)
   expect(hoveredTransform).toContain('matrix')
-  expect(scaleOf(hoveredTransform)).toBeCloseTo(1.18, 1)
+  expect(scaleOf(hoveredTransform)).toBeCloseTo(1.08, 1)
   expect(neighborTransform).toContain('matrix')
   const neighborScale = scaleOf(neighborTransform)
   expect(neighborScale).toBeGreaterThan(1)
-  expect(neighborScale).toBeLessThan(1.18)
+  expect(neighborScale).toBeLessThan(1.08)
   expect(await computedTransform(filesPin)).toBe('none')
 
   // ②b 移开指针：浮起与波浪一并回落归位。
