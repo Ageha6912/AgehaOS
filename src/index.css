@@ -750,13 +750,9 @@ body {
 
 /* 菜单栏暗藏青条：白字在壁纸最亮段（≈#88bbff）上仍 ≥5:1；次级白字提到
    92%（78% 在此底上仅 ≈4:1）。 */
-.menubar-glass {
-  /* 暗藏蓝半透条（白字可读兜底）——2026-10-05 用户裁决保留原样式，但
-     整体透明度调高：50% → 38%（壁纸更透，白字对比仍达标）。 */
-  background: rgb(18 30 66 / 38%);
-  --ag-text-muted: rgb(255 255 255 / 92%);
-  --ag-text-tertiary: rgb(255 255 255 / 80%);
-}
+/* 顶栏材质（2026-10-05 用户裁决）：与左栏双岛同吃 chrome 白玻璃底
+   （--ag-glass-bg 白 8%）+ glass-hint blur，不再有独立暗条——白字可读性
+   由 desktop-chrome 的 text-shadow 晕影兜底。 */
 /* 文字/表面 Token 由上方 Chrome 纸面块提供（白纱 + 墨字）。 */
 .dark .widget-card {
   --ag-surface-soft: rgb(255 255 255 / 7%);

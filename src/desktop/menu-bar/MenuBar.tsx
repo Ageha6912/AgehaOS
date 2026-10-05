@@ -244,7 +244,7 @@ export function MenuBar() {
     <header
       ref={rootRef}
       data-testid="menu-bar"
-      className="desktop-chrome glass-hint menubar-glass surface-glass fixed inset-x-0 top-0 z-[41] flex h-[var(--ag-menubar-height)] items-center gap-1 border-b border-border-subtle px-2.5 shadow-soft"
+      className="desktop-chrome glass-hint surface-glass fixed inset-x-0 top-0 z-[41] flex h-[var(--ag-menubar-height)] items-center gap-1 border-b border-border-subtle px-2.5 shadow-soft"
     >
       <div className="flex items-center gap-1.5 pr-1">
         <BrandLogo size={18} />

@@ -160,12 +160,11 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(paperAt).toBeGreaterThan(css.indexOf('.surface-glass {'))
   })
 
-  it('darkens the menubar strip so its white text stays legible (2026-10-05 保留原样式，透明度调高)', () => {
-    const at = css.indexOf('.menubar-glass {')
-    const block = css.slice(at, css.indexOf('}', at))
-    // 用户裁决：保留暗藏蓝半透条原样式，但 50% → 38% 更透（壁纸更可见）。
-    expect(block).toMatch(/background:\s*rgb\(18 30 66 \/ 38%\)/)
-    expect(block).toMatch(/--ag-text-muted:\s*rgb\(255 255 255 \/ 92%\)/)
+  it('puts the menubar on the same light chrome glass as the islands (2026-10-05 裁决)', () => {
+    // 顶栏不再有独立暗条材质：与左栏双岛同吃 chrome --ag-glass-bg（白 8%）
+    // + glass-hint blur，白字可读性由 desktop-chrome 的 text-shadow 兜底；
+    // 组件侧钉扎在 MenuBar.test / Desktop.test。
+    expect(css).not.toContain('.menubar-glass')
   })
 
   it('lights sidebar tooltips with an unlayered rule (Tailwind utilities cannot beat opacity:0)', () => {
