@@ -49,8 +49,9 @@ import type { WorkspaceId } from '@/store/workspace-store'
  * 可穿透桌面），玻璃面/圆角/投影各自成岛。icon-first——44px 圆钮 + 20px
  * 字形，名称走自绘 os-tooltip 气泡（group hover/focus 点亮，不进可达树），
  * hover/active 一律轻 translucent capsule（chrome 作用域 surface-raised/
- * elevated 白玻璃），禁实心色块。液态玻璃（2026-10-02 裁决）仍由窄轨岛
- * 承担，位移图按岛实测尺寸生成。
+ * elevated 白玻璃），禁实心色块。玻璃分工（2026-10-05 用户裁决对换）：
+ * 窄轨岛 = 毛玻璃（glass-raise），展开面板 = 液态折射玻璃（glass-liquid，
+ * 2026-10-02 裁决），位移图按面板玻璃面实测尺寸生成。
  *
  * 展开（docs/DESIGN.md §34）：hover / click（品牌钮 pin）/ 键盘聚焦任一路
  * 触发 `data-expanded`，面板岛由 0 宽过渡到 316px（--ag-rail-left-expanded-
@@ -418,25 +419,24 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
     }
   }
 
-  const railRef = useRef<HTMLElement | null>(null)
-  // 液态玻璃（2026-10-02 裁决）随窄轨岛走：位移图按岛实测尺寸生成，
-  // 展开过渡落定后重测（signal = expanded）。
-  const liquidMap = useLiquidDisplacementMap(railRef, undefined, panel.expanded)
+  // 液态玻璃（2026-10-02 裁决；2026-10-05 用户裁决对调）随展开面板走：
+  // 位移图按面板玻璃面实测尺寸生成，展开过渡落定后重测（signal = expanded）；
+  // 窄轨岛恒毛玻璃（glass-raise）。
+  const panelSurfaceRef = useRef<HTMLDivElement | null>(null)
+  const liquidMap = useLiquidDisplacementMap(panelSurfaceRef, undefined, panel.expanded)
   const brandLabel = panel.expanded ? t('workspace.panel.collapse') : t('workspace.panel.expand')
 
   return (
     <>
       {/* 岛一：Workspace Rail——通高窄轨玻璃岛（§34 双岛口径：顶锚/收尾由
-          组容器统一定，岛 h-full 撑满带高）。液态玻璃裁决仍由窄轨承担；
-          不得挂 overflow（收起态气泡向右伸出，§26）。 */}
+          组容器统一定，岛 h-full 撑满带高）。毛玻璃 = glass-raise（2026-10-05
+          用户裁决对换：折射让给展开面板）；不得挂 overflow（收起态气泡向右
+          伸出，§26）。 */}
       <nav
-        ref={railRef}
         aria-label={t('sidebar.label')}
         data-testid="sidebar"
         data-expanded={panel.expanded || undefined}
-        className={`desktop-chrome pointer-events-auto surface-glass flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-1 rounded-xl border border-border py-3 shadow-float ${
-          liquidMap ? 'glass-liquid' : 'glass-raise'
-        }`}
+        className="desktop-chrome pointer-events-auto surface-glass glass-raise flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-1 rounded-xl border border-border py-3 shadow-float"
       >
         {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。§34 参考图
             口径：实心渐变 squircle 徽章（--ag-capsule-active 同族明暗）。 */}
@@ -564,7 +564,8 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         >
           <div
             data-testid="workspace-panel-surface"
-            className="desktop-chrome surface-glass glass-raise h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border shadow-float"
+            ref={panelSurfaceRef}
+            className={`desktop-chrome surface-glass ${liquidMap ? 'glass-liquid' : 'glass-raise'} h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border shadow-float`}
           >
             <WorkspacePanelBody expanded={panel.expanded} />
           </div>

@@ -71,24 +71,33 @@ describe('Desktop', () => {
     expect(screen.queryByTestId('workspace-panel-island')).toBeNull()
   })
 
-  it('applies glass-liquid to the rail island + renders the displacement filter when the map is ready（2026-10-02 液态玻璃裁决）', () => {
+  it('applies glass-liquid to the panel island + renders the displacement filter when the map is ready（2026-10-02 裁决，2026-10-05 对换到面板）', () => {
     liquidState.map = 'data:image/png;base64,fake'
     render(<Desktop />)
 
+    // 对换口径：窄轨恒毛玻璃（不吃折射），液态玻璃由展开面板承担。
     const rail = screen.getByTestId('sidebar')
-    expect(rail.className).toContain('glass-liquid')
-    expect(rail.className).not.toContain('glass-raise')
+    expect(rail.className).toContain('glass-raise')
+    expect(rail.className).not.toContain('glass-liquid')
+
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+    const surface = screen.getByTestId('workspace-panel-surface')
+    expect(surface.className).toContain('glass-liquid')
     const filter = document.querySelector('svg filter#ag-liquid-rail')
     expect(filter).not.toBeNull()
     expect(filter?.querySelector('feDisplacementMap')?.getAttribute('scale')).toBe('20')
   })
 
-  it('falls back to glass-raise on the rail island without a map（jsdom/生成失败回落）', () => {
+  it('falls back to glass-raise on the panel island without a map（jsdom/生成失败回落）', () => {
     liquidState.map = ''
     render(<Desktop />)
+
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+    const surface = screen.getByTestId('workspace-panel-surface')
+    expect(surface.className).toContain('glass-raise')
+    expect(surface.className).not.toContain('glass-liquid')
     const rail = screen.getByTestId('sidebar')
     expect(rail.className).toContain('glass-raise')
-    expect(rail.className).not.toContain('glass-liquid')
     expect(document.querySelector('svg filter#ag-liquid-rail')).toBeNull()
   })
 
