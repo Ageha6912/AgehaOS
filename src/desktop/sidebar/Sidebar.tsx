@@ -47,13 +47,15 @@ import type { WorkspaceId } from '@/store/workspace-store'
  * 可穿透桌面），玻璃面/圆角/投影各自成岛。icon-first——44px 圆钮 + 20px
  * 字形，名称走自绘 os-tooltip 气泡（group hover/focus 点亮，不进可达树），
  * hover/active 一律轻 translucent capsule（chrome 作用域 surface-raised/
- * elevated 白玻璃），禁实心色块。玻璃分工（2026-10-05 用户裁决终态）：窄轨
- * 与展开面板均为毛玻璃（glass-raise）；液态折射玻璃（2026-10-02 裁决）经
+ * elevated 白玻璃），禁实心色块。玻璃分工（2026-10-05 用户裁决终态 + Shell
+ * 3.1 F1 减重）：窄轨 = glass-raise（blur 20）；展开面板降一档 = glass-hint
+ * （blur 12 轻毛玻璃，复用既有轻档类）；液态折射玻璃（2026-10-02 裁决）经
  * 对调试验后整体退役（git cb6c404 可溯）。
  *
  * 展开（docs/DESIGN.md §34）：hover / click（品牌钮 pin）/ 键盘聚焦任一路
- * 触发 `data-expanded`，面板岛由 0 宽过渡到 316px（--ag-rail-left-expanded-
- * width，纯浮层几何，窗口布局钳制仍钉 RAIL_LEFT_WIDTH_PX=80）。面板是连续
+ * 触发 `data-expanded`，面板岛由 0 宽过渡到 304px（--ag-rail-left-expanded-
+ * width 312 的内容档，纯浮层几何，窗口布局钳制仍钉 RAIL_LEFT_WIDTH_PX=80）。
+ * 面板是连续
  * 的 Workspace Environment（不切成一堆 card）：品牌区（BrandLogo + 字标 +
  * 标语）→ 今日空间（真实日期 + 按当前用户问候，greeting 引擎 timePhase）→
  * 工作空间 selector（真实持久化，排序影响见 affinity.ts）→ 最近使用
@@ -303,7 +305,9 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
       inert={!expanded}
       className="h-full min-w-0 overflow-x-hidden overflow-y-auto scroll-thin opacity-0 -translate-x-2 pointer-events-none [transition:opacity_var(--ag-motion-fast)_var(--ag-motion-ease),transform_var(--ag-motion-fast)_var(--ag-motion-ease)] data-[expanded]:pointer-events-auto data-[expanded]:opacity-100 data-[expanded]:translate-x-0 data-[expanded]:[transition:opacity_var(--ag-motion-base)_var(--ag-motion-ease)_60ms,transform_var(--ag-motion-base)_var(--ag-motion-ease)_60ms]"
     >
-      <div className="flex w-full flex-col gap-3 px-3.5 pb-3 pt-3">
+      {/* Shell 3.1 F1：分区留白 gap-3 → gap-4——五个分区（品牌/今日空间/
+          工作空间/最近/今日世界）留白均匀、分区感优先（标题仍 11px muted）。 */}
+      <div className="flex w-full flex-col gap-4 px-3.5 pb-3 pt-3">
         {/* 品牌区（§10 BrandLogo 复用）：字标 + 标语，纯展示。 */}
         <div className="flex items-center gap-2.5 px-1 py-0.5">
           <BrandLogo size={26} className="shrink-0" />
@@ -327,7 +331,9 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
             className="relative h-24 overflow-hidden rounded-xl border border-border-subtle bg-cover bg-center"
             style={{ backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})` }}
           >
-            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
+            {/* Shell 3.1 F1：黑遮罩 55% → 40%——照片细节比改前可见，日期/
+                问候白字由 text-shadow（desktop-chrome）+ 白色高阶保持清晰。 */}
+            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
             <div className="relative flex h-full flex-col justify-end gap-0.5 p-2.5">
               <p className="text-[11px] leading-snug text-white/90">{dateText}</p>
               <p className="truncate text-[13px] font-medium leading-snug text-white">
@@ -359,7 +365,8 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
                   aria-pressed={checked}
                   className={`flex h-9 items-center gap-2.5 rounded-xl px-2 text-left text-xs transition-colors ${
                     checked
-                      ? '[background:var(--ag-capsule-active)] font-medium text-primary-contrast shadow-sm'
+                      ? /* Shell 3.1 F1：渐变胶囊保留（Active/Selected 配额内），shadow-sm 去除——选中靠主色胶囊本身，不靠投影。 */
+                        '[background:var(--ag-capsule-active)] font-medium text-primary-contrast'
                       : 'text-text-muted hover:bg-surface-raised hover:text-text'
                   }`}
                   onClick={() => setWorkspace(id)}
@@ -382,6 +389,8 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
         {/* 最近使用：真实 usage-store 数据；空态如实提示（拒绝装饰性谎言）。 */}
         <PanelSection label={t('workspace.panel.recent')} testid="recent">
           {recentApps.length > 0 ? (
+            /* Shell 3.1 F1：最近行紧凑档——h-9→h-8、AppIcon 22→20、行尾
+               箭头删除（减法：不许比工作空间区更抢眼，§11）。 */
             <ul className="flex flex-col gap-1">
               {recentApps.map((app) => (
                 <li key={app.id}>
@@ -389,13 +398,12 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
                     type="button"
                     data-testid="workspace-recent-item"
                     onClick={() => launchApp(app.id)}
-                    className="flex h-9 w-full items-center gap-2.5 rounded-xl px-2 text-left transition-colors hover:bg-surface-raised"
+                    className="flex h-8 w-full items-center gap-2.5 rounded-xl px-2 text-left transition-colors hover:bg-surface-raised"
                   >
-                    <AppIcon appId={app.id} size={22} />
+                    <AppIcon appId={app.id} size={20} />
                     <span className="min-w-0 truncate text-xs text-text">
                       {appDisplayName(app.id)}
                     </span>
-                    <CaretRight size={11} aria-hidden="true" className="ml-auto shrink-0 opacity-60" />
                   </button>
                 </li>
               ))}
@@ -439,9 +447,10 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
     }
   }
 
-  // 玻璃分工（2026-10-05 用户裁决）：窄轨与展开面板均为毛玻璃（glass-raise，
-  // blur 20）——液态折射玻璃（2026-10-02 裁决）随对调试验整体退役（git
-  // cb6c404 可溯）。
+  // 玻璃分工（2026-10-05 用户裁决 + Shell 3.1 F1 减重）：窄轨保持毛玻璃
+  // glass-raise（blur 20）；展开面板降一档 glass-hint（blur 12，复用既有
+  // 轻档类）——与壁纸竞争下降。液态折射玻璃（2026-10-02 裁决）随对调试验
+  // 整体退役（git cb6c404 可溯）。
   const brandLabel = panel.expanded ? t('workspace.panel.collapse') : t('workspace.panel.expand')
 
   return (
@@ -491,7 +500,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
           expandable
           popoverTrigger="launcher"
         />
-        {/* 动作条目触发即收起面板：打开的窗口左缘控件不被 316px 面板遮盖
+        {/* 动作条目触发即收起面板：打开的窗口左缘控件不被 304px 面板遮盖
             （真实指针移出面板也会收起；这里让「点击即走」不依赖移出）。 */}
         <RailItem
           testid="sidebar-files"
@@ -568,8 +577,11 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
           坑 4）：净桌面 reload 恢复预算（PRD §29.1 <3s）不为本面板付费；
           首展经 animate-os-fade-in 淡入，此后常挂——收起只是 0 宽 + 内容列
           inert，展开动画与滚动状态不丢。宽度过渡复用 motion Token：外层
-          只做 0→316 裁剪揭示（幕帘），玻璃面/圆角/投影在内层定宽面上——
-          收起态零边框投影残影，展开动画内容不回流。 */}
+          只做 0→304 裁剪揭示（幕帘），玻璃面/圆角/投影在内层定宽面上——
+          收起态零边框投影残影，展开动画内容不回流。Shell 3.1 F1 材质减重
+          （只降不加）：轻毛玻璃 glass-hint（blur 12，比窄轨透一档）+
+          发丝级边框 border-subtle + panel 档轻投影（窄轨仍 float 档）——
+          「漂浮的半透明个人空间」而非「大蓝玻璃卡」。 */}
       {panelEverExpanded ? (
         <aside
           data-testid="workspace-panel-island"
@@ -582,7 +594,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         >
           <div
             data-testid="workspace-panel-surface"
-            className="desktop-chrome surface-glass glass-raise h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border shadow-float"
+            className="desktop-chrome surface-glass glass-hint h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border-subtle shadow-panel"
           >
             <WorkspacePanelBody expanded={panel.expanded} />
           </div>

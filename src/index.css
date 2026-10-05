@@ -123,11 +123,12 @@
      窄轨漂浮 left 16px / 垂直居中（Desktop system-rails 组容器）。<640px
      隐藏（与组容器 hidden sm:flex 同步）。 */
   --ag-rail-left-width: 80px;
-  /* Workspace Panel 展开态宽度（Desktop Shell 3.0 STEP 2；简报 300-340 档
-     取 324）：hover/click 展开时组容器的目标宽（var 消费自动得 316px 内容
-     宽）。纯浮层几何——悬浮于工作区之上，不参与窗口布局钳制（viewport.ts
-     的 RAIL_LEFT_WIDTH_PX 仍钉 80，窗口几何不随展开迁移）。 */
-  --ag-rail-left-expanded-width: 324px;
+  /* Workspace Panel 展开态宽度（Desktop Shell 3.0 STEP 2 引入 324；Shell 3.1
+     STEP 1 F1 减重收敛至 312，落入简报 280-320 带）：hover/click 展开时组
+     容器的目标宽（var 消费自动得 304px 内容宽）。纯浮层几何——悬浮于工作区
+     之上，不参与窗口布局钳制（viewport.ts 的 RAIL_LEFT_WIDTH_PX 仍钉 80，
+     窗口几何不随展开迁移）。 */
+  --ag-rail-left-expanded-width: 312px;
   /* 右侧小组件栏（§27/§32）：<1280px 隐藏（与 WidgetRail hidden xl:flex 同步）。 */
   --ag-rail-right-width: 296px;
   --ag-dock-height: 68px;

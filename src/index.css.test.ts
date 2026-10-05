@@ -101,10 +101,11 @@ describe('index.css token contract (Token 2.0)', () => {
     // 左侧 Workspace Rail 宽度与 RAIL_LEFT_WIDTH_PX 常量互指（§26；Shell
     // 3.0 STEP 1 窄轨浮岛 80px = 44px 圆钮 ×2 + 呼吸，内容宽 72px）。
     expect(root).toMatch(/--ag-rail-left-width:\s*80px/)
-    // Workspace Panel 展开态宽度（Shell 3.0 STEP 2；简报 300-340 档取
-    // 324px）——纯浮层几何：窗口布局钳制仍钉 RAIL_LEFT_WIDTH_PX=80，
-    // viewport.ts 常量与窗口几何不随展开迁移。
-    expect(root).toMatch(/--ag-rail-left-expanded-width:\s*324px/)
+    // Workspace Panel 展开态宽度（Shell 3.0 STEP 2 引入 324px；Shell 3.1
+    // STEP 1 F1 减重收敛至 312px，280-320 带内、内容列 304px）——纯浮层
+    // 几何：窗口布局钳制仍钉 RAIL_LEFT_WIDTH_PX=80，viewport.ts 常量与
+    // 窗口几何不随展开迁移。
+    expect(root).toMatch(/--ag-rail-left-expanded-width:\s*312px/)
     // 右侧小组件栏宽度与 RAIL_RIGHT_WIDTH_PX 常量互指（§27；2026-10-01
     // 用户裁决收窄至 296px）。
     expect(root).toMatch(/--ag-rail-right-width:\s*296px/)

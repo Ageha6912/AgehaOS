@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 /**
  * Workspace Panel（Desktop Shell 3.0 STEP 2）：窄 Rail → hover/click → 展开
- * Workspace。覆盖验收链：收起基线 → hover 展开（324px 档）→ 选择工作空间
+ * Workspace。覆盖验收链：收起基线 → hover 展开（312px 档）→ 选择工作空间
  * （真实持久化）→ 刷新后保持 → 鼠标离开收起；pin/Esc/键盘开合；最近使用
  * 真实数据；桌面 click-through（右键上下文菜单）不被展开面板破坏。
  */
@@ -55,8 +55,15 @@ test.describe('workspace panel', () => {
     // 收起态内容列不挂载（首展才挂载：净桌面 reload 预算不为面板付费）。
     await expect(page.getByTestId('workspace-panel')).toHaveCount(0)
 
-    // ② hover 展开：300-340 档（token 324）。
+    // ② hover 展开：300-340 档（token 312）。
     await expandByHover(page)
+
+    // ②′ Shell 3.1 F1 岛二玻璃减重：blur 从 raise 档 20px 降到 hint 档
+    //    12px（computed style 实测，防材质档静默回跳）。
+    const panelBlur = await page
+      .getByTestId('workspace-panel-surface')
+      .evaluate((el) => getComputedStyle(el).backdropFilter)
+    expect(panelBlur).toMatch(/blur\(12px\)/)
 
     // ③ 选择工作空间：aria-pressed 真实翻转 + selector 持久化。
     await page.getByTestId('workspace-option-study').click()

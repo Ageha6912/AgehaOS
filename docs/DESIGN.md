@@ -1181,7 +1181,7 @@ Center**，中央品牌层从常量降为**桌面状态驱动**；Dock/窗口/�
 色块）：品牌钮（= 面板展开 pin 开关）+ 桌面（最小化全部）/ 启动器 / 文件 /
 笔记 / 终端 / 设置 / 通知（未读徽标保留）。名称走 `os-tooltip` 气泡（§33.3
 双轨制，展开态经 `[data-expanded] .os-tooltip` 退出）。**窗口钳制仍钉
-RAIL_LEFT_WIDTH_PX=80**——324px 展开是纯浮层几何，不改窗口布局。
+RAIL_LEFT_WIDTH_PX=80**——312px 展开是纯浮层几何，不改窗口布局。
 
 ### 34.2 Workspace Panel 展开态（STEP 2）
 
@@ -1189,7 +1189,8 @@ hover / click pin / 键盘三路触发合并为 `expanded`（`use-workspace-pane
 状态机）：mouseenter 立即展开、mouseleave **240ms 宽限**收起；focusin 展开、
 focusout 出界收起（指针来源的焦点经 pointerdown 置位抑制，不令面板对鼠标
 用户常开）；品牌钮切换 pin；Esc / 面板外按下 / 启动器或通知中心打开（弹层
-互斥）收起，收起时焦点交还品牌钮。轨道 80→**324px**（`--ag-rail-left-expanded-width`）
+互斥）收起，收起时焦点交还品牌钮。轨道 80→**312px**（`--ag-rail-left-expanded-
+width`；Shell 3.1 F1 从 324 收敛，280-320 带内、内容列 304px）
 宽度过渡，内容列淡入 + 位移。面板是连续 Workspace Environment（不切成一堆
 card），自上而下 = 品牌区（BrandLogo + 字标 + 标语）→ 今日空间（真实日期 +
 问候引擎时段 + 当前用户称呼）→ **工作空间 selector**（个人/学习/开发/创作，
@@ -1197,6 +1198,14 @@ localStorage 持久化，选中态 = 主色 capsule；架构记录见 ARCHITECTU
 → 最近使用（usage-store 真实数据 × 工作空间亲和稳定排序，前 4）→ 底部今日
 世界入口（34.3）。**收起态内容列 inert 不进可达树，且首展才挂载**（渲染期
 派生重置）——净桌面 reload 预算（PRD §29.1 <3s）不为本面板付费。
+**Shell 3.1 STEP 1 减重记录（只减不加）**：岛二材质降档——玻璃 blur 20→12
+（glass-raise→glass-hint，窄轨保持 raise 不动）、边框 border→border-subtle
+（发丝级）、投影 shadow-float→shadow-panel；今日空间卡黑色渐变遮罩
+from-black/55→from-black/40（照片细节更可见，白字由 chrome text-shadow 兜
+底）；工作空间 selector 选中胶囊保留 `--ag-capsule-active` 但去 shadow-sm
+（未选中项仍 muted + hover surface-raised，无彩底）；最近使用行紧凑档——
+h-9→h-8、AppIcon 22→20、行尾箭头删除；分区留白 gap-3→gap-4，分区标题仍
+11px muted。
 
 ### 34.3 今日世界品牌入口（STEP 3）
 
@@ -1290,6 +1299,6 @@ System Center/Dock/窗口拖出可见带全部 boundingBox 实测），证据留
 - 落档时全量基线实测（`npm run test`）：**前端 1217（124 文件）+ 后端 157
   （11 文件）+ 部署库 12** 全绿；Playwright E2E 25 spec / 57 test 块（羽化
   域 26 条）随切片门禁全绿。
-- 新几何/材质 Token：`--ag-rail-left-expanded-width`(324)、`--ag-dock-radius`(24)、
+- 新几何/材质 Token：`--ag-rail-left-expanded-width`(324；Shell 3.1 STEP 1 收敛为 312)、`--ag-dock-radius`(24)、
   `--ag-window-face-active`、`--ag-shadow-window-active`（viewport.ts 常量与
   CSS 互指钉扎纪律不变）。

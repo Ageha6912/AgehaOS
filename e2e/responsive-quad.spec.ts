@@ -11,7 +11,7 @@ import { revealTaskbar } from './helpers'
  * 几何——
  * ① 无横向 overflow；
  * ② 左侧双岛（§34）：窄轨岛（收起 72px、顶锚菜单栏下、通高到 Dock 上方）
- *    与展开态 Workspace Panel（316px 幕帘岛）都不撑爆视口；
+ *    与展开态 Workspace Panel（304px 幕帘岛，token 312 − 0.5rem）都不撑爆视口；
  * ③ 右侧 Floating System Center 顶锚 48 / 右留白 20 / 底不越 Dock 带；
  * ④ Dock 胶囊 68px、离底 20px、水平居中、不越界；
  * ⑤ 窗口 launch 落点完整在工作区内，向左拖出屏幕后仍保有 ≥80px 可见带
@@ -95,14 +95,15 @@ for (const vp of RESOLUTIONS) {
       expect(Math.abs(rail.height - (vp.height - 144))).toBeLessThanOrEqual(4)
       await record('railCollapsed', rail)
 
-      // ③ 展开态 Workspace Panel（click pin → Esc 收起）：面板岛宽 316px
-      //    （token 324 - 0.5rem），岛不越视口；内容列自身无横向溢出。
+      // ③ 展开态 Workspace Panel（click pin → Esc 收起）：面板岛宽 304px
+      //    （token 312 - 0.5rem；Shell 3.1 F1 由 324 收敛），岛不越视口；
+      //    内容列自身无横向溢出。
       await page.getByTestId('sidebar-brand').click()
       await expect(page.getByTestId('system-rails')).toHaveAttribute('data-expanded', 'true')
       await expect(page.getByTestId('workspace-panel')).toBeVisible()
       await expect
         .poll(async () => (await box(page, 'workspace-panel-island')).width, { timeout: 5_000 })
-        .toBeGreaterThanOrEqual(316)
+        .toBeGreaterThanOrEqual(304)
       const expanded = await box(page, 'workspace-panel-island')
       expect(expanded.width).toBeLessThanOrEqual(320)
       expect(expanded.x).toBeGreaterThanOrEqual(90)

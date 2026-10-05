@@ -39,7 +39,7 @@ test('sidebar: floating narrow rail with working actions, tooltips and capsules'
   await page.getByTestId('sidebar-files').click()
   await expect(page.getByRole('region', { name: '文件' })).toBeVisible()
 
-  // ③ Workspace Panel：悬停条目即揭示独立面板岛（316px 档）——两岛顶边
+  // ③ Workspace Panel：悬停条目即揭示独立面板岛（304px 档）——两岛顶边
   //    对齐、等高、岛间 ≥10px 缝隙；名称由面板常显承载，收起态 os-tooltip
   //    在展开态退出（index.css [data-expanded] .os-tooltip）；组容器与窄轨
   //    overflow 恒 visible 的 §26 契约不回归（收起态气泡向右伸出依赖它）。

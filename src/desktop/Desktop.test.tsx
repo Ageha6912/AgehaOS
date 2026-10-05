@@ -68,15 +68,19 @@ describe('Desktop', () => {
   it('wears frosted glass on both left islands（2026-10-05 裁决：液态折射退役）', () => {
     render(<Desktop />)
 
-    // 对换试验终结态：窄轨与展开面板玻璃面均为毛玻璃（glass-raise），
-    // 液态折射滤镜不再渲染。
+    // 对换试验终结态 + Shell 3.1 F1 减重分档：窄轨保持毛玻璃 glass-raise
+    // （blur 20），展开面板降一档 glass-hint（blur 12 轻毛玻璃）；液态折射
+    // 滤镜不再渲染。（断言更新为 F1 减重目标授权，非掩盖问题。）
     fireEvent.click(screen.getByTestId('sidebar-brand'))
     for (const testid of ['sidebar', 'workspace-panel-surface']) {
       const island = screen.getByTestId(testid)
       expect(island.className).toContain('surface-glass')
-      expect(island.className).toContain('glass-raise')
       expect(island.className).not.toContain('glass-liquid')
     }
+    expect(screen.getByTestId('sidebar').classList.contains('glass-raise')).toBe(true)
+    expect(
+      screen.getByTestId('workspace-panel-surface').classList.contains('glass-hint'),
+    ).toBe(true)
     expect(document.querySelector('svg filter#ag-liquid-rail')).toBeNull()
   })
 

@@ -97,13 +97,23 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     const rail = screen.getByTestId('sidebar')
     const island = screen.getByTestId('workspace-panel-island')
     // 玻璃面/圆角/投影在面板岛的内层定宽面上（外层只做宽度裁剪揭示，
-    // 收起态零边框投影残影）；窄轨岛自带玻璃面。
+    // 收起态零边框投影残影）；窄轨岛自带玻璃面。Shell 3.1 F1 减重分档：
+    // 窄轨保持浮岛档（glass-raise + shadow-float）；岛二降档——轻毛玻璃
+    // glass-hint（blur 12）+ 发丝边 border-subtle + panel 档投影（本步
+    // 减重目标授权的断言更新，非掩盖问题）。
     const surface = screen.getByTestId('workspace-panel-surface')
     for (const el of [rail, surface]) {
       expect(el.className).toContain('surface-glass')
       expect(el.className).toContain('rounded-xl')
-      expect(el.className).toContain('shadow-float')
     }
+    expect(rail.classList.contains('glass-raise')).toBe(true)
+    expect(rail.classList.contains('shadow-float')).toBe(true)
+    expect(surface.classList.contains('glass-hint')).toBe(true)
+    expect(surface.classList.contains('glass-raise')).toBe(false)
+    expect(surface.classList.contains('border-border-subtle')).toBe(true)
+    expect(surface.classList.contains('border-border')).toBe(false)
+    expect(surface.classList.contains('shadow-panel')).toBe(true)
+    expect(surface.classList.contains('shadow-float')).toBe(false)
     // 幕帘结构：外层 overflow-hidden（内容列无 os-tooltip；§26 只约束组容器
     // 与窄轨），内层定宽（= 展开档）动画期间内容不回流。
     expect(island.className).toContain('overflow-hidden')
@@ -148,7 +158,7 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     const brand = screen.getByTestId('sidebar-brand')
     fireEvent.click(brand)
 
-    // 展开态：面板岛揭示到 316px 档（宽度过渡在岛自身，motion Token）。
+    // 展开态：面板岛揭示到 304px 档（token 312 − 0.5rem；宽度过渡在岛自身，motion Token）。
     const island = screen.getByTestId('workspace-panel-island')
     expect(nav.getAttribute('data-expanded')).toBe('true')
     expect(brand.getAttribute('aria-expanded')).toBe('true')
@@ -254,7 +264,7 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     fireEvent.click(screen.getByTestId('sidebar-brand'))
     expect(nav.getAttribute('data-expanded')).toBe('true')
 
-    // 动作条目（设置）：启动 + 面板收起——窗口左缘控件不被 324px 面板盖住。
+    // 动作条目（设置）：启动 + 面板收起——窗口左缘控件不被 312px 面板盖住。
     fireEvent.click(screen.getByTestId('sidebar-settings'))
     expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.settings')
     expect(nav.getAttribute('data-expanded')).toBeNull()
@@ -305,6 +315,16 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     // dev 空间：终端（dev/tools 亲和）浮到记事之前；同分保持时序。
     expect(rows[0]!.textContent).toContain('终端')
     expect(rows[1]!.textContent).toContain('记事')
+
+    // Shell 3.1 F1 紧凑档：行高 h-8（非 h-9）、AppIcon 20px、行尾无箭头
+    // （最近使用 ≤ 工作空间的视觉权重，§11）。
+    for (const row of rows) {
+      expect(row.classList.contains('h-8')).toBe(true)
+      expect(row.classList.contains('h-9')).toBe(false)
+      expect(row.querySelector('.ml-auto')).toBeNull()
+    }
+    const badge = rows[0]!.querySelector('span[aria-hidden="true"]') as HTMLElement | null
+    expect(badge?.style.width).toBe('20px')
 
     fireEvent.click(rows[1]!)
     expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.notes')
@@ -370,6 +390,8 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     // 选中 = 同族明暗渐变胶囊（--ag-capsule-active）；禁实心 bg-primary。
     expect(active.className).toContain('[background:var(--ag-capsule-active)]')
     expect(active.className).not.toContain('bg-primary')
+    // Shell 3.1 F1：选中靠主色胶囊本身，去 shadow-sm（无投影无发光）。
+    expect(active.className).not.toContain('shadow-sm')
     // 未选中行保留 hover capsule；行尾 ›（aria-hidden 装饰）。
     const idle = screen.getByTestId('workspace-option-study')
     expect(idle.className).toContain('hover:bg-surface-raised')
