@@ -318,6 +318,7 @@ export function EclosionAppFrame({
   const runnerReadyRef = useRef(false)
   const themeSentRef = useRef(false)
   const poweredOnRef = useRef(false)
+  const powerOnAtRef = useRef<number | null>(null)
   const sentChunksRef = useRef(0)
   const nextSeqRef = useRef(0)
   const renderedOkRef = useRef(false)
@@ -340,10 +341,19 @@ export function EclosionAppFrame({
   /**
    * 质量回退（§5.2）：重试一次（编排器换新一轮尝试），再失败渲染原生兜底
    * 并在标题栏提示「已回落经典版」。
+   *
+   * 破茧质量窗（2026-10-05 空白应用修复）：rendered 之后 ECLOSION_RENDER_
+   * TIMEOUT_MS 内收到的错误（生成代码异步崩溃等）**仍然回炉**——runner 在
+   * power-on 时就会上报 rendered（先注脚本后上报），「已渲染」不等于「真的
+   * 画出了东西」；窗外（应用运行期）的错误属于应用自有缺陷，不回炉。
    */
   const handleRunFailure = useCallback(
     (reason: string) => {
-      if (renderedOkRef.current || fellBackRef.current) return
+      if (fellBackRef.current) return
+      if (renderedOkRef.current) {
+        const powerOnAt = powerOnAtRef.current
+        if (powerOnAt === null || Date.now() - powerOnAt > ECLOSION_RENDER_TIMEOUT_MS) return
+      }
       clearRenderTimer()
       const retried = orchestrator.requestRetry(appId, reason)
       if (!retried) {
@@ -367,6 +377,7 @@ export function EclosionAppFrame({
     runnerReadyRef.current = false
     themeSentRef.current = false
     poweredOnRef.current = false
+    powerOnAtRef.current = null
     sentChunksRef.current = 0
     nextSeqRef.current = 0
     renderedOkRef.current = false
@@ -405,7 +416,15 @@ export function EclosionAppFrame({
         sentChunksRef.current >= snap.chunks.length &&
         !poweredOnRef.current
       ) {
+        if (snap.chunks.length === 0) {
+          // 空缓存/空流（done 但零内容块）：绝不破茧空页——runner 会对空文档
+          // 上报 rendered，宿主随即藏起进度条 → 永久空白零反馈。走质量回退
+          // （重试预算耗尽后落错误卡，反馈闭环）。
+          requestRetryRef.current('empty-chunks')
+          return
+        }
         poweredOnRef.current = true
+        powerOnAtRef.current = Date.now()
         // 破茧随信声明 SDK 能力（规格权限推导）：runner 据此安装 window.AgehaOS，
         // 未列出的命名空间在沙箱内不存在，生成代码可特性检测分支。
         postToRunner({
@@ -413,10 +432,13 @@ export function EclosionAppFrame({
           scripts: [...snap.scripts],
           capabilities: sdkCapabilities,
         })
-        // 破茧后 5 秒无 rendered 视为失败（§5.2）。
-        clearRenderTimer()
+        // 破茧后 5 秒无 rendered 视为失败（§5.2）；rendered 到达也不停表：
+        // 质量窗内的错误仍可回炉（见 handleRunFailure），窗外自然失效。
         renderTimerRef.current = window.setTimeout(() => {
-          requestRetryRef.current('render-timeout')
+          if (!renderedOkRef.current) {
+            requestRetryRef.current('render-timeout')
+          }
+          powerOnAtRef.current = null // 质量窗关闭：此后的错误归应用运行期。
         }, ECLOSION_RENDER_TIMEOUT_MS)
       }
     },
@@ -446,7 +468,8 @@ export function EclosionAppFrame({
         return
       }
       if (message.type === 'eclosion:rendered') {
-        clearRenderTimer()
+        // 不清渲染超时表：质量窗（power-on 后 5s）继续值守，窗内错误仍回炉；
+        // 表回调里见 renderedOk 即关窗不回炉（健康应用不受影响）。
         renderedOkRef.current = true
         setRenderedOk(true)
         orchestrator.reportRendered(appId)

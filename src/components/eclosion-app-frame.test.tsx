@@ -580,6 +580,101 @@ describe('EclosionAppFrame（宿主容器）', () => {
     expect(session?.getSnapshot().attempt).toBe(2)
   })
 
+  it('retries instead of powering on an empty page when done carries zero chunks（2026-10-05 空白修复）', async () => {
+    // 空缓存/空流：done 但零内容块 → 绝不破茧空页（runner 会对空文档上报
+    // rendered → 进度条消失 → 永久空白），直接走质量回退重试。
+    const emptyDoc = () =>
+      new Response(frame('done', {}), { headers: { 'content-type': 'text/event-stream' } })
+    const okDoc = () =>
+      new Response(frame('delta', { text: DOC_HTML }) + frame('done', {}), {
+        headers: { 'content-type': 'text/event-stream' },
+      })
+    const { orchestrator, calls } = makeOrchestrator([emptyDoc(), okDoc()])
+    const { iframe, runner, posted } = await renderHosted({ orchestrator })
+    fireEvent.load(iframe)
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'agehaos:ready' }))
+    })
+    await waitFor(() => {
+      // 零 chunks 不下发 power-on；重试流已发起。
+      expect(posted.some((message) => message.type === 'eclosion:power-on')).toBe(false)
+      expect(calls.length).toBeGreaterThanOrEqual(2)
+    })
+    expect(calls[1]?.body).toMatchObject({ regenerate: true })
+
+    // 重试流正常 → 重挂 iframe 驱动握手后照常破茧。
+    const secondIframe = document.querySelector('iframe') as HTMLIFrameElement
+    const secondRunner = secondIframe.contentWindow as Window
+    const secondPosted: Posted[] = []
+    secondRunner.postMessage = vi.fn(((message: Posted) => {
+      secondPosted.push(message)
+    }) as never)
+    fireEvent.load(secondIframe)
+    act(() => {
+      window.dispatchEvent(eventFrom(secondRunner, { type: 'agehaos:ready' }))
+    })
+    await waitFor(() => {
+      expect(secondPosted.some((message) => message.type === 'eclosion:power-on')).toBe(true)
+    })
+  })
+
+  it('retries on errors arriving after rendered within the quality window（2026-10-05 空白修复）', async () => {
+    // runner 在 power-on 时即上报 rendered（先注脚本后上报）——「已渲染」不
+    // 等于「真画出了东西」：质量窗（5s）内的异步崩溃仍要回炉，否则就是用户
+    // 看到的「无进度条 + 永久空白」。
+    const okDoc = () =>
+      new Response(frame('delta', { text: DOC_HTML }) + frame('done', {}), {
+        headers: { 'content-type': 'text/event-stream' },
+      })
+    const { orchestrator, calls } = makeOrchestrator([okDoc(), okDoc()])
+    const { iframe, runner, posted } = await renderHosted({ orchestrator })
+    fireEvent.load(iframe)
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'agehaos:ready' }))
+    })
+    await waitFor(() => expect(posted.some((m) => m.type === 'eclosion:power-on')).toBe(true))
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'eclosion:rendered' }))
+    })
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'eclosion:error', message: 'async boom' }))
+    })
+    expect(orchestrator.ensureSession(CALCULATOR)?.getSnapshot().attempt).toBe(2)
+    expect(calls[1]?.body).toMatchObject({ regenerate: true })
+  })
+
+  it('ignores errors after the quality window closes（应用运行期自有错误不回炉）', async () => {
+    // fake Date 以推进质量窗；只 fake setTimeout/Date（坑 10：全 fake 会死锁）。
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    const okDoc = () =>
+      new Response(frame('delta', { text: DOC_HTML }) + frame('done', {}), {
+        headers: { 'content-type': 'text/event-stream' },
+      })
+    const { orchestrator, calls } = makeOrchestrator([okDoc()])
+    const { iframe, runner, posted } = await renderHosted({ orchestrator })
+    fireEvent.load(iframe)
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'agehaos:ready' }))
+    })
+    // power-on 已同步下发（断言直查，不用 waitFor——fake timers 下会死锁）。
+    expect(posted.some((message) => message.type === 'eclosion:power-on')).toBe(true)
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'eclosion:rendered' }))
+    })
+    // 质量窗关闭（5s 表回调见 renderedOk → 不回炉、关窗）。
+    act(() => {
+      vi.advanceTimersByTime(5100)
+    })
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'eclosion:error', message: 'late app bug' }))
+    })
+    expect(orchestrator.ensureSession(CALCULATOR)?.getSnapshot().attempt).toBe(1)
+    expect(calls).toHaveLength(1)
+    await act(async () => {
+      vi.useRealTimers()
+    })
+  })
+
   it('falls back immediately on ai-not-configured without burning a retry', async () => {
     const { orchestrator, calls } = makeOrchestrator([
       new Response(JSON.stringify({ error: 'ai-not-configured' }), { status: 503 }),
