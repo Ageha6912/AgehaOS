@@ -65,6 +65,18 @@ test('motion lab: aurora/glow/sheen present, dock wave peaks at pointer, toggles
     .evaluate((el) => getComputedStyle(el).scrollbarWidth)
   expect(scrollbarWidth).toBe('none')
 
+  // ②c-2 启动器面板是 dock 的 DOM 后代（fixed 浮层）：指针在面板里移动时
+  //    pointermove 会冒泡到 dock——波浪引擎按几何判定，面板内移动/停留
+  //    Dock 图标必须归位（2026-10-05 用户报告的冻结波浪回归）。
+  await taskbarStartButton(page).click()
+  await expect(page.getByRole('list', { name: /开始/ })).toBeVisible()
+  await page.mouse.move(450, 500) // 面板分类区（dock 胶囊几何外）。
+  await page.waitForTimeout(400) // 波浪 inline 220ms 过渡落定。
+  expect(await computedTransform(terminalPin)).toBe('none')
+  expect(await computedTransform(storePin)).toBe('none')
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(250)
+
   // ③ 菜单浮层可开（进场动效语言由 pop-motion 单测钉扎，此处验证链路通）。
   await taskbarStartButton(page).click()
   await expect(page.getByRole('list', { name: /开始/ })).toBeVisible()

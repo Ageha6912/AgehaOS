@@ -50,10 +50,15 @@ export function Taskbar() {
   const hoverTimer = useRef<number | null>(null)
   // 波浪（2026-10-05 用户裁决终态：高斯波浪是 Dock 唯一浮起，悬停强浮起
   // 已退役）：rAF 节流 + 直写 inline transform——零 React 渲染；峰值作用于
-  // 距指针最近的一枚；reduced-motion 不启用；离开 Dock 全清。
+  // 距指针最近的一枚；reduced-motion 不启用；指针离开 Dock 胶囊矩形全清。
+  // ⚠️ 判定必须按几何而非 DOM 归属：启动器/通知面板是 dock 的 DOM 后代
+  // （fixed 浮层），指针在面板里移动时 pointermove 照样冒泡上来，且从 Dock
+  // 移入面板不会触发 pointerleave（DOM 包含关系）——按归属会得到「面板里
+  // 移鼠标、Dock 冻结波浪」的错观感（2026-10-05 用户报告）。
   const dockRef = useRef<HTMLDivElement | null>(null)
   const waveFrame = useRef<number | null>(null)
   const waveX = useRef(0)
+  const waveActiveRef = useRef(false)
 
   const applyWave = (): void => {
     waveFrame.current = null
@@ -69,12 +74,23 @@ export function Taskbar() {
 
   const onDockPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    waveX.current = event.clientX
+    const dock = dockRef.current
+    if (!dock) return
+    const rect = dock.getBoundingClientRect()
+    const { clientX, clientY } = event
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+      // 指针在 Dock 胶囊几何外（面板浮层里）：清波浪并标记非活跃。
+      if (waveActiveRef.current) clearWave()
+      return
+    }
+    waveX.current = clientX
     if (waveFrame.current !== null) return
+    waveActiveRef.current = true
     waveFrame.current = window.requestAnimationFrame(applyWave)
   }
 
   const clearWave = (): void => {
+    waveActiveRef.current = false
     if (waveFrame.current !== null) {
       window.cancelAnimationFrame(waveFrame.current)
       waveFrame.current = null
