@@ -439,18 +439,20 @@ footer 只是透明运动层（`pointer-events-none`，内联 transform 保留�
   `overflow-hidden`）；飞行中的位姿在动画效果里，读 `getComputedStyle`
   的 transform/opacity 而非 `el.style`。
 
-## 13. Dock 悬停浮起（2026-10-02 用户裁决：波浪退役，只浮起被悬浮的一枚）
+## 13. Dock 悬停浮起 + 邻位波浪（2026-10-05 用户裁决：波浪恢复，与强浮起并存）
 
-> **2026-10-02 用户裁决（现行）**：指针悬停 Dock 图标时，**只有被悬浮的那一枚
-> 浮起**，邻位不再随高斯衰减联动——波浪引擎（`src/core/dock/wave.ts` +
-> `use-dock-wave.ts` 及其测试）整体删除，`motion-lab/` 演示模块归档保留。
-> 实现：`index.css` 对 `[data-wave-icon]` 包裹层（保留为样式钩子）挂基态
-> `transition` + `@media (hover: hover) and (prefers-reduced-motion: no-preference)`
-> 下的 `button:hover > [data-wave-icon]` 浮起规则
-> （`translateY(-3px) scale(1.18)` + 品牌 cobalt 28% drop-shadow 光晕）。
-> 触屏与 reduced-motion 不浮起；零底色裁决、悬停预览、`.no-scrollbar`
-> （修订 11）契约不变。E2E `motion-lab.spec` 钉「悬浮位浮起 + 邻位不动 +
-> 移开归位」。
+> **2026-10-05 用户裁决（现行）**：恢复邻位波浪，与 2026-10-02 的悬停强浮起
+> **并存分工**——被悬浮的那一枚走 `index.css` 的 `button:hover >
+> [data-wave-icon]` 强浮起（`translateY(-3px) scale(1.18)` + 品牌 cobalt 28%
+> drop-shadow 光晕，非对称过渡 380ms 入 / 220ms 回，不变）；邻位图标由
+> **Taskbar 波浪引擎**（`Taskbar.tsx` 的 `dockWaveTransform`，rAF 节流直写
+> inline transform，零 React 渲染）按高斯衰减轻浮：σ = 56px（对齐图标节距）、
+> 峰值 `translateY(-8px) scale(1.08)`、超出 2σ 不写样式；引擎跳过距指针最近
+> 的一枚（那是 :hover 强浮起位，避免 inline 覆盖 CSS）。触屏与
+> prefers-reduced-motion 无波浪；离开 Dock 全清；`.no-scrollbar`（修订 11）
+> 契约不变。E2E `motion-lab.spec` 钉「悬浮位强浮起 + 邻位轻浮（1 < scale <
+> 1.18）+ 移开全归位」。历史：2026-10-02 ~ 10-05 波浪曾退役（只浮起悬浮
+> 枚），引擎彼时删除、本次按新裁决重写。
 > 以下为 2026-09-26 ~ 2026-10-02 波浪时期的原契约，仅供历史参照：
 
 2026-09-26 起任务栏窗口按钮图标带高斯距离衰减放大波浪（macOS Dock 隐喻，

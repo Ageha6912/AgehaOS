@@ -349,12 +349,13 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(css).not.toContain('-webkit-backdrop-filter')
   })
 
-  it('lifts only the hovered dock icon with glow, neighbors untouched（2026-10-02 裁决，§13 波浪退役）', () => {
+  it('lifts the hovered dock icon with glow via CSS（邻位波浪归 Taskbar 波浪引擎，2026-10-05 恢复）', () => {
     // 前置契约：Taskbar 图标 span 挂 data-wave-icon（CSS 钩子，不加则规则
     // 永不命中 = 静默丢需求）。hover 规则 = 浮起（translateY+scale）+ 光晕
     // （drop-shadow，品牌 cobalt 28%，Active/Highlight 配额内）；写入域限定
-    // 在 button:hover 的直接子级 = 只影响被悬浮的那一枚；触屏与
-    // reduced-motion 不浮起；不声明 background（按钮零底色裁决不回退）。
+    // 在 button:hover 的直接子级 = CSS 域只管被悬浮的那一枚（邻位高斯轻浮
+    // 由 Taskbar 波浪引擎写 inline transform，2026-10-05 用户裁决恢复）；
+    // 触屏与 reduced-motion 不浮起；不声明 background（按钮零底色裁决不回退）。
     const at = css.indexOf('button:hover > [data-wave-icon]')
     expect(at).toBeGreaterThan(0)
     const rule = css.slice(at, at + 320)

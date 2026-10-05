@@ -16,6 +16,22 @@ import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 
 const HOVER_DELAY_MS = 350
 
+/** 波浪参数（2026-10-05 用户裁决恢复 §13 前的邻位联动）：σ 对齐图标节距
+    56px，邻位最大轻浮 8px / scale 1.08——悬停枚的强浮起（-3px / 1.18 +
+    光晕）仍由 index.css 的 :hover 规则承担，引擎跳过最近一枚避免叠加。 */
+export const DOCK_WAVE_SIGMA_PX = 56
+export const DOCK_WAVE_MAX_LIFT_PX = 8
+export const DOCK_WAVE_MAX_SCALE = 1.08
+
+/** 高斯邻位波浪：|距离| → inline transform（超出 2σ 返回 null = 回落基态，
+    不写样式）。纯函数，jsdom 可测。 */
+export function dockWaveTransform(distancePx: number): string | null {
+  const t = Math.exp(-(distancePx * distancePx) / (DOCK_WAVE_SIGMA_PX * DOCK_WAVE_SIGMA_PX))
+  if (t < 0.02) return null
+  const scale = 1 + (DOCK_WAVE_MAX_SCALE - 1) * t
+  return `translateY(${(-DOCK_WAVE_MAX_LIFT_PX * t).toFixed(2)}px) scale(${scale.toFixed(4)})`
+}
+
 /**
  * 常驻 Dock（docs/DESIGN.md §9/§20 + §32 修订 8，2026-10-01 用户裁决）：
  * **常驻显示**——自动隐藏机制随本裁决移除（此前默认藏于底缘、指针触底
@@ -33,9 +49,56 @@ export function Taskbar() {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [anchorLeft, setAnchorLeft] = useState(0)
   const hoverTimer = useRef<number | null>(null)
-  // Dock 悬停浮起（2026-10-02 用户裁决：只浮起被悬浮的那一枚，§13 波浪引擎
-  // 整体退役）：transform 经 index.css 的 [data-wave-icon]:hover 规则写入，
-  // 邻位图标不再随高斯衰减联动。data-wave-icon 包裹层保留为样式钩子。
+  // 悬停强浮起（2026-10-02 用户裁决：被悬浮那枚 -3px/1.18 + 光晕）仍走
+  // index.css 的 button:hover > [data-wave-icon] 规则。邻位波浪（2026-10-05
+  // 用户裁决恢复 §13 前联动）：高斯衰减轻浮，rAF 节流 + 直写 inline
+  // transform——零 React 渲染；引擎跳过距指针最近的一枚（那是 :hover 的
+  // 强浮起位，避免 inline 覆盖 CSS）；reduced-motion 不启用；离开 Dock 全清。
+  const dockRef = useRef<HTMLDivElement | null>(null)
+  const waveFrame = useRef<number | null>(null)
+  const waveX = useRef(0)
+
+  const applyWave = (): void => {
+    waveFrame.current = null
+    const dock = dockRef.current
+    if (!dock) return
+    const spans = dock.querySelectorAll<HTMLElement>('[data-wave-icon]')
+    let nearest: HTMLElement | null = null
+    let nearestDistance = Number.POSITIVE_INFINITY
+    const entries: Array<{ el: HTMLElement; distance: number }> = []
+    spans.forEach((el) => {
+      const rect = el.getBoundingClientRect()
+      const distance = Math.abs(waveX.current - (rect.left + rect.width / 2))
+      entries.push({ el, distance })
+      if (distance < nearestDistance) {
+        nearestDistance = distance
+        nearest = el
+      }
+    })
+    for (const { el, distance } of entries) {
+      // 最近一枚交给 CSS :hover（指针在间隙时它只是不动，视觉可接受）。
+      el.style.transform = el === nearest ? '' : dockWaveTransform(distance) ?? ''
+    }
+  }
+
+  const onDockPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    waveX.current = event.clientX
+    if (waveFrame.current !== null) return
+    waveFrame.current = window.requestAnimationFrame(applyWave)
+  }
+
+  const clearWave = (): void => {
+    if (waveFrame.current !== null) {
+      window.cancelAnimationFrame(waveFrame.current)
+      waveFrame.current = null
+    }
+    dockRef.current?.querySelectorAll<HTMLElement>('[data-wave-icon]').forEach((el) => {
+      el.style.transform = ''
+    })
+  }
+
+  useEffect(() => clearWave, [])
   const dockSheen = useMotionPrefsStore((s) => s.dockSheen)
 
   const toggleWindow = (id: string, focused: boolean, minimized: boolean) => {
@@ -115,7 +178,10 @@ export function Taskbar() {
             启动器 + 常驻瓷贴 + 运行中 + 回收站。自动隐藏/波浪/预览/锚点行为
             契约全部不变（§9/§13/§12）。 */}
         <nav
+          ref={dockRef}
           aria-label={t('dock.label')}
+          onPointerMove={onDockPointerMove}
+          onPointerLeave={clearWave}
           className="desktop-chrome dock-glass surface-glass pointer-events-auto relative flex h-[var(--ag-dock-height)] max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-[var(--ag-dock-radius)] border border-border-strong px-2 shadow-dock"
         >
           {/* Dock 高光滑过（§32.5 修订 10）：低频釉面扫光，覆盖层内裁剪，

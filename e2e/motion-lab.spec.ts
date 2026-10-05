@@ -4,10 +4,10 @@ import { taskbarStartButton } from './helpers'
 
 /**
  * 动效实验室集成契约（docs/DESIGN.md §15/§32.5 修订 10，2026-10-01 用户裁决；
- * §13 悬停浮起修订 2026-10-02 用户裁决）：进阶炫技档四项 + 指针光晕默认开——
- * 流光氛围画布、主题光晕呼吸、Dock 扫光覆盖层在桌面就位；Dock 悬停只浮起
- * 被悬浮的那一枚（波浪引擎退役，邻位不动）；设置「外观」开关可即时关闭
- * 对应效果。
+ * §13 悬停浮起修订 2026-10-02 + 波浪恢复 2026-10-05 用户裁决）：进阶炫技档
+ * 四项 + 指针光晕默认开——流光氛围画布、主题光晕呼吸、Dock 扫光覆盖层在桌面
+ * 就位；Dock 悬停枚强浮起（CSS）+ 邻位高斯轻浮（Taskbar 波浪引擎，inline）；
+ * 设置「外观」开关可即时关闭对应效果。
  */
 test.describe.configure({ retries: 2 })
 
@@ -30,21 +30,34 @@ test('motion lab: aurora/glow/sheen present, hovered dock icon lifts alone, togg
   await expect(page.getByTestId('ambient-glow')).toHaveClass(/is-on/)
   await expect(page.getByTestId('dock-sheen')).toBeAttached()
 
-  // ② 悬停浮起（2026-10-02 裁决）：悬停瓷贴 → 该图标 computed transform
-  //    浮起，邻位图标 transform 恒 none（波浪引擎已退役，CSS hover 域）。
+  // ② 悬停强浮起 + 邻位波浪（2026-10-05 裁决）：悬停瓷贴 → 该图标 computed
+  //    transform = 强浮起（scale 1.18，CSS hover 域）；相邻瓷贴（terminal 与
+  //    store 在常驻序相邻，节距 56 = σ）= 波浪轻浮（scale 1 < n < 1.18，
+  //    Taskbar 引擎 inline 域）；隔两枚以上（files 距 terminal 3σ）已出波浪
+  //    截止，transform 归 none。
   const terminalPin = page.getByTestId('dock-pin-com.ageha.terminal')
+  const storePin = page.getByTestId('dock-pin-com.ageha.store')
   const filesPin = page.getByTestId('dock-pin-com.ageha.files')
   const computedTransform = (locator: ReturnType<typeof page.getByTestId>) =>
     locator.locator('[data-wave-icon]').evaluate((el) => getComputedStyle(el).transform)
+  const scaleOf = (matrix: string) => Number(matrix.slice(7, matrix.indexOf(',')))
   await terminalPin.hover()
-  await page.waitForTimeout(250) // transition（motion-base 200ms）落定。
-  expect(await computedTransform(terminalPin)).toContain('matrix')
+  await page.waitForTimeout(500) // CSS hover 380ms + 波浪 inline 220ms 落定。
+  const hoveredTransform = await computedTransform(terminalPin)
+  const neighborTransform = await computedTransform(storePin)
+  expect(hoveredTransform).toContain('matrix')
+  expect(scaleOf(hoveredTransform)).toBeCloseTo(1.18, 1)
+  expect(neighborTransform).toContain('matrix')
+  const neighborScale = scaleOf(neighborTransform)
+  expect(neighborScale).toBeGreaterThan(1)
+  expect(neighborScale).toBeLessThan(1.18)
   expect(await computedTransform(filesPin)).toBe('none')
 
-  // ②b 移开指针：浮起回落归位。
+  // ②b 移开指针：浮起与波浪一并回落归位。
   await page.mouse.move(960, 300)
   await page.waitForTimeout(300)
   expect(await computedTransform(terminalPin)).toBe('none')
+  expect(await computedTransform(storePin)).toBe('none')
 
   // ②c 运行中行滚动条 UI 隐藏：浮起 scale 变换边界会撑出可滚动区域，
   //    滚动条不得随悬停闪现（修订 11）。

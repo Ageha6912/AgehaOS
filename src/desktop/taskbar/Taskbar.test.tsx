@@ -7,7 +7,7 @@ import { resetAppStore } from '@/store/app-store'
 import { resetDynamicDesktopStore, useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { resetLauncherStore } from '@/store/launcher-store'
 
-import { Taskbar } from './Taskbar'
+import { dockWaveTransform, DOCK_WAVE_SIGMA_PX, Taskbar } from './Taskbar'
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -483,5 +483,22 @@ describe('Taskbar', () => {
     fireEvent.pointerEnter(bar)
     fireEvent.pointerLeave(bar)
     expect(bar).toHaveAttribute('data-state', 'revealed')
+  })
+})
+
+describe('dock wave transform（2026-10-05 恢复 §13 前邻位联动）', () => {
+  it('peaks at the pointer, decays as a gaussian, and cuts off beyond 2σ', () => {
+    // 指针处峰值：轻浮 8px / scale 1.08（悬停枚的 -3px/1.18 强浮起归 CSS）。
+    const peak = dockWaveTransform(0)
+    expect(peak).toContain('translateY(-8.00px)')
+    expect(peak).toContain('scale(1.0800)')
+    // 相邻一枚（节距 56 = σ）：高斯衰减后仍轻浮（t = e⁻¹ ≈ 0.368）。
+    const adjacent = dockWaveTransform(DOCK_WAVE_SIGMA_PX)
+    expect(adjacent).toContain('translateY(-2.94px)')
+    expect(adjacent).toContain('scale(1.0294)')
+    // 对称：等距左右同值。
+    expect(dockWaveTransform(-30)).toBe(dockWaveTransform(30))
+    // 2σ 外不写样式（回落基态，无 inline transform）。
+    expect(dockWaveTransform(DOCK_WAVE_SIGMA_PX * 3)).toBeNull()
   })
 })
