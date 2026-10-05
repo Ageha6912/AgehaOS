@@ -790,6 +790,12 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
 
 ## 26. 左侧系统导航栏（Phase 2 P2-2，2026-09-30）
 
+> **Shell 3.0 重构（2026-10-05）**：本节「系统导航栏 + 今日应用列」结构已被
+> 左栏 **Workspace Rail + Workspace Panel** 取代（§34.1-§34.3）——条目收敛
+> 为八钮窄轨（品牌 pin + 桌面/启动器/文件/笔记/终端/设置/通知），云同步开关
+> 退出左栏（深链仍在设置账户区）；行式条目与 150px 栏宽（§33.4.1）一并退役，
+> 回归 icon-first 80px 窄轨。下文保留作结构沿革，与 §34 冲突时以 §34 为准。
+
 权威图左侧竖排导航的落地形态：**系统快捷操作轨**（`src/desktop/sidebar/
 Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌面图标职责正交。
 
@@ -835,6 +841,11 @@ Sidebar.tsx`），与 Dock（运行中应用）/启动器（全部应用）/桌�
   tagline」（SidebarItem 双轨同款）。
 
 ## 27. 右侧小组件栏（Phase 2 P2-3，2026-09-30）
+
+> **Shell 3.0 重构（2026-10-05）**：右栏已重构为**漂浮 System Center**
+> （§34.4）——容器不画材质、不再贯穿全高，四层（时钟→系统状态→最近通知→
+> 今日世界）；日历收拢进时钟卡（可折叠）、今日壁纸卡退役（换壁纸入口在
+> 菜单栏/设置）。下文保留作结构沿革，与 §34 冲突时以 §34 为准。
 
 权威图右侧竖列的「真实数据源」落地：`src/desktop/widgets/WidgetRail.tsx`，
 ≥1280px（Tailwind xl）显示，**232px** 玻璃栏（2026-10-01 密度档原 272；
@@ -1143,3 +1154,139 @@ Wallpaper → Desktop → Window → Popover → Modal 递进成立；大面=玻
   打开，游戏手动启动；game-rotation 纯函数保留。E2E：dynamic-panel/
   responsive/widgets 改 helpers.openDynamicPanel 手动开；motion-lab 重钉
   「悬浮浮起 + 邻位不动 + 移开归位」；Desktop 单测钉零开窗。
+
+## 34. Desktop Shell 3.0 · 结构重构（2026-10-04/05，十切片全量落地）
+
+方向：Shell 2.0「Floating OS Environment」（§33）的桌面结构进化为
+**Workspace Environment**——左侧从静态动作导航升级为**漂浮 Workspace Rail +
+可展开 Workspace Panel**，右侧从组件卡 Dashboard 收敛为**漂浮 System
+Center**，中央品牌层从常量降为**桌面状态驱动**；Dock/窗口/启动器/全局搜索
+逐面视觉精修；响应式以四档分辨率几何探针收口（§25 末条，STEP 10）。十个
+切片各自过完整五门禁（typecheck/lint/test/build/test:e2e）+ 视觉验收后独立
+提交（6ad42bf → ad1a07d，另有 bb010b8 通知中心列表定高修复）。本节与
+§20-§23 / §26 / §27 / §33.3 / §33.4.1 冲突时以本节为准；横切契约全部延续：
+弹层互斥（§0.4）、chrome 不挡应用（§19 零容忍）、真实数据源拒绝装饰性谎言
+（§0.5）、组容器禁 overflow（§26 教训）、窗口状态语义与 core 零改动。
+
+### 34.1 Workspace Rail（STEP 1）
+
+左侧 `system-rails` 组容器退化为**单列窄轨**（今日应用列退役，§33.4.1 的
+150px 行式栏一并退役）：`fixed left-4 top-1/2 -translate-y-1/2` 垂直居中
+浮岛，玻璃面（rounded-xl 20px + border + shadow-float，液态玻璃位移折射
+保留）归组容器；内容列恒 `--ag-rail-left-width - 8px` = 72px。**icon-first
+八钮**（44px 圆钮 + 20px 字形，hover/active 轻 translucent capsule，禁实心
+色块）：品牌钮（= 面板展开 pin 开关）+ 桌面（最小化全部）/ 启动器 / 文件 /
+笔记 / 终端 / 设置 / 通知（未读徽标保留）。名称走 `os-tooltip` 气泡（§33.3
+双轨制，展开态经 `[data-expanded] .os-tooltip` 退出）。**窗口钳制仍钉
+RAIL_LEFT_WIDTH_PX=80**——324px 展开是纯浮层几何，不改窗口布局。
+
+### 34.2 Workspace Panel 展开态（STEP 2）
+
+hover / click pin / 键盘三路触发合并为 `expanded`（`use-workspace-panel.ts`
+状态机）：mouseenter 立即展开、mouseleave **240ms 宽限**收起；focusin 展开、
+focusout 出界收起（指针来源的焦点经 pointerdown 置位抑制，不令面板对鼠标
+用户常开）；品牌钮切换 pin；Esc / 面板外按下 / 启动器或通知中心打开（弹层
+互斥）收起，收起时焦点交还品牌钮。轨道 80→**324px**（`--ag-rail-left-expanded-width`）
+宽度过渡，内容列淡入 + 位移。面板是连续 Workspace Environment（不切成一堆
+card），自上而下 = 品牌区（BrandLogo + 字标 + 标语）→ 今日空间（真实日期 +
+问候引擎时段 + 当前用户称呼）→ **工作空间 selector**（个人/学习/开发/创作，
+localStorage 持久化，选中态 = 主色 capsule；架构记录见 ARCHITECTURE.md §3.24）
+→ 最近使用（usage-store 真实数据 × 工作空间亲和稳定排序，前 4）→ 底部今日
+世界入口（34.3）。**收起态内容列 inert 不进可达树，且首展才挂载**（渲染期
+派生重置）——净桌面 reload 预算（PRD §29.1 <3s）不为本面板付费。
+
+### 34.3 今日世界品牌入口（STEP 3）
+
+Workspace Panel 底部（mt-auto 锚底 + hairline 分隔）：数据零新取数，复用
+羽化编排器写入 `eclosion-store` 的世界摘要（headline / apps.length /
+worldDate 对 `utcDayKey` 的 fresh/stale 如实标注）。「查看世界 →」经
+`launcher-intent.ts` 模块级一次性意图打开启动器并直接落在「今日」分类（不
+改 launcher-store 数据结构）。门控：羽化关（默认）→ 整区不渲染；开但世界
+未落地（拉取中/503 静默降级）→ 安静空态，不渲染跳转钮（无死按钮）。
+
+### 34.4 Floating System Center（STEP 4）
+
+右栏 `WidgetRail.tsx` 重构为四层漂浮层级 = **时钟日期 → 系统状态 → 最近通知
+→ 今日世界**：容器不画材质（pointer-events-none）且不再 bottom 锚 + 贯穿
+全高滚动（Dashboard 侧栏形态退役）——高度由内容决定，仅当超出「顶锚
+menubar+16=48px + 底部 Dock 区 88px」剩余空间才兜底滚动；定位 right 20px /
+宽 `--ag-rail-right-width - 8px` = 288px。四卡：时钟（32px 等宽时间 + 日期
+toggle 折叠月历 + 本地时区长名行；壁纸缩略图退役）→ 系统状态（真实指标：
+rAF 连续 60 帧实测 fps / performance.memory / connection.downlink，行内细
+进度条只来自测量值本身，源不可用显「—」不画条）→ 最近通知（3 条 + 清空 +
+「查看更多」复用通知中心面板）→ 今日世界（羽化世界卡，门控同 34.3，替代
+原品牌横幅——品牌已由中央层与 Panel 品牌区承载）。≥1280px（xl）显示。
+
+### 34.5 中央品牌层状态化（STEP 5）
+
+品牌层从「无可见窗口才显示」的开关语义升级为**四档 opacity 状态机**
+（`branding-visibility.ts` 纯函数 `brandingTier`）：`hidden` 0%（任一 chrome
+弹层打开：启动器/全局搜索/通知中心 + popover 互斥槽兜住的菜单栏下拉/用户
+菜单/世界信号/右键菜单）→ `full` 100%（空闲无可见窗口）→ `dim` 40%（单
+可见窗口）→ `faint` 15%（多窗口，桌面已是工作台）。位置/字号/渐变沿用 §31/
+§32 修订 7 基线；过渡复用既有 `transition-opacity`（300ms ease-out），无第
+二套 motion。**性能契约**：全部 store 订阅取原始值选择器（计数/布尔而非数
+组引用）——窗口 move/resize/focus 每次 commit 新数组但档位不变 → 零
+re-render；重渲染只发生在档位真正变化时。纯装饰层 aria-hidden +
+pointer-events-none 恒成立。
+
+### 34.6 Dock 视觉精修（STEP 6）
+
+全 pill 胶囊退役（§20 的 `rounded-full` 形态），改 **24px 圆角矩形玻璃舱**：
+新几何 Token `--ag-dock-radius: 24px`（`rounded-[var(--ag-dock-radius)]`），
+`dock-sheen` 釉面扫光层经 `border-radius: inherit` 自动随动。active 指示器
+从 4px 点（h-1 w-1，§20）改**底部 2px×16px primary 细条**（`h-0.5 w-4`
+rounded-full，瓷贴与运行中两处）。几何契约不变：高 `--ag-dock-height`=68 /
+离底 `--ag-dock-gap`=20 / 水平居中 / 窗口钮节距 48px；Auto Hide、悬停单枚
+浮起（§32.5 修订 13）、悬停预览 portal、单实例激活、回收站语义零改动。
+
+### 34.7 窗口视觉精修（STEP 7）
+
+聚焦/失焦对比拉开（§21 的「细腻五感」升档）：**active 档** = 更高面实度
+`--ag-window-face-active`（浅 84% / 深 78%）+ 更强大气软影 `shadow-window-active`
+（0 24px 64px 20%，只加深不收窄）+ **中性细边 `border-border-strong`**
+（primary/50 蓝描边退役——强调色只留给内容）+ **44px 头部**（h-11，§28 密度
+档的 36px 退役）；inactive 档 = 基底玻璃 + `shadow-window-flat` + muted 标题。
+radius 20px（rounded-xl）/ 深玻璃 blur 36px（§33.1 window 档）不变；窗口
+状态语义、最大化 `inset-0` 真全屏（§32.5 修订 12）、拖出屏幕 ≥80px 可见带
+（MIN_VISIBLE_EDGE）全部零改动。
+
+### 34.8 启动器 = 居中 Application Launcher（STEP 8）
+
+弃左侧分类轨的 Windows 开始菜单形态（§22），改**视口居中的大幅玻璃面板**
+（`createPortal` 至 body，坑 13 包含块铁律）：宽度档 **600/640/680**（采纳
+布局建议三档，560-680 带内），结构自上而下 = **Search → Recent → Pinned →
+Categories**（分类降为芯片行 + 6 列瓦片网格，AppIcon 44 + 11px 标签）。
+Recent = 真实 usage-store 最近 × 工作空间亲和稳定重排（推荐语义）；Pinned
+与 Dock 常驻瓷贴消费同一份 `PINNED_APP_IDS`（单一来源）；搜索跨全应用，
+键盘 ↑↓ 高亮 / Enter 启动（与 Ctrl+K 同一键盘模型）、Esc 关闭回焦。羽化
+「今日」「我的羽化」动态分类保留。同名瓦片 testid（app-store/sdk-fs-note/
+sdk-sticky）收敛进 `launcher-grid` 作用域（E2E 取位修复）。
+
+### 34.9 全局搜索 = Spotlight 形态（STEP 9）
+
+Ctrl+K 面板（§23）精修为 Raycast/Spotlight 比喻：**640px（w-[40rem]）居中
+大玻璃面板**（glass-popover 弹层材质档），结构 = Search（大号无边框输入 +
+放大镜）→ 结果区（**空查询 = 真实「最近使用」速览**；输入后 = Apps → Files
+→ Actions 三段，**想象域落位 Actions 区**——羽化入口/门控/生成全保留，恒排
+两域之后）→ 底部 kbd 芯片提示条（装饰性，真实键盘模型在输入框）。三域一屏
+键盘全程可达（↑↓/Enter/Esc）；搜索逻辑（rankApps/VFS 搜索）与 testid 契约
+不变。
+
+### 34.10 响应式收尾（STEP 10）
+
+见 §25 末条「桌面四分辨率探针」：1280x720 / 1366x768 / 1920x1080 /
+2560x1440 四档 Playwright 几何探针全绿（无横向 overflow、窄轨/展开 Panel/
+System Center/Dock/窗口拖出可见带全部 boundingBox 实测），证据留
+`.tmp/responsive-probe/`（永不提交）；零分辨率特例——几何全走 Token。
+
+### 34.11 验收与基线
+
+- 十切片各自五门禁 + 视觉验收逐片跑真（切片记录：6ad42bf/a34f6ce/6b735c0/
+  abaa2c1/6cdddad/bb69bbf/7f62c59/b57e753/ef3cd9d/ad1a07d + bb010b8 修复）。
+- 落档时全量基线实测（`npm run test`）：**前端 1217（124 文件）+ 后端 157
+  （11 文件）+ 部署库 12** 全绿；Playwright E2E 25 spec / 57 test 块（羽化
+  域 26 条）随切片门禁全绿。
+- 新几何/材质 Token：`--ag-rail-left-expanded-width`(324)、`--ag-dock-radius`(24)、
+  `--ag-window-face-active`、`--ag-shadow-window-active`（viewport.ts 常量与
+  CSS 互指钉扎纪律不变）。

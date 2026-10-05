@@ -17,7 +17,7 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 
 **🦋 羽化模式已全量上线**（2026-10-04，[设计文档](docs/AI-GENERATED-APPS-DESIGN.md)）——操作系统级的 AI 实时生成应用：**基础软件 AI 化**（计算器/记事本/时钟按固定规格现场生成，原生实现兜底）、**今日世界**（每日依据 GitHub Trending 热点生成主题配色与一批今日应用，定时调度跨日换新）、**想象搜索**（Ctrl+K 输入任何想法，即时羽化出一个可用的应用）、**治理与蝶谱**（举报链路、admin 复审、历史世界时间线回放）。安全底座：不透明 origin 沙箱 + `connect-src 'none'` 禁网 CSP + JS 语法闸 + Default Deny 权限（L2/L3 仅开放命名空间隔离的 storage），生成应用数据可跨重开持久化。
 
-**🚀 生产运行中**：[os.ageha.cn](https://os.ageha.cn)（阿里云 HK VPS，releases 原子切换 + 双路加密备份 + CI）。视觉大线为 Shell 2.0 **Floating OS Environment**（浮动玻璃 Chrome、左导航轨 + 右组件轨、液态玻璃材质，契约见 [docs/DESIGN.md](docs/DESIGN.md) §17-§33）。
+**🚀 生产运行中**：[os.ageha.cn](https://os.ageha.cn)（阿里云 HK VPS，releases 原子切换 + 双路加密备份 + CI）。视觉大线为 **Desktop Shell 3.0 · Workspace Environment**——左侧漂浮 Workspace Rail（hover/键盘/点击展开 Workspace Panel：品牌区、今日空间、工作空间选择器、最近使用、今日世界入口）、右侧漂浮 System Center（时钟/系统状态/最近通知/今日世界）、中央品牌层随桌面状态四档弱化、居中 Application Launcher、Spotlight 式 Ctrl+K 全局搜索、液态玻璃材质（契约见 [docs/DESIGN.md](docs/DESIGN.md) §17-§34）。
 
 **🎉 v0.2.0 已发布**（2026-09-23）——v0.1 MVP 之上完成：应用生态（App Store + Type B 沙箱 + Type C SDK + Calculator + Terminal）、AI 动态桌面三域（壁纸/桌面编排/内容面板 + LLM 同源代理）、通知中心、全局搜索与快捷键、Milestone 5 后端认证（HttpOnly Cookie 会话）、用户资料与会话管理。
 
@@ -88,13 +88,18 @@ src/
 │   ├── permissions/ # ✅ 权限系统（PermissionManager，Default Deny + 持久化）
 │   ├── dynamic/     # ✅ AI 动态桌面纯引擎（决策/质量门/生成器）
 │   └── eclosion/    # ✅ 羽化模式纯模块（规格表/世界校验/SSE/HTML 切分/运行时协议）
-├── desktop/         # 桌面环境 UI
+├── desktop/         # 桌面环境 UI（Desktop Shell 3.0 · Workspace Environment）
 │   ├── boot/        # ✅ Boot Screen
-│   ├── window/      # ✅ WindowFrame / WindowLayer（拖拽、缩放、按钮）
-│   ├── taskbar/     # ✅ 任务栏（启动器、运行窗口、时钟）
-│   ├── launcher/    # 开始菜单增强（搜索/分类，待开发）
-│   ├── notification/# 通知中心（待开发）
-│   └── wallpaper/   # 壁纸（待开发）
+│   ├── window/      # ✅ WindowFrame / WindowLayer（拖拽、缩放、聚焦/失焦档）
+│   ├── taskbar/     # ✅ 底部 Dock（居中 Application Launcher、运行窗口、通知中心、悬停预览）
+│   ├── sidebar/     # ✅ 左侧 Workspace Rail + 可展开 Workspace Panel
+│   ├── workspace/   # ✅ 面板展开状态机 + 工作空间亲和排序（纯函数）
+│   ├── widgets/     # ✅ 右侧漂浮 System Center（时钟/系统状态/通知/今日世界）
+│   ├── branding/    # ✅ 中央品牌层（桌面状态 → 四档 opacity）
+│   ├── search/      # ✅ Ctrl+K 全局搜索（Apps / Files / Actions 三域）
+│   ├── menu-bar/    # ✅ 顶部菜单栏（四菜单、系统状态、世界信号）
+│   ├── notification/# ✅ 桌面 toast（通知历史面板在 taskbar/）
+│   └── wallpaper/   # ✅ 壁纸层（照片基底 + gradient-field 覆盖）
 ├── apps/            # 系统应用（✅ files / notes / settings 均为真实应用）
 ├── sdk/             # AgehaOS App SDK（AgehaOS.window / .files / …）
 ├── store/           # 全局状态（✅ boot-store / window-store / app-store）

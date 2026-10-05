@@ -234,6 +234,37 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
 - **事件**（ADR 4）：`eclosion.world.ready`（`{worldDate}`，世界就绪实际发送）/`eclosion.app.generating`/`ready`/`failed`/`reported`（举报成功实际发送）+ 既有 `ai.decision.performed {domain:'app', source:'llm'|'cache'|'local'}`。
 - 缓办：真实 Key 的上游选型与首字/总时长/思考字数对照（坑 72⑤，待手工 spike）、App Store AI 货架（设计 §11 待决）、多实例单飞锁的 Redis `SET NX`（沿用 types.ts 既有决策推迟）、设计 §6.4 桌面图标/双击语义（已被 2026-10-02 启动器单击落位裁决取代，不实施）。
 
+### 3.24 工作空间选择器与亲和排序（`src/store/workspace-store` + `src/desktop/workspace`，Desktop Shell 3.0 STEP 2/3）
+
+工作空间（个人/学习/开发/创作，`WORKSPACE_IDS`）是 Shell 3.0 引入的用户偏好
+维度。架构上刻意做成「**一个持久化标量 + 一层纯函数**」，不含任何窗口几何
+语义：
+
+- **状态**（`workspace-store.ts`）：单字段 `workspace: WorkspaceId`，设备本地
+  localStorage（`agehaos.workspace.v1`）持久化，**不进云同步**（与动作偏好/
+  最近使用同口径——设备行为不进云）；损坏/非法值回落 `DEFAULT_WORKSPACE='personal'`，
+  写入失败（隐私模式/配额）静默降级为内存态；`reloadWorkspaceStore()` 供测试
+  模拟新页面加载（区别于 wipe 语义的 reset）。本阶段只做 selector：**不改窗口
+  管理器**（窗口无工作空间归属，§3.4 的几何约束不感知本维度）。
+- **纯函数亲和层**（`src/desktop/workspace/affinity.ts`，零 React 零 store）：
+  `launcherWorkspaceScore` / `worldWorkspaceScore` 把「当前工作空间 → 亲和分类
+  列表」两张映射表翻译成分数，`rankByScore` 做**稳定降序**（同分保持输入原序
+  ——最近使用的时序、世界清单的生成序不因排序被打乱）。`LAUNCHER_CATEGORY_MEMBERS`
+  （启动器分类成员）自 AppLauncher 上收至此作为单一来源——启动器分类轨与
+  Workspace Panel 的最近使用消费同一份映射，禁止第二套。**只影响「排序」不
+  影响「存在」**：亲和分不增删任何应用，无硬编码白名单之外的假数据。
+- **消费方三处**：启动器分类轨与最近区推荐（`AppLauncher`）、Workspace Panel
+  的「最近使用」前 4（`Sidebar.tsx`）、今日世界分类建议（世界行 category）。
+- **展开状态机**（`use-workspace-panel.ts`，纯前端交互层）：hover（240ms 离开
+  宽限）/ click pin（品牌钮）/ 键盘聚焦三路触发合并为 `expanded`；Esc / 面板
+  外按下 / 启动器或通知中心打开（弹层互斥）收起并回焦品牌钮。刻意不用
+  `usePopoverDismiss`——面板是常驻 chrome 的展开态而非独占弹层，全局 claim 槽
+  会让顶栏菜单与它互相顶替，语义不符。
+- **入口意图**（`launcher-intent.ts`）：外部入口（今日世界「查看世界」）需要
+  打开启动器并直接落在指定分类，而 launcher-store 按裁决只放开合——沿用
+  `app-deep-link.ts` 的模块级一次性意图范式（launch 前写入、打开时取走即清），
+  不为深链扩 store 数据结构。
+
 ## 4. 后续模块技术要点
 
 ### 4.1 应用运行时完善（`src/core/runtime`，PRD §8/§25）
