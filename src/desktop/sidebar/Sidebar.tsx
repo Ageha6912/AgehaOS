@@ -180,15 +180,18 @@ function useNow(intervalMs = 30_000): Date {
 }
 
 /**
- * 今日世界分区（Desktop Shell 3.0 STEP 3）：AgehaOS 独有的品牌入口，垫在
- * 面板底部（mt-auto 锚底 + hairline 分隔）。数据零新取数——复用羽化编排器
- * 写入 eclosion-store 的世界摘要（新应用数 = apps.length、趋势主题 =
- * headline、今日更新状态 = worldDate 对 utcDayKey），禁止假数据：
- * - 羽化关（默认）→ 整区不渲染（WorldSignals 同款门控；桌面保持安静）；
- * - 开但世界未落地（拉取中/503 静默降级）→ 安静空态，不渲染跳转钮
- *   （无数据可看时「查看世界」即死按钮，拒绝装饰性谎言）。
- * 「查看世界 →」= 打开启动器并直接落在「今日」分类（launcher-intent 一次
- * 性意图；面板收起走既有的弹层互斥，不在此重复收起逻辑）。
+ * 今日世界分区（Desktop Shell 3.0 STEP 3 + 2026-10-05 常驻裁决）：AgehaOS
+ * 独有的品牌入口，垫在面板底部（mt-auto 锚底 + hairline 分隔），**常驻**
+ * ——参考图口径，不再随羽化开关消失。数据零新取数——复用羽化编排器写入
+ * eclosion-store 的世界摘要（新应用数 = apps.length、趋势主题 = headline、
+ * 今日更新状态 = worldDate 对 utcDayKey），禁止假数据：
+ * - 羽化关 → 引导卡常驻：✦ 角标 + 「开启羽化，织出今日世界」，点击打开
+ *   设置（真实动作，非死按钮）；
+ * - 羽化开但世界未落地（拉取中/503 静默降级）→ 安静空态，不渲染跳转钮
+ *   （无数据可看时「查看世界」即死按钮，拒绝装饰性谎言）；
+ * - 世界已落地 → 摘要卡，「查看世界」= 打开启动器并直接落在「今日」分类
+ *   （launcher-intent 一次性意图；面板收起走既有的弹层互斥，不在此重复
+ *   收起逻辑）。
  */
 function WorkspaceTodayWorld() {
   const { t } = useTranslation()
@@ -196,15 +199,34 @@ function WorkspaceTodayWorld() {
   const world = useEclosionStore((s) => s.world)
   const setLauncherOpen = useLauncherStore((s) => s.setLauncherOpen)
 
-  if (!enabled) return null
-
   // 「今日已更新」以当日世界为准（会话跨 UTC 零点的陈旧摘要如实标注）。
   const fresh = world !== null && world.worldDate === utcDayKey()
 
   return (
     <section aria-label={t('workspace.panel.world')} className="mt-auto border-t border-border-subtle pt-2">
       <PanelHeading>{t('workspace.panel.world')}</PanelHeading>
-      {world === null ? (
+      {!enabled ? (
+        /* 羽化关：品牌入口常驻（参考图口径）——引导卡点击打开设置；
+           陈旧 world 数据不展示（关了羽化的「查看世界」即准死按钮）。 */
+        <button
+          type="button"
+          data-testid="workspace-world-entry"
+          aria-label={t('workspace.panel.world.off')}
+          onClick={() => launchApp('com.ageha.settings')}
+          className="flex w-full items-center gap-2.5 rounded-xl border border-border-subtle bg-surface-raised px-2 py-2 text-left transition-colors hover:bg-surface-elevated"
+        >
+          <span
+            aria-hidden="true"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--ag-capsule-active)] shadow-sm"
+          >
+            <Sparkle size={18} weight="fill" className="text-primary-contrast" />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-xs font-medium leading-snug text-text">
+            {t('workspace.panel.world.off')}
+          </span>
+          <CaretRight size={12} aria-hidden="true" className="shrink-0 text-primary" />
+        </button>
+      ) : world === null ? (
         <p data-testid="workspace-world-empty" className="px-1 text-[11px] leading-snug text-text-tertiary">
           {t('workspace.panel.world.empty')}
         </p>

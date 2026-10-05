@@ -595,10 +595,11 @@ test.describe('回归：默认配置（羽化关）', () => {
     await expect(page.getByTestId('menubar-world-signals')).toHaveCount(0)
     expect(await worldAccentInline(page)).toBe('')
 
-    // 面板入口整区不渲染（羽化关 → 默认桌面保持安静）。
+    // 面板入口常驻（2026-10-05 裁决）：羽化关 → 引导卡（点击打开设置，
+    // 点击链路由单测钉）；安静空态只属于「羽化开但世界未落地」。
     await page.keyboard.press('Escape')
     await page.getByTestId('sidebar-brand').click()
-    await expect(page.getByTestId('workspace-world-entry')).toHaveCount(0)
+    await expect(page.getByTestId('workspace-world-entry')).toBeVisible()
     await expect(page.getByTestId('workspace-world-empty')).toHaveCount(0)
   })
 })

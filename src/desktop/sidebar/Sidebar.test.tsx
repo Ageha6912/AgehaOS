@@ -548,12 +548,18 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     expect(screen.queryByTestId('workspace-world-entry')).toBeNull()
   })
 
-  it('today world entry is absent entirely when eclosion is off (default quiet desktop)', () => {
+  it('today world entry stays present when eclosion is off and opens Settings（2026-10-05 常驻裁决）', () => {
     render(<SidebarHarness />)
 
     fireEvent.click(screen.getByTestId('sidebar-brand'))
 
-    expect(screen.queryByTestId('workspace-world-entry')).toBeNull()
+    // 羽化关：品牌入口常驻（参考图口径），引导卡点击 = 打开设置（真实动作）。
+    const entry = screen.getByTestId('workspace-world-entry')
+    expect(entry.textContent).toContain('开启羽化')
+    fireEvent.click(entry)
+    expect(useWindowStore.getState().windows[0]?.appId).toBe('com.ageha.settings')
+    // 关闭态不排「今日」分类意图（那是世界数据域的动作）。
+    expect(consumeLauncherCategory()).toBeNull()
     expect(screen.queryByTestId('workspace-world-empty')).toBeNull()
   })
 
