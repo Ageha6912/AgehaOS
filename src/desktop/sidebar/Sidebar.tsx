@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 
 
 import {
   Bell,
+  CaretLeft,
+  CaretRight,
+  CaretUp,
   Code,
   FolderOpen,
   GearSix,
@@ -27,6 +30,7 @@ import { useTranslation, formatMessage } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { launcherWorkspaceScore, rankByScore } from '@/desktop/workspace/affinity'
 import type { WorkspacePanelController } from '@/desktop/workspace/use-workspace-panel'
+import { DEFAULT_WALLPAPER_SRC } from '@/desktop/wallpaper/WallpaperLayer'
 import { requestLauncherCategory } from '@/desktop/taskbar/launcher-intent'
 import { useAppStore } from '@/store/app-store'
 import { useEclosionStore } from '@/store/eclosion-store'
@@ -95,7 +99,7 @@ function RailItem({
       aria-label={label}
       aria-expanded={expandable ? (active ?? false) : undefined}
       onClick={onClick}
-      className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text transition-colors hover:bg-surface-raised focus-visible:bg-surface-raised active:bg-surface-elevated data-[active]:bg-surface-raised"
+      className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-raised text-text transition-colors hover:bg-surface-elevated focus-visible:bg-surface-elevated active:bg-surface-elevated data-[active]:bg-surface-elevated"
     >
       <Icon size={20} weight="fill" aria-hidden="true" />
       {/* 自绘气泡（os-tooltip）：点亮规则在 index.css；展开态由
@@ -119,6 +123,39 @@ function RailItem({
 /** 面板分区标题（11px 弱化，密度对齐启动器分区标签）。 */
 function PanelHeading({ children }: { children: ReactNode }) {
   return <h2 className="px-1 pb-1 text-[11px] font-medium text-text-muted">{children}</h2>
+}
+
+/** 面板可折叠分组（§34 参考图：分组头带 ˄ 折叠箭头，收起藏内容）。 */
+function PanelSection({
+  label,
+  testid,
+  children,
+}: {
+  label: string
+  testid: string
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(true)
+  return (
+    <section>
+      <button
+        type="button"
+        data-testid={`panel-section-${testid}`}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between rounded-md px-1 pb-1 text-[11px] font-medium text-text-muted transition-colors hover:text-text"
+      >
+        {label}
+        <CaretUp
+          size={10}
+          weight="bold"
+          aria-hidden="true"
+          className={`shrink-0 transition-transform ${open ? '' : 'rotate-180'}`}
+        />
+      </button>
+      {open ? children : null}
+    </section>
+  )
 }
 
 /** 工作空间 selector 元数据（图标 + 双语标签键；四个 id 来自 workspace-store）。 */
@@ -181,9 +218,15 @@ function WorkspaceTodayWorld() {
             requestLauncherCategory('today')
             setLauncherOpen(true)
           }}
-          className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-surface-raised"
+          className="flex w-full items-center gap-2.5 rounded-xl border border-border-subtle bg-surface-raised px-2 py-2 text-left transition-colors hover:bg-surface-elevated"
         >
-          <Sparkle size={14} weight="fill" aria-hidden="true" className="shrink-0 text-primary" />
+          {/* ✦ 渐变角标（§34 参考图的缩略位）：品牌入口气质，非假数据图片。 */}
+          <span
+            aria-hidden="true"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--ag-capsule-active)] shadow-sm"
+          >
+            <Sparkle size={18} weight="fill" className="text-primary-contrast" />
+          </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-xs font-medium leading-snug text-text">
               {world.headline}
@@ -194,9 +237,7 @@ function WorkspaceTodayWorld() {
               {t(fresh ? 'workspace.panel.world.fresh' : 'workspace.panel.world.stale')}
             </span>
           </span>
-          <span aria-hidden="true" className="shrink-0 text-[11px] font-medium text-primary">
-            {t('workspace.panel.world.view')} →
-          </span>
+          <CaretRight size={12} aria-hidden="true" className="shrink-0 text-primary" />
         </button>
       )}
     </section>
@@ -255,29 +296,38 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
           </div>
         </div>
 
-        {/* 今日空间：真实日期 + 按当前用户的问候（问候引擎时段模板）。 */}
+        {/* 今日空间：真实壁纸缩略图卡（§34 参考图口径）——缩略图 = 当前
+            壁纸本身（DEFAULT_WALLPAPER_SRC，与桌面 PhotoSurface 同源，禁
+            假数据），叠加文本 = 真实日期 + 问候引擎时段 + 当前用户称呼。 */}
         <section>
           <PanelHeading>{t('workspace.panel.today')}</PanelHeading>
-          <div data-testid="workspace-today" className="rounded-lg bg-surface-raised px-2.5 py-1.5">
-            <p className="text-[11px] leading-snug text-text-muted">{dateText}</p>
-            <p className="mt-0.5 truncate text-[13px] font-medium leading-snug text-text">
-              {t(greetingTitleKey(phase))}
-              {displayName && (
-                <span className="font-normal text-text-muted">
-                  {t('workspace.panel.greetingJoin')}
-                  {displayName}
-                </span>
-              )}
-            </p>
+          <div
+            data-testid="workspace-today"
+            className="relative h-24 overflow-hidden rounded-xl border border-border-subtle bg-cover bg-center"
+            style={{ backgroundImage: `url(${DEFAULT_WALLPAPER_SRC})` }}
+          >
+            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
+            <div className="relative flex h-full flex-col justify-end gap-0.5 p-2.5">
+              <p className="text-[11px] leading-snug text-white/90">{dateText}</p>
+              <p className="truncate text-[13px] font-medium leading-snug text-white">
+                {t(greetingTitleKey(phase))}
+                {displayName && (
+                  <span className="font-normal text-white/85">
+                    {t('workspace.panel.greetingJoin')}
+                    {displayName}
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
         </section>
 
         {/* 工作空间 selector（本阶段只做 selector：不改窗口 workspace）；
-            选择持久化 + 真实影响排序（affinity.ts）。选中态 = 启动器分类
-            轨同款主色 capsule（§22 选中语言）。 */}
-        <section>
-          <PanelHeading>{t('workspace.panel.workspaces')}</PanelHeading>
-          <div role="group" aria-label={t('workspace.panel.workspaces')} className="flex flex-col gap-0.5">
+            选择持久化 + 真实影响排序（affinity.ts）。选中态 = 同族明暗渐变
+            胶囊（--ag-capsule-active，§34 参考图口径；primary 的 Active/
+            Selected 配额内）。 */}
+        <PanelSection label={t('workspace.panel.workspaces')} testid="workspaces">
+          <div role="group" aria-label={t('workspace.panel.workspaces')} className="flex flex-col gap-1">
             {WORKSPACE_META.map(({ id, labelKey, icon: Icon }) => {
               const checked = workspace === id
               return (
@@ -286,38 +336,45 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
                   type="button"
                   data-testid={`workspace-option-${id}`}
                   aria-pressed={checked}
-                  className={`flex h-7 items-center gap-2 rounded-lg px-2 text-left text-xs transition-colors ${
+                  className={`flex h-9 items-center gap-2.5 rounded-xl px-2 text-left text-xs transition-colors ${
                     checked
-                      ? 'bg-primary font-medium text-primary-contrast'
+                      ? 'bg-[var(--ag-capsule-active)] font-medium text-primary-contrast shadow-sm'
                       : 'text-text-muted hover:bg-surface-raised hover:text-text'
                   }`}
                   onClick={() => setWorkspace(id)}
                 >
-                  <Icon size={14} weight="fill" aria-hidden="true" />
+                  <span
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${
+                      checked ? 'bg-white/20' : 'bg-surface-raised'
+                    }`}
+                  >
+                    <Icon size={13} weight="fill" aria-hidden="true" />
+                  </span>
                   <span className="min-w-0 truncate">{t(labelKey)}</span>
+                  <CaretRight size={11} aria-hidden="true" className="ml-auto shrink-0 opacity-70" />
                 </button>
               )
             })}
           </div>
-        </section>
+        </PanelSection>
 
         {/* 最近使用：真实 usage-store 数据；空态如实提示（拒绝装饰性谎言）。 */}
-        <section>
-          <PanelHeading>{t('workspace.panel.recent')}</PanelHeading>
+        <PanelSection label={t('workspace.panel.recent')} testid="recent">
           {recentApps.length > 0 ? (
-            <ul className="flex flex-col gap-0.5">
+            <ul className="flex flex-col gap-1">
               {recentApps.map((app) => (
                 <li key={app.id}>
                   <button
                     type="button"
                     data-testid="workspace-recent-item"
                     onClick={() => launchApp(app.id)}
-                    className="flex h-7 w-full items-center gap-2 rounded-lg px-1.5 text-left transition-colors hover:bg-surface-raised"
+                    className="flex h-9 w-full items-center gap-2.5 rounded-xl px-2 text-left transition-colors hover:bg-surface-raised"
                   >
-                    <AppIcon appId={app.id} size={20} />
+                    <AppIcon appId={app.id} size={22} />
                     <span className="min-w-0 truncate text-xs text-text">
                       {appDisplayName(app.id)}
                     </span>
+                    <CaretRight size={11} aria-hidden="true" className="ml-auto shrink-0 opacity-60" />
                   </button>
                 </li>
               ))}
@@ -327,7 +384,7 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
               {t('workspace.panel.recentEmpty')}
             </p>
           )}
-        </section>
+        </PanelSection>
 
         {/* 今日世界（STEP 3）：品牌入口垫底——真实世界摘要 + 「查看世界」。
             羽化关不渲染（默认桌面保持安静）。 */}
@@ -381,7 +438,8 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
           liquidMap ? 'glass-liquid' : 'glass-raise'
         }`}
       >
-        {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。 */}
+        {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。§34 参考图
+            口径：实心渐变 squircle 徽章（--ag-capsule-active 同族明暗）。 */}
         <button
           type="button"
           data-testid="sidebar-brand"
@@ -389,10 +447,10 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
           aria-controls="workspace-panel"
           aria-label={brandLabel}
           onClick={panel.togglePin}
-          className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-surface-raised focus-visible:bg-surface-raised active:bg-surface-elevated"
+          className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--ag-capsule-active)] shadow-sm transition-transform hover:scale-[1.04] focus-visible:scale-[1.04]"
         >
           {/* Ageha Mark（§10 品牌主视觉）：装饰位，可访问名由按钮承载。 */}
-          <BrandLogo size={28} className="opacity-90" />
+          <BrandLogo size={26} />
           <span aria-hidden="true" className="os-tooltip">
             {brandLabel}
           </span>
@@ -463,6 +521,29 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
           popoverTrigger="notifications"
           badge={unread}
         />
+        {/* 收起手柄（§34 参考图：轨底分隔线 + 圆形手柄）——与品牌钮同一
+            pin 开关（键盘可达的第二入口）；箭头指向随展开态翻转。可访问名
+            独立于品牌钮（读屏可分辨两个入口）。 */}
+        <div className="mt-auto flex flex-col items-center gap-1.5 pt-2">
+          <span aria-hidden="true" className="h-px w-6 bg-border-subtle" />
+          <button
+            type="button"
+            data-testid="sidebar-handle"
+            aria-label={t(panel.expanded ? 'workspace.panel.handle.collapse' : 'workspace.panel.handle.expand')}
+            onClick={panel.togglePin}
+            className="group relative flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-raised hover:text-text focus-visible:bg-surface-raised focus-visible:text-text"
+          >
+            <CaretLeft
+              size={13}
+              weight="bold"
+              aria-hidden="true"
+              className={panel.expanded ? '' : 'rotate-180'}
+            />
+            <span aria-hidden="true" className="os-tooltip">
+              {brandLabel}
+            </span>
+          </button>
+        </div>
       </nav>
       {/* 岛二：Workspace Panel——独立玻璃卡（岛间 14px 缝隙由组容器 gap
           提供，缝隙穿透桌面）。首展才挂载（渲染期派生重置，React 官方模式，

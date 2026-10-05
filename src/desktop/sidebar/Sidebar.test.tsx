@@ -335,6 +335,47 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     expect(today.textContent).toContain('alice')
   })
 
+  it('today space is a wallpaper thumbnail card fed by the real current wallpaper（§34 图卡）', () => {
+    render(<SidebarHarness />)
+
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+    const today = screen.getByTestId('workspace-today')
+    // 缩略图 = 桌面 PhotoSurface 同源的真实壁纸（禁假数据图片）。
+    expect(today.style.backgroundImage).toContain('ageha-dreamland')
+    expect(today.className).toContain('bg-cover')
+  })
+
+  it('panel sections collapse and restore their rows（§34 可折叠分组）', () => {
+    render(<SidebarHarness />)
+
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+    const header = screen.getByTestId('panel-section-workspaces')
+    expect(header.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByTestId('workspace-option-personal')).toBeInTheDocument()
+
+    fireEvent.click(header)
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByTestId('workspace-option-personal')).toBeNull()
+
+    fireEvent.click(header)
+    expect(header.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByTestId('workspace-option-personal')).toBeInTheDocument()
+  })
+
+  it('workspace selector rows carry the gradient active capsule and row chevrons（§34 行样式）', () => {
+    render(<SidebarHarness />)
+
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+    const active = screen.getByTestId('workspace-option-personal')
+    // 选中 = 同族明暗渐变胶囊（--ag-capsule-active）；禁实心 bg-primary。
+    expect(active.className).toContain('bg-[var(--ag-capsule-active)]')
+    expect(active.className).not.toContain('bg-primary')
+    // 未选中行保留 hover capsule；行尾 ›（aria-hidden 装饰）。
+    const idle = screen.getByTestId('workspace-option-study')
+    expect(idle.className).toContain('hover:bg-surface-raised')
+    expect(idle.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
+  })
+
   it('keeps rail tooltips for the collapsed state (os-tooltip carriers, aria-hidden)', () => {
     render(<SidebarHarness />)
 
@@ -346,17 +387,35 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     expect(tooltip?.getAttribute('aria-hidden')).toBe('true')
   })
 
-  it('rail items stay light translucent capsules — no solid primary blocks', () => {
+  it('rail items sit on persistent translucent tiles — no solid primary blocks（§34 底座）', () => {
     render(<SidebarHarness />)
 
     for (const testid of ['sidebar-desktop', 'sidebar-launcher', 'sidebar-files', 'sidebar-notes', 'sidebar-terminal', 'sidebar-settings', 'sidebar-notifications']) {
       const item = screen.getByTestId(testid)
-      for (const cls of ['h-11', 'w-11', 'rounded-full', 'hover:bg-surface-raised', 'active:bg-surface-elevated', 'data-[active]:bg-surface-raised']) {
+      for (const cls of ['h-11', 'w-11', 'rounded-xl', 'bg-surface-raised', 'hover:bg-surface-elevated', 'active:bg-surface-elevated', 'data-[active]:bg-surface-elevated']) {
         expect(item.classList.contains(cls), `${testid} missing ${cls}`).toBe(true)
       }
       // 禁实心蓝色块（用户一票否决）：条目永不挂 bg-primary。
       expect(item.classList.contains('bg-primary'), `${testid} has bg-primary`).toBe(false)
     }
+    // 品牌钮 = 渐变 squircle 徽章（§34 参考图口径，同族明暗非新色相）。
+    const brand = screen.getByTestId('sidebar-brand')
+    expect(brand.className).toContain('rounded-xl')
+    expect(brand.className).toContain('bg-[var(--ag-capsule-active)]')
+    expect(brand.className).not.toContain('bg-primary')
+  })
+
+  it('the rail-bottom handle toggles the panel like the brand button（§34 收起手柄）', () => {
+    render(<SidebarHarness />)
+
+    const handle = screen.getByTestId('sidebar-handle')
+    // 可访问名独立于品牌钮（读屏可分辨两个入口）。
+    expect(handle.getAttribute('aria-label')).toBe('展开面板')
+    fireEvent.click(handle)
+    expect(screen.getByTestId('sidebar').getAttribute('data-expanded')).toBe('true')
+    expect(handle.getAttribute('aria-label')).toBe('收起面板')
+    fireEvent.click(handle)
+    expect(screen.getByTestId('sidebar').getAttribute('data-expanded')).toBeNull()
   })
 
   it('toggles the shared launcher panel via the launcher store', () => {

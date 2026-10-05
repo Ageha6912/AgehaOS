@@ -37,6 +37,10 @@
   /* ---- Brand / accents ---- */
   --ag-primary: #2f5fe8; /* cobalt：唯一主动作/焦点/选中 */
   --ag-primary-contrast: #f7f9ff;
+  /* 选中态渐变胶囊（Shell 3.0 §34 参考图口径：工作空间 selector/品牌徽章/
+     今日世界角标——primary 只用于 Active/Selected 配额，渐变是同族明暗而非
+     新色相）。暗主题由 .dark 段同形重声明。 */
+  --ag-capsule-active: linear-gradient(135deg, #6f9bf5 0%, #3f6ce0 100%);
   /* 焦点双环：实色环 + 反差衬圈（衬圈填满 outline-offset 间隙，任意背景
      上都与环本身形成 ≥3:1 反差，WCAG 1.4.11）。 */
   --ag-focus-ring: #2f5fe8;
@@ -221,6 +225,8 @@
   --ag-primary-contrast: #0d1220;
   --ag-focus-ring: #82a3ff;
   --ag-focus-halo: #0d1220;
+  /* 选中态渐变胶囊暗主题同形（同族明暗，非新色相）。 */
+  --ag-capsule-active: linear-gradient(135deg, #82a3ff 0%, #4f7cf9 100%);
   --ag-accent-blue: #60a5fa;
   --ag-accent-indigo: #818cf8;
   --ag-accent-violet: #a78bfa;

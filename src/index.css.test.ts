@@ -417,6 +417,13 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(reveal).toContain('transform: translateY(-50%) translateX(0)')
   })
 
+  it('defines the shell 3.0 active capsule gradient in both themes (§34)', () => {
+    // 选中态渐变胶囊（工作空间 selector / 品牌徽章 / 今日世界角标）：
+    // primary 同族明暗渐变，非新色相；双主题同形重声明。
+    expect(root).toMatch(/--ag-capsule-active:\s*linear-gradient/)
+    expect(dark).toMatch(/--ag-capsule-active:\s*linear-gradient/)
+  })
+
   it('documents the accent quota and the glass/solid material rules in the token header', () => {
     // 色彩配额：主强调只用于 Active/Selected/Focus/Highlight，不许全页紫蓝化；
     // 材质纪律：大面=玻璃、小控件=实色——两条规则钉在 Token 头注释防漂移。
