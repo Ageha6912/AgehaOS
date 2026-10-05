@@ -74,6 +74,20 @@ test('motion lab: aurora/glow/sheen present, dock wave peaks at pointer, toggles
   await page.waitForTimeout(400) // 波浪 inline 220ms 过渡落定。
   expect(await computedTransform(terminalPin)).toBe('none')
   expect(await computedTransform(storePin)).toBe('none')
+
+  // ②c-3 搜索框垂直居中（2026-10-05 用户报告）：定位包裹层不得被底部
+  //    padding 撑偏——图标与 Ctrl+K 徽章的中心线须与输入框中心偏差 ≤2px。
+  const searchBox = page.getByTestId('launcher-search')
+  const searchIcon = page.getByTestId('launcher-search-icon')
+  const searchKbd = page.getByTestId('launcher-search-kbd')
+  const centerOf = async (locator: ReturnType<typeof page.getByTestId>) => {
+    const box = (await locator.boundingBox())!
+    return box.y + box.height / 2
+  }
+  const inputCenter = await centerOf(searchBox)
+  expect(Math.abs((await centerOf(searchIcon)) - inputCenter)).toBeLessThanOrEqual(2)
+  expect(Math.abs((await centerOf(searchKbd)) - inputCenter)).toBeLessThanOrEqual(2)
+
   await page.keyboard.press('Escape')
   await page.waitForTimeout(250)
 

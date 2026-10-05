@@ -246,11 +246,14 @@ export function AppLauncher() {
   }
 
   const searchBox = (
-    <div className="relative shrink-0 px-0.5 pb-3">
+    // 间距用 mb 而非 pb：图标/Ctrl+K 的 top-1/2 以本层定位盒为参照，
+    // 底部 padding 会把参照系撑高 → 图标与徽章垂直不居中（2026-10-05 用户报告）。
+    <div className="relative mb-3 shrink-0 px-0.5">
       <MagnifyingGlass
         size={14}
         weight="bold"
         aria-hidden="true"
+        data-testid="launcher-search-icon"
         className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
       />
       <input
