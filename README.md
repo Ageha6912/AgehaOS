@@ -1,54 +1,54 @@
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="AgehaOS —— 浏览器里的操作系统，AI 原生 Web Desktop，已上线 os.ageha.cn">
+</p>
+
 # AgehaOS 🦋
 
-> **Your Web OS, Your Space.** — 让设备连接生活，让应用触手可及。
+**Your Web OS, Your Space.** —— 在云端，打开属于你的数字世界。
 
-AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」：提供桌面环境、窗口管理器、应用运行时、虚拟文件系统、用户与权限体系等接近传统 OS 的交互模型。
+AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」：桌面环境、窗口管理器、应用运行时、虚拟文件系统、用户与权限体系，外加一条操作系统级的 AI 能力线——**AI 动态桌面**与**羽化实时生成应用**。
 
 核心理念：**Everything is an App, Everything is a File, Everything is Web.**
 
-- 产品需求文档：[docs/PRD.md](docs/PRD.md)
-- 系统架构图：[docs/assets/system-architecture.png](docs/assets/system-architecture.png)
-- 技术架构说明：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- 协作约定：[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
-- 安全说明：[docs/SECURITY.md](docs/SECURITY.md)
-- 更新日志：[CHANGELOG.md](CHANGELOG.md)
+**[🌐 立即体验 os.ageha.cn](https://os.ageha.cn)** · [产品需求文档](docs/PRD.md) · [设计契约](docs/DESIGN.md) · [更新日志](CHANGELOG.md)
 
-## 当前状态
+## 桌面一览 —— Desktop Shell 3.0 · Workspace Environment
 
-**🦋 羽化模式已全量上线**（2026-10-04，[设计文档](docs/AI-GENERATED-APPS-DESIGN.md)）——操作系统级的 AI 实时生成应用：**基础软件 AI 化**（计算器/记事本/时钟按固定规格现场生成，原生实现兜底）、**今日世界**（每日依据 GitHub Trending 热点生成主题配色与一批今日应用，定时调度跨日换新）、**想象搜索**（Ctrl+K 输入任何想法，即时羽化出一个可用的应用）、**治理与蝶谱**（举报链路、admin 复审、历史世界时间线回放）。安全底座：不透明 origin 沙箱 + `connect-src 'none'` 禁网 CSP + JS 语法闸 + Default Deny 权限（L2/L3 仅开放命名空间隔离的 storage），生成应用数据可跨重开持久化。
+<p align="center">
+  <img src="./assets/readme/desktop.jpg" width="100%" alt="AgehaOS 桌面：左侧漂浮 Workspace Rail，右侧 System Center，中央品牌层与底部波浪 Dock">
+</p>
 
-**🚀 生产运行中**：[os.ageha.cn](https://os.ageha.cn)（阿里云 HK VPS，releases 原子切换 + 双路加密备份 + CI）。视觉大线为 **Desktop Shell 3.0 · Workspace Environment**——左侧漂浮 Workspace Rail（hover/键盘/点击展开 Workspace Panel：品牌区、今日空间、工作空间选择器、最近使用、今日世界入口）、右侧漂浮 System Center（时钟/系统状态/最近通知/今日世界）、中央品牌层随桌面状态四档弱化、居中 Application Launcher、Spotlight 式 Ctrl+K 全局搜索、液态玻璃材质（契约见 [docs/DESIGN.md](docs/DESIGN.md) §17-§34）。
+- **左侧 Workspace Rail**：hover / click / 键盘展开 Workspace Panel——品牌区、今日空间、工作空间选择器、最近使用、今日世界入口
+- **右侧 System Center**：时钟、系统状态、最近通知、今日世界，独立漂浮不锁高度
+- **中央品牌层**：随桌面状态四档弱化——打开窗口即让位给内容
+- **Dock**：高斯波浪跟随指针；居中 Application Launcher、运行应用、回收站
 
-**🎉 v0.2.0 已发布**（2026-09-23）——v0.1 MVP 之上完成：应用生态（App Store + Type B 沙箱 + Type C SDK + Calculator + Terminal）、AI 动态桌面三域（壁纸/桌面编排/内容面板 + LLM 同源代理）、通知中心、全局搜索与快捷键、Milestone 5 后端认证（HttpOnly Cookie 会话）、用户资料与会话管理。
+## 应用生态
 
-**v0.1.0 基线**（2026-09-21）——MVP 功能面、E2E 与安全加固（PRD §51 第 01–05、07–15 步）：
+<table>
+  <tr>
+    <td width="50%"><img src="./assets/readme/launcher.jpg" width="100%" alt="Application Launcher：搜索、最近、常驻与分类"></td>
+    <td width="50%"><img src="./assets/readme/generated-app.jpg" width="100%" alt="羽化生成的应用「省力清单」在桌面上运行"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Application Launcher</b> —— Spotlight 式搜索、最近使用、常驻与分类</sub></td>
+    <td align="center"><sub><b>羽化生成的应用</b> —— 输入想法，即时羽化出一个可用的应用</sub></td>
+  </tr>
+</table>
 
-- ✅ 工程脚手架（Vite + React 19 + TypeScript + Tailwind CSS 4 + Vitest 5 + ESLint + Prettier）
-- ✅ 目录骨架（按 PRD §19.1 规划）
-- ✅ 核心基础模块：事件总线（PRD §22）、i18n（PRD §41）、Boot 状态机与 Boot Screen（PRD §23.1）
-- ✅ 设计 Token（PRD §27）已接入 Tailwind 主题
-- ✅ **窗口管理器**（PRD §7）：生命周期、焦点、z 序、拖拽、缩放、最小化/最大化/还原，含 31 项核心单测
-- ✅ **桌面 Shell**（PRD §6/§23.3）：Desktop + 窗口层 + 任务栏（运行窗口切换、时钟）+ 开始菜单启动器
-- ✅ **App Manifest 与注册表**（PRD §9/§10.1/§24.2）：`parseManifest` 全量校验（id 反域名、semver、权限白名单、窗口配置）、`AppRegistry`（`app.installed`）、内置应用迁移到 Manifest 驱动
-- ✅ **App 生命周期与崩溃隔离**（PRD §22/§25）：`app.started/stopped` 由窗口事件推导；`AppErrorBoundary` 崩溃隔离 + 恢复 UI（`app.crashed`）
-- ✅ **权限系统**（PRD §10/§13.2/§45.6）：`PermissionManager` Default Deny + localStorage 持久化（`permission.granted/denied` 事件）、内置应用自动授权、卸载清理授权、`launchApp` 权限门禁（拒绝启动并审计 `permission.denied`）、`PermissionConsentDialog` 安装授权对话框（App Store v0.2 接入）
-- ✅ **虚拟文件系统 VFS**（PRD §11/§22/§45.4）：`Vfs` 核心（§11.1 默认目录树、CRUD、重命名/移动/复制、回收站删除/恢复/清空、名称搜索、`file.created/updated/deleted` 事件）、`VFS API → Storage Adapter` 架构、IndexedDB 适配器 + 能力检测降级（§31）、启动时自动初始化并跨刷新恢复
-- ✅ **File Manager 应用**（PRD §23.4/§26/§45.4）：首个真实系统应用——侧边栏快速访问 + 回收站视图、面包屑导航、新建文件夹/文本文件、重命名、删除→回收站、还原/彻底删除、目录内搜索、只读文件预览；通用 `PromptDialog` 组件；Loading/Empty/Error 三态齐备
-- ✅ **Settings 应用**（PRD §14/§27/§41）：主题切换（浅色/深色/跟随系统，设计 Token 双主题化）、字体大小、界面语言切换（中/英）、权限总览（各应用已授权能力）、关于页；设置持久化到 localStorage
-- ✅ **Notes 应用**（PRD §26/§11.2）：基于 VFS 的文本编辑器——/Documents 笔记列表、新建（防覆盖保护）、编辑、保存（脏状态指示）
-- ✅ **用户系统**（PRD §12/§23.2/§24.1/§45.5）：`AuthService`（注册/登录/登出，盐值 SHA-256 密码哈希，7 天过期 Session，`user.login/logout` 事件）、启动流程接入会话检查（无会话 → Login 界面）、任务栏用户菜单（登出）、会话跨刷新恢复、过期会话清除与提示
-- ✅ **E2E 测试**（PRD §34.3）：Playwright 覆盖核心路径 登录→桌面→打开应用→创建文件→保存→关闭→重开，含会话刷新恢复与登出（`npm run test:e2e`，运行于生产构建）
-- ✅ **安全加固**（PRD §30/§45.6）：生产构建 CSP、`no-referrer`、无原生 HTML 注入审计、盐值哈希口令（详见 [docs/SECURITY.md](docs/SECURITY.md)）
-- ✅ **性能验证**（PRD §29）：E2E 断言刷新后 3 秒内可交互、20 窗口下桌面保持响应
-- 🎉 **v0.1.0 已发布**（PRD §51 第 15 步）——见 [CHANGELOG.md](CHANGELOG.md)
-- 🆕 **后端认证服务**（Milestone 5，PRD §20/§30.4，契约见 [docs/API.md](docs/API.md)）：`server/` 下 Node.js 24 + Fastify 5——注册/登录/登出/会话端点、256-bit opaque 令牌仅存 HttpOnly Cookie（SameSite=Lax，JS 不可见）、scrypt 口令哈希、CSRF Origin 校验、按 IP 路由限流、helmet 安全头、pino 审计；存储三驱动 memory/file/postgres（`DataStore` 可插拔，file 支持重启持久化，postgres 驱动就绪待活库验证）。前端 `systemAuthService` 升级为可切换 Provider：`VITE_AUTH_BACKEND=1` 即远程模式，UI 零改动，未设置保持本地行为
-- 🆕 **终端应用**（PRD §26 v0.2 收口）：伪 Shell over VFS——pwd/ls/cd/cat/echo/mkdir/touch/rm/date/whoami/clear/help 十二命令，↑↓ 历史召回
-- 🆕 **全局搜索与快捷键**（PRD §15/§26）：Ctrl/⌘+K 呼出搜索面板（应用 + 文件双域、键盘导航）、Alt+W 窗口焦点轮转
-- 🆕 **通知中心**（PRD §16）：桌面 toast + 任务栏铃铛（未读徽标、历史、标记已读、单删、清空）；应用崩溃与壁纸生成失败自动转通知
-- 🆕 **LLM 同源代理与深度增强**（DDS §5.3 Phase B）：后端 `/api/ai/proxy`（Key 不下发、匿名化、2s 超时、响应过滤），前端词表门控 + LLM→缓存→本地三级降级；Settings 可开关（默认关）
-- 🆕 **桌面编排建议**（DDS §5.1 域②）：本地规则引擎按情境生成开始菜单分组 + 布局档位建议（单列/双列/宫格），动态面板一键应用/还原；系统应用位置永不漂移，AI 不直接移动窗口
-- 🆕 **用户资料与会话管理**（PRD §12.1）：Settings「账户」区——修改昵称/邮箱、修改密码（自动登出其他设备）、登出其他设备；任务栏显示昵称；本地/远程模式同等可用
-- ✅ 头像上传 / Phase C 过滤管线 / 样本举报通道 / 视觉大线三轮演进 / 羽化模式——均已随后续版本上线（详见 [docs/CHANGELOG.md](CHANGELOG.md)）；⏳ 进行中：PostgreSQL 活库验证、App Store「羽化」AI 货架设计
+## 三条产品线
+
+### 🖥 Desktop Shell 3.0 · Workspace Environment
+
+窗口管理器（拖拽/缩放/焦点档/Genie/幽灵关闭）、虚拟文件系统 + 文件管理器、App Store 与沙箱应用运行时（Type B iframe + Type C SDK）、通知中心、Ctrl+K 全局搜索（应用 / 文件 / 动作三域）、终端与计算器等系统应用。视觉契约见 [docs/DESIGN.md](docs/DESIGN.md) §17-§34。
+
+### 🌅 AI 动态桌面
+
+生成式壁纸引擎（程序山水 → 真实风景照）、梯度场可选覆盖层、桌面编排建议（LLM 同源代理 + 词表门控 + 三级降级）、内容面板按情境推荐。设计见 [docs/AI-DYNAMIC-DESKTOP-DESIGN.md](docs/AI-DYNAMIC-DESKTOP-DESIGN.md)。
+
+### ✨ 羽化模式 · AI 实时生成应用
+
+操作系统级的 AI 生成：**基础软件 AI 化**（计算器/记事本/时钟现场生成，原生实现兜底）、**今日世界**（每日依据 GitHub Trending 织出主题与一批今日应用，跨日换新）、**想象搜索**（Ctrl+K 输入任何想法，即时羽化出一个可用的应用）、**治理与蝶谱**（举报链路、admin 复审、历史回放）。安全底座：不透明 origin 沙箱 + 禁网 CSP + JS 语法闸 + Default Deny 权限（L2/L3 仅开放命名空间隔离的 storage），生成应用数据跨重开持久化。设计见 [docs/AI-GENERATED-APPS-DESIGN.md](docs/AI-GENERATED-APPS-DESIGN.md)。
 
 ## 快速开始
 
@@ -66,59 +66,64 @@ npm run build     # 生产构建（含 typecheck）
 
 E2E 首次运行前需安装浏览器：`npx playwright install chromium`。
 
-### 后端（可选，Milestone 5）
+羽化模式的本地联调需后端 LLM 上游（OpenAI 兼容协议，`AGEHA_ECLOSION_API_KEY / BASE_URL / MODEL`）：`npm run dev:server` + `VITE_AUTH_BACKEND=api npm run dev`，完整环境变量与端点见 [docs/API.md](docs/API.md)。
 
-```bash
-npm run dev:server   # 认证 API（tsx watch）→ http://127.0.0.1:8787
-npm run test:server  # 后端测试（vitest，node 环境）
-```
+## 架构
 
-开发服务器带 `VITE_AUTH_BACKEND=1 npm run dev` 即切换为远程认证：登录/注册经同源 `/api`（Vite 代理 → :8787）走后端，会话变为 HttpOnly Cookie；不带该变量则维持本地 localStorage 认证。羽化模式的后端需配置 LLM 上游（`AGEHA_ECLOSION_API_KEY / BASE_URL / MODEL`，OpenAI 兼容协议）；完整环境变量与端点说明见 [docs/API.md](docs/API.md)。
-
-## 目录结构
-
-```text
-src/
-├── core/            # OS Core Runtime（框架无关，禁止依赖 React）
-│   ├── events/      # ✅ 事件总线 + 系统事件映射
-│   ├── i18n/        # ✅ 国际化（zh-CN / en）
-│   ├── window/      # ✅ 窗口管理器（生命周期/焦点/z序/几何约束）
-│   ├── runtime/     # ✅ Manifest 校验 + AppRegistry + 生命周期跟踪
-│   ├── filesystem/  # ✅ VFS（文件树/CRUD/回收站/搜索 + IndexedDB 适配器）
-│   ├── permissions/ # ✅ 权限系统（PermissionManager，Default Deny + 持久化）
-│   ├── dynamic/     # ✅ AI 动态桌面纯引擎（决策/质量门/生成器）
-│   └── eclosion/    # ✅ 羽化模式纯模块（规格表/世界校验/SSE/HTML 切分/运行时协议）
-├── desktop/         # 桌面环境 UI（Desktop Shell 3.0 · Workspace Environment）
-│   ├── boot/        # ✅ Boot Screen
-│   ├── window/      # ✅ WindowFrame / WindowLayer（拖拽、缩放、聚焦/失焦档）
-│   ├── taskbar/     # ✅ 底部 Dock（居中 Application Launcher、运行窗口、通知中心、悬停预览）
-│   ├── sidebar/     # ✅ 左侧 Workspace Rail + 可展开 Workspace Panel
-│   ├── workspace/   # ✅ 面板展开状态机 + 工作空间亲和排序（纯函数）
-│   ├── widgets/     # ✅ 右侧漂浮 System Center（时钟/系统状态/通知/今日世界）
-│   ├── branding/    # ✅ 中央品牌层（桌面状态 → 四档 opacity）
-│   ├── search/      # ✅ Ctrl+K 全局搜索（Apps / Files / Actions 三域）
-│   ├── menu-bar/    # ✅ 顶部菜单栏（四菜单、系统状态、世界信号）
-│   ├── notification/# ✅ 桌面 toast（通知历史面板在 taskbar/）
-│   └── wallpaper/   # ✅ 壁纸层（照片基底 + gradient-field 覆盖）
-├── apps/            # 系统应用（✅ files / notes / settings 均为真实应用）
-├── sdk/             # AgehaOS App SDK（AgehaOS.window / .files / …）
-├── store/           # 全局状态（✅ boot-store / window-store / app-store）
-├── services/        # 平台服务封装
-├── components/      # 通用 UI 组件（✅ AppErrorBoundary / PermissionConsentDialog）
-└── main.tsx
-```
-
-`docs/` 存放产品与技术文档；后端认证服务（Milestone 5）位于 `server/`（独立 tsconfig 与 vitest 配置，契约见 [docs/API.md](docs/API.md)）。
-
-## 技术栈
+<p align="center">
+  <img src="./docs/assets/system-architecture.png" width="100%" alt="AgehaOS 系统架构图">
+</p>
 
 | 层     | 选型                                                     |
 | ------ | -------------------------------------------------------- |
 | 前端   | React 19 · TypeScript · Vite · Zustand · Tailwind CSS 4  |
 | 测试   | Vitest · Testing Library · jsdom · Playwright（E2E）     |
-| 工程化 | ESLint（flat config）· Prettier                          |
 | 后端   | Node.js 24 · Fastify 5 · pg（PostgreSQL，驱动就绪）· tsx |
+| AI     | OpenAI 兼容上游 · SSE 流式 · 结构闸与自动重试             |
+
+<details>
+<summary><b>目录结构</b>（展开）</summary>
+
+```text
+src/
+├── core/            # OS Core Runtime（框架无关，禁止依赖 React）
+│   ├── events/      # 事件总线 + 系统事件映射
+│   ├── i18n/        # 国际化（zh-CN / en）
+│   ├── window/      # 窗口管理器（生命周期/焦点/z序/几何约束）
+│   ├── runtime/     # Manifest 校验 + AppRegistry + 生命周期跟踪
+│   ├── filesystem/  # VFS（文件树/CRUD/回收站/搜索 + IndexedDB 适配器）
+│   ├── permissions/ # 权限系统（Default Deny + 持久化）
+│   ├── dynamic/     # AI 动态桌面纯引擎（决策/质量门/生成器）
+│   └── eclosion/    # 羽化模式纯模块（规格表/世界校验/SSE/HTML 切分/运行时协议）
+├── desktop/         # 桌面环境 UI（Desktop Shell 3.0）
+│   ├── sidebar/     # 左侧 Workspace Rail + 可展开 Workspace Panel
+│   ├── widgets/     # 右侧漂浮 System Center
+│   ├── branding/    # 中央品牌层（四档 opacity）
+│   ├── taskbar/     # 底部 Dock（启动器、运行窗口、通知中心、悬停预览）
+│   ├── search/      # Ctrl+K 全局搜索（Apps / Files / Actions）
+│   └── …            # boot / window / menu-bar / notification / wallpaper / workspace
+├── apps/            # 系统应用（files / notes / settings / calculator / terminal …）
+├── sdk/             # AgehaOS App SDK
+├── store/ services/ components/
+└── main.tsx
+server/              # Fastify 5 后端（认证 / AI 代理 / 羽化编排 / 同步 / 签名目录）
+```
+
+</details>
 
 ## 测试与质量基线
 
-每次改动必须附带/更新测试，且交付前 `npm run typecheck && npm run lint && npm run test && npm run build` 全部通过（见 [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) 的 Definition of Done）。
+**~1220 前端单测（Vitest，123 文件）+ 后端测试（11 文件）+ 部署库测试 + Playwright E2E 全域**，四道门禁（`typecheck / lint / test / test:e2e`）全绿才交付；CI 对 push/PR 跑同一门禁。协作与质量约定见 [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)。
+
+## 文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [docs/PRD.md](docs/PRD.md) | 产品需求文档（51 节） |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 技术架构与 ADR |
+| [docs/DESIGN.md](docs/DESIGN.md) | 视觉契约（Token / 材质 / Shell 3.0 结构） |
+| [docs/AI-GENERATED-APPS-DESIGN.md](docs/AI-GENERATED-APPS-DESIGN.md) | 羽化模式设计（生成 / 沙箱 / 治理） |
+| [docs/AI-DYNAMIC-DESKTOP-DESIGN.md](docs/AI-DYNAMIC-DESKTOP-DESIGN.md) | AI 动态桌面设计 |
+| [docs/API.md](docs/API.md) | 后端契约与环境变量 |
+| [docs/SECURITY.md](docs/SECURITY.md) | 安全设计（沙箱 / CSP / 认证） |
+| [CHANGELOG.md](CHANGELOG.md) | 更新日志 |

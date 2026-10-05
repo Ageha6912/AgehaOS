@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="360" viewBox="0 0 1200 360"
+     role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">AgehaOS —— 浏览器里的操作系统，AI 原生 Web Desktop</title>
+  <desc id="hero-desc">AgehaOS：运行在浏览器中的操作系统式桌面，左侧工作空间轨道、右侧系统中心、羽化 AI 实时生成应用。当前已上线 os.ageha.cn。</desc>
+
+  <defs>
+    <linearGradient id="night" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0e1424"/>
+      <stop offset="0.72" stop-color="#141d36"/>
+      <stop offset="1" stop-color="#1b2140"/>
+    </linearGradient>
+    <radialGradient id="horizon" cx="0.78" cy="1.02" r="0.9">
+      <stop offset="0" stop-color="#e5b8f0" stop-opacity="0.16"/>
+      <stop offset="0.45" stop-color="#5b8def" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#5b8def" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b8def"/>
+      <stop offset="1" stop-color="#7dd3fc"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dfe9ff"/>
+      <stop offset="1" stop-color="#9fc3ff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="360" fill="url(#night)"/>
+  <rect width="1200" height="360" fill="url(#horizon)"/>
+
+  <!-- 湖面地平线（壁纸意象，低透明度） -->
+  <line x1="0" y1="318" x2="1200" y2="318" stroke="#e5b8f0" stroke-opacity="0.14"/>
+  <line x1="0" y1="330" x2="1200" y2="330" stroke="#7dd3fc" stroke-opacity="0.08"/>
+
+  <!-- 品牌块：蝶形 Mark + 项目名 + 一句话价值 -->
+  <g id="title-block" transform="translate(64 56)">
+    <rect width="64" height="64" rx="16" fill="url(#mark)"/>
+    <g transform="translate(10 8) scale(0.72)" fill="#ffffff">
+      <polygon points="34,26 56,8 60,20 58,28 36,33"/>
+      <polygon points="34,35 55,42 57,55 44,51 33,42" opacity="0.85"/>
+    </g>
+    <text x="88" y="52" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif"
+          font-size="60" font-weight="700" fill="#eef2ff" letter-spacing="1">AgehaOS</text>
+    <text x="90" y="98" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif"
+          font-size="24" fill="#c9d4f6">浏览器里的操作系统 · AI 原生 Web Desktop</text>
+    <text x="90" y="136" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif"
+          font-size="20" fill="#8b96c9">Your Web OS, Your Space.</text>
+  </g>
+
+  <!-- 玻璃浮卡（System Center 意象：时钟 / 羽化 / Dock） -->
+  <g id="glass-cards" transform="translate(724 44)">
+    <g transform="translate(210 8) rotate(2 100 46)">
+      <rect width="208" height="92" rx="16" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.16"/>
+      <text x="20" y="46" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+            font-size="30" fill="#eef2ff">16:05</text>
+      <text x="20" y="72" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif"
+            font-size="16" fill="#8b96c9">10月5日 周日 · 晴</text>
+    </g>
+    <g transform="translate(0 66) rotate(-1.5 100 46)">
+      <rect width="208" height="92" rx="16" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.16"/>
+      <text x="20" y="42" font-size="20" fill="#7dd3fc">✦ 羽化模式</text>
+      <text x="20" y="72" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif"
+            font-size="16" fill="#8b96c9">AI 实时生成应用 · 已上线</text>
+    </g>
+    <g transform="translate(228 148) rotate(1.5 100 40)">
+      <rect width="208" height="80" rx="16" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.16"/>
+      <g fill="#eef2ff" fill-opacity="0.85">
+        <rect x="18" y="24" width="24" height="24" rx="7"/>
+        <rect x="52" y="24" width="24" height="24" rx="7" fill-opacity="0.7"/>
+        <rect x="86" y="24" width="24" height="24" rx="7" fill="#5b8def"/>
+        <rect x="120" y="24" width="24" height="24" rx="7" fill-opacity="0.7"/>
+        <rect x="154" y="24" width="24" height="24" rx="7" fill-opacity="0.85"/>
+      </g>
+      <text x="18" y="66" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif"
+            font-size="15" fill="#8b96c9">Dock · 高斯波浪</text>
+    </g>
+  </g>
+
+  <!-- 底部元数据：技术栈 + 在线状态 -->
+  <g id="meta" transform="translate(64 296)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17">
+    <circle cx="6" cy="-5" r="5" fill="#34d399"/>
+    <text x="18" y="0" fill="#7dd3fc">LIVE · os.ageha.cn</text>
+    <text x="230" y="0" fill="#8b96c9">React 19 · TypeScript · Vite · Fastify 5 · GLM-5.3 · Vitest 1220 tests</text>
+  </g>
+</svg>
