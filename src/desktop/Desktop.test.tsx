@@ -15,12 +15,6 @@ import { resetUsageStore } from '@/store/usage-store'
 
 import { Desktop } from './Desktop'
 
-// 液态玻璃路径开关（vi.mock 提升，2026-10-02 裁决用例注入位移图就绪态）。
-const liquidState = vi.hoisted(() => ({ map: "" }))
-vi.mock('@/desktop/sidebar/liquid-glass', () => ({
-  useLiquidDisplacementMap: () => liquidState.map,
-}))
-
 beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-09-21T10:30:00'))
@@ -71,33 +65,18 @@ describe('Desktop', () => {
     expect(screen.queryByTestId('workspace-panel-island')).toBeNull()
   })
 
-  it('applies glass-liquid to the panel island + renders the displacement filter when the map is ready（2026-10-02 裁决，2026-10-05 对换到面板）', () => {
-    liquidState.map = 'data:image/png;base64,fake'
+  it('wears frosted glass on both left islands（2026-10-05 裁决：液态折射退役）', () => {
     render(<Desktop />)
 
-    // 对换口径：窄轨恒毛玻璃（不吃折射），液态玻璃由展开面板承担。
-    const rail = screen.getByTestId('sidebar')
-    expect(rail.className).toContain('glass-raise')
-    expect(rail.className).not.toContain('glass-liquid')
-
+    // 对换试验终结态：窄轨与展开面板玻璃面均为毛玻璃（glass-raise），
+    // 液态折射滤镜不再渲染。
     fireEvent.click(screen.getByTestId('sidebar-brand'))
-    const surface = screen.getByTestId('workspace-panel-surface')
-    expect(surface.className).toContain('glass-liquid')
-    const filter = document.querySelector('svg filter#ag-liquid-rail')
-    expect(filter).not.toBeNull()
-    expect(filter?.querySelector('feDisplacementMap')?.getAttribute('scale')).toBe('20')
-  })
-
-  it('falls back to glass-raise on the panel island without a map（jsdom/生成失败回落）', () => {
-    liquidState.map = ''
-    render(<Desktop />)
-
-    fireEvent.click(screen.getByTestId('sidebar-brand'))
-    const surface = screen.getByTestId('workspace-panel-surface')
-    expect(surface.className).toContain('glass-raise')
-    expect(surface.className).not.toContain('glass-liquid')
-    const rail = screen.getByTestId('sidebar')
-    expect(rail.className).toContain('glass-raise')
+    for (const testid of ['sidebar', 'workspace-panel-surface']) {
+      const island = screen.getByTestId(testid)
+      expect(island.className).toContain('surface-glass')
+      expect(island.className).toContain('glass-raise')
+      expect(island.className).not.toContain('glass-liquid')
+    }
     expect(document.querySelector('svg filter#ag-liquid-rail')).toBeNull()
   })
 

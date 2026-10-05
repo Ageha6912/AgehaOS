@@ -311,24 +311,6 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(deep).toContain('var(--ag-glass-bg-strong)')
     expect(deep).toContain('blur(var(--ag-blur-2xl))')
   })
-  it('renders the system-rails liquid glass with SVG refraction and ordered fallbacks（2026-10-02 裁决）', () => {
-    // 折射主通道 = SVG 滤镜 url(#ag-liquid-rail)，blur 只留 2px 保底柔化；
-    // 高光描边 = inset 组合（顶缘强/侧缘弱/底缘中）；backdrop-filter 只写
-    // 标准属性（坑 A）。源序即降级：本块必须在 reduced-transparency/
-    // @supports 兜底之前（同 .glass-raise 的源序纪律）。
-    const at = css.indexOf('.glass-liquid {')
-    expect(at).toBeGreaterThan(0)
-    const rule = css.slice(at, at + 300)
-    expect(rule).toContain('backdrop-filter: url(#ag-liquid-rail) blur(2px) saturate(160%)')
-    expect(rule).toContain('inset 0 1px 1px rgb(255 255 255 / 45%)')
-    expect(rule).toContain('var(--ag-shadow-float)')
-    expect(rule).not.toContain('-webkit-backdrop-filter')
-    const fallbackAt = css.indexOf('@media (prefers-reduced-transparency: reduce)', at)
-    expect(fallbackAt).toBeGreaterThan(at)
-    const supportsAt = css.indexOf('@supports not (backdrop-filter: blur(1px))', at)
-    expect(supportsAt).toBeGreaterThan(at)
-  })
-
   it('keeps the legacy popover-panel block free of glass declarations (fallback trap)', () => {
     // 原块（border/radius/shadow 三件套）位于兜底之后——若在其体内扩
     // backdrop-filter，降级环境会静默带上 44px 半透玻璃（根因 B 回归点）。

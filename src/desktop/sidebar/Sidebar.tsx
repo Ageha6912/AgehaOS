@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react'
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 
 import {
   Bell,
@@ -21,8 +21,6 @@ import {
 import { AppIcon } from '@/apps/app-icon'
 import { appDisplayName, launchApp } from '@/apps/launch'
 import { BrandLogo } from '@/components/brand-logo'
-import { useLiquidDisplacementMap } from '@/desktop/sidebar/liquid-glass'
-import { LiquidGlassDefs } from '@/desktop/sidebar/LiquidGlassFilter'
 import { utcDayKey } from '@/core/eclosion/world'
 import { greetingTitleKey } from '@/core/dynamic/content/engine'
 import { timePhaseOf } from '@/core/dynamic/generative/seed'
@@ -49,9 +47,9 @@ import type { WorkspaceId } from '@/store/workspace-store'
  * 可穿透桌面），玻璃面/圆角/投影各自成岛。icon-first——44px 圆钮 + 20px
  * 字形，名称走自绘 os-tooltip 气泡（group hover/focus 点亮，不进可达树），
  * hover/active 一律轻 translucent capsule（chrome 作用域 surface-raised/
- * elevated 白玻璃），禁实心色块。玻璃分工（2026-10-05 用户裁决对换）：
- * 窄轨岛 = 毛玻璃（glass-raise），展开面板 = 液态折射玻璃（glass-liquid，
- * 2026-10-02 裁决），位移图按面板玻璃面实测尺寸生成。
+ * elevated 白玻璃），禁实心色块。玻璃分工（2026-10-05 用户裁决终态）：窄轨
+ * 与展开面板均为毛玻璃（glass-raise）；液态折射玻璃（2026-10-02 裁决）经
+ * 对调试验后整体退役（git cb6c404 可溯）。
  *
  * 展开（docs/DESIGN.md §34）：hover / click（品牌钮 pin）/ 键盘聚焦任一路
  * 触发 `data-expanded`，面板岛由 0 宽过渡到 316px（--ag-rail-left-expanded-
@@ -419,11 +417,9 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
     }
   }
 
-  // 液态玻璃（2026-10-02 裁决；2026-10-05 用户裁决对调）随展开面板走：
-  // 位移图按面板玻璃面实测尺寸生成，展开过渡落定后重测（signal = expanded）；
-  // 窄轨岛恒毛玻璃（glass-raise）。
-  const panelSurfaceRef = useRef<HTMLDivElement | null>(null)
-  const liquidMap = useLiquidDisplacementMap(panelSurfaceRef, undefined, panel.expanded)
+  // 玻璃分工（2026-10-05 用户裁决）：窄轨与展开面板均为毛玻璃（glass-raise，
+  // blur 20）——液态折射玻璃（2026-10-02 裁决）随对调试验整体退役（git
+  // cb6c404 可溯）。
   const brandLabel = panel.expanded ? t('workspace.panel.collapse') : t('workspace.panel.expand')
 
   return (
@@ -564,16 +560,12 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         >
           <div
             data-testid="workspace-panel-surface"
-            ref={panelSurfaceRef}
-            className={`desktop-chrome surface-glass ${liquidMap ? 'glass-liquid' : 'glass-raise'} h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border shadow-float`}
+            className="desktop-chrome surface-glass glass-raise h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border shadow-float"
           >
             <WorkspacePanelBody expanded={panel.expanded} />
           </div>
         </aside>
       ) : null}
-      {liquidMap && (
-        <LiquidGlassDefs id="ag-liquid-rail" mapUri={liquidMap} options={{ strength: 10 }} />
-      )}
     </>
   )
 }
