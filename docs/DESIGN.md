@@ -1198,8 +1198,11 @@ RAIL_LEFT_WIDTH_PX=80**——312px 展开是纯浮层几何，不改窗口布局
 **2026-10-06 用户裁决：窄轨背景整体退役**——岛底玻璃（glass-raise）/边框/
 投影/图标常驻底座（surface-raised）全部删除，条目间隙 gap-1→gap-3，图标
 直接浮于壁纸（「原本就在桌面上」的原生感）；交互态保留 surface-elevated
-轻 capsule，品牌钮渐变 squircle 徽章保留；左侧玻璃只余展开面板岛一岛
-（glass-hint）。
+轻 capsule，品牌钮渐变 squircle 徽章保留；左侧玻璃只余展开面板岛一岛。
+**同日追加裁决：面板幕帘面趋近透明**——新增 `.glass-veil`（白 2.5%，材质
+增量区新档）替下 surface-glass 的 chrome 档 8% 白底，blur 仍走 glass-hint
+12px、发丝边与 panel 投影保留定形；降级环境兜底回实色契约不变
+（index.css.test 源序钉扎已纳 .glass-veil）。
 
 ### 34.2 Workspace Panel 展开态（STEP 2）
 

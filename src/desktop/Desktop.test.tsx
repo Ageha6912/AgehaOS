@@ -79,7 +79,7 @@ describe('Desktop', () => {
     expect(rail.classList.contains('surface-glass')).toBe(false)
     expect(rail.classList.contains('glass-raise')).toBe(false)
     const surface = screen.getByTestId('workspace-panel-surface')
-    expect(surface.className).toContain('surface-glass')
+    expect(surface.className).toContain('glass-veil')
     expect(surface.className).not.toContain('glass-liquid')
     expect(surface.classList.contains('glass-hint')).toBe(true)
     expect(document.querySelector('svg filter#ag-liquid-rail')).toBeNull()

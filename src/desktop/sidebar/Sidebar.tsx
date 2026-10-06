@@ -580,7 +580,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         >
           <div
             data-testid="workspace-panel-surface"
-            className="desktop-chrome surface-glass glass-hint h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border-subtle shadow-panel"
+            className="desktop-chrome glass-veil glass-hint h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border-subtle shadow-panel"
           >
             <WorkspacePanelBody expanded={panel.expanded} />
           </div>

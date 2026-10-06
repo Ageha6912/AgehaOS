@@ -301,7 +301,7 @@ describe('index.css token contract (Token 2.0)', () => {
     const fallback = css.indexOf('prefers-reduced-transparency', base)
     expect(base).toBeGreaterThan(0)
     expect(fallback).toBeGreaterThan(base)
-    for (const marker of ['.glass-hint', '.glass-raise', '.glass-deep', '.window-glass-focus', '.dock-glass', '.glass-popover']) {
+    for (const marker of ['.glass-hint', '.glass-veil', '.glass-raise', '.glass-deep', '.window-glass-focus', '.dock-glass', '.glass-popover']) {
       const at = css.indexOf(marker)
       expect(at, `${marker} after the glass base rule`).toBeGreaterThan(base)
       expect(at, `${marker} before the reduced-transparency fallback`).toBeLessThan(fallback)
