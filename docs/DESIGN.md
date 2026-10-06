@@ -1268,7 +1268,13 @@ menubar.worldSignals* → widgets.world.signals*。
 二套 motion。**性能契约**：全部 store 订阅取原始值选择器（计数/布尔而非数
 组引用）——窗口 move/resize/focus 每次 commit 新数组但档位不变 → 零
 re-render；重渲染只发生在档位真正变化时。纯装饰层 aria-hidden +
-pointer-events-none 恒成立。
+pointer-events-none 恒成立。**Shell 3.1 STEP 4 精修（铭牌化，档位值复核为
+已合规不动）**：容器双层蓝紫投影（0_1px_3px 60% + 0_4px_18px 35%）减弱为
+单层低强度（0_2px_10px 35%）——去「营销页悬浮光晕感」；分区留白 gap-4→
+gap-3 微收；hidden 档完整性复核——七类遮蔽（启动器/搜索/通知中心/菜单栏
+下拉/用户菜单/右键菜单/世界信号弹层）全经 `usePopoverDismiss` 互斥槽由
+`popoverActive` 兜底触发 0%，世界信号槽 'world-signals' 在 STEP 3 迁移后
+不变；组件测试钉「transition 三件套恒挂 + opacity 类恰一个且阶梯单调」。
 
 ### 34.6 Dock 视觉精修（STEP 6）
 

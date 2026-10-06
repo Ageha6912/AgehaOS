@@ -16,6 +16,9 @@ import { BRANDING_TIER_CLASS, brandingTier } from './branding-visibility'
  * 15%，任一 chrome 弹层（启动器/全局搜索/通知中心 + popover 互斥槽兜住的
  * 菜单栏下拉/用户菜单/世界信号/右键菜单）打开即 0% 隐藏；过渡复用既有
  * transition-opacity（300ms ease-out），无第二套 motion。
+ * Shell 3.1 STEP 4 精修（铭牌化）：容器双层蓝紫投影（0.6/0.35）减弱为单层
+ * 低强度（0.35）——去「营销页悬浮光晕感」；分区留白 gap-4→gap-3 微收。
+ * 四档机制/档位值/过渡参数零改动。
  * 性能契约（STEP 5 验收）：所有 store 订阅都取原始值选择器（zustand
  * Object.is 比较）——窗口 move/resize/focus 每次 commit 新数组引用但计数
  * 不变 → 零 re-render，重渲染只发生在档位真正变化时。
@@ -42,7 +45,7 @@ export function DesktopBranding() {
     <div
       aria-hidden="true"
       data-testid="desktop-branding"
-      className={`desktop-chrome pointer-events-none absolute left-1/2 top-[30%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 transition-opacity duration-300 ease-out [filter:drop-shadow(0_1px_3px_rgba(21,48,112,0.6))_drop-shadow(0_4px_18px_rgba(21,48,112,0.35))] ${BRANDING_TIER_CLASS[tier]}`}
+      className={`desktop-chrome pointer-events-none absolute left-1/2 top-[30%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 transition-opacity duration-300 ease-out [filter:drop-shadow(0_2px_10px_rgba(21,48,112,0.35))] ${BRANDING_TIER_CLASS[tier]}`}
     >
       {/* 字标豁免 chrome 级 text-shadow（阴影会透过 bg-clip-text 压暗渐变）；
           「OS」用 drop-shadow 做分离度（跟随裁剪后字形 alpha，不污染渐变填充）。

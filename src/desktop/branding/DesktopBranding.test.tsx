@@ -129,6 +129,54 @@ describe('DesktopBranding（STEP 5 Desktop Environment Branding 状态化）', (
     expect(screen.getByTestId('desktop-branding').className).toContain('opacity-40')
   })
 
+  it('still hides for the world-signals popover slot after the STEP 3 migration（hidden 档完整性）', () => {
+    const { rerender } = render(<DesktopBranding />)
+    actStore(() => useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' }))
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-40')
+
+    // 世界信号弹层（Shell 3.1 STEP 3 自顶栏迁入 widgets/WorldSignals.tsx，
+    // 槽名 'world-signals' 不变）仍经 popover 互斥槽兜底触发 hidden 档。
+    actStore(() => usePopoverStore.getState().claim('world-signals'))
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-0')
+    actStore(() => usePopoverStore.getState().release('world-signals'))
+    rerender(<DesktopBranding />)
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-40')
+  })
+
+  it('keeps the fade transition mounted and the opacity ladder monotonic（平滑无跳变）', () => {
+    const { rerender } = render(<DesktopBranding />)
+    const branding = () => screen.getByTestId('desktop-branding')
+    // 每次档位变化后：过渡三件套恒挂（300ms ease-out 渐变而非跳切）且
+    // opacity 工具类恰一个（单值决定，同一渲染周期档位只变一次）。
+    const expectFadeMountedWithSingleTier = (tier: string): void => {
+      for (const cls of ['transition-opacity', 'duration-300', 'ease-out']) {
+        expect(branding().className).toContain(cls)
+      }
+      expect(branding().className.match(/opacity-\d+/g)).toEqual([tier])
+    }
+
+    expectFadeMountedWithSingleTier('opacity-100')
+
+    actStore(() => useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' }))
+    rerender(<DesktopBranding />)
+    expectFadeMountedWithSingleTier('opacity-40')
+
+    actStore(() => useWindowStore.getState().open({ appId: 'com.ageha.calculator', title: '计算器' }))
+    rerender(<DesktopBranding />)
+    expectFadeMountedWithSingleTier('opacity-15')
+
+    actStore(() => useLauncherStore.getState().setLauncherOpen(true))
+    rerender(<DesktopBranding />)
+    expectFadeMountedWithSingleTier('opacity-0')
+
+    actStore(() => useLauncherStore.getState().setLauncherOpen(false))
+    rerender(<DesktopBranding />)
+    // 关闭后精确回窗档（15%）——逐档回归而非跳回满档。
+    expectFadeMountedWithSingleTier('opacity-15')
+  })
+
   it('renders only on tier changes: high-frequency move/focus commits stay render-free', () => {
     let renders = 0
     render(
