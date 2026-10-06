@@ -425,7 +425,6 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     expect(item.getAttribute('aria-label')).toBe('文件管理')
     expect(item.querySelector('.os-tooltip')).toBeNull()
     expect(screen.getByTestId('sidebar-brand').querySelector('.os-tooltip')).toBeNull()
-    expect(screen.getByTestId('sidebar-handle').querySelector('.os-tooltip')).toBeNull()
     // 全树无残留：窄轨岛内不存在任何 os-tooltip 载体。
     for (const testid of ['sidebar-desktop', 'sidebar-launcher', 'sidebar-notes', 'sidebar-terminal', 'sidebar-settings', 'sidebar-notifications']) {
       expect(screen.getByTestId(testid).querySelector('.os-tooltip')).toBeNull()
@@ -453,17 +452,19 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     expect(brand.className).not.toContain('bg-primary')
   })
 
-  it('the rail-bottom handle toggles the panel like the brand button（§34 收起手柄）', () => {
+  it('retires the rail-bottom handle; brand button keeps the pin role（2026-10-06 加隙裁决）', () => {
     render(<SidebarHarness />)
 
-    const handle = screen.getByTestId('sidebar-handle')
-    // 可访问名独立于品牌钮（读屏可分辨两个入口）。
-    expect(handle.getAttribute('aria-label')).toBe('展开面板')
-    fireEvent.click(handle)
-    expect(screen.getByTestId('sidebar').getAttribute('data-expanded')).toBe('true')
-    expect(handle.getAttribute('aria-label')).toBe('收起面板')
-    fireEvent.click(handle)
-    expect(screen.getByTestId('sidebar').getAttribute('data-expanded')).toBeNull()
+    // 三连加隙到 28px 的预算代价：轨底分隔线 + 收起手柄退役——与品牌钮
+    // 同为 pin 开关属功能重复；开合走品牌钮，收起路径还有 Esc / 面板外
+    // 按下 / 鼠标离开宽限。
+    expect(screen.queryByTestId('sidebar-handle')).toBeNull()
+    const rail = screen.getByTestId('sidebar')
+    expect(rail.className).toContain('gap-[28px]')
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+    expect(rail.getAttribute('data-expanded')).toBe('true')
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+    expect(rail.getAttribute('data-expanded')).toBeNull()
   })
 
   it('toggles the shared launcher panel via the launcher store', () => {

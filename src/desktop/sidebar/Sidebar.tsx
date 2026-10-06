@@ -2,7 +2,6 @@ import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 
 import {
   Bell,
-  CaretLeft,
   CaretRight,
   CaretUp,
   Code,
@@ -456,7 +455,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         aria-label={t('sidebar.label')}
         data-testid="sidebar"
         data-expanded={panel.expanded || undefined}
-        className="desktop-chrome pointer-events-auto flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-5 py-4"
+        className="desktop-chrome pointer-events-auto flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-[28px] py-4"
       >
         {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。§34 参考图
             口径：实心渐变 squircle 徽章（--ag-capsule-active 同族明暗）。 */}
@@ -538,26 +537,9 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
           popoverTrigger="notifications"
           badge={unread}
         />
-        {/* 收起手柄（§34 参考图：轨底分隔线 + 圆形手柄）——与品牌钮同一
-            pin 开关（键盘可达的第二入口）；箭头指向随展开态翻转。可访问名
-            独立于品牌钮（读屏可分辨两个入口）。 */}
-        <div className="mt-auto flex flex-col items-center gap-1.5 pt-2">
-          <span aria-hidden="true" className="h-px w-6 bg-border-subtle" />
-          <button
-            type="button"
-            data-testid="sidebar-handle"
-            aria-label={t(panel.expanded ? 'workspace.panel.handle.collapse' : 'workspace.panel.handle.expand')}
-            onClick={panel.togglePin}
-            className="group relative flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-elevated hover:text-text focus-visible:bg-surface-elevated focus-visible:text-text"
-          >
-            <CaretLeft
-              size={13}
-              weight="bold"
-              aria-hidden="true"
-              className={panel.expanded ? '' : 'rotate-180'}
-            />
-          </button>
-        </div>
+        {/* 轨底分隔线 + 收起手柄已退役（2026-10-06 三连加隙裁决：gap 28px
+            的 720p 预算要求；手柄与品牌钮同为 pin 开关属功能重复——键盘
+            开合走品牌钮，收起路径还有 Esc / 面板外按下 / 鼠标离开宽限）。 */}
       </nav>
       {/* 岛二：Workspace Panel——独立玻璃卡（岛间 14px 缝隙由组容器 gap
           提供，缝隙穿透桌面）。首展才挂载（渲染期派生重置，React 官方模式，
