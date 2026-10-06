@@ -114,13 +114,9 @@ function RailItem({
   )
 }
 
-/** 面板分区标题（11px 弱化 + 极轻衬底 pill：裸文字在壁纸亮部上的可读性兜底）。 */
+/** 面板分区标题（11px 弱化，密度对齐启动器分区标签）。 */
 function PanelHeading({ children }: { children: ReactNode }) {
-  return (
-    <h2 className="text-scrim w-fit rounded-md px-1.5 py-0.5 text-[11px] font-medium text-text-muted">
-      {children}
-    </h2>
-  )
+  return <h2 className="px-1 pb-1 text-[11px] font-medium text-text-muted">{children}</h2>
 }
 
 /** 面板可折叠分组（§34 参考图：分组头带 ˄ 折叠箭头，收起藏内容）。 */
@@ -141,7 +137,7 @@ function PanelSection({
         data-testid={`panel-section-${testid}`}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="text-scrim flex w-fit items-center justify-between gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-text-muted transition-colors hover:text-text"
+        className="flex w-full items-center justify-between rounded-md px-1 pb-1 text-[11px] font-medium text-text-muted transition-colors hover:text-text"
       >
         {label}
         <CaretUp
@@ -226,7 +222,7 @@ function WorkspaceTodayWorld() {
           <CaretRight size={12} aria-hidden="true" className="shrink-0 text-primary" />
         </button>
       ) : world === null ? (
-        <p data-testid="workspace-world-empty" className="text-scrim w-fit rounded-md px-1.5 py-0.5 text-[11px] leading-snug text-text-tertiary">
+        <p data-testid="workspace-world-empty" className="px-1 text-[11px] leading-snug text-text-tertiary">
           {t('workspace.panel.world.empty')}
         </p>
       ) : (
@@ -308,7 +304,7 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
         {/* 品牌区（§10 BrandLogo 复用）：字标 + 标语，纯展示。 */}
         <div className="flex items-center gap-2.5 px-1 py-0.5">
           <BrandLogo size={26} className="shrink-0" />
-          <div className="text-scrim min-w-0 rounded-lg px-1.5 py-0.5">
+          <div className="min-w-0">
             <p className="truncate text-[13px] font-semibold leading-tight text-text">
               {t('menubar.brand')}
             </p>
@@ -364,7 +360,7 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
                     checked
                       ? /* Shell 3.1 F1：渐变胶囊保留（Active/Selected 配额内），shadow-sm 去除——选中靠主色胶囊本身，不靠投影。 */
                         '[background:var(--ag-capsule-active)] font-medium text-primary-contrast'
-                      : 'text-scrim text-text-muted hover:bg-surface-raised hover:text-text'
+                      : 'text-text-muted hover:bg-surface-raised hover:text-text'
                   }`}
                   onClick={() => setWorkspace(id)}
                 >
@@ -395,7 +391,7 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
                     type="button"
                     data-testid="workspace-recent-item"
                     onClick={() => launchApp(app.id)}
-                    className="text-scrim flex h-8 w-full items-center gap-2.5 rounded-xl px-2 text-left transition-colors hover:bg-surface-raised"
+                    className="flex h-8 w-full items-center gap-2.5 rounded-xl px-2 text-left transition-colors hover:bg-surface-raised"
                   >
                     <AppIcon appId={app.id} size={20} />
                     <span className="min-w-0 truncate text-xs text-text">
@@ -406,7 +402,7 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
               ))}
             </ul>
           ) : (
-            <p className="text-scrim w-fit rounded-md px-1.5 py-0.5 text-[11px] leading-snug text-text-tertiary">
+            <p className="px-1 text-[11px] leading-snug text-text-tertiary">
               {t('workspace.panel.recentEmpty')}
             </p>
           )}

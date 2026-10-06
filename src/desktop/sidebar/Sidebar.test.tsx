@@ -438,25 +438,6 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     expect(brand.className).not.toContain('bg-primary')
   })
 
-  it('panel bare text carries the ultra-light scrim（2026-10-06 用户裁决）', () => {
-    render(<SidebarHarness />)
-    fireEvent.click(screen.getByTestId('sidebar-brand'))
-
-    // 分区标题 pill（今日空间/工作空间/最近使用/今日世界）。
-    for (const label of ['今日空间', '工作空间', '最近使用', '今日世界']) {
-      expect(screen.getByText(label).className).toContain('text-scrim')
-    }
-    // 工作空间行：idle 挂衬底；active 渐变胶囊不挂（utilities 层内不做
-    // 同特异性源序纠缠，JSX 条件分支分流）。
-    expect(screen.getByTestId('workspace-option-personal').className).not.toContain('text-scrim')
-    expect(screen.getByTestId('workspace-option-study').className).toContain('text-scrim')
-    // 空态文案（最近使用）与品牌区文字块（字标+标语）。
-    expect(screen.getByText(/暂无最近/).className).toContain('text-scrim')
-    expect(screen.getByText('Your Web OS, Your Space.').parentElement?.className).toContain(
-      'text-scrim',
-    )
-  })
-
   it('the rail-bottom handle toggles the panel like the brand button（§34 收起手柄）', () => {
     render(<SidebarHarness />)
 

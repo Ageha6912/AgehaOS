@@ -550,15 +550,6 @@ body {
 .glass-veil {
   background: rgb(255 255 255 / 2.5%);
 }
-/* ①″ 面板文字极轻局部衬底（2026-10-06 用户裁决）：面板磨砂退出后白字
-   直接压在壁纸亮部——给裸文字块一层近不可见的暗纱，不动面板整体透明度。
-   置于 utilities 层：行级 hover/active 胶囊（同层特异性更高）照常盖过，
-   active 渐变胶囊不挂 scrim（JSX 侧条件分支，避免层内同特异性源序纠缠）。 */
-@layer utilities {
-  .text-scrim {
-    background-color: rgb(15 23 42 / 16%);
-  }
-}
 /* ③ 左栏 rail 浮岛（blur 20px raise）。 */
 .glass-raise {
   backdrop-filter: blur(var(--ag-blur-md)) saturate(150%);
