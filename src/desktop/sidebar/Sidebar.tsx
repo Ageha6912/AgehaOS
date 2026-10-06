@@ -455,7 +455,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         aria-label={t('sidebar.label')}
         data-testid="sidebar"
         data-expanded={panel.expanded || undefined}
-        className="desktop-chrome pointer-events-auto flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-3 py-3"
+        className="desktop-chrome pointer-events-auto flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-4 py-4"
       >
         {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。§34 参考图
             口径：实心渐变 squircle 徽章（--ag-capsule-active 同族明暗）。 */}
