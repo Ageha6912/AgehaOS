@@ -97,17 +97,14 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     const rail = screen.getByTestId('sidebar')
     const island = screen.getByTestId('workspace-panel-island')
     // 玻璃面/圆角/投影在面板岛的内层定宽面上（外层只做宽度裁剪揭示，
-    // 收起态零边框投影残影）；窄轨岛自带玻璃面。Shell 3.1 F1 减重分档：
-    // 窄轨保持浮岛档（glass-raise + shadow-float）；岛二降档——轻毛玻璃
-    // glass-hint（blur 12）+ 发丝边 border-subtle + panel 档投影（本步
-    // 减重目标授权的断言更新，非掩盖问题）。
+    // 收起态零边框投影残影）。2026-10-06 用户裁决：窄轨无玻璃无底座——
+    // 图标原生桌面感，左侧玻璃只余面板岛一岛（glass-hint 减重档保持）。
     const surface = screen.getByTestId('workspace-panel-surface')
-    for (const el of [rail, surface]) {
-      expect(el.className).toContain('surface-glass')
-      expect(el.className).toContain('rounded-xl')
+    expect(surface.className).toContain('surface-glass')
+    expect(surface.className).toContain('rounded-xl')
+    for (const cls of ['surface-glass', 'glass-raise', 'glass-hint', 'rounded-xl', 'shadow-float', 'border']) {
+      expect(rail.classList.contains(cls), `rail must not carry ${cls}`).toBe(false)
     }
-    expect(rail.classList.contains('glass-raise')).toBe(true)
-    expect(rail.classList.contains('shadow-float')).toBe(true)
     expect(surface.classList.contains('glass-hint')).toBe(true)
     expect(surface.classList.contains('glass-raise')).toBe(false)
     expect(surface.classList.contains('border-border-subtle')).toBe(true)
@@ -415,12 +412,15 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     }
   })
 
-  it('rail items sit on persistent translucent tiles — no solid primary blocks（§34 底座）', () => {
+  it('rail items float bare on the desktop — quiet capsules only on interaction（2026-10-06 用户裁决）', () => {
     render(<SidebarHarness />)
 
+    // 无常驻底座（图标原生桌面感）；hover/active/focus 态保留轻 capsule
+    // （surface-elevated 白玻璃），禁实心色块。
     for (const testid of ['sidebar-desktop', 'sidebar-launcher', 'sidebar-files', 'sidebar-notes', 'sidebar-terminal', 'sidebar-settings', 'sidebar-notifications']) {
       const item = screen.getByTestId(testid)
-      for (const cls of ['h-11', 'w-11', 'rounded-xl', 'bg-surface-raised', 'hover:bg-surface-elevated', 'active:bg-surface-elevated', 'data-[active]:bg-surface-elevated']) {
+      expect(item.classList.contains('bg-surface-raised'), `${testid} persistent tile`).toBe(false)
+      for (const cls of ['h-11', 'w-11', 'rounded-xl', 'hover:bg-surface-elevated', 'active:bg-surface-elevated', 'data-[active]:bg-surface-elevated']) {
         expect(item.classList.contains(cls), `${testid} missing ${cls}`).toBe(true)
       }
       // 禁实心蓝色块（用户一票否决）：条目永不挂 bg-primary。

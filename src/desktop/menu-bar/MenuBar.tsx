@@ -243,7 +243,10 @@ export function MenuBar() {
     <header
       ref={rootRef}
       data-testid="menu-bar"
-      className="desktop-chrome glass-hint surface-glass fixed inset-x-0 top-0 z-[41] flex h-[var(--ag-menubar-height)] items-center gap-1 border-b border-border-subtle px-2.5 shadow-soft"
+      /* 2026-10-06 用户裁决：顶栏背景退役（glass-hint/发丝底边/shadow-soft
+         均删）——菜单直接浮于壁纸，与窄轨图标同供建构「原生桌面」感；可读
+         性由 desktop-chrome 白字 + 文字阴影承担，下拉弹层仍走 popover 玻璃。 */
+      className="desktop-chrome fixed inset-x-0 top-0 z-[41] flex h-[var(--ag-menubar-height)] items-center gap-1 px-2.5"
     >
       <div className="flex items-center gap-1.5 pr-1">
         <BrandLogo size={18} />

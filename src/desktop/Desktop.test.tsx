@@ -57,30 +57,31 @@ describe('Desktop', () => {
       expect(rails.classList.contains(cls), `no ${cls}`).toBe(false)
     }
     expect(rails.className).not.toContain('overflow')
-    // 岛一（窄轨）自带玻璃面 + 交互；面板岛收起态未挂载（首展才挂载）。
+    // 岛一（窄轨）2026-10-06 用户裁决：无玻璃无底座，图标原生桌面感——
+    // 交互面（pointer-events-auto）与几何（h-full）保留；面板岛收起态未挂载。
     const rail = screen.getByTestId('sidebar')
-    for (const cls of ['desktop-chrome', 'surface-glass', 'glass-raise', 'rounded-xl', 'shadow-float', 'pointer-events-auto', 'h-full']) {
+    for (const cls of ['desktop-chrome', 'pointer-events-auto', 'h-full']) {
       expect(rail.classList.contains(cls), `rail ${cls}`).toBe(true)
+    }
+    for (const cls of ['surface-glass', 'glass-raise', 'glass-hint', 'rounded-xl', 'shadow-float', 'border']) {
+      expect(rail.classList.contains(cls), `rail must not carry ${cls}`).toBe(false)
     }
     expect(screen.queryByTestId('workspace-panel-island')).toBeNull()
   })
 
-  it('wears frosted glass on both left islands（2026-10-05 裁决：液态折射退役）', () => {
+  it('keeps frosted glass on the workspace panel only — rail and menu bar float bare（2026-10-06 用户裁决：窄轨/顶栏背景退役）', () => {
     render(<Desktop />)
 
-    // 对换试验终结态 + Shell 3.1 F1 减重分档：窄轨保持毛玻璃 glass-raise
-    // （blur 20），展开面板降一档 glass-hint（blur 12 轻毛玻璃）；液态折射
-    // 滤镜不再渲染。（断言更新为 F1 减重目标授权，非掩盖问题。）
+    // 窄轨/顶栏背景退役后，左侧玻璃只余展开面板岛一岛（glass-hint 减重档
+    // 保持）；液态折射滤镜不再渲染。（断言更新为用户裁决授权，非掩盖问题。）
     fireEvent.click(screen.getByTestId('sidebar-brand'))
-    for (const testid of ['sidebar', 'workspace-panel-surface']) {
-      const island = screen.getByTestId(testid)
-      expect(island.className).toContain('surface-glass')
-      expect(island.className).not.toContain('glass-liquid')
-    }
-    expect(screen.getByTestId('sidebar').classList.contains('glass-raise')).toBe(true)
-    expect(
-      screen.getByTestId('workspace-panel-surface').classList.contains('glass-hint'),
-    ).toBe(true)
+    const rail = screen.getByTestId('sidebar')
+    expect(rail.classList.contains('surface-glass')).toBe(false)
+    expect(rail.classList.contains('glass-raise')).toBe(false)
+    const surface = screen.getByTestId('workspace-panel-surface')
+    expect(surface.className).toContain('surface-glass')
+    expect(surface.className).not.toContain('glass-liquid')
+    expect(surface.classList.contains('glass-hint')).toBe(true)
     expect(document.querySelector('svg filter#ag-liquid-rail')).toBeNull()
   })
 

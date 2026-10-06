@@ -42,18 +42,15 @@ import type { WorkspaceId } from '@/store/workspace-store'
 
 /**
  * 左侧 Workspace Rail + Workspace Panel（Desktop Shell 3.0，§34 双岛口径）：
- * 窄轨与面板是**两块独立玻璃岛**——组容器（Desktop 的 system-rails）退化为
+ * 窄轨与面板是**两座独立岛**——组容器（Desktop 的 system-rails）退化为
  * 纯定位层（顶锚菜单栏下方、Dock 上方收尾，pointer-events-none，岛间缝隙
- * 可穿透桌面），玻璃面/圆角/投影各自成岛。icon-first——44px 圆钮 + 20px
- * 字形，可访问名由 aria-label 承载（自绘收起态气泡已退役 2026-10-06：
- * hover/键盘聚焦任一路都立即展开面板，气泡在唯一能点亮的两态下都被
- * data-expanded 隐藏，属不可达死代码——终审遗留清理）；
- * hover/active 一律轻 translucent capsule（chrome 作用域 surface-raised/
- * elevated 白玻璃），禁实心色块。玻璃分工（2026-10-05 用户裁决终态 + Shell
- * 3.1 F1 减重）：窄轨 = glass-raise（blur 20）；展开面板降一档 = glass-hint
- * （blur 12 轻毛玻璃，复用既有轻档类）；液态折射玻璃（2026-10-02 裁决）经
- * 对调试验后整体退役（git cb6c404 可溯）。
- *
+ * 可穿透桌面）。**窄轨无玻璃**（2026-10-06 用户裁决：图标原生桌面感——
+ * 无岛底、无常驻底座，玻璃面/圆角/投影只归展开面板岛）；icon-first——
+ * 44px 圆钮 + 20px 字形，可访问名由 aria-label 承载（自绘收起态气泡已
+ * 退役 2026-10-06：hover/键盘聚焦任一路都立即展开面板，气泡在唯一能点亮
+ * 的两态下都被 data-expanded 隐藏，属不可达死代码——终审遗留清理）；
+ * hover/active/focus 一律轻 translucent capsule（chrome 作用域
+ * surface-elevated 白玻璃，仅交互态出现），禁实心色块。
  * 展开（docs/DESIGN.md §34）：hover / click（品牌钮 pin）/ 键盘聚焦任一路
  * 触发 `data-expanded`，面板岛由 0 宽过渡到 304px（--ag-rail-left-expanded-
  * width 312 的内容档，纯浮层几何，窗口布局钳制仍钉 RAIL_LEFT_WIDTH_PX=80）。
@@ -68,7 +65,7 @@ import type { WorkspaceId } from '@/store/workspace-store'
  * 防护，纪律保留）——面板岛自身的 overflow-hidden 只裁内容列。
  */
 
-/** Rail 条目：图标 + 弱化文案（tooltip 承载）。 */
+/** Rail 条目：裸图标浮于桌面（无常驻底座），交互态轻 capsule，可访问名走 aria-label。 */
 function RailItem({
   testid,
   label,
@@ -101,7 +98,7 @@ function RailItem({
       aria-label={label}
       aria-expanded={expandable ? (active ?? false) : undefined}
       onClick={onClick}
-      className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-raised text-text transition-colors hover:bg-surface-elevated focus-visible:bg-surface-elevated active:bg-surface-elevated data-[active]:bg-surface-elevated"
+      className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text transition-colors hover:bg-surface-elevated focus-visible:bg-surface-elevated active:bg-surface-elevated data-[active]:bg-surface-elevated"
     >
       <Icon size={20} weight="fill" aria-hidden="true" />
       {badge !== undefined && badge > 0 && (
@@ -443,23 +440,22 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
     }
   }
 
-  // 玻璃分工（2026-10-05 用户裁决 + Shell 3.1 F1 减重）：窄轨保持毛玻璃
-  // glass-raise（blur 20）；展开面板降一档 glass-hint（blur 12，复用既有
-  // 轻档类）——与壁纸竞争下降。液态折射玻璃（2026-10-02 裁决）随对调试验
-  // 整体退役（git cb6c404 可溯）。
+  // 玻璃分工（2026-10-06 用户裁决：图标原生桌面感）：窄轨**无玻璃**——
+  // 无岛底/边框/投影/常驻底座，图标直接浮在壁纸上，交互态才有轻 capsule；
+  // 展开面板保留轻毛玻璃 glass-hint（blur 12）。窄轨玻璃（glass-raise，
+  // 2026-10-05 裁决）与液态折射（2026-10-02 裁决，git cb6c404 可溯）先后退役。
   const brandLabel = panel.expanded ? t('workspace.panel.collapse') : t('workspace.panel.expand')
 
   return (
     <>
-      {/* 岛一：Workspace Rail——通高窄轨玻璃岛（§34 双岛口径：顶锚/收尾由
-          组容器统一定，岛 h-full 撑满带高）。毛玻璃 = glass-raise（2026-10-05
-          用户裁决对换：折射让给展开面板）；不得挂 overflow（收起态气泡向右
-          伸出，§26）。 */}
+      {/* 岛一：Workspace Rail——通高窄轨（§34 双岛口径：顶锚/收尾由组容器
+          统一定，岛 h-full 撑满带高）。2026-10-06 用户裁决：无玻璃无底座，
+          图标原生桌面感；不得挂 overflow（§26 纪律保留）。 */}
       <nav
         aria-label={t('sidebar.label')}
         data-testid="sidebar"
         data-expanded={panel.expanded || undefined}
-        className="desktop-chrome pointer-events-auto surface-glass glass-raise flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-1 rounded-xl border border-border py-3 shadow-float"
+        className="desktop-chrome pointer-events-auto flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-3 py-3"
       >
         {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。§34 参考图
             口径：实心渐变 squircle 徽章（--ag-capsule-active 同族明暗）。 */}
@@ -551,7 +547,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
             data-testid="sidebar-handle"
             aria-label={t(panel.expanded ? 'workspace.panel.handle.collapse' : 'workspace.panel.handle.expand')}
             onClick={panel.togglePin}
-            className="group relative flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-raised hover:text-text focus-visible:bg-surface-raised focus-visible:text-text"
+            className="group relative flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-elevated hover:text-text focus-visible:bg-surface-elevated focus-visible:text-text"
           >
             <CaretLeft
               size={13}
@@ -569,9 +565,9 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
           inert，展开动画与滚动状态不丢。宽度过渡复用 motion Token：外层
           只做 0→304 裁剪揭示（幕帘），玻璃面/圆角/投影在内层定宽面上——
           收起态零边框投影残影，展开动画内容不回流。Shell 3.1 F1 材质减重
-          （只降不加）：轻毛玻璃 glass-hint（blur 12，比窄轨透一档）+
-          发丝级边框 border-subtle + panel 档轻投影（窄轨仍 float 档）——
-          「漂浮的半透明个人空间」而非「大蓝玻璃卡」。 */}
+          （只降不加）：轻毛玻璃 glass-hint（blur 12）+ 发丝级边框
+          border-subtle + panel 档轻投影——「漂浮的半透明个人空间」而非
+          「大蓝玻璃卡」（窄轨玻璃已整体退役 2026-10-06，玻璃只此一岛）。 */}
       {panelEverExpanded ? (
         <aside
           data-testid="workspace-panel-island"

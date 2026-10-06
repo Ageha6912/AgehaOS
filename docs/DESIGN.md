@@ -657,6 +657,10 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   bottom 定位避 WidgetRail 容器裁剪，`usePopoverDismiss` 槽 'world-signals'
   与 branding 联动保持）；i18n 键 menubar.worldSignals* → widgets.world.signals*。
   顶栏材质（glass-hint + 发丝底边 + shadow-soft）与高度 token 不变。
+  **2026-10-06 用户裁决：顶栏背景退役**——glass-hint/发丝底边/shadow-soft
+  全部删除，菜单直接浮于壁纸（可读性由 desktop-chrome 白字 + text-shadow
+  承担，下拉弹层仍走 popover 玻璃；高度 token 不变），与窄轨图标同供建构
+  「原生桌面」感。
 - **键盘/可达性**：触发器 `aria-haspopup/aria-expanded`、下拉 `role=menu`、
   项 `role=menuitem`（禁用态半透明）；Tab/Enter/Esc 可完整操作，外部
   pointerdown/Esc 关闭（与右键菜单同语义）；悬停切换菜单（有菜单打开时）。
@@ -1191,6 +1195,11 @@ Center**，中央品牌层从常量降为**桌面状态驱动**；Dock/窗口/�
 任一路立即展开面板，气泡在唯一能点亮的两态下都被 `data-expanded` 隐藏，
 不可达死代码；展开态名称面板常显）。**窗口钳制仍钉
 RAIL_LEFT_WIDTH_PX=80**——312px 展开是纯浮层几何，不改窗口布局。
+**2026-10-06 用户裁决：窄轨背景整体退役**——岛底玻璃（glass-raise）/边框/
+投影/图标常驻底座（surface-raised）全部删除，条目间隙 gap-1→gap-3，图标
+直接浮于壁纸（「原本就在桌面上」的原生感）；交互态保留 surface-elevated
+轻 capsule，品牌钮渐变 squircle 徽章保留；左侧玻璃只余展开面板岛一岛
+（glass-hint）。
 
 ### 34.2 Workspace Panel 展开态（STEP 2）
 

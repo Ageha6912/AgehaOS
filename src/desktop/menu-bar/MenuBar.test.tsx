@@ -289,15 +289,16 @@ describe('MenuBar', () => {
     expect(view).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('wears the shell 2.0 menubar material and 13px menu type (§4.2①)', () => {
+  it('floats bare on the wallpaper — no bar background（2026-10-06 用户裁决）', () => {
     render(<MenuBar />)
 
-    // 材质（2026-10-05 裁决：顶栏与左栏双岛同吃 chrome 白玻璃底，无独立
-    // 暗条）：desktop-chrome 白字域 + surface-glass 基础 + glass-hint
-    // （12px blur，地基切片材质块）。
+    // 材质（2026-10-06 裁决：顶栏背景退役）：desktop-chrome 白字域保留，
+    // glass-hint/surface-glass 底、发丝底边、投影全部退出——菜单直接浮于
+    // 壁纸，与窄轨图标同供建构「原生桌面」感；下拉弹层仍走 popover 玻璃。
     const header = screen.getByTestId('menu-bar')
-    for (const cls of ['desktop-chrome', 'surface-glass', 'glass-hint']) {
-      expect(header.classList.contains(cls), cls).toBe(true)
+    expect(header.classList.contains('desktop-chrome')).toBe(true)
+    for (const cls of ['surface-glass', 'glass-hint', 'border-b', 'shadow-soft']) {
+      expect(header.classList.contains(cls), `menu bar must not carry ${cls}`).toBe(false)
     }
     // 菜单文字 13px（触发器 + 菜单项；裁决 J：时钟/电池数据读出豁免）。
     expect(screen.getByRole('button', { name: '文件' }).classList.contains('text-[13px]')).toBe(true)
