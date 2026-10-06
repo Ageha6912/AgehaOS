@@ -14,7 +14,9 @@ import { revealTaskbar } from './helpers'
  *    与展开态 Workspace Panel（304px 幕帘岛，token 312 − 0.5rem）都不撑爆视口；
  * ③ 右侧 Floating System Center 顶锚 48 / 右留白 20 / 底不越 Dock 带；
  * ④ Dock 胶囊 68px、离底 20px、水平居中、不越界；
- * ⑤ 窗口 launch 落点完整在工作区内，向左拖出屏幕后仍保有 ≥80px 可见带
+ * ⑤ 中央品牌层空闲居中（Shell 3.1 STEP 7 补钉，任务书 §30「Central Branding
+ *    真正居中」）：中心点 =（视口宽 1/2，高 30%）基线，视觉重心稳定；
+ * ⑥ 窗口 launch 落点完整在工作区内，向左拖出屏幕后仍保有 ≥80px 可见带
  *    （MIN_VISIBLE_EDGE 契约）且可拖回工作区。
  * 断言全部来自 boundingBox 实测（禁心算 rem）；每档分辨率把全部读数写入
  * .tmp/responsive-probe/<WxH>.json + 全页截图留存证据（.tmp 永不提交）。
@@ -146,6 +148,13 @@ for (const vp of RESOLUTIONS) {
       expect(dock!.x).toBeGreaterThanOrEqual(0)
       expect(dock!.x + dock!.width).toBeLessThanOrEqual(vp.width)
       await record('dock', dock!)
+
+      // ⑤.5 中央品牌层空闲居中（Shell 3.1 STEP 7 补钉）：left-1/2 top-[30%]
+      //    + -translate-x/y-1/2 → 中心点应落在（视口宽 1/2, 高 30%）基线。
+      const branding = await box(page, 'desktop-branding')
+      expect(Math.abs(branding.x + branding.width / 2 - vp.width / 2)).toBeLessThanOrEqual(1)
+      expect(Math.abs(branding.y + branding.height / 2 - vp.height * 0.3)).toBeLessThanOrEqual(2)
+      await record('brandingCentered', branding)
 
       // ⑥ 窗口：launch 落点完整在工作区内（§33.4.1：左右浮轨之间 + Dock 带上方）。
       await page.getByTestId('dock-pin-com.ageha.files').click()

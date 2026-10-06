@@ -1337,6 +1337,11 @@ Ctrl+K 面板（§23）精修为 Raycast/Spotlight 比喻：**640px（w-[40rem]�
 System Center/Dock/窗口拖出可见带全部 boundingBox 实测），证据留
 `.tmp/responsive-probe/`（永不提交）；零分辨率特例——几何全走 Token。
 
+**Shell 3.1 STEP 7（2026-10-06）**：四档探针在精修终态复跑全绿（F1 面板
+312/304 收敛、STEP 5 Dock 发丝边之后），并补「视觉中心稳定」断言——
+desktop-branding 空闲满档中心点须落（视口宽 1/2，高 30%）基线（±1/±2px，
+任务书 §30「Central Branding 真正居中」）；四档证据同目录 `<WxH>.json+png`。
+
 ### 34.11 验收与基线
 
 - 十切片各自五门禁 + 视觉验收逐片跑真（切片记录：6ad42bf/a34f6ce/6b735c0/
