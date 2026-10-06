@@ -550,7 +550,7 @@ body {
 .glass-veil {
   background: linear-gradient(
     to bottom,
-    rgb(255 255 255 / 4%) 0%,
+    rgb(238 244 255 / 15%) 0%,
     rgb(255 255 255 / 42%) 55%,
     rgb(238 244 255 / 88%) 100%
   );

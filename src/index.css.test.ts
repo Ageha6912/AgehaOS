@@ -143,7 +143,11 @@ describe('index.css token contract (Token 2.0)', () => {
     const paperAt = css.indexOf('.chrome-paper,')
     expect(paperAt).toBeGreaterThan(0)
     const paper = css.slice(paperAt, css.indexOf('}', paperAt))
-    expect(paper).toMatch(/\.popover-panel,\s*\.glass-popover,\s*\.widget-card\s*\{/)
+    // 2026-10-06 亮度裁决：展开面板底部追平卡片亮白后，面板浅纸作用域
+    // （.panel-paper）并入同一组声明——白底上必须墨字。
+    expect(paper).toMatch(
+      /\.popover-panel,\s*\.glass-popover,\s*\.widget-card,\s*\.panel-paper\s*\{/,
+    )
     // 墨字 + 白玻璃；别名（surface-raised）必须显式重声明，不能靠 :root 别名。
     expect(paper).toMatch(/--ag-text:\s*#18202c/)
     expect(paper).toMatch(/--ag-text-muted:\s*#43526a/)
