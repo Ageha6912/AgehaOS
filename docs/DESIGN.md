@@ -1203,7 +1203,11 @@ RAIL_LEFT_WIDTH_PX=80**——312px 展开是纯浮层几何，不改窗口布局
 增量区新档）替下 surface-glass 的 chrome 档 8% 白底；**磨砂 backdrop 随即
 整体退出**（glass-hint 12px 在展开过渡结束才生效、整块读作乳白毛玻璃——
 用户实测「只有展开那一瞬间透明」的根因），现仅存白纱 + 发丝边 + panel 投影
-定形；降级环境兜底回实色契约不变（index.css.test 源序钉扎已纳 .glass-veil）。
+定形；降级环境兜底回实色契约不变（index.css.test 源序钉扎已纳 .glass-veil）。**三连裁决：面板裸文字极轻
+局部衬底**——新增 utilities 层 `.text-scrim`（暗纱 rgb(15 23 42/16%)），
+分区标题 pill、品牌区文字块、工作空间 idle 行、最近行与空态文案挂载；
+今日空间卡（自带遮罩）与今日世界入口（自带底座）不挂；active 渐变胶囊
+不挂（JSX 条件分流，行级 hover/active 按特异性照常盖过）。
 
 ### 34.2 Workspace Panel 展开态（STEP 2）
 
