@@ -58,12 +58,13 @@ test.describe('workspace panel', () => {
     // ② hover 展开：300-340 档（token 312）。
     await expandByHover(page)
 
-    // ②′ Shell 3.1 F1 岛二玻璃减重：blur 从 raise 档 20px 降到 hint 档
-    //    12px（computed style 实测，防材质档静默回跳）。
+    // ②′ 2026-10-06 用户裁决：面板幕帘趋近透明——磨砂 backdrop 全退
+    //    （computed style 实测为 none，防材质档静默回跳；白纱 glass-veil
+    //    2.5% + 发丝边 + 投影定形）。
     const panelBlur = await page
       .getByTestId('workspace-panel-surface')
       .evaluate((el) => getComputedStyle(el).backdropFilter)
-    expect(panelBlur).toMatch(/blur\(12px\)/)
+    expect(panelBlur).toBe('none')
 
     // ③ 选择工作空间：aria-pressed 真实翻转 + selector 持久化。
     await page.getByTestId('workspace-option-study').click()

@@ -72,8 +72,8 @@ describe('Desktop', () => {
   it('keeps frosted glass on the workspace panel only — rail and menu bar float bare（2026-10-06 用户裁决：窄轨/顶栏背景退役）', () => {
     render(<Desktop />)
 
-    // 窄轨/顶栏背景退役后，左侧玻璃只余展开面板岛一岛（glass-hint 减重档
-    // 保持）；液态折射滤镜不再渲染。（断言更新为用户裁决授权，非掩盖问题。）
+    // 窄轨/顶栏背景退役后，左侧只余面板岛一层纱（glass-veil 白 2.5%，磨砂
+    // backdrop 已随 2026-10-06 追加裁决整体退出）；液态折射滤镜不再渲染。
     fireEvent.click(screen.getByTestId('sidebar-brand'))
     const rail = screen.getByTestId('sidebar')
     expect(rail.classList.contains('surface-glass')).toBe(false)
@@ -81,7 +81,7 @@ describe('Desktop', () => {
     const surface = screen.getByTestId('workspace-panel-surface')
     expect(surface.className).toContain('glass-veil')
     expect(surface.className).not.toContain('glass-liquid')
-    expect(surface.classList.contains('glass-hint')).toBe(true)
+    expect(surface.classList.contains('glass-hint')).toBe(false)
     expect(document.querySelector('svg filter#ag-liquid-rail')).toBeNull()
   })
 

@@ -564,10 +564,11 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
           首展经 animate-os-fade-in 淡入，此后常挂——收起只是 0 宽 + 内容列
           inert，展开动画与滚动状态不丢。宽度过渡复用 motion Token：外层
           只做 0→304 裁剪揭示（幕帘），玻璃面/圆角/投影在内层定宽面上——
-          收起态零边框投影残影，展开动画内容不回流。Shell 3.1 F1 材质减重
-          （只降不加）：轻毛玻璃 glass-hint（blur 12）+ 发丝级边框
-          border-subtle + panel 档轻投影——「漂浮的半透明个人空间」而非
-          「大蓝玻璃卡」（窄轨玻璃已整体退役 2026-10-06，玻璃只此一岛）。 */}
+          收起态零边框投影残影，展开动画内容不回流。2026-10-06 用户裁决两连：
+          F1 材质减重（glass-hint blur 12）之后**磨砂 backdrop 整体退出**——
+          12px 磨砂在展开过渡结束才生效、整块读作乳白毛玻璃（用户感知
+          「只有那一瞬间透明」的根因），现仅存 glass-veil 白纱 2.5% + 发丝级
+          边框 border-subtle + panel 档轻投影定形，「漂浮在桌面上的一层纱」。 */}
       {panelEverExpanded ? (
         <aside
           data-testid="workspace-panel-island"
@@ -580,7 +581,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         >
           <div
             data-testid="workspace-panel-surface"
-            className="desktop-chrome glass-veil glass-hint h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border-subtle shadow-panel"
+            className="desktop-chrome glass-veil h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border-subtle shadow-panel"
           >
             <WorkspacePanelBody expanded={panel.expanded} />
           </div>

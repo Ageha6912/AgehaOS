@@ -1200,9 +1200,10 @@ RAIL_LEFT_WIDTH_PX=80**——312px 展开是纯浮层几何，不改窗口布局
 直接浮于壁纸（「原本就在桌面上」的原生感）；交互态保留 surface-elevated
 轻 capsule，品牌钮渐变 squircle 徽章保留；左侧玻璃只余展开面板岛一岛。
 **同日追加裁决：面板幕帘面趋近透明**——新增 `.glass-veil`（白 2.5%，材质
-增量区新档）替下 surface-glass 的 chrome 档 8% 白底，blur 仍走 glass-hint
-12px、发丝边与 panel 投影保留定形；降级环境兜底回实色契约不变
-（index.css.test 源序钉扎已纳 .glass-veil）。
+增量区新档）替下 surface-glass 的 chrome 档 8% 白底；**磨砂 backdrop 随即
+整体退出**（glass-hint 12px 在展开过渡结束才生效、整块读作乳白毛玻璃——
+用户实测「只有展开那一瞬间透明」的根因），现仅存白纱 + 发丝边 + panel 投影
+定形；降级环境兜底回实色契约不变（index.css.test 源序钉扎已纳 .glass-veil）。
 
 ### 34.2 Workspace Panel 展开态（STEP 2）
 

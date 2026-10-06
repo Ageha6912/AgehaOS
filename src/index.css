@@ -544,8 +544,9 @@ body {
   backdrop-filter: blur(var(--ag-blur-sm)) saturate(150%);
 }
 /* ①′ Workspace Panel 幕帘面（2026-10-06 用户裁决：趋近透明）——白纱自
-   chrome 档 8% 降到 2.5%，只留一息定形；blur 仍同挂 ① glass-hint 12px，
-   降级环境由后方兜底块回实色（对比从不依赖模糊）。 */
+   chrome 档 8% 降到 2.5%，且不再同挂任何 backdrop 磨砂（12px blur 在展开
+   过渡结束才生效、整块读作乳白毛玻璃，用户感知「只有那一瞬间透明」的根
+   因）；形状由发丝边 + panel 投影定形，降级兜底契约不受影响。 */
 .glass-veil {
   background: rgb(255 255 255 / 2.5%);
 }

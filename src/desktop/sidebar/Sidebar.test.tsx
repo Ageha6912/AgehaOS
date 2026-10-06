@@ -100,15 +100,17 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     // 收起态零边框投影残影）。2026-10-06 用户裁决：窄轨无玻璃无底座——
     // 图标原生桌面感，左侧玻璃只余面板岛一岛（glass-hint 减重档保持）。
     const surface = screen.getByTestId('workspace-panel-surface')
-    // 2026-10-06 用户裁决：面板玻璃趋近透明——glass-veil（白纱 2.5%）替下
-    // surface-glass（chrome 档 8%），blur 走 glass-hint 12px 档不变。
+    // 2026-10-06 用户裁决两连：面板玻璃趋近透明——glass-veil（白纱 2.5%）
+    // 替下 surface-glass（chrome 档 8%），且磨砂 backdrop（glass-hint 12px）
+    // 整体退出（展开过渡结束才生效的乳白毛玻璃=「只有一瞬间透明」的根因）。
     expect(surface.className).toContain('glass-veil')
     expect(surface.className).toContain('rounded-xl')
     expect(surface.classList.contains('surface-glass')).toBe(false)
+    expect(surface.classList.contains('glass-hint')).toBe(false)
     for (const cls of ['surface-glass', 'glass-raise', 'glass-hint', 'rounded-xl', 'shadow-float', 'border']) {
       expect(rail.classList.contains(cls), `rail must not carry ${cls}`).toBe(false)
     }
-    expect(surface.classList.contains('glass-hint')).toBe(true)
+    expect(surface.classList.contains('glass-hint')).toBe(false)
     expect(surface.classList.contains('glass-raise')).toBe(false)
     expect(surface.classList.contains('border-border-subtle')).toBe(true)
     expect(surface.classList.contains('border-border')).toBe(false)
