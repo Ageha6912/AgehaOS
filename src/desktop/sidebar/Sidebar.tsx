@@ -565,7 +565,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         >
           <div
             data-testid="workspace-panel-surface"
-            className="desktop-chrome glass-veil relative h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border-subtle shadow-panel"
+            className="desktop-chrome panel-paper glass-veil relative h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border-subtle shadow-panel"
           >
             {/* 全幅磨砂带（mask 顶透→底下全磨砂，与 veil 渐变同向——毛玻璃
                 回归且顶部不白）；内容层随后（transform 建立堆叠上下文）

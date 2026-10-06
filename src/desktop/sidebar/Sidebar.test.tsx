@@ -104,6 +104,7 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     // （顶部 2% 近透 → 底部 12%=右栏卡片白档），磨砂由 panel-frost 全幅带
     // 同向渐隐（surface 自身仍无 backdrop）。
     expect(surface.className).toContain('glass-veil')
+    expect(surface.className).toContain('panel-paper')
     expect(surface.className).toContain('rounded-xl')
     expect(surface.classList.contains('surface-glass')).toBe(false)
     expect(surface.classList.contains('glass-hint')).toBe(false)

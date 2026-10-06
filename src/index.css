@@ -550,8 +550,9 @@ body {
 .glass-veil {
   background: linear-gradient(
     to bottom,
-    rgb(255 255 255 / 4%),
-    rgb(255 255 255 / 20%)
+    rgb(255 255 255 / 4%) 0%,
+    rgb(255 255 255 / 42%) 55%,
+    rgb(238 244 255 / 88%) 100%
   );
 }
 /* ①″ 面板磨砂带（2026-10-06 再裁决 + 复核）——全幅铺装；mask 不再落到
@@ -683,10 +684,15 @@ body {
  * 深色 = 冷墨玻璃 + 浅字。自定义属性的 var() 在声明处求值，别名
  * （--ag-surface-raised）必须在此显式重声明，不能依赖 :root 的别名。
  */
+/* ①‴ 面板浅纸作用域（2026-10-06 亮度裁决）：面板底部 veil 追到右栏卡片
+   级亮白（88% 冷白）后，白字系统失效——面板内容整体切换 .widget-card
+   同款浅纸墨字令牌（并入下方同一组声明，零复制）；顶部近透区的墨字由
+   壁纸亮部（云天）承托，与右栏卡片同规则。 */
 .chrome-paper,
 .popover-panel,
 .glass-popover,
-.widget-card {
+.widget-card,
+.panel-paper {
   --ag-text: #18202c;
   --ag-text-muted: #43526a;
   --ag-text-tertiary: #4f5e77;
