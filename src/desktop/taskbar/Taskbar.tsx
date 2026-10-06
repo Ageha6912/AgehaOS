@@ -170,7 +170,7 @@ export function Taskbar() {
           aria-label={t('dock.label')}
           onPointerMove={onDockPointerMove}
           onPointerLeave={clearWave}
-          className="desktop-chrome dock-glass surface-glass pointer-events-auto relative flex h-[var(--ag-dock-height)] max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-[var(--ag-dock-radius)] border border-border-strong px-2 shadow-dock"
+          className="desktop-chrome dock-glass surface-glass pointer-events-auto relative flex h-[var(--ag-dock-height)] max-w-[calc(100%-1.5rem)] items-center gap-1 self-end rounded-[var(--ag-dock-radius)] border border-border-subtle px-2.5 shadow-dock"
         >
           {/* Dock 高光滑过（§32.5 修订 10）：低频釉面扫光，覆盖层内裁剪，
               不裁波浪放大的图标；盖在图标上做「玻璃反光」（pointer-events-none）。 */}

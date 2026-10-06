@@ -319,7 +319,8 @@ describe('Taskbar', () => {
     expect(bar.className).toContain('pb-[var(--ag-dock-gap)]')
 
     // 胶囊本体（材质表④）：玻璃 + 白22% 胶囊底 + 24px 圆角矩形（Shell 3.0
-    // STEP 6，§33.2 档——全 pill 退役）+ 强细边 + shadow-dock 专用档 + 接指针；
+    // STEP 6，§33.2 档——全 pill 退役）+ 发丝边（Shell 3.1 STEP 5 减重：
+    // strong→subtle，Dock 靠投影浮起不靠描边）+ shadow-dock 专用档 + 接指针；
     // 自动隐藏不复活（§32 修订 8）。
     const pill = bar.firstElementChild as HTMLElement
     for (const cls of [
@@ -327,7 +328,7 @@ describe('Taskbar', () => {
       'dock-glass',
       'rounded-[var(--ag-dock-radius)]',
       'border',
-      'border-border-strong',
+      'border-border-subtle',
       'shadow-dock',
       'pointer-events-auto',
       'h-[var(--ag-dock-height)]',

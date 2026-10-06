@@ -1285,6 +1285,14 @@ gap-3 微收；hidden 档完整性复核——七类遮蔽（启动器/搜索/�
 rounded-full，瓷贴与运行中两处）。几何契约不变：高 `--ag-dock-height`=68 /
 离底 `--ag-dock-gap`=20 / 水平居中 / 窗口钮节距 48px；Auto Hide、悬停单枚
 浮起（§32.5 修订 13）、悬停预览 portal、单实例激活、回收站语义零改动。
+**Shell 3.1 STEP 5 微抛光（禁改运动）**：胶囊细边 strong→subtle（发丝级，
+Dock 靠投影浮起不靠描边）、内距 px-2→px-2.5（舱壁呼吸）；胶囊底白 22% 复
+核为已柔和保持（§26 优先 opacity 不加 blur，未动）；active 2×16 细条与
+几何 token 全部零改动，dock-wave 运动链（applyWave/[data-wave-icon]/σ56）
+原样。扩展性实证（§24）：`max-w-[calc(100%-1.5rem)]` + 运行中行
+`no-scrollbar overflow-x-auto` 既有实现经 e2e 钉扎——800×600 下 12 个
+运行中窗口时 Dock 宽 ≤ 视口−24、图标行 scrollWidth>clientWidth 可滚、
+启动器可达（taskbar-autohide.spec 扩展性用例）。
 
 ### 34.7 窗口视觉精修（STEP 7）
 

@@ -137,3 +137,159 @@ test('taskbar 启动器：分类切换面板尺寸恒定（2026-10-02 裁决「�
   expect(Math.abs(back.height - open.height)).toBeLessThanOrEqual(1)
   await expect(page.getByTestId('launcher-grid')).toBeVisible()
 })
+
+test('扩展性：大量运行中窗口时 Dock 宽度有上限、图标行可滚、启动器可达（Shell 3.1 STEP 5 §24）', async ({
+  page,
+}) => {
+  test.setTimeout(180_000)
+  // 800×600 小视口压低溢出阈值：Dock max-w = 776，扣启动器/常驻行/分隔后
+  // 运行中行可用 ≈370px——7 枚 × 48px 即溢出，6 slug × 2 窗 = 12 枚足量。
+  await page.setViewportSize({ width: 800, height: 600 })
+  // 世界桩（quota/world 两接口；generate 不桩——世界应用窗打开后生成失败
+  // 渲染错误卡，窗口本体存在即满足 Dock 图标枚举语义）。
+  await page.route('**/api/eclosion/quota', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        configured: true,
+        quotas: {
+          basic: { used: 0, limit: 10 },
+          today: { used: 0, limit: 30 },
+          imagine: { used: 0, limit: 20 },
+        },
+        resetAtIso: new Date(Date.now() + 86_400_000).toISOString(),
+      }),
+    }),
+  )
+  const slugs = [
+    { slug: 'edge-oracle', name: '边缘神谕' },
+    { slug: 'trend-compass', name: '趋势罗盘' },
+    { slug: 'signal-garden', name: '信号花园' },
+    { slug: 'aurora-beat', name: '极光节拍' },
+    { slug: 'idea-bazaar', name: '灵感集市' },
+    { slug: 'echo-hollow', name: '回声树洞' },
+  ]
+  await page.route('**/api/eclosion/world', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        worldDate: new Date().toISOString().slice(0, 10),
+        generatedAt: new Date().toISOString(),
+        degraded: false,
+        signalCount: 1,
+        signals: {
+          titles: ['一条信号'],
+          sourceName: 'GitHub Trending',
+          sourceUrl: 'https://example.invalid/feed',
+        },
+        theme: {
+          headline: '扩展性验收的今日世界',
+          paletteId: 'aurora-borealis',
+          accentHue: 212,
+          wallpaper: { engine: 'landscape', paletteId: 'aurora-borealis', mood: 'calm' },
+        },
+        apps: slugs.map((app, index) => ({
+          ...app,
+          icon: 'Sparkle',
+          hue: 212 + index * 20,
+          tagline: '扩展性验收应用',
+          category: 'tools',
+          window: { width: 480, height: 360 },
+        })),
+      }),
+    }),
+  )
+
+  await page.goto('/')
+  const loginForm = page.getByRole('form', { name: '登录 AgehaOS' })
+  await expect(loginForm).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: '没有账户？创建一个' }).click()
+  await page.getByLabel('用户名').fill(`dock-overflow-${Date.now().toString(36)}`)
+  await page.getByLabel('密码').fill('secret123')
+  await page.getByRole('button', { name: '注册' }).click()
+  await page.getByTestId('sidebar-desktop').waitFor({ timeout: 15_000 })
+
+  // 种羽化偏好（开）并 reload（eclosion-world.spec.ts:37-54 同款）。
+  const userId = await page.evaluate(() => {
+    const raw = localStorage.getItem('agehaos.session.v1') ?? ''
+    const parsed = JSON.parse(raw) as { userId?: string }
+    if (!parsed.userId) throw new Error(`no session userId in ${raw}`)
+    return parsed.userId
+  })
+  await page.evaluate(
+    (key) => localStorage.setItem(key, JSON.stringify({ enabled: true, modes: {} })),
+    `agehaos.eclosion.prefs.v1.${userId}`,
+  )
+  await page.reload()
+  await page.getByTestId('sidebar-desktop').waitFor({ timeout: 15_000 })
+  await page.waitForSelector('[data-testid="boot-screen"]', { state: 'detached', timeout: 15_000 })
+
+  // 世界落地：启动器「今日」分类出现世界应用瓦片。
+  await taskbarStartButton(page).click()
+  await page.getByTestId('launcher-category-today').click()
+  const grid = page.getByTestId('launcher-grid')
+  await expect(grid.getByRole('button', { name: '边缘神谕' })).toBeVisible({ timeout: 15_000 })
+
+  // 6 个世界应用 × 2 窗 = 12 枚运行中图标（launchApp 可多开，desktop-stress
+  // 同款语义；生成失败只影响窗内内容，不影响 Dock 图标枚举）。⚠️ 点瓦片
+  // 开窗后启动器随 launch 收起——每窗前确保启动器打开（category 态在组件
+  // 本地保留，重开后仍落「今日」）。
+  for (let round = 0; round < 2; round += 1) {
+    for (const app of slugs) {
+      if ((await page.getByTestId('launcher-grid').count()) === 0) {
+        await taskbarStartButton(page).click()
+        await page.getByTestId('launcher-category-today').click()
+      }
+      await grid.getByRole('button', { name: app.name }).click()
+      await page.waitForTimeout(150)
+    }
+  }
+  const runningRegions =
+    (await page.getByRole('region', { name: '边缘神谕' }).count()) +
+    (await page.getByRole('region', { name: '趋势罗盘' }).count()) +
+    (await page.getByRole('region', { name: '信号花园' }).count()) +
+    (await page.getByRole('region', { name: '极光节拍' }).count()) +
+    (await page.getByRole('region', { name: '灵感集市' }).count()) +
+    (await page.getByRole('region', { name: '回声树洞' }).count())
+  expect(runningRegions).toBeGreaterThanOrEqual(7)
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('launcher-grid')).toHaveCount(0)
+
+  // ① 宽度上限：Dock boundingBox ≤ 视口 - 24（max-w-[calc(100%-1.5rem)]）。
+  const dock = page.locator('footer nav')
+  const dockBox = (await dock.boundingBox())!
+  const vp = page.viewportSize()!
+  expect(dockBox.width).toBeLessThanOrEqual(vp.width - 24)
+  expect(dockBox.width).toBeGreaterThan(0)
+
+  // ② 图标行溢出且可滚：12 枚 × 48px 远超行宽（≈370px）→ scrollWidth >
+  //    clientWidth；设置 scrollLeft 生效（no-scrollbar 只藏 UI 不藏能力）。
+  const row = page.getByTestId('dock-running-row')
+  const scroll = await row.evaluate((el) => ({
+    scrollWidth: el.scrollWidth,
+    clientWidth: el.clientWidth,
+  }))
+  expect(scroll.scrollWidth).toBeGreaterThan(scroll.clientWidth)
+  await row.evaluate((el) => {
+    el.scrollLeft = 60
+  })
+  const scrolled = await row.evaluate((el) => el.scrollLeft)
+  expect(scrolled).toBeGreaterThan(0)
+
+  // ③ 启动器仍可达（溢出不锁交互）。
+  await taskbarStartButton(page).click()
+  await expect(page.getByTestId('launcher-grid')).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  // ④ 边框减重钉扎（computed）：1px 发丝 + chrome subtle 白（rgba 18%），
+  //    非 strong 档的 42% 白。
+  const border = await dock.evaluate((el) => {
+    const style = getComputedStyle(el)
+    return { width: style.borderTopWidth, color: style.borderTopColor }
+  })
+  expect(border.width).toBe('1px')
+  expect(border.color).toBe('rgba(255, 255, 255, 0.18)')
+})
