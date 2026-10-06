@@ -53,8 +53,8 @@ export interface EclosionQuotaState {
   resetAtIso: string | null
 }
 
-/** 今日世界摘要（AI-GENERATED-APPS-DESIGN §6）：编排器校验后写入，顶栏小字、
- * Settings、主题接入消费。大对象（hint、HTML、完整 signals 原文）不进 store。 */
+/** 今日世界摘要（AI-GENERATED-APPS-DESIGN §6）：编排器校验后写入，右栏世界卡信号行（Shell 3.1 STEP 3
+ * 自顶栏迁入）、Settings、主题接入消费。大对象（hint、HTML、完整 signals 原文）不进 store。 */
 export interface EclosionWorldSummary {
   worldDate: string
   headline: string

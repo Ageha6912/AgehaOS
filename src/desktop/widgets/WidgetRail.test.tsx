@@ -95,6 +95,10 @@ describe('WidgetRail (STEP 4 Floating System Center)', () => {
     expect(card.textContent).toContain('测试世界：边缘推理与本地智能体')
     expect(card.textContent).toContain('1 款新应用')
     expect(card.textContent).toContain('今日已更新')
+    // Shell 3.1 STEP 3（F3）：当日世界在场 → 弱化信号行自顶栏迁入世界卡。
+    expect(screen.getByTestId('widgets-world-signals').textContent).toContain(
+      '由 2 条趋势信号织成 · 来源',
+    )
 
     // 「查看世界」= 复用 STEP 3 launcher-intent 一次性意图 + 共享启动器。
     fireEvent.click(screen.getByTestId('widgets-world-entry'))
@@ -107,6 +111,21 @@ describe('WidgetRail (STEP 4 Floating System Center)', () => {
     render(<WidgetRail />)
 
     expect(screen.getByTestId('widgets-world').textContent).toContain('等待换新')
+    // 跨日陈旧世界：信号行不渲染（「今日才称织成」门控随组件自顶栏迁入）。
+    expect(screen.queryByTestId('widgets-world-signals')).toBeNull()
+  })
+
+  it('hides the signal row for a degraded (signalCount=0) world but keeps the card', () => {
+    seedWorld({
+      signalCount: 0,
+      signals: { titles: [], sourceName: '', sourceUrl: '' },
+      degraded: true,
+    })
+    render(<WidgetRail />)
+
+    // 纯想象降级无来源可列：世界卡在、信号行不在（§6.3 门控）。
+    expect(screen.getByTestId('widgets-world')).toBeInTheDocument()
+    expect(screen.queryByTestId('widgets-world-signals')).toBeNull()
   })
 
   it('shows the quiet empty state (no dead entry) when eclosion is on but the world has not landed', () => {

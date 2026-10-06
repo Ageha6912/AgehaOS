@@ -650,6 +650,13 @@ SPEC §1.3）：指针进入任务栏图标区，图标按 `scale = 1+(max-1)·e
   信号的状态图标不做（拒绝装饰性谎言，待有真数据再挂）。
 - **右侧（Q3 裁决自任务栏迁移）**：通知铃（面板向下展开 top-10）+ 用户菜单
   + 时钟。任务栏回归纯应用 Dock；E2E 全局 testid/role 定位不受挂载点影响。
+  **Shell 3.1 STEP 3（F3 顶栏信息减法）右簇终态**：电池 → Cloud 同步 → 通知铃
+  → 用户 → 时钟——AI 产品句「今日桌面由 N 条趋势信号生成」及其来源弹层
+  （原 `menu-bar/WorldSignals.tsx`）整体迁出，归右栏今日世界卡
+  （`widgets/WorldSignals.tsx` 内嵌 WorldCard；弹层 createPortal 至 body +
+  bottom 定位避 WidgetRail 容器裁剪，`usePopoverDismiss` 槽 'world-signals'
+  与 branding 联动保持）；i18n 键 menubar.worldSignals* → widgets.world.signals*。
+  顶栏材质（glass-hint + 发丝底边 + shadow-soft）与高度 token 不变。
 - **键盘/可达性**：触发器 `aria-haspopup/aria-expanded`、下拉 `role=menu`、
   项 `role=menuitem`（禁用态半透明）；Tab/Enter/Esc 可完整操作，外部
   pointerdown/Esc 关闭（与右键菜单同语义）；悬停切换菜单（有菜单打开时）。
@@ -1241,7 +1248,14 @@ label muted + 等宽数值 + h-1 行内细条不变）；Notification/World 降 
 语义自相矛盾，第 3 轮打回修正），i18n 零新增），通知中心弹层空态同构图
 （铃铛 + 原文案，无跳转链接——本尊即中心，视觉评审 H-notification-empty
 打回后同步）。数据面零新增：系统状态仍只有流畅度/内存/网络三项（禁
-GPU/Disk/Battery/进程数），时钟卡无假天气（§0.5）。
+GPU/Disk/Battery/进程数），时钟卡无假天气（§0.5）。**Shell 3.1 STEP 3 迁入
+记录（F3 顶栏信息减法）**：顶栏「今日桌面由 N 条趋势信号生成」小字及来源
+弹层迁出菜单栏——世界卡摘要行下新增弱化信号行（由 N 条趋势信号织成 · 来源，
+`widgets/WorldSignals.tsx`），点击展开信号列表弹层（createPortal 至 body +
+bottom 定位；`usePopoverDismiss` 槽 'world-signals' 与 branding hidden 档
+联动保持；「重新生成今日世界」入口随迁，仍是唯一重生成入口）。门控：羽化关
+整卡不渲染；世界 null/跨日陈旧/signalCount=0 → 卡在而信号行不渲染。i18n 键
+menubar.worldSignals* → widgets.world.signals*。
 
 ### 34.5 中央品牌层状态化（STEP 5）
 

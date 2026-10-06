@@ -140,7 +140,7 @@ describe('MenuBar', () => {
     expect(screen.queryByRole('menuitem', { name: '记事' })).not.toBeInTheDocument()
   })
 
-  it('mounts the today-world signal note when the world of today is in', () => {
+  it('keeps AI world signals out of the menu bar even when the world of today is in（Shell 3.1 F3）', () => {
     act(() => {
       resetEclosionStore()
       seedEclosionForTests('u1', true)
@@ -162,13 +162,12 @@ describe('MenuBar', () => {
     })
     render(<MenuBar />)
 
-    expect(screen.getByTestId('menubar-world-signals')).toHaveTextContent(
-      '今日桌面由 3 条趋势信号生成',
-    )
-    // 点击展开来源列表（§6.3 透明性）。
-    fireEvent.click(screen.getByTestId('menubar-world-signals'))
-    expect(screen.getByTestId('menubar-world-signals-panel')).toBeInTheDocument()
-    expect(screen.getAllByTestId('menubar-world-signal')).toHaveLength(3)
+    // Shell 3.1 STEP 3（F3 顶栏信息减法）：AI 产品句迁出顶栏——即使当日世界
+    // 在场，顶栏也不渲染任何世界信号触发器（信息归右栏 WorldCard，断言在
+    // WorldSignals.test / WidgetRail.test）。新旧 testid 双保险防回归。
+    expect(screen.queryByTestId('menubar-world-signals')).toBeNull()
+    expect(screen.queryByTestId('widgets-world-signals')).toBeNull()
+    expect(screen.queryByText(/趋势信号/)).toBeNull()
     resetEclosionStore()
   })
 

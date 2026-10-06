@@ -21,13 +21,16 @@ export const dictionaries = {
     'menubar.edit.paste': '粘贴',
     'menubar.edit.selectAll': '全选',
     'menubar.status.battery': '电池',
-    'menubar.worldSignals': '今日桌面由 {count} 条趋势信号生成',
-    'menubar.worldSignals.label': '趋势信号来源',
-    'menubar.worldSignals.source': '来源：{source}',
-    'menubar.worldSignals.visitSource': '打开来源',
-    'menubar.worldSignals.regenerate': '重新生成今日世界',
-    'menubar.worldSignals.regenerating': '生成中…',
-    'menubar.worldSignals.regenerateFailed': '重新生成失败，请稍后再试',
+    /* Shell 3.1 STEP 3（F3）：世界信号句迁出顶栏，键随语境迁移至 widgets.*——
+       组件消费方 = 右栏 WorldCard 内嵌的 WorldSignalsSection（信号行措辞
+       呼应羽化「织成」语义）。 */
+    'widgets.world.signals': '由 {count} 条趋势信号织成 · 来源',
+    'widgets.world.signals.label': '趋势信号来源',
+    'widgets.world.signals.source': '来源：{source}',
+    'widgets.world.signals.visitSource': '打开来源',
+    'widgets.world.signals.regenerate': '重新生成今日世界',
+    'widgets.world.signals.regenerating': '生成中…',
+    'widgets.world.signals.regenerateFailed': '重新生成失败，请稍后再试',
     'menubar.view': '视图',
     'menubar.window': '窗口',
     'menubar.window.minimizeAll': '最小化全部窗口',
@@ -134,7 +137,9 @@ export const dictionaries = {
     'notification.body.eclosionAppFailed': '「{app}」已回落经典版，可稍后重新羽化。',
     'notification.body.eclosionAppFailedNoFallback': '「{app}」生成失败，可稍后重试。',
     'notification.title.worldReady': '今日世界已就绪',
-    'notification.body.worldReady': '今日桌面已由趋势信号织成，点按顶栏小字可查看来源。',
+    /* Shell 3.1 STEP 3：趋势信号行已迁出顶栏（右栏 WorldCard 承载），通知
+       指引同步改指新入口——「点按顶栏小字」是死指引（视觉评审第 4 轮）。 */
+    'notification.body.worldReady': '趋势信号已织入今日的世界，点按右栏「今日世界」卡的小字信号行可查看来源。',
     'notification.center': '通知中心',
     'notification.empty': '暂无通知',
     'notification.markRead': '标记已读',
@@ -550,13 +555,15 @@ export const dictionaries = {
     'menubar.edit.paste': 'Paste',
     'menubar.edit.selectAll': 'Select All',
     'menubar.status.battery': 'Battery',
-    'menubar.worldSignals': 'Today’s desktop is woven from {count} trending signals',
-    'menubar.worldSignals.label': 'Trending signal sources',
-    'menubar.worldSignals.source': 'Source: {source}',
-    'menubar.worldSignals.visitSource': 'Open source',
-    'menubar.worldSignals.regenerate': "Regenerate today's world",
-    'menubar.worldSignals.regenerating': 'Generating…',
-    'menubar.worldSignals.regenerateFailed': 'Regeneration failed, try again later',
+    /* Shell 3.1 STEP 3 (F3): world-signal copy moved out of the menu bar;
+       keys follow the new home in the widgets WorldCard (see zh comment). */
+    'widgets.world.signals': 'Woven from {count} trending signals · Source',
+    'widgets.world.signals.label': 'Trending signal sources',
+    'widgets.world.signals.source': 'Source: {source}',
+    'widgets.world.signals.visitSource': 'Open source',
+    'widgets.world.signals.regenerate': "Regenerate today's world",
+    'widgets.world.signals.regenerating': 'Generating…',
+    'widgets.world.signals.regenerateFailed': 'Regeneration failed, try again later',
     'menubar.view': 'View',
     'menubar.window': 'Window',
     'menubar.window.minimizeAll': 'Minimize All Windows',
@@ -663,7 +670,10 @@ export const dictionaries = {
     'notification.body.eclosionAppFailed': '"{app}" fell back to the classic version. You can regenerate later.',
     'notification.body.eclosionAppFailedNoFallback': '"{app}" failed to generate. You can retry later.',
     'notification.title.worldReady': 'Today’s world is ready',
-    'notification.body.worldReady': 'Today’s desktop was woven from trending signals; open the menu-bar note to see the sources.',
+    /* Shell 3.1 STEP 3: the signal line moved out of the menu bar (the widgets
+       WorldCard hosts it now) — point the guide at the new entry. */
+    'notification.body.worldReady':
+      'Trending signals are woven into today’s world; use the signal line in the “Today’s World” card on the right to see the sources.',
     'notification.center': 'Notification center',
     'notification.empty': 'No notifications',
     'notification.markRead': 'Mark as read',

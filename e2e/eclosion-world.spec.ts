@@ -45,6 +45,11 @@ async function seedEclosionEnabled(page: Page): Promise<void> {
     localStorage.setItem(key, JSON.stringify({ enabled: true, modes: {} }))
   }, `agehaos.eclosion.prefs.v1.${userId}`)
   await page.reload()
+  // 任务栏自动隐藏（§9；helpers.ts:18 约定「收起后再次交互前先唤出」）：
+  // reload 后指针不在底缘热区——低负载时靠 reload 初始 reveal 窗口期侥幸，
+  // 高并行负载下窗口期错过即 15s 超时（第 3 步强门禁 flake 实测）。显式
+  // 唤出再断言开始按钮：纯等待方式修复，用例语义不变。
+  await revealTaskbar(page)
   await expect(taskbarStartButton(page)).toBeVisible({ timeout: 15_000 })
 }
 
@@ -330,14 +335,24 @@ test.describe('P2 今日世界（世界就绪 → 落位）', () => {
       await expect(grid.getByRole('button', { name })).toBeVisible()
     }
 
-    // 顶栏信号来源小字（§6.3 透明性）：N 条趋势信号 + 可展开来源列表。
-    const signals = page.getByTestId('menubar-world-signals')
+    // 右栏世界卡信号行（§6.3 透明性；Shell 3.1 STEP 3 自顶栏迁入）：N 条趋势
+    // 信号 + 可展开来源列表；弹层 portal 至 body，完整落在视口内不被裁剪。
+    const signals = page.getByTestId('widgets-world-signals')
     await expect(signals).toBeVisible()
-    await expect(signals).toContainText('今日桌面由 3 条趋势信号生成')
+    await expect(signals).toContainText('由 3 条趋势信号织成')
     await signals.click()
-    await expect(page.getByTestId('menubar-world-signals-panel')).toBeVisible()
-    await expect(page.getByTestId('menubar-world-signal')).toHaveCount(3)
-    await expect(page.getByTestId('menubar-world-signals-source-link')).toBeVisible()
+    const signalsPanel = page.getByTestId('widgets-world-signals-panel')
+    await expect(signalsPanel).toBeVisible()
+    await expect(page.getByTestId('widgets-world-signal')).toHaveCount(3)
+    await expect(page.getByTestId('widgets-world-signals-source-link')).toBeVisible()
+    // 重生成入口随迁（截图评审验在位；行为由 eclosion.spec 羽化窗口链路验）。
+    await expect(page.getByTestId('widgets-world-regenerate')).toBeVisible()
+    const signalsPanelBox = (await signalsPanel.boundingBox())!
+    const vp = page.viewportSize()!
+    expect(signalsPanelBox.x).toBeGreaterThanOrEqual(0)
+    expect(signalsPanelBox.y).toBeGreaterThanOrEqual(0)
+    expect(signalsPanelBox.x + signalsPanelBox.width).toBeLessThanOrEqual(vp.width)
+    expect(signalsPanelBox.y + signalsPanelBox.height).toBeLessThanOrEqual(vp.height)
 
     // 「今日世界已就绪」进通知中心（每 worldDate 一条；面板留档不受 toast 时限影响）。
     await page.getByTestId('notification-bell').click()
@@ -429,8 +444,8 @@ test.describe('P2 今日世界（世界就绪 → 落位）', () => {
 
     // degraded（signalCount=0）：世界照常生成落位——今日分组仍有 6 个应用。
     await waitForWorldLanded(page, '边缘神谕')
-    // 纯想象降级无来源可列：顶栏小字不渲染（WorldSignals 门控）。
-    await expect(page.getByTestId('menubar-world-signals')).toHaveCount(0)
+    // 纯想象降级无来源可列：世界卡信号行不渲染（WorldSignals 门控）。
+    await expect(page.getByTestId('widgets-world-signals')).toHaveCount(0)
   })
 
   test('世界接口 503 → 静默放弃：无今日世界、桌面照常（AI 铁律：不阻塞桌面）', async ({ page }) => {
@@ -443,7 +458,7 @@ test.describe('P2 今日世界（世界就绪 → 落位）', () => {
     await page.getByTestId('launcher-category-today').click()
     // 今日分组空（世界不可得时不落任何应用），空态提示在场。
     await expect(page.getByText('无匹配结果')).toBeVisible()
-    await expect(page.getByTestId('menubar-world-signals')).toHaveCount(0)
+    await expect(page.getByTestId('widgets-world-signals')).toHaveCount(0)
     // 世界请求确实发出过（503 被吞）：证明走了「拉取失败 → 静默降级」路径。
     expect(stubs.worldHits()).toBeGreaterThanOrEqual(1)
     await page.keyboard.press('Escape')
@@ -592,7 +607,7 @@ test.describe('回归：默认配置（羽化关）', () => {
     await taskbarStartButton(page).click()
     await page.getByTestId('launcher-category-today').click()
     await expect(page.getByText('无匹配结果')).toBeVisible()
-    await expect(page.getByTestId('menubar-world-signals')).toHaveCount(0)
+    await expect(page.getByTestId('widgets-world-signals')).toHaveCount(0)
     expect(await worldAccentInline(page)).toBe('')
 
     // 面板入口常驻（2026-10-05 裁决）：羽化关 → 引导卡（点击打开设置，

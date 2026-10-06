@@ -28,6 +28,8 @@ import {
   useNotificationStore,
 } from '@/store/notification-store'
 
+import { WorldSignalsSection } from './WorldSignals'
+
 /**
  * 右侧 Floating System Center（Desktop Shell 3.0 STEP 4，docs/DESIGN.md §0.2
  * 材质表 + §33.2 右栏节奏）：四层漂浮层级 = 时钟日期 → 系统状态 → 最近通知 →
@@ -473,16 +475,17 @@ function WorldCard() {
           {t('workspace.panel.world.empty')}
         </p>
       ) : (
-        <button
-          type="button"
-          data-testid="widgets-world-entry"
-          aria-label={`${t('workspace.panel.world.view')}：${world.headline}`}
-          onClick={() => {
-            requestLauncherCategory('today')
-            setLauncherOpen(true)
-          }}
-          className="mt-1.5 flex w-full items-start gap-2 rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-surface-raised"
-        >
+        <>
+          <button
+            type="button"
+            data-testid="widgets-world-entry"
+            aria-label={`${t('workspace.panel.world.view')}：${world.headline}`}
+            onClick={() => {
+              requestLauncherCategory('today')
+              setLauncherOpen(true)
+            }}
+            className="mt-1.5 flex w-full items-start gap-2 rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-surface-raised"
+          >
           <Sparkle size={14} weight="fill" aria-hidden="true" className="mt-0.5 shrink-0 text-primary" />
           <span className="min-w-0 flex-1">
             <span className="line-clamp-2 block text-xs font-medium leading-snug text-text">
@@ -497,7 +500,11 @@ function WorldCard() {
           <span aria-hidden="true" className="mt-0.5 shrink-0 text-[11px] font-medium text-primary">
             {t('workspace.panel.world.view')} →
           </span>
-        </button>
+          </button>
+          {/* Shell 3.1 STEP 3（F3）：趋势信号行 + 来源弹层自顶栏迁入（§6.3
+              透明性归今日世界语境）；门控/重生成入口随组件自含。 */}
+          <WorldSignalsSection />
+        </>
       )}
     </section>
   )
