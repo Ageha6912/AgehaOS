@@ -1250,12 +1250,14 @@ label muted + 等宽数值 + h-1 行内细条不变）；Notification/World 降 
 打回后同步）。数据面零新增：系统状态仍只有流畅度/内存/网络三项（禁
 GPU/Disk/Battery/进程数），时钟卡无假天气（§0.5）。**Shell 3.1 STEP 3 迁入
 记录（F3 顶栏信息减法）**：顶栏「今日桌面由 N 条趋势信号生成」小字及来源
-弹层迁出菜单栏——世界卡摘要行下新增弱化信号行（由 N 条趋势信号织成 · 来源，
-`widgets/WorldSignals.tsx`），点击展开信号列表弹层（createPortal 至 body +
+弹层迁出菜单栏——世界卡摘要行下新增弱化信号行（`widgets/WorldSignals.tsx`），
+点击展开信号列表弹层（createPortal 至 body +
 bottom 定位；`usePopoverDismiss` 槽 'world-signals' 与 branding hidden 档
 联动保持；「重新生成今日世界」入口随迁，仍是唯一重生成入口）。门控：羽化关
 整卡不渲染；世界 null/跨日陈旧/signalCount=0 → 卡在而信号行不渲染。i18n 键
-menubar.worldSignals* → widgets.world.signals*。
+menubar.worldSignals* → widgets.world.signals*。**终审遗留去重（2026-10-06）**：
+信号行文案收敛为「趋势信号来源」（与弹层标题同键）——headline 为生成内容、
+已含「由 N 条趋势信号织成」措辞，行内复述计数即同卡冗余，原计数键退役。
 
 ### 34.5 中央品牌层状态化（STEP 5）
 

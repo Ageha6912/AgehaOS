@@ -95,10 +95,9 @@ describe('WidgetRail (STEP 4 Floating System Center)', () => {
     expect(card.textContent).toContain('测试世界：边缘推理与本地智能体')
     expect(card.textContent).toContain('1 款新应用')
     expect(card.textContent).toContain('今日已更新')
-    // Shell 3.1 STEP 3（F3）：当日世界在场 → 弱化信号行自顶栏迁入世界卡。
-    expect(screen.getByTestId('widgets-world-signals').textContent).toContain(
-      '由 2 条趋势信号织成 · 来源',
-    )
+    // Shell 3.1 STEP 3（F3）：当日世界在场 → 信号行自顶栏迁入世界卡；
+    // 终审遗留去重：行文案只作来源入口，不复述 headline 的「织成」计数句。
+    expect(screen.getByTestId('widgets-world-signals').textContent).toContain('趋势信号来源')
 
     // 「查看世界」= 复用 STEP 3 launcher-intent 一次性意图 + 共享启动器。
     fireEvent.click(screen.getByTestId('widgets-world-entry'))

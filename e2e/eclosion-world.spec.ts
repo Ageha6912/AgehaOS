@@ -335,11 +335,12 @@ test.describe('P2 今日世界（世界就绪 → 落位）', () => {
       await expect(grid.getByRole('button', { name })).toBeVisible()
     }
 
-    // 右栏世界卡信号行（§6.3 透明性；Shell 3.1 STEP 3 自顶栏迁入）：N 条趋势
-    // 信号 + 可展开来源列表；弹层 portal 至 body，完整落在视口内不被裁剪。
+    // 右栏世界卡信号行（§6.3 透明性；Shell 3.1 STEP 3 自顶栏迁入）：来源
+    // 入口 + 可展开来源列表（headline 已述「织成」计数，行内不复述——终审
+    // 遗留去重）；弹层 portal 至 body，完整落在视口内不被裁剪。
     const signals = page.getByTestId('widgets-world-signals')
     await expect(signals).toBeVisible()
-    await expect(signals).toContainText('由 3 条趋势信号织成')
+    await expect(signals).toContainText('趋势信号来源')
     await signals.click()
     const signalsPanel = page.getByTestId('widgets-world-signals-panel')
     await expect(signalsPanel).toBeVisible()

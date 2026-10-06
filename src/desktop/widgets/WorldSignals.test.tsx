@@ -61,13 +61,17 @@ describe('WorldSignalsSection（§6.3 世界卡内信号行与来源列表；She
     unmount()
   })
 
-  it('shows the signal count note and expands the source list on click', () => {
+  it('shows the source entry and expands the source list on click', () => {
     seedEclosionForTests('u-1', true)
     useEclosionStore.getState().applyWorld(worldSummary())
     render(<WorldSignalsSection />)
 
     const note = screen.getByTestId('widgets-world-signals')
-    expect(note).toHaveTextContent('由 2 条趋势信号织成 · 来源')
+    expect(note).toHaveTextContent('趋势信号来源')
+    // 终审遗留去重钉扎：headline（生成内容）已述「由 N 条趋势信号织成」，
+    // 信号行不得复述同一措辞/计数。
+    expect(note.textContent).not.toContain('织成')
+    expect(note.textContent).not.toContain('2 条')
 
     fireEvent.click(note)
     const panel = screen.getByTestId('widgets-world-signals-panel')

@@ -16,9 +16,10 @@ import { useEclosionStore } from '@/store/eclosion-store'
  * 右栏「今日世界」卡内的趋势信号区块（Shell 3.1 STEP 3，F3 顶栏信息减法：
  * 自 menu-bar/WorldSignals.tsx 原样迁入今日世界语境，AI-GENERATED-APPS-DESIGN
  * §6.3 透明性不变）：羽化开 + 当日世界在场 + signalCount>0 时，世界卡摘要行
- * 下渲染弱化信号行「由 N 条趋势信号织成 · 来源」，点击展开信号来源列表弹层
+ * 下渲染弱化信号行「趋势信号来源」，点击展开信号来源列表弹层
  * （标题 + 来源链接 + 「重新生成今日世界」——HANDOFF §2.5 指定的唯一重生成
- * 入口，功能随迁不丢）。
+ * 入口，功能随迁不丢）。信号行不再复述「由 N 条趋势信号织成」——该措辞已
+ * 在上方 headline（生成内容）出现，同卡两述即冗余（Shell 3.1 终审遗留）。
  *
  * 弹层契约（坑 13/26 家族）：WidgetRail 容器 overflow-y-auto 会裁剪并劫持
  * fixed 包含块——弹层 createPortal 至 body + 显式 bottom 定位（Dock 带上方、
@@ -87,9 +88,7 @@ export function WorldSignalsSection({
         className="mt-0.5 flex w-full items-center rounded-md px-1 py-0.5 text-left text-[11px] text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
         onClick={() => setOpen((value) => !value)}
       >
-        <span className="min-w-0 truncate">
-          {formatMessage(t('widgets.world.signals'), { count: String(world.signalCount) })}
-        </span>
+        <span className="min-w-0 truncate">{t('widgets.world.signals.label')}</span>
       </button>
 
       {phase.render &&

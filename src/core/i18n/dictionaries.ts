@@ -22,9 +22,10 @@ export const dictionaries = {
     'menubar.edit.selectAll': '全选',
     'menubar.status.battery': '电池',
     /* Shell 3.1 STEP 3（F3）：世界信号句迁出顶栏，键随语境迁移至 widgets.*——
-       组件消费方 = 右栏 WorldCard 内嵌的 WorldSignalsSection（信号行措辞
-       呼应羽化「织成」语义）。 */
-    'widgets.world.signals': '由 {count} 条趋势信号织成 · 来源',
+       组件消费方 = 右栏 WorldCard 内嵌的 WorldSignalsSection。信号行与弹层
+       标题共用 label 键：headline（生成内容）已含「由 N 条趋势信号织成」，
+       行内复述即冗余（Shell 3.1 终审遗留清理，原 'widgets.world.signals'
+       计数键退役）。 */
     'widgets.world.signals.label': '趋势信号来源',
     'widgets.world.signals.source': '来源：{source}',
     'widgets.world.signals.visitSource': '打开来源',
@@ -556,8 +557,8 @@ export const dictionaries = {
     'menubar.edit.selectAll': 'Select All',
     'menubar.status.battery': 'Battery',
     /* Shell 3.1 STEP 3 (F3): world-signal copy moved out of the menu bar;
-       keys follow the new home in the widgets WorldCard (see zh comment). */
-    'widgets.world.signals': 'Woven from {count} trending signals · Source',
+       keys follow the new home in the widgets WorldCard (see zh comment —
+       the count key retired, the row reuses the label key). */
     'widgets.world.signals.label': 'Trending signal sources',
     'widgets.world.signals.source': 'Source: {source}',
     'widgets.world.signals.visitSource': 'Open source',
