@@ -398,15 +398,21 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     expect(idle.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
   })
 
-  it('keeps rail tooltips for the collapsed state (os-tooltip carriers, aria-hidden)', () => {
+  it('rail buttons carry aria-label names and no dead tooltip bubbles（终审遗留清理）', () => {
     render(<SidebarHarness />)
 
+    // 可访问名由 aria-label 承载；自绘 os-tooltip 气泡退役——hover/键盘聚焦
+    // 任一路都立即展开面板（use-workspace-panel mouseenter 立即展开），气泡
+    // 在唯一能点亮的两态下都被 data-expanded 隐藏，属不可达死代码。
     const item = screen.getByTestId('sidebar-files')
     expect(item.getAttribute('aria-label')).toBe('文件管理')
-    const tooltip = item.querySelector('.os-tooltip')
-    expect(tooltip).not.toBeNull()
-    expect(tooltip?.textContent).toBe('文件管理')
-    expect(tooltip?.getAttribute('aria-hidden')).toBe('true')
+    expect(item.querySelector('.os-tooltip')).toBeNull()
+    expect(screen.getByTestId('sidebar-brand').querySelector('.os-tooltip')).toBeNull()
+    expect(screen.getByTestId('sidebar-handle').querySelector('.os-tooltip')).toBeNull()
+    // 全树无残留：窄轨岛内不存在任何 os-tooltip 载体。
+    for (const testid of ['sidebar-desktop', 'sidebar-launcher', 'sidebar-notes', 'sidebar-terminal', 'sidebar-settings', 'sidebar-notifications']) {
+      expect(screen.getByTestId(testid).querySelector('.os-tooltip')).toBeNull()
+    }
   })
 
   it('rail items sit on persistent translucent tiles — no solid primary blocks（§34 底座）', () => {

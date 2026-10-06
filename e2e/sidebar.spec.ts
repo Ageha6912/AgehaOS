@@ -3,10 +3,10 @@ import { expect, test } from '@playwright/test'
 /**
  * 左侧 Workspace Rail + Workspace Panel（Desktop Shell 3.0，docs/DESIGN.md
  * §34 双岛口径）：窄轨与面板是两块独立玻璃岛、顶锚菜单栏下方通高到 Dock
- * 上方；icon-first + os-tooltip、轻 translucent capsule；真实动作轨——启动
- * 应用、共享启动器面板、共享通知中心。
+ * 上方；icon-first（可访问名走 aria-label，收起态气泡已退役）、轻
+ * translucent capsule；真实动作轨——启动应用、共享启动器面板、共享通知中心。
  */
-test('sidebar: floating narrow rail with working actions, tooltips and capsules', async ({
+test('sidebar: floating narrow rail with working actions and capsules', async ({
   page,
 }) => {
   await page.goto('/')
@@ -40,9 +40,9 @@ test('sidebar: floating narrow rail with working actions, tooltips and capsules'
   await expect(page.getByRole('region', { name: '文件' })).toBeVisible()
 
   // ③ Workspace Panel：悬停条目即揭示独立面板岛（304px 档）——两岛顶边
-  //    对齐、等高、岛间 ≥10px 缝隙；名称由面板常显承载，收起态 os-tooltip
-  //    在展开态退出（index.css [data-expanded] .os-tooltip）；组容器与窄轨
-  //    overflow 恒 visible 的 §26 契约不回归（收起态气泡向右伸出依赖它）。
+  //    对齐、等高、岛间 ≥10px 缝隙；名称由面板常显承载（收起态 os-tooltip
+  //    气泡已退役：hover 即展开，气泡不可达，终审遗留清理）；组容器与窄轨
+  //    overflow 恒 visible 的 §26 契约不回归。
   const files = page.getByTestId('sidebar-files')
   // ② 的点击让指针留在轨内（面板已随动作收起）：先移出再悬停才有 mouseenter。
   await page.mouse.move(640, 660)
@@ -57,7 +57,7 @@ test('sidebar: floating narrow rail with working actions, tooltips and capsules'
   expect(islandBox.x - (railBox.x + railBox.width)).toBeGreaterThanOrEqual(10)
   expect(Math.abs(islandBox.y - railBox.y)).toBeLessThanOrEqual(2)
   expect(Math.abs(islandBox.height - railBox.height)).toBeLessThanOrEqual(2)
-  await expect(files.locator('.os-tooltip')).toBeHidden()
+  await expect(files.locator('.os-tooltip')).toHaveCount(0)
   await expect(page.getByTestId('workspace-panel')).toBeVisible()
   const overflowPair = await page.getByTestId('system-rails').evaluate((el) => {
     const collect = (node: Element): string[] => {

@@ -111,8 +111,8 @@ export function Desktop() {
           玻璃岛（窄轨岛 + Workspace Panel 岛，岛间 gap-3.5 缝隙）。带自身
           无玻璃无背景且 pointer-events-none：缝隙与岛外带区点击穿透桌面，
           交互面全部在岛上。液态玻璃归窄轨岛（Sidebar 内接线）。⚠️ 带容器
-          与窄轨岛不得挂 overflow（会裁掉向右伸出的 os-tooltip，§26 教训）；
-          展开态气泡经 [data-expanded] .os-tooltip 退出，无需 overflow。 */}
+          与窄轨岛不得挂 overflow（§26 教训：越界浮层/焦点环防护，纪律保留
+          ——Rail 的收起态气泡已退役 2026-10-06）。 */}
       <div
         data-testid="system-rails"
         ref={railsRef}

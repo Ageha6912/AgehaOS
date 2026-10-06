@@ -628,12 +628,6 @@ body {
 .group:focus-visible .os-tooltip--dock {
   transform: translateX(-50%) translateY(0);
 }
-/* Workspace Panel 展开态（Desktop Shell 3.0 STEP 2）：条目名称已在面板内
-   常显，气泡退出——display 退出文档流，展开动画期间不与滑出的面板交叠。
-   置于 reveal 规则之后（同 (0,2,0) 特异性，源序取胜）。 */
-[data-expanded] .os-tooltip {
-  display: none;
-}
 
 /* Dock 图标波浪（2026-10-05 用户裁决终态：高斯邻位波浪是 Dock 唯一浮起
    ——2026-10-02 的悬停强浮起（-3px/1.18 + 光晕）随同日波浪恢复一并退役）。

@@ -1186,8 +1186,10 @@ Center**，中央品牌层从常量降为**桌面状态驱动**；Dock/窗口/�
 保留）归组容器；内容列恒 `--ag-rail-left-width - 8px` = 72px。**icon-first
 八钮**（44px 圆钮 + 20px 字形，hover/active 轻 translucent capsule，禁实心
 色块）：品牌钮（= 面板展开 pin 开关）+ 桌面（最小化全部）/ 启动器 / 文件 /
-笔记 / 终端 / 设置 / 通知（未读徽标保留）。名称走 `os-tooltip` 气泡（§33.3
-双轨制，展开态经 `[data-expanded] .os-tooltip` 退出）。**窗口钳制仍钉
+笔记 / 终端 / 设置 / 通知（未读徽标保留）。可访问名由 `aria-label` 承载
+（收起态 `os-tooltip` 气泡已退役 2026-10-06 终审遗留清理——hover/键盘聚焦
+任一路立即展开面板，气泡在唯一能点亮的两态下都被 `data-expanded` 隐藏，
+不可达死代码；展开态名称面板常显）。**窗口钳制仍钉
 RAIL_LEFT_WIDTH_PX=80**——312px 展开是纯浮层几何，不改窗口布局。
 
 ### 34.2 Workspace Panel 展开态（STEP 2）

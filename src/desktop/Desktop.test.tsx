@@ -141,7 +141,7 @@ describe('Desktop', () => {
     // 零自动开窗后：启动器开「记事」= 唯一窗口。
     expect(useWindowStore.getState().windows).toHaveLength(1)
     // 桌面图标层已移除（2026-10-01 用户裁决）：「记事」在窗口层只在标题栏
-    // （Workspace Rail 的 os-tooltip 也含应用名，主地标作用域内仍唯一）。
+    // （主地标作用域内唯一）。
     expect(within(screen.getByRole('main', { name: '窗口' })).getAllByText('记事').length).toBe(1)
 
     // 关闭记事窗口。

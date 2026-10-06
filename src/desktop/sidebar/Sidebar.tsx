@@ -45,7 +45,9 @@ import type { WorkspaceId } from '@/store/workspace-store'
  * 窄轨与面板是**两块独立玻璃岛**——组容器（Desktop 的 system-rails）退化为
  * 纯定位层（顶锚菜单栏下方、Dock 上方收尾，pointer-events-none，岛间缝隙
  * 可穿透桌面），玻璃面/圆角/投影各自成岛。icon-first——44px 圆钮 + 20px
- * 字形，名称走自绘 os-tooltip 气泡（group hover/focus 点亮，不进可达树），
+ * 字形，可访问名由 aria-label 承载（自绘收起态气泡已退役 2026-10-06：
+ * hover/键盘聚焦任一路都立即展开面板，气泡在唯一能点亮的两态下都被
+ * data-expanded 隐藏，属不可达死代码——终审遗留清理）；
  * hover/active 一律轻 translucent capsule（chrome 作用域 surface-raised/
  * elevated 白玻璃），禁实心色块。玻璃分工（2026-10-05 用户裁决终态 + Shell
  * 3.1 F1 减重）：窄轨 = glass-raise（blur 20）；展开面板降一档 = glass-hint
@@ -62,9 +64,8 @@ import type { WorkspaceId } from '@/store/workspace-store'
  * （usage-store 真实数据）→ 底部垫今日世界品牌入口（复用 eclosion-store
  * 世界摘要 + 「查看世界」直达启动器「今日」分类，WorkspaceTodayWorld）。
  * 收起：鼠标离开（240ms 宽限）/ Esc / 面板外按下（pin 态）；展开态下条目
- * 名称常显，os-tooltip 经 index.css `[data-expanded] .os-tooltip` 退出。
- * 组容器与窄轨岛仍不得挂 overflow（收起态气泡向右伸出，§26 教训）——
- * 面板岛自身的 overflow-hidden 只裁内容列（其内无 os-tooltip 元素）。
+ * 名称常显。组容器与窄轨岛仍不得挂 overflow（§26 教训：越界浮层/焦点环
+ * 防护，纪律保留）——面板岛自身的 overflow-hidden 只裁内容列。
  */
 
 /** Rail 条目：图标 + 弱化文案（tooltip 承载）。 */
@@ -103,11 +104,6 @@ function RailItem({
       className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-raised text-text transition-colors hover:bg-surface-elevated focus-visible:bg-surface-elevated active:bg-surface-elevated data-[active]:bg-surface-elevated"
     >
       <Icon size={20} weight="fill" aria-hidden="true" />
-      {/* 自绘气泡（os-tooltip）：点亮规则在 index.css；展开态由
-          [data-expanded] .os-tooltip display:none 退出（名称已常显）。 */}
-      <span aria-hidden="true" className="os-tooltip">
-        {label}
-      </span>
       {badge !== undefined && badge > 0 && (
         <span
           aria-hidden="true"
@@ -478,9 +474,6 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         >
           {/* Ageha Mark（§10 品牌主视觉）：装饰位，可访问名由按钮承载。 */}
           <BrandLogo size={26} />
-          <span aria-hidden="true" className="os-tooltip">
-            {brandLabel}
-          </span>
         </button>
         <RailItem
           testid="sidebar-desktop"
@@ -566,9 +559,6 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
               aria-hidden="true"
               className={panel.expanded ? '' : 'rotate-180'}
             />
-            <span aria-hidden="true" className="os-tooltip">
-              {brandLabel}
-            </span>
           </button>
         </div>
       </nav>
