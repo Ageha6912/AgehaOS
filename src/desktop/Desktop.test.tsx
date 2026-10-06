@@ -57,27 +57,25 @@ describe('Desktop', () => {
       expect(rails.classList.contains(cls), `no ${cls}`).toBe(false)
     }
     expect(rails.className).not.toContain('overflow')
-    // 岛一（窄轨）2026-10-06 用户裁决：无玻璃无底座，图标原生桌面感——
-    // 交互面（pointer-events-auto）与几何（h-full）保留；面板岛收起态未挂载。
+    // 岛一（窄轨）2026-10-06 再裁决：毛玻璃 glass-raise 原档回归（裸浮试验
+    // 回撤）；交互面（pointer-events-auto）与几何（h-full）保留。
     const rail = screen.getByTestId('sidebar')
-    for (const cls of ['desktop-chrome', 'pointer-events-auto', 'h-full']) {
+    for (const cls of ['desktop-chrome', 'surface-glass', 'glass-raise', 'rounded-xl', 'shadow-float', 'border', 'pointer-events-auto', 'h-full']) {
       expect(rail.classList.contains(cls), `rail ${cls}`).toBe(true)
-    }
-    for (const cls of ['surface-glass', 'glass-raise', 'glass-hint', 'rounded-xl', 'shadow-float', 'border']) {
-      expect(rail.classList.contains(cls), `rail must not carry ${cls}`).toBe(false)
     }
     expect(screen.queryByTestId('workspace-panel-island')).toBeNull()
   })
 
-  it('keeps frosted glass on the workspace panel only — rail and menu bar float bare（2026-10-06 用户裁决：窄轨/顶栏背景退役）', () => {
+  it('keeps the rail on the glass-raise tier; panel wears the top-clear gradient veil（2026-10-06 再裁决）', () => {
     render(<Desktop />)
 
-    // 窄轨/顶栏背景退役后，左侧只余面板岛一层纱（glass-veil 白 2.5%，磨砂
-    // backdrop 已随 2026-10-06 追加裁决整体退出）；液态折射滤镜不再渲染。
+    // 窄轨毛玻璃回归（glass-raise 原档）；面板 = 顶透下白渐变 veil
+    // （2%→12% 右栏卡片白）+ 全幅磨砂带同向渐隐，surface 自身无 backdrop；
+    // 顶栏保持裸浮（本裁决未涉及）；液态折射滤镜不再渲染。
     fireEvent.click(screen.getByTestId('sidebar-brand'))
     const rail = screen.getByTestId('sidebar')
-    expect(rail.classList.contains('surface-glass')).toBe(false)
-    expect(rail.classList.contains('glass-raise')).toBe(false)
+    expect(rail.classList.contains('surface-glass')).toBe(true)
+    expect(rail.classList.contains('glass-raise')).toBe(true)
     const surface = screen.getByTestId('workspace-panel-surface')
     expect(surface.className).toContain('glass-veil')
     expect(surface.className).not.toContain('glass-liquid')

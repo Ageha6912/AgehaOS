@@ -41,14 +41,14 @@ import type { WorkspaceId } from '@/store/workspace-store'
 
 /**
  * 左侧 Workspace Rail + Workspace Panel（Desktop Shell 3.0，§34 双岛口径）：
- * 窄轨与面板是**两座独立岛**——组容器（Desktop 的 system-rails）退化为
+ * 窄轨与面板是**两座独立玻璃岛**——组容器（Desktop 的 system-rails）退化为
  * 纯定位层（顶锚菜单栏下方、Dock 上方收尾，pointer-events-none，岛间缝隙
- * 可穿透桌面）。**窄轨无玻璃**（2026-10-06 用户裁决：图标原生桌面感——
- * 无岛底、无常驻底座，玻璃面/圆角/投影只归展开面板岛）；icon-first——
- * 40px 圆钮 + 20px 字形（44→40 换取 gap-5 呼吸档：720p 岛高 576 预算内
- * 20px 间隙是上限），可访问名由 aria-label 承载（自绘收起态气泡已
- * 退役 2026-10-06：hover/键盘聚焦任一路都立即展开面板，气泡在唯一能点亮
- * 的两态下都被 data-expanded 隐藏，属不可达死代码——终审遗留清理）；
+ * 可穿透桌面）。窄轨毛玻璃 glass-raise 原档（2026-10-06 再裁决回归；当日
+ * 「裸浮」试验 git c77275a 可溯）；面板 = 顶透下白渐变 veil + 磨砂带。
+ * icon-first——40px 圆钮 + 20px 字形（44→40 换取 28px 呼吸档：720p 岛高
+ * 576 预算内轨底手柄退役后的上限），可访问名由 aria-label 承载（自绘收起
+ * 态气泡已退役 2026-10-06：hover/键盘聚焦任一路都立即展开面板，气泡在
+ * 唯一能点亮的两态下都被 data-expanded 隐藏，属不可达死代码）；
  * hover/active/focus 一律轻 translucent capsule（chrome 作用域
  * surface-elevated 白玻璃，仅交互态出现），禁实心色块。
  * 展开（docs/DESIGN.md §34）：hover / click（品牌钮 pin）/ 键盘聚焦任一路
@@ -440,22 +440,23 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
     }
   }
 
-  // 玻璃分工（2026-10-06 用户裁决：图标原生桌面感）：窄轨**无玻璃**——
-  // 无岛底/边框/投影/常驻底座，图标直接浮在壁纸上，交互态才有轻 capsule；
-  // 展开面板保留轻毛玻璃 glass-hint（blur 12）。窄轨玻璃（glass-raise，
-  // 2026-10-05 裁决）与液态折射（2026-10-02 裁决，git cb6c404 可溯）先后退役。
+  // 玻璃分工（2026-10-06 再裁决：毛玻璃回归）：窄轨恢复 glass-raise
+  // （blur 20）原档；面板 = glass-veil 顶透下白渐变（2%→12%，底部对齐
+  // 右栏卡片白）+ panel-frost 全幅磨砂带同向渐隐。此前「窄轨裸浮」裁决
+  // 仅存于历史（git c77275a 可溯）。液态折射玻璃退役不变（git cb6c404）。
   const brandLabel = panel.expanded ? t('workspace.panel.collapse') : t('workspace.panel.expand')
 
   return (
     <>
-      {/* 岛一：Workspace Rail——通高窄轨（§34 双岛口径：顶锚/收尾由组容器
-          统一定，岛 h-full 撑满带高）。2026-10-06 用户裁决：无玻璃无底座，
-          图标原生桌面感；不得挂 overflow（§26 纪律保留）。 */}
+      {/* 岛一：Workspace Rail——通高窄轨毛玻璃岛（2026-10-06 再裁决：玻璃
+          回归——glass-raise（blur 20）+ 边框 + 投影按原样恢复；28px 间隙、
+          40px 圆钮、手柄退役等加隙裁决全部保持）。不得挂 overflow（§26
+          纪律保留）。 */}
       <nav
         aria-label={t('sidebar.label')}
         data-testid="sidebar"
         data-expanded={panel.expanded || undefined}
-        className="desktop-chrome pointer-events-auto flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-[28px] py-4"
+        className="desktop-chrome pointer-events-auto surface-glass glass-raise flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-[28px] rounded-xl border border-border py-4 shadow-float"
       >
         {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。§34 参考图
             口径：实心渐变 squircle 徽章（--ag-capsule-active 同族明暗）。 */}
@@ -566,13 +567,13 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
             data-testid="workspace-panel-surface"
             className="desktop-chrome glass-veil relative h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border-subtle shadow-panel"
           >
-            {/* 底部磨砂渐隐带（只铺下段、mask 向上无边界淡出——整体透明感
-                保持）；内容层随后（transform 建立堆叠上下文）绘制在带之上，
-                面板自身文字不被磨砂波及。 */}
+            {/* 全幅磨砂带（mask 顶透→底下全磨砂，与 veil 渐变同向——毛玻璃
+                回归且顶部不白）；内容层随后（transform 建立堆叠上下文）
+                绘制在带之上，面板自身文字不被磨砂波及。 */}
             <div
               aria-hidden="true"
               data-testid="workspace-panel-frost"
-              className="panel-frost pointer-events-none absolute inset-x-0 bottom-0 top-1/3"
+              className="panel-frost pointer-events-none absolute inset-0"
             />
             <WorkspacePanelBody expanded={panel.expanded} />
           </div>

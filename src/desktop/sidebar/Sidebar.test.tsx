@@ -97,20 +97,20 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     const rail = screen.getByTestId('sidebar')
     const island = screen.getByTestId('workspace-panel-island')
     // 玻璃面/圆角/投影在面板岛的内层定宽面上（外层只做宽度裁剪揭示，
-    // 收起态零边框投影残影）。2026-10-06 用户裁决：窄轨无玻璃无底座——
-    // 图标原生桌面感，左侧玻璃只余面板岛一岛（且其磨砂 backdrop 已退，
-    // 仅存白纱+发丝边+投影+底部磨砂带）。
+    // 收起态零边框投影残影）。2026-10-06 再裁决：窄轨毛玻璃 glass-raise
+    // 原档回归（裸浮试验 c77275a 回撤），28px 间隙/40px 圆钮/手柄退役保持。
     const surface = screen.getByTestId('workspace-panel-surface')
-    // 2026-10-06 用户裁决两连：面板玻璃趋近透明——glass-veil（白纱 2.5%）
-    // 替下 surface-glass（chrome 档 8%），且磨砂 backdrop（glass-hint 12px）
-    // 整体退出（展开过渡结束才生效的乳白毛玻璃=「只有一瞬间透明」的根因）。
+    // 2026-10-06 再裁决：面板毛玻璃回归为顶透下白——glass-veil 渐变纱
+    // （顶部 2% 近透 → 底部 12%=右栏卡片白档），磨砂由 panel-frost 全幅带
+    // 同向渐隐（surface 自身仍无 backdrop）。
     expect(surface.className).toContain('glass-veil')
     expect(surface.className).toContain('rounded-xl')
     expect(surface.classList.contains('surface-glass')).toBe(false)
     expect(surface.classList.contains('glass-hint')).toBe(false)
-    for (const cls of ['surface-glass', 'glass-raise', 'glass-hint', 'rounded-xl', 'shadow-float', 'border']) {
-      expect(rail.classList.contains(cls), `rail must not carry ${cls}`).toBe(false)
+    for (const cls of ['surface-glass', 'glass-raise', 'rounded-xl', 'shadow-float', 'border']) {
+      expect(rail.classList.contains(cls), `rail ${cls}`).toBe(true)
     }
+    expect(rail.classList.contains('glass-hint')).toBe(false)
     expect(surface.classList.contains('glass-hint')).toBe(false)
     expect(surface.classList.contains('glass-raise')).toBe(false)
     expect(surface.classList.contains('border-border-subtle')).toBe(true)
@@ -126,18 +126,19 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     expect(screen.getByTestId('workspace-panel')).not.toBeNull()
   })
 
-  it('panel bottom carries the fading frost band — overall transparency kept（2026-10-06 用户裁决）', () => {
+  it('panel carries the full-bleed fading frost band — top clear, bottom frosted（2026-10-06 再裁决）', () => {
     render(<SidebarHarness />)
     fireEvent.click(screen.getByTestId('sidebar-brand'))
 
-    // 底部磨砂带只铺下段（top-1/3 + mask 向上渐隐），surface 自身仍无
-    // backdrop（透明感主体）；带不截获指针。
+    // 磨砂带全幅铺装（inset-0），mask 顶透→底下全磨砂与 veil 渐变同向；
+    // surface 自身仍无 backdrop；带不截获指针。
     const surface = screen.getByTestId('workspace-panel-surface')
     expect(surface.className).toContain('relative')
     const frost = surface.querySelector('[data-testid="workspace-panel-frost"]')
     expect(frost).not.toBeNull()
     expect(frost?.className).toContain('panel-frost')
     expect(frost?.className).toContain('pointer-events-none')
+    expect(frost?.className).toContain('inset-0')
   })
 
   it('mounts the panel body lazily on first expansion（净桌面启动不为面板付费）', () => {

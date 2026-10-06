@@ -543,20 +543,24 @@ body {
 .glass-hint {
   backdrop-filter: blur(var(--ag-blur-sm)) saturate(150%);
 }
-/* ①′ Workspace Panel 幕帘面（2026-10-06 用户裁决：趋近透明）——白纱自
-   chrome 档 8% 降到 2.5%，且不再同挂任何 backdrop 磨砂（12px blur 在展开
-   过渡结束才生效、整块读作乳白毛玻璃，用户感知「只有那一瞬间透明」的根
-   因）；形状由发丝边 + panel 投影定形，降级兜底契约不受影响。 */
+/* ①′ Workspace Panel 幕帘面（2026-10-06 再裁决：毛玻璃回归 + 顶透下白
+   渐变）——白纱自顶部 2%（近透）渐到 12%（=右栏卡片 surface-popover 白
+   档，「到最下面时变得和右侧卡片一样白」）；磨砂由 ①″ panel-frost 全幅
+   带按同方向渐隐；降级兜底契约不受影响。 */
 .glass-veil {
-  background: rgb(255 255 255 / 2.5%);
+  background: linear-gradient(
+    to bottom,
+    rgb(255 255 255 / 2%),
+    rgb(255 255 255 / 12%)
+  );
 }
-/* ①″ 面板底部磨砂带（2026-10-06 用户裁决：只要一些磨砂、整体保持透明
-   感）——磨砂只铺面板下段并以 mask 向上渐隐（无硬边界）；blur 走既有
-   sm 档 12px，标准属性 only（根因 A）；无 backdrop-filter 环境整带自然
-   消失，降级兜底契约不受影响。 */
+/* ①″ 面板磨砂带（2026-10-06 再裁决：毛玻璃回归）——全幅铺装、mask 自
+   顶部透明渐到底部全磨砂（与白纱同向：上透下白）；blur 走既有 sm 档
+   12px，标准属性 only（根因 A）；无 backdrop-filter 环境整带自然消失，
+   降级兜底契约不受影响。 */
 .panel-frost {
   backdrop-filter: blur(var(--ag-blur-sm)) saturate(150%);
-  mask-image: linear-gradient(to top, rgb(0 0 0 / 100%) 40%, transparent 100%);
+  mask-image: linear-gradient(to top, rgb(0 0 0 / 100%) 50%, transparent 100%);
 }
 /* ③ 左栏 rail 浮岛（blur 20px raise）。 */
 .glass-raise {
