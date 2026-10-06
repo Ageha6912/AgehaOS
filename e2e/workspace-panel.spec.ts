@@ -66,6 +66,13 @@ test.describe('workspace panel', () => {
       .evaluate((el) => getComputedStyle(el).backdropFilter)
     expect(panelBlur).toBe('none')
 
+    // ②″ 同日复裁：底部磨砂渐隐带只铺下段（surface 无磨砂、frost 带
+    //    blur sm 档 12px + mask 向上渐隐）——「一些磨砂、整体透明」。
+    const frostBlur = await page
+      .getByTestId('workspace-panel-frost')
+      .evaluate((el) => getComputedStyle(el).backdropFilter)
+    expect(frostBlur).toMatch(/blur\(12px\)/)
+
     // ③ 选择工作空间：aria-pressed 真实翻转 + selector 持久化。
     await page.getByTestId('workspace-option-study').click()
     await expect(page.getByTestId('workspace-option-study')).toHaveAttribute('aria-pressed', 'true')

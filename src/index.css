@@ -550,6 +550,14 @@ body {
 .glass-veil {
   background: rgb(255 255 255 / 2.5%);
 }
+/* ①″ 面板底部磨砂带（2026-10-06 用户裁决：只要一些磨砂、整体保持透明
+   感）——磨砂只铺面板下段并以 mask 向上渐隐（无硬边界）；blur 走既有
+   sm 档 12px，标准属性 only（根因 A）；无 backdrop-filter 环境整带自然
+   消失，降级兜底契约不受影响。 */
+.panel-frost {
+  backdrop-filter: blur(var(--ag-blur-sm)) saturate(150%);
+  mask-image: linear-gradient(to top, rgb(0 0 0 / 100%) 40%, transparent 100%);
+}
 /* ③ 左栏 rail 浮岛（blur 20px raise）。 */
 .glass-raise {
   backdrop-filter: blur(var(--ag-blur-md)) saturate(150%);

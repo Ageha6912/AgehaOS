@@ -98,7 +98,8 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     const island = screen.getByTestId('workspace-panel-island')
     // 玻璃面/圆角/投影在面板岛的内层定宽面上（外层只做宽度裁剪揭示，
     // 收起态零边框投影残影）。2026-10-06 用户裁决：窄轨无玻璃无底座——
-    // 图标原生桌面感，左侧玻璃只余面板岛一岛（glass-hint 减重档保持）。
+    // 图标原生桌面感，左侧玻璃只余面板岛一岛（且其磨砂 backdrop 已退，
+    // 仅存白纱+发丝边+投影+底部磨砂带）。
     const surface = screen.getByTestId('workspace-panel-surface')
     // 2026-10-06 用户裁决两连：面板玻璃趋近透明——glass-veil（白纱 2.5%）
     // 替下 surface-glass（chrome 档 8%），且磨砂 backdrop（glass-hint 12px）
@@ -123,6 +124,20 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     expect(surface.className).toContain('w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)]')
     // 面板体仍在（id 供品牌钮 aria-controls）。
     expect(screen.getByTestId('workspace-panel')).not.toBeNull()
+  })
+
+  it('panel bottom carries the fading frost band — overall transparency kept（2026-10-06 用户裁决）', () => {
+    render(<SidebarHarness />)
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+
+    // 底部磨砂带只铺下段（top-1/3 + mask 向上渐隐），surface 自身仍无
+    // backdrop（透明感主体）；带不截获指针。
+    const surface = screen.getByTestId('workspace-panel-surface')
+    expect(surface.className).toContain('relative')
+    const frost = surface.querySelector('[data-testid="workspace-panel-frost"]')
+    expect(frost).not.toBeNull()
+    expect(frost?.className).toContain('panel-frost')
+    expect(frost?.className).toContain('pointer-events-none')
   })
 
   it('mounts the panel body lazily on first expansion（净桌面启动不为面板付费）', () => {

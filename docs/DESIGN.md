@@ -1204,6 +1204,10 @@ RAIL_LEFT_WIDTH_PX=80**——312px 展开是纯浮层几何，不改窗口布局
 整体退出**（glass-hint 12px 在展开过渡结束才生效、整块读作乳白毛玻璃——
 用户实测「只有展开那一瞬间透明」的根因），现仅存白纱 + 发丝边 + panel 投影
 定形；降级环境兜底回实色契约不变（index.css.test 源序钉扎已纳 .glass-veil）。
+**三连裁决：底部磨砂渐隐带**——文字衬底方案（.text-scrim）一小时即撤
+（git revert cbb18c1），改在面板下段铺 `.panel-frost` 磨砂带（blur sm 档
+12px + mask 向上渐隐无硬边界，top-1/3 起铺、内容层绘制其上不被波及）：
+「只要一些磨砂、整体保持透明感」。
 
 ### 34.2 Workspace Panel 展开态（STEP 2）
 

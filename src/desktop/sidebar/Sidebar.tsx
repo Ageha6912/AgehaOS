@@ -581,8 +581,16 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         >
           <div
             data-testid="workspace-panel-surface"
-            className="desktop-chrome glass-veil h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border-subtle shadow-panel"
+            className="desktop-chrome glass-veil relative h-full w-[calc(var(--ag-rail-left-expanded-width)-0.5rem)] overflow-hidden rounded-xl border border-border-subtle shadow-panel"
           >
+            {/* 底部磨砂渐隐带（只铺下段、mask 向上无边界淡出——整体透明感
+                保持）；内容层随后（transform 建立堆叠上下文）绘制在带之上，
+                面板自身文字不被磨砂波及。 */}
+            <div
+              aria-hidden="true"
+              data-testid="workspace-panel-frost"
+              className="panel-frost pointer-events-none absolute inset-x-0 bottom-0 top-1/3"
+            />
             <WorkspacePanelBody expanded={panel.expanded} />
           </div>
         </aside>
