@@ -440,7 +440,7 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     for (const testid of ['sidebar-desktop', 'sidebar-launcher', 'sidebar-files', 'sidebar-notes', 'sidebar-terminal', 'sidebar-settings', 'sidebar-notifications']) {
       const item = screen.getByTestId(testid)
       expect(item.classList.contains('bg-surface-raised'), `${testid} persistent tile`).toBe(false)
-      for (const cls of ['h-11', 'w-11', 'rounded-xl', 'hover:bg-surface-elevated', 'active:bg-surface-elevated', 'data-[active]:bg-surface-elevated']) {
+      for (const cls of ['h-10', 'w-10', 'rounded-xl', 'hover:bg-surface-elevated', 'active:bg-surface-elevated', 'data-[active]:bg-surface-elevated']) {
         expect(item.classList.contains(cls), `${testid} missing ${cls}`).toBe(true)
       }
       // 禁实心蓝色块（用户一票否决）：条目永不挂 bg-primary。

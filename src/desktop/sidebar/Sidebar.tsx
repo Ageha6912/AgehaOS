@@ -46,7 +46,8 @@ import type { WorkspaceId } from '@/store/workspace-store'
  * 纯定位层（顶锚菜单栏下方、Dock 上方收尾，pointer-events-none，岛间缝隙
  * 可穿透桌面）。**窄轨无玻璃**（2026-10-06 用户裁决：图标原生桌面感——
  * 无岛底、无常驻底座，玻璃面/圆角/投影只归展开面板岛）；icon-first——
- * 44px 圆钮 + 20px 字形，可访问名由 aria-label 承载（自绘收起态气泡已
+ * 40px 圆钮 + 20px 字形（44→40 换取 gap-5 呼吸档：720p 岛高 576 预算内
+ * 20px 间隙是上限），可访问名由 aria-label 承载（自绘收起态气泡已
  * 退役 2026-10-06：hover/键盘聚焦任一路都立即展开面板，气泡在唯一能点亮
  * 的两态下都被 data-expanded 隐藏，属不可达死代码——终审遗留清理）；
  * hover/active/focus 一律轻 translucent capsule（chrome 作用域
@@ -98,7 +99,7 @@ function RailItem({
       aria-label={label}
       aria-expanded={expandable ? (active ?? false) : undefined}
       onClick={onClick}
-      className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text transition-colors hover:bg-surface-elevated focus-visible:bg-surface-elevated active:bg-surface-elevated data-[active]:bg-surface-elevated"
+      className="group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-text transition-colors hover:bg-surface-elevated focus-visible:bg-surface-elevated active:bg-surface-elevated data-[active]:bg-surface-elevated"
     >
       <Icon size={20} weight="fill" aria-hidden="true" />
       {badge !== undefined && badge > 0 && (
@@ -455,7 +456,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
         aria-label={t('sidebar.label')}
         data-testid="sidebar"
         data-expanded={panel.expanded || undefined}
-        className="desktop-chrome pointer-events-auto flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-4 py-4"
+        className="desktop-chrome pointer-events-auto flex h-full w-[calc(var(--ag-rail-left-width)-0.5rem)] shrink-0 flex-col items-center gap-5 py-4"
       >
         {/* 品牌钮 = 展开固定（pin）开关：键盘开合的可达入口。§34 参考图
             口径：实心渐变 squircle 徽章（--ag-capsule-active 同族明暗）。 */}
@@ -466,10 +467,10 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
           aria-controls="workspace-panel"
           aria-label={brandLabel}
           onClick={panel.togglePin}
-          className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl [background:var(--ag-capsule-active)] shadow-sm transition-transform hover:scale-[1.04] focus-visible:scale-[1.04]"
+          className="group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl [background:var(--ag-capsule-active)] shadow-sm transition-transform hover:scale-[1.04] focus-visible:scale-[1.04]"
         >
           {/* Ageha Mark（§10 品牌主视觉）：装饰位，可访问名由按钮承载。 */}
-          <BrandLogo size={26} />
+          <BrandLogo size={24} />
         </button>
         <RailItem
           testid="sidebar-desktop"
