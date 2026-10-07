@@ -170,4 +170,122 @@ describe('parseManifest', () => {
     expect(Object.isFrozen(result.manifest)).toBe(true)
     expect(Object.isFrozen(result.manifest.window)).toBe(true)
   })
+
+  describe('mobile block (M0-3)', () => {
+    const MOBILE_BLOCK = {
+      supported: true,
+      orientation: 'portrait',
+      presentation: 'fullscreen',
+    } as const
+
+    it('accepts a legal mobile block and keeps every field', () => {
+      const result = parseManifest({ ...VALID_MANIFEST, permissions: [], mobile: MOBILE_BLOCK })
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.manifest.mobile).toEqual({
+        supported: true,
+        orientation: 'portrait',
+        presentation: 'fullscreen',
+      })
+    })
+
+    it('ignores the block entirely when the field is absent', () => {
+      const result = parseManifest(VALID_MANIFEST)
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.manifest.mobile).toBeUndefined()
+    })
+
+    it('freezes the parsed mobile block (deep freeze covers the new field)', () => {
+      const result = parseManifest({ ...VALID_MANIFEST, permissions: [], mobile: MOBILE_BLOCK })
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(Object.isFrozen(result.manifest.mobile)).toBe(true)
+    })
+
+    it('rejects an illegal orientation value', () => {
+      const result = parseManifest({
+        ...VALID_MANIFEST,
+        permissions: [],
+        mobile: { ...MOBILE_BLOCK, orientation: 'sideways' },
+      })
+
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(result.errors).toContainEqual({
+        path: 'mobile.orientation',
+        message: 'mobile.orientation must be one of "portrait", "landscape", "any"',
+      })
+    })
+
+    it('rejects a non-fullscreen presentation value', () => {
+      const result = parseManifest({
+        ...VALID_MANIFEST,
+        permissions: [],
+        mobile: { ...MOBILE_BLOCK, presentation: 'windowed' },
+      })
+
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(result.errors).toContainEqual({
+        path: 'mobile.presentation',
+        message: 'mobile.presentation must be "fullscreen"',
+      })
+    })
+
+    it('rejects a non-boolean supported flag', () => {
+      const result = parseManifest({
+        ...VALID_MANIFEST,
+        permissions: [],
+        mobile: { ...MOBILE_BLOCK, supported: 'yes' },
+      })
+
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(result.errors).toContainEqual({
+        path: 'mobile.supported',
+        message: 'mobile.supported must be a boolean',
+      })
+    })
+
+    it('rejects a partial block — declared fields are not optional', () => {
+      const result = parseManifest({
+        ...VALID_MANIFEST,
+        permissions: [],
+        mobile: { supported: true },
+      })
+
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      const paths = result.errors.map((issue) => issue.path)
+      expect(paths).toEqual(expect.arrayContaining(['mobile.orientation', 'mobile.presentation']))
+    })
+
+    it('rejects a non-object mobile block and unknown subfields with their path', () => {
+      const nonObject = parseManifest({ ...VALID_MANIFEST, permissions: [], mobile: 'portrait' })
+      expect(nonObject.ok).toBe(false)
+      if (!nonObject.ok) {
+        expect(nonObject.errors).toContainEqual({
+          path: 'mobile',
+          message: 'Field "mobile" must be an object',
+        })
+      }
+
+      const unknownField = parseManifest({
+        ...VALID_MANIFEST,
+        permissions: [],
+        mobile: { ...MOBILE_BLOCK, theme: 'dark' },
+      })
+      expect(unknownField.ok).toBe(false)
+      if (!unknownField.ok) {
+        expect(unknownField.errors).toContainEqual({
+          path: 'mobile.theme',
+          message: 'Unknown mobile field "theme"',
+        })
+      }
+    })
+  })
 })

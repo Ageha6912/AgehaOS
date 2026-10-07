@@ -7,6 +7,18 @@ export interface WindowManifestConfig {
   resizable?: boolean
 }
 
+/** Mobile Shell（M0-3）下该应用的呈现方向。 */
+export type MobileOrientation = 'portrait' | 'landscape' | 'any'
+
+/** Mobile Shell 下该应用的呈现形态；目前唯一合法值是全屏。 */
+export type MobilePresentation = 'fullscreen'
+
+export interface MobileManifestConfig {
+  supported: boolean
+  orientation: MobileOrientation
+  presentation: MobilePresentation
+}
+
 export interface AppManifest {
   id: string
   name: string
@@ -16,6 +28,9 @@ export interface AppManifest {
   /** Normalized to an empty array when the manifest declares none. */
   permissions: Permission[]
   window?: WindowManifestConfig
+  /** Optional mobile presentation block (M0-3). Absent = the manifest says
+   *  nothing about mobile; the shell then applies its own default policy. */
+  mobile?: MobileManifestConfig
   author?: string
   description?: string
 }
@@ -39,11 +54,16 @@ const KNOWN_KEYS = new Set([
   'icon',
   'permissions',
   'window',
+  'mobile',
   'author',
   'description',
 ])
 
 const WINDOW_KEYS = new Set(['width', 'height', 'resizable'])
+
+const MOBILE_KEYS = new Set(['supported', 'orientation', 'presentation'])
+
+const MOBILE_ORIENTATIONS = new Set<string>(['portrait', 'landscape', 'any'])
 
 /**
  * Validates an untrusted manifest (PRD §9). Collects every issue instead of
@@ -98,6 +118,8 @@ export function parseManifest(input: unknown): ManifestParseResult {
 
   const window = readWindowConfig(raw, errors)
 
+  const mobile = readMobileConfig(raw, errors)
+
   const author = readString(raw, 'author', errors, {})
   const description = readString(raw, 'description', errors, {})
 
@@ -114,6 +136,7 @@ export function parseManifest(input: unknown): ManifestParseResult {
   }
   if (icon.ok && icon.value !== '') manifest.icon = icon.value
   if (window) manifest.window = window
+  if (mobile) manifest.mobile = mobile
   if (author.ok && author.value !== '') manifest.author = author.value
   if (description.ok && description.value !== '') {
     manifest.description = description.value
@@ -205,6 +228,73 @@ function readWindowConfig(
     }
   }
   return config
+}
+
+/**
+ * Optional mobile block (M0-3). Absent = ignore (the parsed manifest simply
+ * carries no mobile policy). Present = all three fields are required and
+ * strictly typed (the declared `MobileManifestConfig` has no optional
+ * members, so a partial block would be a lie about the type and is
+ * rejected); unknown subfields are reported like everywhere else.
+ */
+function readMobileConfig(
+  raw: Record<string, unknown>,
+  errors: ManifestIssue[],
+): MobileManifestConfig | undefined {
+  const value = raw.mobile
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    errors.push({ path: 'mobile', message: 'Field "mobile" must be an object' })
+    return undefined
+  }
+
+  const rawMobile = value as Record<string, unknown>
+  for (const key of Object.keys(rawMobile)) {
+    if (!MOBILE_KEYS.has(key)) {
+      errors.push({ path: `mobile.${key}`, message: `Unknown mobile field "${key}"` })
+    }
+  }
+
+  let valid = true
+  const config: Partial<MobileManifestConfig> = {}
+
+  const supported = rawMobile.supported
+  if (supported === undefined) {
+    errors.push({ path: 'mobile.supported', message: 'Field "mobile.supported" is required' })
+    valid = false
+  } else if (typeof supported !== 'boolean') {
+    errors.push({ path: 'mobile.supported', message: 'mobile.supported must be a boolean' })
+    valid = false
+  } else {
+    config.supported = supported
+  }
+
+  const orientation = rawMobile.orientation
+  if (orientation === undefined) {
+    errors.push({ path: 'mobile.orientation', message: 'Field "mobile.orientation" is required' })
+    valid = false
+  } else if (typeof orientation !== 'string' || !MOBILE_ORIENTATIONS.has(orientation)) {
+    errors.push({
+      path: 'mobile.orientation',
+      message: 'mobile.orientation must be one of "portrait", "landscape", "any"',
+    })
+    valid = false
+  } else {
+    config.orientation = orientation as MobileOrientation
+  }
+
+  const presentation = rawMobile.presentation
+  if (presentation === undefined) {
+    errors.push({ path: 'mobile.presentation', message: 'Field "mobile.presentation" is required' })
+    valid = false
+  } else if (presentation !== 'fullscreen') {
+    errors.push({ path: 'mobile.presentation', message: 'mobile.presentation must be "fullscreen"' })
+    valid = false
+  } else {
+    config.presentation = presentation
+  }
+
+  return valid ? (config as MobileManifestConfig) : undefined
 }
 
 function deepFreeze<T>(value: T): T {

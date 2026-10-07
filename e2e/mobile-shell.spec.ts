@@ -44,6 +44,27 @@ test.describe('mobile context（360×800 iPhone UA）', () => {
     await expect(page.locator('[data-shell="desktop"]')).toHaveCount(0)
     await expect(page.getByRole('contentinfo')).toHaveCount(0)
   })
+
+  test('移动根声明 safe-area 基础设施：--safe-top 经 getComputedStyle 可读（M0-3）', async ({
+    page,
+  }) => {
+    await registerAndReachDesktop(page, 'e2emobilesafe')
+
+    const mobileShell = page.locator('[data-shell="mobile"]')
+    await expect(mobileShell).toBeVisible({ timeout: 15_000 })
+
+    // .mobile-shell 根类声明 --safe-*（env(safe-area-inset-*)）：计算样式
+    // 读出自定义属性令牌流非空（无刘海视口下值回退 0px，但声明本身存在）。
+    const safeTop = await mobileShell.evaluate(
+      (el) => getComputedStyle(el).getPropertyValue('--safe-top'),
+    )
+    expect(safeTop.trim(), '--safe-top declared on the mobile root').not.toBe('')
+
+    // 三段骨架占位（状态栏/内容/Dock）已就位，内容归 M1。
+    for (const testId of ['mobile-statusbar-slot', 'mobile-content-slot', 'mobile-dock-slot']) {
+      await expect(page.getByTestId(testId)).toHaveCount(1)
+    }
+  })
 })
 
 test.describe('desktop context（1920×1080）', () => {
@@ -59,5 +80,11 @@ test.describe('desktop context（1920×1080）', () => {
     // 覆盖层退场），移动根标记缺席。
     await expect(page.getByRole('contentinfo')).toBeVisible()
     await expect(page.locator('[data-shell="mobile"]')).toHaveCount(0)
+
+    // safe-area 变量仅移动作用域（M0-3）：桌面根上 --safe-top 未声明（空串）。
+    const safeTop = await desktopShell.evaluate(
+      (el) => getComputedStyle(el).getPropertyValue('--safe-top'),
+    )
+    expect(safeTop.trim(), 'desktop root must not declare --safe-top').toBe('')
   })
 })

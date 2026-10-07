@@ -411,4 +411,29 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(root).toMatch(/--ag-accent-violet:\s*#8b5cf6/)
     expect(root).toMatch(/--ag-accent-cyan:\s*#0891b2/)
   })
+
+  it('declares the mobile safe-area vars on .mobile-shell only (M0-3, desktop zero contact)', () => {
+    // 四个 --safe-* 只在 .mobile-shell 根类上声明（env(safe-area-inset-*)，
+    // 无刘海视口回退 0px）——不得泄入 :root/.dark（桌面零接触）。
+    const mobileAt = css.indexOf('.mobile-shell {')
+    expect(mobileAt).toBeGreaterThan(-1)
+    const mobile = css.slice(mobileAt, css.indexOf('}', mobileAt))
+    for (const side of ['top', 'right', 'bottom', 'left']) {
+      expect(mobile).toMatch(
+        new RegExp(`--safe-${side}:\\s*env\\(safe-area-inset-${side},\\s*0px\\)`),
+      )
+      expect(has(root, `safe-${side}`), `--safe-${side} NOT in :root`).toBe(false)
+      expect(has(dark, `safe-${side}`), `--safe-${side} NOT in .dark`).toBe(false)
+    }
+    // 根布局消费四变量做 padding（内容列 .mobile-shell-frame）。
+    const frameAt = css.indexOf('.mobile-shell-frame {')
+    expect(frameAt).toBeGreaterThan(-1)
+    const frame = css.slice(frameAt, css.indexOf('}', frameAt))
+    expect(frame).toMatch(
+      /padding:\s*var\(--safe-top\)\s+var\(--safe-right\)\s+var\(--safe-bottom\)\s+var\(--safe-left\)/,
+    )
+    // 布局作用域段、非玻璃材质：不得携带 backdrop-filter（不落玻璃源序语义）。
+    expect(mobile).not.toContain('backdrop-filter')
+    expect(frame).not.toContain('backdrop-filter')
+  })
 })
