@@ -13,11 +13,11 @@ import {
 } from '@phosphor-icons/react'
 
 import { AppIcon } from '@/apps/app-icon'
+import { useClock } from '@/components/use-clock'
 import { formatMessage } from '@/core/i18n'
 import { useTranslation } from '@/core/i18n'
 import { useLocaleStore } from '@/core/i18n'
 import { utcDayKey } from '@/core/eclosion/world'
-import { useClock } from '@/desktop/taskbar/use-clock'
 import { requestLauncherCategory } from '@/desktop/taskbar/launcher-intent'
 import { useEclosionStore } from '@/store/eclosion-store'
 import { useLauncherStore } from '@/store/launcher-store'

@@ -180,6 +180,29 @@ test.describe('mobile context（360×800 iPhone UA）', () => {
   }) => {
     await runSafeAreaGeometryProbe(page, 'e2emobilegeo')
   })
+
+  // M1-1 StatusBar + Home：登录后的移动 context 断言状态栏真实时间与
+  // Home 时段问候可见（读数格式与文案归组件，测试只认用户可见结果；
+  // 电池/网络在 Chromium 模拟档可能存在也可能缺席，「不可用即隐藏」的
+  // 判定归 jsdom 单测，这里不断言它们在或不在）。
+  test('状态栏真实时间 + Home 时段问候 + 用户名可见（M1-1）', async ({ page }) => {
+    await registerAndReachDesktop(page, 'e2emobilestatus')
+
+    const mobileShell = page.locator('[data-shell="mobile"]')
+    await expect(mobileShell).toBeVisible({ timeout: 15_000 })
+
+    // 状态栏时钟：24 小时制 hh:mm 等宽读出，随真实系统时间走。
+    await expect(page.getByTestId('mobile-statusbar-clock')).toHaveText(/^\d{2}:\d{2}$/)
+    // 状态栏用户名 = 注册会话用户（session-store 真实用户）。
+    await expect(page.getByTestId('mobile-statusbar-user')).toHaveText('e2emobilestatus')
+
+    // Home 品牌头 + 双语标语 + 时段问候（早/午/晚三档之一 + 用户名）。
+    await expect(page.getByTestId('mobile-shell-brand')).toHaveText('AgehaOS')
+    await expect(page.getByTestId('mobile-home-tagline')).toHaveText('Your Web OS, Your Space.')
+    await expect(page.getByTestId('mobile-home-greeting')).toHaveText(
+      /^(早上好|下午好|晚上好)，e2emobilestatus$/,
+    )
+  })
 })
 
 test.describe('mobile context（iPhone 15 Pro 描述档）', () => {
@@ -212,9 +235,10 @@ test.describe('desktop context（1920×1080）', () => {
     await expect(desktopShell).toBeVisible({ timeout: 15_000 })
 
     // 桌面渲染路径行为等价：Taskbar 照常可见（revealTaskbar 兼带等开机
-    // 覆盖层退场），移动根标记缺席。
+    // 覆盖层退场），移动根标记与移动状态栏均缺席（M1-1 桌面零接触回归）。
     await expect(page.getByRole('contentinfo')).toBeVisible()
     await expect(page.locator('[data-shell="mobile"]')).toHaveCount(0)
+    await expect(page.getByTestId('mobile-statusbar')).toHaveCount(0)
 
     // safe-area 变量仅移动作用域（M0-3）：桌面根上 --safe-top 未声明（空串）。
     const safeTop = await desktopShell.evaluate(

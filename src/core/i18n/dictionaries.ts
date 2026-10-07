@@ -111,6 +111,20 @@ export const dictionaries = {
        中央最小品牌字；Home 内容归 M1。 */
     'mobile.shell.heading': 'AgehaOS 移动版',
     'mobile.shell.brand': 'AgehaOS',
+    /* M1-1 StatusBar：真实状态读出的可访问名称与离线文案（读数本体——
+       百分比/effectiveType——是 API 原始数据，不走词典）。 */
+    'mobile.statusbar.battery': '电池',
+    'mobile.statusbar.network': '网络',
+    'mobile.statusbar.networkOffline': '离线',
+    'mobile.statusbar.user': '当前用户',
+    /* M1-1 Mobile Home：品牌头标语（双语言同口径「Your Web OS, Your
+       Space.」）+ 时段问候三档与用户名连接符（分档纯函数见
+       src/mobile/home/greeting.ts，边界 5/17 与桌面时段引擎同源）。 */
+    'mobile.home.tagline': 'Your Web OS, Your Space.',
+    'mobile.home.greeting.morning': '早上好',
+    'mobile.home.greeting.afternoon': '下午好',
+    'mobile.home.greeting.evening': '晚上好',
+    'mobile.home.greeting.join': '，',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -646,6 +660,22 @@ export const dictionaries = {
        Minimal centered brand mark; Home content lands in M1. */
     'mobile.shell.heading': 'AgehaOS Mobile',
     'mobile.shell.brand': 'AgehaOS',
+    /* M1-1 StatusBar: accessible names for the real status readouts plus the
+       offline label (the readings themselves — percentage / effectiveType —
+       are raw API data, not dictionary copy). */
+    'mobile.statusbar.battery': 'Battery',
+    'mobile.statusbar.network': 'Network',
+    'mobile.statusbar.networkOffline': 'Offline',
+    'mobile.statusbar.user': 'Current user',
+    /* M1-1 Mobile Home: brand tagline (same caliber in both languages —
+       "Your Web OS, Your Space.") + the three greeting phases and the
+       username join (bucketing pure function in src/mobile/home/greeting.ts,
+       boundaries 5/17 aligned with the desktop time-phase engine). */
+    'mobile.home.tagline': 'Your Web OS, Your Space.',
+    'mobile.home.greeting.morning': 'Good morning',
+    'mobile.home.greeting.afternoon': 'Good afternoon',
+    'mobile.home.greeting.evening': 'Good evening',
+    'mobile.home.greeting.join': ', ',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',
