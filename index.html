@@ -11,6 +11,12 @@
     <link rel="icon" type="image/png" sizes="64x64" href="/brand/agehaos-logo-v2-mark-64.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/brand/agehaos-logo-v2-mark-192.png" />
     <link rel="apple-touch-icon" href="/brand/agehaos-logo-v2-mark-180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- PWA standalone（M0-5）：iOS 无 manifest display 支持，靠这两个 meta
+         进入独立窗口与全屏状态栏（black-translucent 配合 M0-4 的
+         safe-area 占位带——内容延伸进状态栏底下，由 --safe-top 顶开）。 -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#2f5fe8" />
     <title>AgehaOS</title>
   </head>
