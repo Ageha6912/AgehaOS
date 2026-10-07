@@ -1391,5 +1391,68 @@ desktop-branding 空闲满档中心点须落（视口宽 1/2，高 30%）基线�
   （11 文件）+ 部署库 12** 全绿；Playwright E2E 25 spec / 57 test 块（羽化
   域 26 条）随切片门禁全绿。
 - 新几何/材质 Token：`--ag-rail-left-expanded-width`(324；Shell 3.1 STEP 1 收敛为 312)、`--ag-dock-radius`(24)、
-  `--ag-window-face-active`、`--ag-shadow-window-active`（viewport.ts 常量与
-  CSS 互指钉扎纪律不变）。
+`--ag-window-face-active`、`--ag-shadow-window-active`（viewport.ts 常量与
+CSS 互指钉扎纪律不变）。
+
+## 35. Mobile Design Contract（双 Shell 移动侧契约，M0 落基 2026-10-07）
+
+> Mobile Shell（`src/mobile`，架构见 ARCHITECTURE.md §3.25）的视觉契约。
+> M0 五片只落「骨架与纪律」（Shell 选择 / safe-area / PWA 基础，提交
+> 1f7a2e4→7bc494e），本节同时钉住 M1 组件的视觉边界；移动作用域内与
+> §0–§34 桌面契约冲突时以本节为准，桌面零接触。
+
+### 35.1 玻璃克制清单（白名单制）
+
+移动 Shell 的 backdrop-filter 玻璃**只允许五处**——**Header**（状态栏条）、
+**Dock**、**Today 卡**（今日世界卡）、**Bottom Sheet**、**Dialog**。清单外
+一律实色或轻透明白纱，不引入 blur：M0 已按此纪律执行（两条 safe-area 占位带
+只用 `--ag-*` 中性色，`src/index.css` 移动段注释明示「不引入 blur/
+backdrop-filter」）。桌面 §33.1 的七面玻璃材质表不在移动作用域内生效。
+
+### 35.2 safe-area 契约（M0-3/M0-4 已落）
+
+- **声明**：`--safe-top/right/bottom/left`（`env(safe-area-inset-*, 0px)`）
+  只在 `.mobile-shell` 根类上声明（`src/index.css:1114`），**不进
+  `:root`/`.dark`**——桌面根上未声明（E2E 钉住空串，`e2e/mobile-shell.spec.ts`
+  desktop context）。无刘海视口 env 恒 0。
+- **消费位**（M1 新组件一律走这两类既有消费位，不得自读 env()）：
+  ① `.mobile-shell-frame` 只消费 `--safe-left/right` 做左右横屏 padding；
+  ② 上/下安全区由两条占位带的 max() 高度承担——`mobile-statusbar-slot` =
+  `max(var(--safe-top), 24px)`（M1 状态条最小可读高度）、`mobile-dock-slot`
+  = `max(var(--safe-bottom), 12px)`（M1 Dock 最小落点）。frame 再加纵向
+  padding 会**双重计入**，禁止。
+- **前提**：viewport 带 `viewport-fit=cover`（index.html）——没有它真机
+  env 恒 0；`black-translucent` 状态栏（PWA）下内容延伸进状态栏底下，由
+  占位带顶开。
+- **壁纸例外**：壁纸层 absolute inset-0 挂在**未加 padding 的 shell 根**上
+  （padding 盒会内缩 absolute 后代）——壁纸必须全幅铺满，不随安全区裁剪；
+  内容才受安全区约束。
+- 滚动容器 `.mobile-content-scroll` 预留（`overflow-y:auto +
+  overscroll-behavior:contain` 防滚动链传给壳根），M1 的 Home/应用视图挂这里。
+
+### 35.3 touch target 下限 44px
+
+移动作用域内一切可点击目标（图标 / 按钮 / 列表行）**命中区 ≥44×44px**——
+视觉尺寸可以更小，命中区不行。桌面密度档（§28 的 28–40px 控件规格）不带进
+移动。
+
+### 35.4 壁纸竖屏 object-position 原则（焦点不裁坏）
+
+竖屏视口下壁纸裁剪以 **object-position 保住画作焦点**（揚羽蝶主体）——裁掉
+的是边缘不是焦点。M0 壁纸层为全幅横铺（与桌面同一 `WallpaperLayer`），竖屏
+裁剪策略归 M1 落地时按本原则实施；届时焦点位偏移必须可测试，不允许「居中
+cover 顺手裁掉蝴蝶」。
+
+### 35.5 reduced-motion 承接
+
+`prefers-reduced-motion` 的全局令牌塌缩（§2.5 / §11 / §14）对移动 Shell
+**同样生效，不建第二套动效开关**。M1 动效（Bottom Sheet、Dock 弹出、视图
+转场等）必须走既有 motion tokens（fast 120ms / base 200ms、transform+opacity
+only）+ reduced 归零语义；循环动画照旧走 §2.5 豁免评审。
+
+### 35.6 i18n 双语要求
+
+移动文案与桌面同一条铁律（§3.2、DECISIONS.md A1）：**zh-CN / en 双词典同步、
+类型强制键位对齐、禁止硬编码**。首批键 `mobile.shell.heading` /
+`mobile.shell.brand` 已随 M0-2 入典（`src/core/i18n/dictionaries.ts`）；
+M1 全部新文案照此办理。

@@ -28,6 +28,7 @@
 | A21 | **Dock 悬停只浮起被悬浮的那一枚**：波浪引擎（邻位高斯联动）退役，CSS hover 浮起 + 光晕 | 2026-10-02 三点裁决 |
 | A22 | **窗口红绿灯去符号**：✕/—/⬛ 字形移除，纯色圆点（可访问名不变） | 2026-10-02 三点裁决 |
 | A23 | **进桌面零自动开窗**：动态面板与随机小游戏不再自动打开（面板/游戏均可手动启动） | 2026-10-02 三点裁决 |
+| A24 | **Mobile Shell 单点切换与 `src/mobile` 布局**：Shell 选择只在 `App.tsx` ready 分支一处（`shell==='mobile' ? <MobileShell/> : <Desktop/>`）；手机与平板同渲染 MobileShell（平板网格后续自适应）；设备判定集中在 `core/platform/device-capabilities` 纯 TS 探针（全仓唯一判定点），`device-store` 只持快照并派生 shell，store/UI 严禁散落 innerWidth/UA 判断。裁决理由：① boot/login 入口链本无设备差异，分支放在 ready 是最干净的插入点（开机屏/登录屏双 Shell 共享）；② tablet 归 MobileShell——桌面容器的指针几何（hover/窗口拖拽）在触屏平板上不成立，竖/横自适应网格比双栏桌面更符合触屏；③ 探针放 core 合法——纯 TS 零 React、只读浏览器 API 零 DOM 写操作，不违反「core 禁依赖 React 与 UI」，恰恰是集中判定的唯一合法层。复用边界：能力全复用（core/store/services/launchApp/AppIcon/usage-store），容器不复用（WindowFrame/Taskbar/Sidebar 不进移动作用域） | M0 1f7a2e4→7bc494e |
 
 ## 已被取代（勿再引用为现行）
 

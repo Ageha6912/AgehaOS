@@ -265,6 +265,72 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
   `app-deep-link.ts` 的模块级一次性意图范式（launch 前写入、打开时取走即清），
   不为深链扩 store 数据结构。
 
+### 3.25 双 Shell 架构（`src/mobile`，Milestone 0 五片，2026-10-07）
+
+> M0 切片与提交：M0-1 设备能力探针 `1f7a2e4` → M0-2 Shell Selection
+> `a1ff3c3` → M0-3 Mobile Shell Root `d789ece` → M0-4 Safe Area `0896122`
+> → M0-5 PWA Foundation `7bc494e`。视觉契约见 DESIGN.md §35「Mobile
+> Design Contract」；裁决理由见 DECISIONS.md A24。
+
+- **单点切换**：Shell 的选择全仓库只有一处——`App.tsx` 的 ready 分支
+  （`shell === 'mobile' ? <MobileShell /> : <Desktop />`，`src/App.tsx:30`）。
+  `booting/loading` 与 `login` 阶段不分支：开机屏（DESIGN.md §11）与登录屏
+  双 Shell 共享同一份，登出回落 Login 的既有语义不变（`src/App.tsx:22`）。
+  桌面根与移动根分别挂 `data-shell="desktop|mobile"` 标记，供 E2E 与测试
+  断言 Shell 选择结果。
+- **判定集中**：`src/core/platform/device-capabilities.ts`（纯 TS 零 React，
+  全仓库**唯一**允许做设备类别判断的模块）——UA-CH 低熵位/UA 正则/触点/
+  视口几何 → 手机/平板/桌面互斥三档 + 能力位快照（`isTouch/hasHover/
+  orientation/standalone`）；分界 = 短边 <768 手机、768≤短边<1024 平板、
+  ≥1024 桌面（iPadOS 13+ 桌面级 UA 自报 Macintosh，靠「Macintosh UA +
+  maxTouchPoints>0」识别）；一切能力不可用走安全 fallback 绝不抛错；
+  UA-CH 高熵位异步口 `detectUaChMobile` 供后续精化。**store 与 UI 层严禁
+  散落 innerWidth / UA 正则判断（架构铁律）**，消费方只读探针结果。
+  `src/store/device-store.ts` 持有探针快照并派生本会话 Shell——
+  `shellForCapabilities`：手机与平板都归 `'mobile'`（2026-10-07 裁决，
+  平板网格后续自适应）；`initDeviceStore()`（`main.tsx` 装配链尾）订阅
+  resize / orientationchange / 三条 matchMedia change 整份重测，快照与当前
+  值全等时跳过 setState（拖拽缩放期间零空通知）。
+- **`src/mobile` 目录职责**：`MobileShell.tsx` 移动 Shell 根布局——与桌面
+  同一 `WallpaperLayer`（挂未加 padding 的 shell 根，全幅铺满）+ 三段骨架
+  （顶部状态栏占位带 `mobile-statusbar-slot` / 内容区 `mobile-content-slot`
+  + 预留滚动容器 `mobile-content-scroll` / 底部 Dock 安全区占位带
+  `mobile-dock-slot`，M0 只驻品牌占位字，三段均留空由 M1 填充）；
+  `src/store/mobile-nav-store.ts` 是 Shell 层纯导航状态机（`{view:'home'} |
+  {view:'app', appId}`）——刻意**不调 launchApp、不碰窗口管理器**，应用
+  真实启动/权限门禁/生命周期归 M1 AppHost。
+- **Manifest `mobile` 块**（`src/core/runtime/manifest.ts`，M0-3）：可选
+  `mobile: { supported, orientation: 'portrait'|'landscape'|'any',
+  presentation: 'fullscreen' }`——缺席 = Manifest 对移动不表态，Shell 走
+  自己的默认策略；在场 = 三字段必填严格类型（声明类型无可选成员，部分块
+  即对类型撒谎，整块拒绝），未知子字段照常报错；纳入既有 `parseManifest`
+  全量收集管线与深冻结。
+- **复用边界（双 Shell 同一 Core）**：
+  - **能力复用**：`core`（探针/i18n/manifest/事件/VFS/权限）、`store`
+    （app-store/device-store/usage-store 等全部）、`services` 装配单例、
+    `launchApp`（`src/apps/launch.ts`——权限门禁语义不变）、`AppIcon`
+    （`src/apps/app-icon.tsx` 徽章体系）、usage-store（最近使用）。移动侧
+    不建第二套应用注册/权限/启动逻辑。
+  - **容器不复用**：`WindowFrame`/`Taskbar`/`Sidebar` 等桌面容器是桌面
+    几何与指针交互的产物，移动 Shell 一律不 import；移动的状态栏/Dock/
+    应用宿主在 `src/mobile` 自建（M1）。
+- **PWA 基础**（M0-5）：`public/manifest.webmanifest`（`display:
+  standalone` + 品牌图标 192/512）+ `index.html` 的
+  `apple-mobile-web-app-capable` / `apple-mobile-web-app-status-bar-style:
+  black-translucent`（iOS 无 manifest display 支持；black-translucent 配合
+  safe-area 占位带内容延伸进状态栏底下）/ `theme-color`；契约测试
+  `src/pwa/manifest.test.ts` + `e2e/pwa.spec.ts`。
+- **safe-area 基础设施**（M0-3/M0-4，契约细节见 DESIGN.md §35.2）：
+  `--safe-top/right/bottom/left` 只在 `.mobile-shell` 根类声明（`src/
+  index.css` 移动段），视口需 `viewport-fit=cover`（index.html）env 才有
+  非零值；E2E 用 CDP `Emulation.setSafeAreaInsetsOverride` 注入真实 inset
+  做几何探针（env 语义 jsdom 算不了，单测只钉结构契约）。
+- 测试与 E2E：`device-capabilities.test.ts`（318 行）/ `device-store.test.ts`
+  / `mobile-nav-store.test.ts` / `MobileShell.test.tsx`（DOM 结构契约）/
+  `e2e/mobile-shell.spec.ts`（移动 context 两档设备：360×800 手动档 +
+  iPhone 15 Pro 描述档，断言 `data-shell="mobile"` 且无桌面 chrome；
+  desktop context 回归不变 + 断言桌面根未声明 `--safe-top`）。
+
 ## 4. 后续模块技术要点
 
 ### 4.1 应用运行时完善（`src/core/runtime`，PRD §8/§25）

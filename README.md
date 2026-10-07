@@ -36,7 +36,7 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
   </tr>
 </table>
 
-## 三条产品线
+## 四条产品线
 
 ### 🖥 Desktop Shell 3.0 · Workspace Environment
 
@@ -49,6 +49,10 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 ### ✨ 羽化模式 · AI 实时生成应用
 
 操作系统级的 AI 生成：**基础软件 AI 化**（计算器/记事本/时钟现场生成，原生实现兜底）、**今日世界**（每日依据 GitHub Trending 织出主题与一批今日应用，跨日换新）、**想象搜索**（Ctrl+K 输入任何想法，即时羽化出一个可用的应用）、**治理与蝶谱**（举报链路、admin 复审、历史回放）。安全底座：不透明 origin 沙箱 + 禁网 CSP + JS 语法闸 + Default Deny 权限（L2/L3 仅开放命名空间隔离的 storage），生成应用数据跨重开持久化。设计见 [docs/AI-GENERATED-APPS-DESIGN.md](docs/AI-GENERATED-APPS-DESIGN.md)。
+
+### 📱 Mobile Web / Mobile Shell
+
+同一套 OS Core 的移动形态：手机与平板打开 os.ageha.cn（或安装为 PWA）时渲染独立的 **MobileShell**——safe-area 三段骨架（状态栏 / 内容区 / Dock）+ 竖屏壁纸构图 + 全屏应用视图；桌面照旧渲染 Desktop Shell。**双 Shell、同一 Core**：窗口管理器、VFS、权限、应用注册表、i18n 与启动门禁（`launchApp`）完全共享，只有容器层分壳（桌面容器不进移动）。设备判定集中在 core 纯 TS 探针，`App.tsx` ready 分支单点切换（[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §3.25）。Milestone 0 已落 Shell 选择 / safe-area / PWA 地基，Home、Dock 与移动应用宿主随 M1 到来；视觉契约见 [docs/DESIGN.md](docs/DESIGN.md) §35。
 
 ## 快速开始
 
