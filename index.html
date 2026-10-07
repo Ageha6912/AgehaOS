@@ -2,7 +2,10 @@
 <html lang="zh-CN" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover（M0-4 Safe Area）：页面延伸进刘海/Home indicator
+         区域，env(safe-area-inset-*) 才会有非零值供 .mobile-shell 的
+         --safe-* 消费；无挖孔设备 env 恒 0，占位带落 max() 保底高度。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="referrer" content="no-referrer" />
     <meta name="description" content="AgehaOS — Your Web OS, Your Space." />
     <link rel="icon" type="image/png" sizes="64x64" href="/brand/agehaos-logo-v2-mark-64.png" />

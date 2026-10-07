@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { devices, expect, test, type Page } from '@playwright/test'
 
 /**
  * M0-2 Shell Selection：ready 分支按 device-store 的 shell 单点切换——
@@ -7,6 +7,17 @@ import { expect, test, type Page } from '@playwright/test'
  * （根元素 data-shell="desktop" 且 Taskbar 可见，桌面渲染路径不变）。
  * 判定不在测试里复算（innerWidth/UA 判断集中在 core/platform 探针——架构
  * 铁律），只断言用户可见的 Shell 选择结果。
+ *
+ * M0-4 Safe Area 几何探针：safe-area 的 env(safe-area-inset-*) jsdom 算不
+ * 了（单测只钉结构契约，见 src/mobile/MobileShell.test.tsx），几何断言落
+ * 本文件——移动 context 用两种设备档（360×800 手动档与 iPhone 15 Pro
+ * 描述档）各跑一轮：
+ * ① 基线（模拟器无刘海，env 零回退）：无横向溢出、状态栏/Dock 占位带落
+ *    max() 保底 24/12px、内容区起始 y ≥ 状态栏占位带高度；
+ * ② CDP `Emulation.setSafeAreaInsetsOverride` 注入 iPhone 15 Pro 档真实
+ *    inset（top 59 / bottom 34 / 左右 47）：根 padding（--safe-left/right）
+ *    与两条占位带高度实时跟随 env 增长，内容区仍被约束在安全区内。
+ * desktop context 回归不变（M0-2 断言原样保留）。
  */
 
 const IPHONE_UA
@@ -21,6 +32,104 @@ async function registerAndReachDesktop(page: Page, username: string): Promise<vo
   await page.getByLabel('用户名').fill(username)
   await page.getByLabel('密码').fill('secret123')
   await page.getByRole('button', { name: '注册' }).click()
+}
+
+/** 一次 evaluate 收齐几何探针所需的全部读数（DOMRect 不可结构克隆，先摊平）。 */
+interface ShellGeometry {
+  innerWidth: number
+  innerHeight: number
+  scrollWidth: number
+  framePaddingLeft: string
+  framePaddingRight: string
+  statusbarHeight: number
+  contentTop: number
+  contentBottom: number
+  dockHeight: number
+}
+
+async function readShellGeometry(page: Page): Promise<ShellGeometry> {
+  return page.evaluate(() => {
+    const box = (testId: string): DOMRect => {
+      const el = document.querySelector(`[data-testid="${testId}"]`)
+      if (!el) throw new Error(`missing [data-testid="${testId}"]`)
+      return el.getBoundingClientRect()
+    }
+    const frame = document.querySelector('[data-testid="mobile-shell-frame"]')
+    if (!frame) throw new Error('missing mobile-shell-frame')
+    const cs = getComputedStyle(frame)
+    return {
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      scrollWidth: document.scrollingElement?.scrollWidth
+        ?? document.documentElement.scrollWidth,
+      framePaddingLeft: cs.paddingLeft,
+      framePaddingRight: cs.paddingRight,
+      statusbarHeight: box('mobile-statusbar-slot').height,
+      contentTop: box('mobile-content-slot').top,
+      contentBottom: box('mobile-content-slot').bottom,
+      dockHeight: box('mobile-dock-slot').height,
+    }
+  })
+}
+
+/**
+ * 断言移动 Shell 的安全区几何：env 值随期望档（基线 = env 零回退落
+ * max() 保底；注入档 = 跟随 CDP inset）。
+ */
+async function assertSafeAreaGeometry(
+  page: Page,
+  expected: { statusbarMin: number; dockMin: number; sidePadding: string },
+): Promise<void> {
+  const geo = await readShellGeometry(page)
+
+  // 无横向溢出：文档横向不超出视口（安全区 padding 与占位带不得撑出横向滚动）。
+  expect(geo.scrollWidth).toBeLessThanOrEqual(geo.innerWidth)
+
+  // 根 padding 生效：frame 左右 padding 等于该档的 env 值（基线 0px / 注入 47px）。
+  expect(geo.framePaddingLeft).toBe(expected.sidePadding)
+  expect(geo.framePaddingRight).toBe(expected.sidePadding)
+
+  // 占位带高度达 max() 保底：基线 24/12px，注入档随 env（59/34）长高。
+  expect(geo.statusbarHeight).toBeGreaterThanOrEqual(expected.statusbarMin)
+  expect(geo.dockHeight).toBeGreaterThanOrEqual(expected.dockMin)
+
+  // 内容区起始 y ≥ 状态栏占位带高度；底部不越入 Dock 安全区预留带
+  // （内容区整体约束在安全区内）。
+  expect(geo.contentTop).toBeGreaterThanOrEqual(geo.statusbarHeight)
+  expect(geo.contentBottom + geo.dockHeight).toBeLessThanOrEqual(geo.innerHeight + 0.5)
+}
+
+/** M0-4 探针：同一页面内先测 env 零回退基线，再注入 inset 验证实时跟随。 */
+async function runSafeAreaGeometryProbe(page: Page, username: string): Promise<void> {
+  await registerAndReachDesktop(page, username)
+
+  const mobileShell = page.locator('[data-shell="mobile"]')
+  await expect(mobileShell).toBeVisible({ timeout: 15_000 })
+
+  // viewport-fit=cover（index.html）：真机 env(safe-area-inset-*) 非零的前提。
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+    'content',
+    /viewport-fit=cover/,
+  )
+
+  // ① 基线：模拟器无刘海，env 零回退——占位带落 max() 保底 24/12px。
+  await assertSafeAreaGeometry(page, {
+    statusbarMin: 24,
+    dockMin: 12,
+    sidePadding: '0px',
+  })
+
+  // ② 注入 iPhone 15 Pro 档 inset（top 59 / bottom 34 / 左右 47）：
+  //    根 padding 与两条占位带高度实时跟随 env，内容区仍约束在安全区内。
+  const session = await page.context().newCDPSession(page)
+  await session.send('Emulation.setSafeAreaInsetsOverride', {
+    insets: { top: 59, bottom: 34, left: 47, right: 47 },
+  })
+  await assertSafeAreaGeometry(page, {
+    statusbarMin: 59,
+    dockMin: 34,
+    sidePadding: '47px',
+  })
 }
 
 test.describe('mobile context（360×800 iPhone UA）', () => {
@@ -64,6 +173,32 @@ test.describe('mobile context（360×800 iPhone UA）', () => {
     for (const testId of ['mobile-statusbar-slot', 'mobile-content-slot', 'mobile-dock-slot']) {
       await expect(page.getByTestId(testId)).toHaveCount(1)
     }
+  })
+
+  test('safe-area 几何探针：无横向溢出 + 根 padding 生效 + 内容区约束在安全区内（M0-4）', async ({
+    page,
+  }) => {
+    await runSafeAreaGeometryProbe(page, 'e2emobilegeo')
+  })
+})
+
+test.describe('mobile context（iPhone 15 Pro 描述档）', () => {
+  // 描述档不能整体展开进 describe 内的 test.use（defaultBrowserType 会
+  // 强制新 worker，Playwright 禁止）——只取模拟字段，浏览器档沿用项目
+  // 配置（chromium）。
+  const iphone15Pro = devices['iPhone 15 Pro']
+  test.use({
+    viewport: iphone15Pro.viewport,
+    userAgent: iphone15Pro.userAgent,
+    deviceScaleFactor: iphone15Pro.deviceScaleFactor,
+    isMobile: iphone15Pro.isMobile,
+    hasTouch: iphone15Pro.hasTouch,
+  })
+
+  test('safe-area 几何探针：无横向溢出 + 根 padding 生效 + 内容区约束在安全区内（M0-4）', async ({
+    page,
+  }) => {
+    await runSafeAreaGeometryProbe(page, 'e2emobilegeo15pro')
   })
 })
 

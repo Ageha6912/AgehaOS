@@ -1103,12 +1103,13 @@ body {
 }
 
 /*
- * Mobile Shell safe-area（M0-3 Mobile Root）：仅移动作用域——四个
- * --safe-* 只在 .mobile-shell 根类上声明（env(safe-area-inset-*) 在无
- * 刘海/Home 指示条的视口回退 0px），不进 :root/.dark，桌面零接触。
+ * Mobile Shell safe-area（M0-3 Mobile Root / M0-4 Safe Area 消费）：仅移动
+ * 作用域——四个 --safe-* 只在 .mobile-shell 根类上声明（env(safe-area-inset-*)
+ * 在无刘海/Home 指示条的视口回退 0px），不进 :root/.dark，桌面零接触。
  * 位置纪律（DESIGN.md §0.3）：本段是布局作用域段、非玻璃材质，不落在
  * .surface-glass→降透明兜底的玻璃源序区间内；未分层声明压过 Tailwind
- * 工具类，防止工具类意外覆盖 safe-area 基线。
+ * 工具类，防止工具类意外覆盖 safe-area 基线。视觉纪律（M0-4）：占位带
+ * 只用 --ag-* 中性色，不引入 blur/backdrop-filter。
  */
 .mobile-shell {
   --safe-top: env(safe-area-inset-top, 0px);
@@ -1116,10 +1117,33 @@ body {
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
 }
-/* 根布局消费 safe-area 变量做 padding：状态栏占位/内容/Dock 占位所在
-   的内容列随刘海与 Home 指示条内缩。壁纸层是 absolute inset-0，挂在
-   未加 padding 的 shell 根上（padding 盒会内缩 absolute 后代），保持
-   全幅铺满不随安全区裁剪。 */
+/* 根布局（M0-4）：只承担左右横屏 padding（--safe-left/right）；上/下安全
+   区改由两条占位带的 max() 高度承担（已含 env 值），frame 再加纵向
+   padding 会双重计入。壁纸层是 absolute inset-0，挂在未加 padding 的
+   shell 根上（padding 盒会内缩 absolute 后代），保持全幅铺满不随安全区
+   裁剪。 */
 .mobile-shell-frame {
-  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+/* 顶部状态栏占位带（M0-4）：纯占位不显示假数据；高度 = max(env top, 24px)
+   ——无刘海视口保底 24px（M1 状态条最小可读高度），有刘海/挖孔时随 env
+   长高盖住挖孔区。 */
+.mobile-statusbar-slot {
+  height: max(var(--safe-top), 24px);
+  background-color: var(--ag-surface);
+}
+/* 底部 Dock 安全区预留带（M0-4）：高度 = max(env bottom, 12px)——给
+   Home indicator 留呼吸，无手势区视口保底 12px（M1 Dock 最小落点）。 */
+.mobile-dock-slot {
+  height: max(var(--safe-bottom), 12px);
+  background-color: var(--ag-surface);
+}
+/* 内容滚动容器（M0-4 预留，M1 填充）：内容区约束在安全区内（上下 =
+   两条占位带、左右 = frame padding），纵向超出在本容器滚动；M1 的
+   Home/应用视图挂这里。overscroll-behavior 防滚动链传给壳根。 */
+.mobile-content-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }

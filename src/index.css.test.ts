@@ -425,15 +425,46 @@ describe('index.css token contract (Token 2.0)', () => {
       expect(has(root, `safe-${side}`), `--safe-${side} NOT in :root`).toBe(false)
       expect(has(dark, `safe-${side}`), `--safe-${side} NOT in .dark`).toBe(false)
     }
-    // 根布局消费四变量做 padding（内容列 .mobile-shell-frame）。
+    // M0-4：frame 只承担左右横屏 padding（上/下安全区由两条占位带承担，
+    // frame 再加纵向 padding 会与占位带高度双重计入）。
     const frameAt = css.indexOf('.mobile-shell-frame {')
     expect(frameAt).toBeGreaterThan(-1)
     const frame = css.slice(frameAt, css.indexOf('}', frameAt))
-    expect(frame).toMatch(
-      /padding:\s*var\(--safe-top\)\s+var\(--safe-right\)\s+var\(--safe-bottom\)\s+var\(--safe-left\)/,
-    )
+    expect(frame).toMatch(/padding-left:\s*var\(--safe-left\)/)
+    expect(frame).toMatch(/padding-right:\s*var\(--safe-right\)/)
+    expect(frame).not.toContain('--safe-top')
+    expect(frame).not.toContain('--safe-bottom')
     // 布局作用域段、非玻璃材质：不得携带 backdrop-filter（不落玻璃源序语义）。
     expect(mobile).not.toContain('backdrop-filter')
     expect(frame).not.toContain('backdrop-filter')
+  })
+
+  it('reserves safe-area bands with max() floors and a content scroll container (M0-4)', () => {
+    // 顶部状态栏占位带：max(env top, 24px) 保底——纯占位不显示假数据；
+    // 视觉克制：--ag-* 中性色（--ag-surface），不引入 blur/backdrop-filter。
+    const statusbarAt = css.indexOf('.mobile-statusbar-slot {')
+    expect(statusbarAt).toBeGreaterThan(-1)
+    const statusbar = css.slice(statusbarAt, css.indexOf('}', statusbarAt))
+    expect(statusbar).toMatch(/height:\s*max\(var\(--safe-top\),\s*24px\)/)
+    expect(statusbar).toMatch(/background-color:\s*var\(--ag-surface\)/)
+    expect(statusbar).not.toContain('backdrop-filter')
+    expect(statusbar).not.toContain('blur(')
+
+    // 底部 Dock 安全区预留带：max(env bottom, 12px) 给 Home indicator 留呼吸。
+    const dockAt = css.indexOf('.mobile-dock-slot {')
+    expect(dockAt).toBeGreaterThan(-1)
+    const dock = css.slice(dockAt, css.indexOf('}', dockAt))
+    expect(dock).toMatch(/height:\s*max\(var\(--safe-bottom\),\s*12px\)/)
+    expect(dock).toMatch(/background-color:\s*var\(--ag-surface\)/)
+    expect(dock).not.toContain('backdrop-filter')
+    expect(dock).not.toContain('blur(')
+
+    // 内容滚动容器（M1 填充）：min-height 0 + 纵向滚动。
+    const scrollAt = css.indexOf('.mobile-content-scroll {')
+    expect(scrollAt).toBeGreaterThan(-1)
+    const scroll = css.slice(scrollAt, css.indexOf('}', scrollAt))
+    expect(scroll).toMatch(/min-height:\s*0/)
+    expect(scroll).toMatch(/overflow-y:\s*auto/)
+    expect(scroll).not.toContain('backdrop-filter')
   })
 })
