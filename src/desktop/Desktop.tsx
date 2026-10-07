@@ -69,6 +69,7 @@ export function Desktop() {
   return (
     <div
       ref={canvasRef}
+      data-shell="desktop"
       className="surface-canvas relative h-full overflow-hidden"
       onContextMenu={onCanvasContextMenu}
     >

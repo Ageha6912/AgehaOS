@@ -3,7 +3,9 @@ import { useEffect } from 'react'
 import { Desktop } from '@/desktop/Desktop'
 import { BootScreen } from '@/desktop/boot/BootScreen'
 import { LoginScreen } from '@/desktop/login/LoginScreen'
+import { MobileShell } from '@/mobile/MobileShell'
 import { useBootStore } from '@/store/boot-store'
+import { useDeviceStore } from '@/store/device-store'
 import { useSessionStore } from '@/store/session-store'
 
 export default function App() {
@@ -11,6 +13,9 @@ export default function App() {
   const layerExitDone = useBootStore((state) => state.layerExitDone)
   const setPhase = useBootStore((state) => state.setPhase)
   const status = useSessionStore((state) => state.status)
+  // Shell Selection（M0-2）：手机与平板渲染 MobileShell（裁决：tablet 同壳），
+  // 其余渲染 Desktop；判定集中在 device-store，App 只读派生结果。
+  const shell = useDeviceStore((state) => state.shell)
 
   // Signing out from the desktop returns to the login screen (PRD §24.1).
   useEffect(() => {
@@ -22,7 +27,7 @@ export default function App() {
   return (
     <div className="h-full">
       {booting ? null : phase === 'ready' ? (
-        <Desktop />
+        shell === 'mobile' ? <MobileShell /> : <Desktop />
       ) : (
         <LoginScreen onSuccess={() => setPhase('ready')} />
       )}

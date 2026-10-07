@@ -107,6 +107,10 @@ export const dictionaries = {
     'dock.label': '程序坞',
     'desktop.heading': 'AgehaOS 桌面',
     'desktop.windowsLabel': '窗口',
+    /* M0-2 Shell Selection：移动 Shell 根占位（src/mobile/MobileShell.tsx）。
+       中央最小品牌字；Home 内容归 M1。 */
+    'mobile.shell.heading': 'AgehaOS 移动版',
+    'mobile.shell.brand': 'AgehaOS',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -638,6 +642,10 @@ export const dictionaries = {
     'dock.label': 'Dock',
     'desktop.heading': 'AgehaOS desktop',
     'desktop.windowsLabel': 'Windows',
+    /* M0-2 Shell Selection: mobile shell root placeholder (src/mobile/MobileShell.tsx).
+       Minimal centered brand mark; Home content lands in M1. */
+    'mobile.shell.heading': 'AgehaOS Mobile',
+    'mobile.shell.brand': 'AgehaOS',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',

@@ -5,6 +5,9 @@ import App from '@/App'
 import { RemoteAuthClient, setAuthProvider } from '@/core/auth'
 import { systemAppLifecycle } from '@/core/runtime'
 import { registerBuiltinApps, restoreInstalledApps } from '@/store/app-store'
+// 设备快照 store（M0-2 Shell Selection）：App ready 分支依 shell 选择
+// Mobile/Desktop；订阅（resize/orientationchange/matchMedia）在此启动。
+import { initDeviceStore } from '@/store/device-store'
 import { useSessionStore } from '@/store/session-store'
 import { systemVfs } from '@/services/vfs'
 import { systemDynamicDesktop } from '@/services/dynamic-desktop'
@@ -41,6 +44,10 @@ startNotificationBridge()
 // 羽化编排器单例（AI-GENERATED-APPS-DESIGN §3.2）：装配链尾追加——登录联动、
 // 额度拉取、空闲预取；任何 AI 环节失败都静默降级到原生兜底，不阻塞桌面。
 systemEclosion.start()
+// 设备快照 store（M0-2 Shell Selection）：装配链尾追加（仅客户端——main.tsx
+// 本就只在浏览器运行，store 内部另有 window 缺失守卫）；以当前环境重测刷新
+// 初始快照并挂 resize/orientationchange/matchMedia 订阅。
+initDeviceStore()
 
 createRoot(rootElement).render(
   <StrictMode>
