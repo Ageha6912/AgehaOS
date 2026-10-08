@@ -2,18 +2,21 @@ import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { MobileShell } from './MobileShell'
+import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 
 /**
- * M0-4 Safe Area + M1-1：移动 Shell 三段骨架的 DOM 契约。safe-area 的几何
- * 语义（env(safe-area-inset-*) 与 max() 保底高度）jsdom 算不了 env，几何探针
- * 归 E2E（e2e/mobile-shell.spec.ts）；这里钉住结构与类名接线，防止后续
- * 切片静默拆掉占位带/滚动容器。M1-1 起状态栏填充真实状态条（不再
- * aria-hidden 空占位）、内容区挂 Home 视图。
+ * M0-4 Safe Area + M1-1 + M1-2：移动 Shell 三段骨架的 DOM 契约。safe-area
+ * 的几何语义（env(safe-area-inset-*) 与 max() 保底高度）jsdom 算不了 env，
+ * 几何探针归 E2E（e2e/mobile-shell.spec.ts）；这里钉住结构与类名接线，
+ * 防止后续切片静默拆掉占位带/滚动容器。M1-1 起状态栏填充真实状态条（不再
+ * aria-hidden 空占位）、内容区挂 Home 视图；M1-2 起根元素反射
+ * mobile-nav-store 当前位置（data-nav-view / data-nav-app-id，E2E 断言口）。
  */
 describe('MobileShell', () => {
   afterEach(() => {
     resetSessionStore()
+    resetMobileNavStore()
   })
 
   it('renders the three-slot skeleton with safe-area band classes (M0-4)', () => {
@@ -74,10 +77,25 @@ describe('MobileShell', () => {
 
     // Home 视图活在滚动容器内：品牌字（M0 标记位随迁）+ 品牌头 + 时段问候。
     expect(scroll).toContainElement(screen.getByTestId('mobile-home'))
-    expect(scroll).toContainElement(screen.getByTestId('mobile-shell-brand'))
+    expect(screen.getByTestId('mobile-shell-brand')).toBeInTheDocument()
     expect(screen.getByTestId('mobile-home-greeting')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, hidden: true })).toHaveTextContent(
       'AgehaOS 移动版',
     )
+  })
+
+  it('根元素反射 mobile-nav-store 当前位置：home 默认 / openApp 后 app + appId（M1-2）', () => {
+    const { rerender } = render(<MobileShell />)
+
+    // 默认 home：只反射 view，无 appId 标记。
+    const shell = screen.getByTestId('mobile-shell')
+    expect(shell).toHaveAttribute('data-nav-view', 'home')
+    expect(shell).not.toHaveAttribute('data-nav-app-id')
+
+    // 导航推进（TodayWorldCard「查看世界」同一路径）：反射跟随到 app 档。
+    useMobileNavStore.getState().openApp('com.ageha.dynamic.panel')
+    rerender(<MobileShell />)
+    expect(shell).toHaveAttribute('data-nav-view', 'app')
+    expect(shell).toHaveAttribute('data-nav-app-id', 'com.ageha.dynamic.panel')
   })
 })

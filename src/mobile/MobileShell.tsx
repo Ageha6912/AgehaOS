@@ -1,4 +1,5 @@
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
+import { useMobileNavStore } from '@/store/mobile-nav-store'
 
 import { MobileHome } from './home/MobileHome'
 import { MobileStatusBar } from './statusbar/MobileStatusBar'
@@ -25,12 +26,22 @@ import { MobileStatusBar } from './statusbar/MobileStatusBar'
  * 铺满不随安全区裁剪。视口需 `viewport-fit=cover`（index.html）env 才有
  * 非零值。视觉克制：两条占位带与状态条用 --ag-* 中性色实色底，不引入
  * blur（玻璃白名单见 DESIGN.md §35.1）。
+ *
+ * 导航反射：mobile-nav-store 的当前位置以 data-nav-view / data-nav-app-id
+ * 标记在根元素上（与 data-shell 同一「标记供测试断言」先例）——M1-2 的
+ * 「查看世界」等导航动作在 M1-6 AppHost 之前只推进纯状态机，E2E 靠本反射
+ * 断言「点击推进了 nav」；M1-6 起内容区按 nav 分支渲染真实视图，届时反射
+ * 语义由视图分支自然承接。
  */
 export function MobileShell() {
+  const nav = useMobileNavStore((state) => state.nav)
+
   return (
     <div
       data-shell="mobile"
       data-testid="mobile-shell"
+      data-nav-view={nav.view}
+      data-nav-app-id={nav.view === 'app' ? nav.appId : undefined}
       className="mobile-shell relative h-full w-full overflow-hidden"
       style={{ backgroundColor: 'var(--ag-surface)' }}
     >

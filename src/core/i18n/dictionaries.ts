@@ -125,6 +125,14 @@ export const dictionaries = {
     'mobile.home.greeting.afternoon': '下午好',
     'mobile.home.greeting.evening': '晚上好',
     'mobile.home.greeting.join': '，',
+    /* M1-2 今日世界卡：标题 + 统计行（真实字段 = world.apps.length 与
+       world.signalCount，信号计数与桌面「趋势信号来源」同语汇）+「查看世界」
+       动作（过渡语义 = mobile-nav-store.openApp，M1-6 AppHost 升级为真实
+       启动；见 src/mobile/home/TodayWorldCard.tsx）。 */
+    'mobile.today.world.title': '今日世界',
+    'mobile.today.world.apps': '{count} 款新应用',
+    'mobile.today.world.signals': '{count} 条趋势信号',
+    'mobile.today.world.view': '查看世界',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -676,6 +684,15 @@ export const dictionaries = {
     'mobile.home.greeting.afternoon': 'Good afternoon',
     'mobile.home.greeting.evening': 'Good evening',
     'mobile.home.greeting.join': ', ',
+    /* M1-2 Today world card: title + stats line (real fields =
+       world.apps.length and world.signalCount; "signals" matches the desktop
+       "trending signals" vocabulary) + the "view world" action (transitional
+       semantics = mobile-nav-store.openApp, upgraded to a real launch by the
+       M1-6 AppHost; see src/mobile/home/TodayWorldCard.tsx). */
+    'mobile.today.world.title': "Today's World",
+    'mobile.today.world.apps': '{count} new apps',
+    'mobile.today.world.signals': '{count} trending signals',
+    'mobile.today.world.view': 'View world',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',

@@ -4,17 +4,20 @@ import { useSessionStore } from '@/store/session-store'
 import { BrandLogo } from '@/components/brand-logo'
 
 import { greetingJoinKey, greetingPhaseKey, mobileGreetingPhase } from './greeting'
+import { TodayWorldCard } from './TodayWorldCard'
 
 /**
- * 移动 Home 视图（M1-1，挂 `mobile-content-scroll`）：品牌头 + 时段问候。
- * 轻量环境感——一行品牌头（BrandLogo + 名称 + 标语）加一句问候，不是
- * Landing 页式的大居中 Hero（M0 中央占位字随本切片退役，`mobile-shell-brand`
- * 标记位随迁，M0 E2E 断言不断）。问候分档是纯函数（./greeting，单测钉
- * 边界），用户名取 session-store 真实会话（displayName 缺省回退 username，
- * 与桌面 UserMenu 同口径）；文案全部走 i18n 双词典（DESIGN.md §35.6）。
+ * 移动 Home 视图（M1-1，挂 `mobile-content-scroll`）：品牌头 + 时段问候 +
+ * 今日世界卡（M1-2）。轻量环境感——一行品牌头（BrandLogo + 名称 + 标语）
+ * 加一句问候，不是 Landing 页式的大居中 Hero（M0 中央占位字随本切片退役，
+ * `mobile-shell-brand` 标记位随迁，M0 E2E 断言不断）。问候分档是纯函数
+ * （./greeting，单测钉边界），用户名取 session-store 真实会话（displayName
+ * 缺省回退 username，与桌面 UserMenu 同口径）；文案全部走 i18n 双词典
+ * （DESIGN.md §35.6）。
  *
- * 本切片 Home 只有品牌头与问候，无可点目标（应用网格归 M1-5）；今日卡/
- * 最近/网格等后续切片继续在本容器顶部向下追加（滚动容器 min-h-full 已备）。
+ * 今日世界卡（M1-2）在问候之后向下追加：羽化开且世界落地才渲染（门控在
+ * TodayWorldCard 内部）；应用网格归 M1-5、最近使用归 M1-4，继续在本容器
+ * 向下追加（滚动容器 min-h-full 已备）。
  */
 export function MobileHome({ now = new Date() }: { now?: Date }) {
   const { t } = useTranslation()
@@ -60,6 +63,9 @@ export function MobileHome({ now = new Date() }: { now?: Date }) {
           </span>
         )}
       </p>
+      {/* M1-2 今日世界卡：羽化开 + 世界落地才渲染（门控在组件内），
+          「查看世界」= mobile-nav-store 导航推进（M1-6 升级真实启动）。 */}
+      <TodayWorldCard />
     </section>
   )
 }
