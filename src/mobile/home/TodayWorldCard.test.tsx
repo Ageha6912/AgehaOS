@@ -94,7 +94,7 @@ describe('TodayWorldCard', () => {
     expect(screen.getByTestId('mobile-today-world-stats')).toHaveTextContent('0 条趋势信号')
   })
 
-  it('「查看世界」点击 = 导航推进到动态面板（注册 appId，过渡语义非真实开窗）', () => {
+  it('「查看世界」点击 = 导航推进到动态面板（windowId 待 M1-6 AppHost 真实启动落地）', () => {
     seedWorld()
     render(<TodayWorldCard />)
 
@@ -104,10 +104,12 @@ describe('TodayWorldCard', () => {
     expect(useMobileNavStore.getState().nav).toEqual({
       view: 'app',
       appId: MOBILE_TODAY_WORLD_TARGET_APP_ID,
+      windowId: null,
     })
     expect(useMobileNavStore.getState().nav).toEqual({
       view: 'app',
       appId: 'com.ageha.dynamic.panel',
+      windowId: null,
     })
   })
 

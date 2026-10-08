@@ -110,7 +110,7 @@ describe('RecentApps', () => {
     ).toHaveTextContent('Recently Used')
   })
 
-  it('整格点击 = openApp 导航推进（过渡语义，M1-6 AppHost 前不真实开窗）', () => {
+  it('整格点击 = openApp 导航推进（windowId 待 M1-6 AppHost 真实启动落地）', () => {
     seedRecent(['com.ageha.notes', 'com.ageha.files'])
     render(<RecentApps />)
 
@@ -122,6 +122,7 @@ describe('RecentApps', () => {
     expect(useMobileNavStore.getState().nav).toEqual({
       view: 'app',
       appId: 'com.ageha.notes',
+      windowId: null,
     })
   })
 

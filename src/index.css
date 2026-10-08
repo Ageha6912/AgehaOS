@@ -1147,3 +1147,53 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+/* 移动应用宿主（M1-6 MobileAppHost）：全屏应用面板——进出场只动
+   transform/opacity（合成器接管），时长走既有 token --ag-motion-base
+   （200ms，DESIGN.md §35.5 档带 160–220ms）；prefers-reduced-motion 由
+   全局 0.01ms 塌缩承接（§35.5：不建第二套动效开关）；motion-prefs 关档
+   （窗口切换转场）由组件侧追加 .mobile-app-static 关闭动画。面板实色底
+   不加 blur——玻璃白名单五处（§35.1）不含应用面板/header。退场帧
+   （data-state='leaving'）pointer-events-none + aria-hidden 在组件侧，
+   不挡底下的 Home。 */
+.mobile-app-host {
+  background-color: var(--ag-surface);
+}
+.mobile-app-host[data-state='open'] {
+  animation: mobile-app-in var(--ag-motion-base) var(--ag-motion-ease);
+}
+.mobile-app-host[data-state='leaving'] {
+  animation: mobile-app-out var(--ag-motion-base) var(--ag-motion-ease) forwards;
+}
+.mobile-app-host.mobile-app-static,
+.mobile-app-host.mobile-app-static[data-state='leaving'] {
+  animation: none;
+}
+@keyframes mobile-app-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes mobile-app-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+}
+/* 应用内容滚动面（M1-6）：应用自己不带滚动容器（桌面是窗口体
+   overflow-auto，移动是本容器），纵向超出在此滚动；
+   overscroll-behavior 防滚动链传给壳根（与 .mobile-content-scroll 同口径）。 */
+.mobile-app-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

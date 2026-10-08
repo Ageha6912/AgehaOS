@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { MobileShell } from './MobileShell'
 import { resetAppStore } from '@/store/app-store'
 import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
+import { resetWindowStore } from '@/store/window-store'
 
 /**
  * M0-4 Safe Area + M1-1 + M1-2：移动 Shell 三段骨架的 DOM 契约。safe-area
@@ -18,6 +19,7 @@ describe('MobileShell', () => {
   afterEach(() => {
     resetSessionStore()
     resetMobileNavStore()
+    resetWindowStore()
   })
 
   it('renders the three-slot skeleton with safe-area band classes (M0-4)', () => {
@@ -87,6 +89,11 @@ describe('MobileShell', () => {
   })
 
   it('根元素反射 mobile-nav-store 当前位置：home 默认 / openApp 后 app + appId（M1-2）', () => {
+    // M1-6 起 openApp 在 AppHost 里升级为真实启动：manifest 缺席会被判
+    // 拒绝并弹回 home——先注册内建（与 boot 同口径）再推进导航。
+    localStorage.clear()
+    resetAppStore()
+    resetWindowStore()
     const { rerender } = render(<MobileShell />)
 
     // 默认 home：只反射 view，无 appId 标记。
@@ -120,5 +127,32 @@ describe('MobileShell', () => {
     // 固定 5 位齐：Home 位 + Files/Notes/今日世界/Settings 四应用位。
     expect(screen.getByTestId('mobile-dock-home')).toBeInTheDocument()
     expect(screen.getAllByTestId('mobile-dock-app')).toHaveLength(4)
+  })
+
+  // M1-6 AppHost：内容区按 nav 分支——home 挂 MobileHome；view='app' 换成
+  // MobileAppHost 全屏面板（Home 卸载），data-window-count 反射窗口 store
+  // 与视图同步（E2E 断言口，与 data-nav-* 同一先例）。
+  it('内容区分支：home=MobileHome / app=MobileAppHost 面板，窗口计数反射同步（M1-6）', () => {
+    localStorage.clear()
+    resetAppStore()
+    resetWindowStore()
+    render(<MobileShell />)
+
+    // home 默认：Home 视图在场、宿主缺席、窗口计数 0。
+    const shell = screen.getByTestId('mobile-shell')
+    expect(screen.getByTestId('mobile-home')).toBeInTheDocument()
+    expect(screen.queryByTestId('mobile-app-host')).not.toBeInTheDocument()
+    expect(shell).toHaveAttribute('data-window-count', '0')
+
+    // openApp → 真实启动（M1-6 升级）：面板盖满内容滚动容器，Home 卸载，
+    // 窗口计数 1，面板携带非空 data-window-id。
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+    expect(screen.queryByTestId('mobile-home')).not.toBeInTheDocument()
+    const host = screen.getByTestId('mobile-app-host')
+    expect(host).toHaveAttribute('data-app-id', 'com.ageha.calculator')
+    expect(host.getAttribute('data-window-id')).not.toBe('')
+    expect(shell).toHaveAttribute('data-window-count', '1')
   })
 })

@@ -21,6 +21,19 @@ export function appDisplayName(appId: string): string {
 }
 
 /**
+ * 显式启动几何：缺省 = 桌面级联/工作区数学（下方 railLeft/wsWidth 一段）；
+ * 传入 x/y = 系统钉位；传入 width/height = 调用方自证尺寸（M1-6 移动
+ * AppHost 全屏几何——device-store viewport 全宽高），原样透传给窗口引擎、
+ * 绕开桌面工作区钳制（移动视口没有桌面浮轨/菜单栏）。
+ */
+export interface LaunchGeometry {
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+}
+
+/**
  * Launch flow (PRD §24.2): resolve the manifest from the registry, verify
  * every requested capability was granted (default deny, PRD §10.3), then
  * open a window with the manifest's default geometry. Refusals are audited
@@ -30,13 +43,15 @@ export function appDisplayName(appId: string): string {
  * 桌面不再自动开窗); size still comes from
  * the manifest unless overridden here. 小视口钳制（§25）：初始尺寸不超过
  * 视口（桌面优先 1280+，此为窄屏兜底，不改变核心窗口管理器语义）。
+ * 显式 geometry.width/height 覆盖钳制结果（M1-6 移动全屏，调用方对几何
+ * 全权负责）。
  *
  * `source='user'` 记入「最近使用」（usage-store，§22 P2-5）；桌面自动开窗
  * 等系统行为传 'system' 不记录。
  */
 export function launchApp(
   appId: string,
-  geometry?: { x?: number; y?: number },
+  geometry?: LaunchGeometry,
   source: 'user' | 'system' = 'user',
 ): string | null {
   const manifest = getAppManifest(appId)

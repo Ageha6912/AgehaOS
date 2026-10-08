@@ -1,6 +1,8 @@
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
 import { useMobileNavStore } from '@/store/mobile-nav-store'
+import { useWindowStore } from '@/store/window-store'
 
+import { MobileAppHost } from './app/MobileAppHost'
 import { MobileHome } from './home/MobileHome'
 import { MobileStatusBar } from './statusbar/MobileStatusBar'
 import { MobileDock } from './dock/MobileDock'
@@ -36,13 +38,16 @@ import { MobileDock } from './dock/MobileDock'
  * blur（玻璃白名单见 DESIGN.md §35.1）。
  *
  * 导航反射：mobile-nav-store 的当前位置以 data-nav-view / data-nav-app-id
- * 标记在根元素上（与 data-shell 同一「标记供测试断言」先例）——M1-2 的
- * 「查看世界」等导航动作在 M1-6 AppHost 之前只推进纯状态机，E2E 靠本反射
- * 断言「点击推进了 nav」；M1-6 起内容区按 nav 分支渲染真实视图，届时反射
- * 语义由视图分支自然承接。
+ * 标记在根元素上（与 data-shell 同一「标记供测试断言」先例）——M1-6 起内容
+ * 区按 nav 分支渲染真实视图（home = MobileHome，app = MobileAppHost 全屏
+ * 应用宿主，见下），反射语义由视图分支自然承接；data-window-count 反射
+ * window-store 窗口总数，供 E2E 断言「视图推进与窗口生命周期同步」（同一
+ * 断言口先例：桌面侧窗口状态经 WindowFrame DOM 可见，移动窗口不渲染桌面
+ * 容器，需要这条显式反射）。
  */
 export function MobileShell() {
   const nav = useMobileNavStore((state) => state.nav)
+  const windowCount = useWindowStore((state) => state.windows.length)
 
   return (
     <div
@@ -50,6 +55,7 @@ export function MobileShell() {
       data-testid="mobile-shell"
       data-nav-view={nav.view}
       data-nav-app-id={nav.view === 'app' ? nav.appId : undefined}
+      data-window-count={windowCount}
       className="mobile-shell relative h-full w-full overflow-hidden"
       style={{ backgroundColor: 'var(--ag-surface)' }}
     >
@@ -70,9 +76,10 @@ export function MobileShell() {
         >
           <MobileStatusBar />
         </div>
-        {/* 内容区：min-h-0 让占位带吃满剩余空间之外仍可收缩；滚动容器承载
-            Home 视图（M1-1：品牌头 + 时段问候）。sr-only 地标对齐桌面 h1
-            契约（DESIGN.md §0.6，随 MobileHome 挂载）。 */}
+        {/* 内容区：min-h-0 让占位带吃满剩余空间之外仍可收缩；滚动容器按
+            nav 分支承载 Home（M1-1）与全屏应用宿主（M1-6，面板 absolute
+            inset-0 盖满滚动容器，自带 header + 内容滚动面）。sr-only 地标
+            对齐桌面 h1 契约（DESIGN.md §0.6，随 MobileHome 挂载）。 */}
         <div
           data-testid="mobile-content-slot"
           className="relative flex min-h-0 flex-1 flex-col"
@@ -81,9 +88,12 @@ export function MobileShell() {
             data-testid="mobile-content-scroll"
             className="mobile-content-scroll relative flex-1"
           >
-            <div className="flex min-h-full flex-col">
-              <MobileHome />
-            </div>
+            {nav.view === 'home' && (
+              <div className="flex min-h-full flex-col">
+                <MobileHome />
+              </div>
+            )}
+            <MobileAppHost />
           </div>
         </div>
         {/* 底部 Dock（M1-5）：坐在 Dock 安全区预留带上方（HANDOFF §4.0-6），

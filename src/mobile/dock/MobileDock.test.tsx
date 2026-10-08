@@ -12,8 +12,8 @@ import { MOBILE_DOCK_APP_IDS } from '../shared/mobile-dock-slots'
  * M1-5 移动 Dock 契约：固定 5 位（Home 复位 + Files/Notes/今日世界/
  * Settings openApp）——
  * - 固定序渲染（MOBILE_DOCK_APP_IDS 表序 = 渲染序），Home 位恒首；
- * - 动作分发：应用位点击 = mobile-nav-store.openApp 导航推进（M1-6 前
- *   不真实开窗，与 Home 其余入口同一过渡语义）；Home 位 = backToHome；
+ * - 动作分发：应用位点击 = mobile-nav-store.openApp 导航推进（M1-6 起由
+ *   MobileAppHost 消费为真实启动，Dock 自身不开窗）；Home 位 = backToHome；
  * - 当前位高亮：view='app' 且 appId 匹配（指示条 + aria-current），Home 位
  *   不参与高亮，非 Dock 应用在/app 时全部位不亮；
  * - 共享元数据/图标：应用位可访问名 = appDisplayName（titleKey 本地化名，
@@ -67,7 +67,7 @@ describe('MobileDock', () => {
     ])
   })
 
-  it('动作分发：应用位点击 = openApp 导航推进（M1-6 前不真实开窗），应用间直切成立', () => {
+  it('动作分发：应用位点击 = openApp 导航推进（windowId 待 M1-6 AppHost 落地），应用间直切成立', () => {
     render(<MobileDock />)
 
     expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
@@ -75,20 +75,26 @@ describe('MobileDock', () => {
     expect(useMobileNavStore.getState().nav).toEqual({
       view: 'app',
       appId: 'com.ageha.files',
+      windowId: null,
     })
 
-    // 应用间直切：再点今日世界位直达（无「先回 home」中间态）。
+    // 应用间直切：再点今日世界位直达（无「先回 home」中间态，windowId 复位）。
     fireEvent.click(appTile('com.ageha.dynamic.panel'))
     expect(useMobileNavStore.getState().nav).toEqual({
       view: 'app',
       appId: 'com.ageha.dynamic.panel',
+      windowId: null,
     })
   })
 
   it('动作分发：Home 位点击 = backToHome 复位（app 档起），home 档幂等', () => {
     useMobileNavStore.getState().openApp('com.ageha.notes')
     render(<MobileDock />)
-    expect(useMobileNavStore.getState().nav).toEqual({ view: 'app', appId: 'com.ageha.notes' })
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.notes',
+      windowId: null,
+    })
 
     fireEvent.click(screen.getByTestId('mobile-dock-home'))
     expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })

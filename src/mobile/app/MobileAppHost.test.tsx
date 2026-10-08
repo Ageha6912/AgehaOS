@@ -1,0 +1,320 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { setLocale, useLocaleStore } from '@/core/i18n'
+import { installApp, resetAppStore } from '@/store/app-store'
+import { permissionManager } from '@/core/permissions'
+import { resetDeviceStore, useDeviceStore } from '@/store/device-store'
+import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
+import { useMotionPrefsStore } from '@/store/motion-prefs-store'
+import { resetUsageStore, useUsageStore } from '@/store/usage-store'
+import { resetWindowStore, useWindowStore } from '@/store/window-store'
+
+import { MobileAppHost } from './MobileAppHost'
+
+/**
+ * M1-6 移动应用宿主契约（jsdom 单测；几何语义的真实视口归 E2E
+ * e2e/mobile-app-host.spec.ts）：
+ * - view='app' 真实 launchApp：显式全屏几何（device-store viewport，x=0 y=0
+ *   全宽高）、windowId 记入 nav store、source='user' 记入最近使用；
+ * - 生命周期绑定：header 返回 / 视图内切换应用 / 外部关窗（僵尸哨兵）都
+ *   保证 window-store 与视图同步（app.started/stopped 派生正确的根基）；
+ * - 拒绝路径：launchApp 返回 null（权限门禁）自动回 home，不开窗；
+ * - 浏览器返回键：进应用 pushState 一条同文档栈位，popstate → backToHome
+ *   （不退出 AgehaOS）；home 态 popstate no-op；
+ * - 内容路由与桌面 WindowFrame 同序：APP_UI_META → 羽化前缀 → Type B
+ *   allowlist → MissingApp（EclosionAppFrame/WebAppFrame 以 stub 替身参与
+ *   路由断言，重型 iframe 机制各有自有单测）；
+ * - 动效档：motion-prefs 窗口切换转场关档 → .mobile-app-static 直切。
+ */
+
+vi.mock('@/components/eclosion-app-frame', () => ({
+  EclosionAppFrame: (props: { appId: string; windowId: string; title: string }) => (
+    <div
+      data-testid="eclosion-frame-stub"
+      data-app-id={props.appId}
+      data-window-id={props.windowId}
+      data-title={props.title}
+    />
+  ),
+}))
+
+vi.mock('@/components/web-app-frame', () => ({
+  WebAppFrame: (props: { entry: string; appId: string; windowId: string; title: string }) => (
+    <div
+      data-testid="web-frame-stub"
+      data-entry={props.entry}
+      data-app-id={props.appId}
+      data-window-id={props.windowId}
+    />
+  ),
+}))
+
+/** 注册一个 Type B 形态的最小 manifest（entry 在 /apps/sites/ allowlist 内）。 */
+function installTypeBApp(id: string): void {
+  const result = installApp({
+    id,
+    name: 'Sites Demo',
+    version: '1.0.0',
+    entry: '/apps/sites/demo/index.html',
+  })
+  expect(result.ok).toBe(true)
+}
+
+beforeEach(() => {
+  localStorage.clear()
+  resetWindowStore()
+  resetAppStore()
+  resetMobileNavStore()
+  resetUsageStore()
+  resetDeviceStore()
+})
+
+afterEach(() => {
+  useLocaleStore.setState(useLocaleStore.getInitialState())
+  useMotionPrefsStore.setState(useMotionPrefsStore.getInitialState())
+})
+
+describe('MobileAppHost', () => {
+  it('home 视图不渲染宿主面板', () => {
+    render(<MobileAppHost />)
+    expect(screen.queryByTestId('mobile-app-host')).not.toBeInTheDocument()
+  })
+
+  it('view=app 真实 launchApp：全屏几何 + windowId 记入 nav + 最近使用（user 来源）', () => {
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+
+    const host = screen.getByTestId('mobile-app-host')
+    expect(host).toHaveAttribute('data-app-id', 'com.ageha.calculator')
+    expect(host).toHaveAttribute('data-state', 'open')
+
+    // 窗口真实落地：显式全屏几何 = device-store viewport（x=0 y=0 全宽高）。
+    const windows = useWindowStore.getState().windows
+    expect(windows).toHaveLength(1)
+    const { viewportWidth, viewportHeight } = useDeviceStore.getState().capabilities
+    expect(windows[0]?.appId).toBe('com.ageha.calculator')
+    expect(windows[0]?.x).toBe(0)
+    expect(windows[0]?.y).toBe(0)
+    expect(windows[0]?.width).toBe(viewportWidth)
+    expect(windows[0]?.height).toBe(viewportHeight)
+
+    // windowId 记入 nav store 并反射在面板上。
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.calculator',
+      windowId: windows[0]?.id,
+    })
+    expect(host).toHaveAttribute('data-window-id', windows[0]?.id)
+
+    // header：返回键（i18n 可访问名 + 44px 命中区类）+ 应用名（titleKey 本地化）。
+    expect(screen.getByTestId('mobile-app-back')).toHaveAttribute('aria-label', '返回')
+    expect(screen.getByTestId('mobile-app-back')).toHaveClass('h-11', 'w-11')
+    expect(screen.getByTestId('mobile-app-title')).toHaveTextContent('计算器')
+
+    // source='user'：最近使用已记录（usage-store 单一来源）。
+    expect(useUsageStore.getState().recent[0]?.appId).toBe('com.ageha.calculator')
+  })
+
+  it('header 返回键：backToHome + 宿主窗口关闭，退场帧播完卸载', async () => {
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+    const windowId = useWindowStore.getState().windows[0]?.id
+    expect(windowId).toBeDefined()
+
+    fireEvent.click(screen.getByTestId('mobile-app-back'))
+
+    // 视图与窗口同步：立即回 home + 窗口关闭（app.stopped 派生正确）。
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+
+    // 退场帧：面板保留一拍（data-state='leaving'，只有 header 骨架，
+    // 不渲染已关窗口的内容），随后卸载。
+    const leaving = screen.getByTestId('mobile-app-host')
+    expect(leaving).toHaveAttribute('data-state', 'leaving')
+    expect(leaving).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.queryByTestId('mobile-app-body')).toBeEmptyDOMElement()
+    await waitFor(
+      () => expect(screen.queryByTestId('mobile-app-host')).not.toBeInTheDocument(),
+      { timeout: 600 },
+    )
+  })
+
+  it('launchApp 拒绝（权限门禁）→ 自动回 home，不开窗', async () => {
+    permissionManager.revoke('com.ageha.notes', 'storage')
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.notes')
+    })
+
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+    // 未落地窗口 → 无 live 内容帧；面板只留一拍退场帧后卸载。
+    await waitFor(
+      () => expect(screen.queryByTestId('mobile-app-host')).not.toBeInTheDocument(),
+      { timeout: 600 },
+    )
+  })
+
+  it('视图内重复 openApp 同一 appId：等值跳过，不重复开窗', () => {
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+  })
+
+  it('视图内切换应用：旧窗立即关闭 + 新窗启动（单窗口生命周期）', () => {
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+    const firstWindowId = useWindowStore.getState().windows[0]?.id
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.notes')
+    })
+
+    const windows = useWindowStore.getState().windows
+    expect(windows).toHaveLength(1)
+    expect(windows[0]?.appId).toBe('com.ageha.notes')
+    expect(windows[0]?.id).not.toBe(firstWindowId)
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.notes',
+      windowId: windows[0]?.id,
+    })
+  })
+
+  it('浏览器返回键：进应用 pushState 一条，popstate → backToHome（不退出 AgehaOS）', () => {
+    render(<MobileAppHost />)
+    const lengthBefore = window.history.length
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+
+    // 同文档栈位已压入，URL 不变（不导航不退出）。
+    expect(window.history.length).toBe(lengthBefore + 1)
+    expect(window.history.state?.agehaMobileApp).toBe('com.ageha.calculator')
+    const hrefBefore = window.location.href
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+    expect(window.location.href).toBe(hrefBefore)
+  })
+
+  it('home 态 popstate：no-op（不产生导航副作用）', () => {
+    render(<MobileAppHost />)
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+  })
+
+  it('僵尸窗口哨兵：宿主窗口被外部关闭 → 视图自动回 home', () => {
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+    const windowId = useWindowStore.getState().windows[0]?.id
+    expect(windowId).toBeDefined()
+
+    // 外部关窗（羽化举报链路的编排器关窗等）：窗口消失，视图跟随。
+    act(() => {
+      useWindowStore.getState().close(windowId!)
+    })
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+  })
+
+  it('内容路由：APP_UI_META 内置组件优先（计算器真实挂载）', () => {
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+
+    // 计算器 = APP_UI_META Type A 真组件（自带本地 UI），非替身路由。
+    expect(screen.getByTestId('calculator-display')).toBeInTheDocument()
+    expect(screen.queryByTestId('eclosion-frame-stub')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('web-frame-stub')).not.toBeInTheDocument()
+  })
+
+  it('内容路由：羽化前缀分支挂 EclosionAppFrame（先于 Type B 判定，参数同 WindowFrame）', () => {
+    installTypeBApp('com.ageha.eclosion.demo')
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.eclosion.demo')
+    })
+
+    const windowId = useWindowStore.getState().windows[0]?.id
+    const stub = screen.getByTestId('eclosion-frame-stub')
+    expect(stub).toHaveAttribute('data-app-id', 'com.ageha.eclosion.demo')
+    expect(stub).toHaveAttribute('data-window-id', windowId)
+    expect(stub).toHaveAttribute('data-title', 'Sites Demo')
+    expect(screen.queryByTestId('web-frame-stub')).not.toBeInTheDocument()
+  })
+
+  it('内容路由：Type B allowlist 内 entry 挂 WebAppFrame', () => {
+    installTypeBApp('com.ageha.sites.demo')
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.sites.demo')
+    })
+
+    const windowId = useWindowStore.getState().windows[0]?.id
+    expect(screen.getByTestId('web-frame-stub')).toHaveAttribute(
+      'data-entry',
+      '/apps/sites/demo/index.html',
+    )
+    expect(screen.getByTestId('web-frame-stub')).toHaveAttribute('data-window-id', windowId)
+  })
+
+  it('内容路由：非 Type A、非羽化、allowlist 外 → MissingApp（同桌面兜底）', () => {
+    const result = installApp({
+      id: 'com.ageha.plain.demo',
+      name: 'Plain Demo',
+      version: '1.0.0',
+      entry: '/apps/elsewhere/index.html',
+    })
+    expect(result.ok).toBe(true)
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.plain.demo')
+    })
+
+    expect(screen.getByText('未找到该应用，窗口即将关闭。')).toBeInTheDocument()
+    expect(screen.queryByTestId('web-frame-stub')).not.toBeInTheDocument()
+  })
+
+  it('motion-prefs 窗口切换转场关档：面板追加 .mobile-app-static 直切', () => {
+    act(() => {
+      useMotionPrefsStore.setState({ windowTilt: false })
+    })
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+
+    expect(screen.getByTestId('mobile-app-host')).toHaveClass('mobile-app-static')
+  })
+
+  it('en 档：返回键可访问名走 en 词典（双词典类型对齐）', () => {
+    setLocale('en')
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+
+    expect(screen.getByTestId('mobile-app-back')).toHaveAttribute('aria-label', 'Back')
+    expect(screen.getByTestId('mobile-app-title')).toHaveTextContent('Calculator')
+  })
+})

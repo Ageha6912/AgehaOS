@@ -92,7 +92,7 @@ describe('MobileAppGrid', () => {
     expect(badge).toHaveStyle({ width: '56px', height: '56px' })
   })
 
-  it('整格点击 = openApp 导航推进（过渡语义，M1-6 AppHost 前不真实开窗）', () => {
+  it('整格点击 = openApp 导航推进（windowId 待 M1-6 AppHost 真实启动落地）', () => {
     render(<MobileAppGrid />)
 
     expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
@@ -103,6 +103,7 @@ describe('MobileAppGrid', () => {
     expect(useMobileNavStore.getState().nav).toEqual({
       view: 'app',
       appId: 'com.ageha.dynamic.panel',
+      windowId: null,
     })
   })
 

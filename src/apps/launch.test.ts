@@ -60,6 +60,18 @@ describe('launchApp', () => {
     expect(windows[0]?.width).toBe(720)
   })
 
+  it('explicit width/height geometry overrides the workspace math (M1-6 移动全屏几何)', () => {
+    // 移动 AppHost：device-store viewport 全宽高 + x=0 y=0——绕开桌面级联
+    // 居中与工作区钳制（记事 manifest 720×480 被显式几何整体覆盖）。
+    launchApp('com.ageha.notes', { x: 0, y: 0, width: 360, height: 800 }, 'user')
+
+    const win = useWindowStore.getState().windows[0]
+    expect(win?.x).toBe(0)
+    expect(win?.y).toBe(0)
+    expect(win?.width).toBe(360)
+    expect(win?.height).toBe(800)
+  })
+
   it('keeps a no-geometry launch inside a narrow viewport (§25 位置兜底)', async () => {
     // 375px 视口（<640 左组隐藏，railLeft=8）：记事 720 → 工作区内宽钳 343，
     // x=16，右缘 359 贴合视口（工作区口径）。

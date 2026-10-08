@@ -145,6 +145,9 @@ export const dictionaries = {
        src/mobile/dock/MobileDock.tsx）。 */
     'mobile.dock.label': '程序坞',
     'mobile.dock.home': '主屏幕',
+    /* M1-6 移动应用宿主：返回键可访问名（应用名走 appDisplayName 本地化
+       展示名，与桌面窗口标题同源不入典；见 src/mobile/app/MobileAppHost.tsx）。 */
+    'mobile.apphost.back': '返回',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -719,6 +722,10 @@ export const dictionaries = {
        see src/mobile/dock/MobileDock.tsx). */
     'mobile.dock.label': 'Dock',
     'mobile.dock.home': 'Home Screen',
+    /* M1-6 mobile app host: back button accessible name (app names come from
+       appDisplayName, the same localized display-name source as the desktop
+       window title — not dictionary copy; see src/mobile/app/MobileAppHost.tsx). */
+    'mobile.apphost.back': 'Back',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',
