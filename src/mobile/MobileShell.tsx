@@ -3,9 +3,11 @@ import { useMobileNavStore } from '@/store/mobile-nav-store'
 
 import { MobileHome } from './home/MobileHome'
 import { MobileStatusBar } from './statusbar/MobileStatusBar'
+import { MobileDock } from './dock/MobileDock'
 
 /**
- * 移动 Shell 根布局（M0-3 骨架 / M0-4 Safe Area / M1-1 StatusBar+Home）。
+ * 移动 Shell 根布局（M0-3 骨架 / M0-4 Safe Area / M1-1 StatusBar+Home /
+ * M1-5 Dock）。
  *
  * 结构（自上而下三段）：
  * - 顶部状态栏（`mobile-statusbar-slot`）：高度
@@ -14,8 +16,14 @@ import { MobileStatusBar } from './statusbar/MobileStatusBar'
  * - 内容区（`mobile-content-slot`）：被两条占位带约束在安全区内，纵向
  *   超出走预留滚动容器（`mobile-content-scroll`）；Home 视图（品牌头 +
  *   时段问候，消费 session-store）挂这里，应用视图归 M1-6 AppHost；
+ * - 底部 Dock（M1-5）：玻璃白名单五处之一的 Dock 位（DESIGN.md §35.1，
+ *   唯一玻璃层 = surface-glass 基底 + glass-raise），坐在 Dock 安全区预留带
+ *   上方——固定 5 位（Home 复位 + Files/Notes/今日世界/Settings openApp），
+ *   应用元数据/图标/注册表/启动语义与桌面 Dock 同源（ARCHITECTURE.md
+ *   §3.25 复用边界），UI 完全独立；
  * - 底部 Dock 安全区预留带（`mobile-dock-slot`）：高度
- *   max(env(safe-area-inset-bottom), 12px)，M1 Dock 切片填充。
+ *   max(env(safe-area-inset-bottom), 12px)，M0-4 契约不变——纯占位空带给
+ *   Home indicator 留呼吸，Dock 本体不进驻（带保持 aria-hidden）。
  *
  * safe-area 契约（index.css 移动段）：`.mobile-shell` 根类声明
  * `--safe-top/right/bottom/left`（env(safe-area-inset-*)，无刘海视口回退
@@ -78,8 +86,12 @@ export function MobileShell() {
             </div>
           </div>
         </div>
+        {/* 底部 Dock（M1-5）：坐在 Dock 安全区预留带上方（HANDOFF §4.0-6），
+            safe-area bottom 高度仍由下方预留带承担，本组件零 env 消费。 */}
+        <MobileDock />
         {/* 底部 Dock 安全区预留带（M0-4）：max(env(safe-area-inset-bottom),
-            12px) 给 Home indicator 留呼吸；M1 Dock 切片填充。 */}
+            12px) 给 Home indicator 留呼吸；纯占位空带保持 aria-hidden，
+            Dock 本体在带上方。 */}
         <div
           data-testid="mobile-dock-slot"
           aria-hidden="true"

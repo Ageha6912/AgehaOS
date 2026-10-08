@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { MobileShell } from './MobileShell'
+import { resetAppStore } from '@/store/app-store'
 import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 
@@ -49,7 +50,8 @@ describe('MobileShell', () => {
     expect(screen.getByTestId('mobile-statusbar')).toBeInTheDocument()
     expect(screen.getByTestId('mobile-statusbar-clock')).toBeInTheDocument()
 
-    // Dock 带仍是纯占位（辅助技术不可见），填充归 M1 Dock 切片。
+    // Dock 安全区预留带仍是纯占位（辅助技术不可见）；Dock 本体（M1-5）
+    // 在带上方，带只承担 safe-area bottom 高度（见下方 M1-5 用例）。
     expect(dock).toHaveAttribute('aria-hidden', 'true')
     expect(dock).toBeEmptyDOMElement()
 
@@ -97,5 +99,26 @@ describe('MobileShell', () => {
     rerender(<MobileShell />)
     expect(shell).toHaveAttribute('data-nav-view', 'app')
     expect(shell).toHaveAttribute('data-nav-app-id', 'com.ageha.dynamic.panel')
+  })
+
+  // M1-5 Dock：坐在 Dock 安全区预留带上方（HANDOFF §4.0-6），DOM 序 =
+  // 内容区 → Dock → 预留带；带保持纯占位空带（Home indicator 呼吸位）。
+  it('Dock 挂在内容区与安全区预留带之间：固定 5 位齐、带仍纯占位（M1-5）', () => {
+    localStorage.clear()
+    resetAppStore()
+    render(<MobileShell />)
+
+    const dock = screen.getByTestId('mobile-dock')
+    const band = screen.getByTestId('mobile-dock-slot')
+
+    // Dock 本体在预留带上方（「填充 mobile-dock-slot 上方」契约）。
+    expect(dock.compareDocumentPosition(band) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // 预留带契约不变：纯占位空带、辅助技术不可见（M0-4）。
+    expect(band).toHaveAttribute('aria-hidden', 'true')
+    expect(band).toBeEmptyDOMElement()
+
+    // 固定 5 位齐：Home 位 + Files/Notes/今日世界/Settings 四应用位。
+    expect(screen.getByTestId('mobile-dock-home')).toBeInTheDocument()
+    expect(screen.getAllByTestId('mobile-dock-app')).toHaveLength(4)
   })
 })

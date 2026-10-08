@@ -140,6 +140,11 @@ export const dictionaries = {
        展示名，与桌面启动器同一来源；见
        src/mobile/home/MobileAppGrid.tsx）。 */
     'mobile.home.apps.title': '全部应用',
+    /* M1-5 移动 Dock：nav 地标名 + Home 位可访问名（应用位名称走
+       appDisplayName 本地化展示名数据，与桌面启动器同源，不入典；见
+       src/mobile/dock/MobileDock.tsx）。 */
+    'mobile.dock.label': '程序坞',
+    'mobile.dock.home': '主屏幕',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -708,6 +713,12 @@ export const dictionaries = {
        from appDisplayName, the same localized display-name source as the
        desktop launcher; see src/mobile/home/MobileAppGrid.tsx). */
     'mobile.home.apps.title': 'All Apps',
+    /* M1-5 mobile dock: nav landmark name + the Home slot accessible name
+       (app slot names come from appDisplayName, the same localized
+       display-name source as the desktop launcher — not dictionary copy;
+       see src/mobile/dock/MobileDock.tsx). */
+    'mobile.dock.label': 'Dock',
+    'mobile.dock.home': 'Home Screen',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',
