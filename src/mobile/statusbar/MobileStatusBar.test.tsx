@@ -1,6 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
+import { resetMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 
 import { MobileStatusBar } from './MobileStatusBar'
@@ -9,10 +11,22 @@ import { MobileStatusBar } from './MobileStatusBar'
  * M1-1 状态栏契约：真实数据源 + 「能力不可用即整体隐藏」（DESIGN.md
  * §0.5 拒绝装饰性谎言）。jsdom 不带 getBattery / connection，正好当作
  * 「不可用」基线；可用档用伪造 navigator 能力注入。
+ *
+ * M2-2 增补：通知铃铛 + 未读徽标契约（全状态栏首个可点目标）——徽标 =
+ * notification-store 未读数（unreadCount），>9 折叠 9+；点按开 Bottom
+ * Sheet（aria-expanded 反射）。
  */
 
 function grantNavigator(prop: 'getBattery' | 'connection', value: unknown): void {
   Object.defineProperty(window.navigator, prop, { configurable: true, value })
+}
+
+function pushWorldReady(): string {
+  return useNotificationStore.getState().push({
+    appId: 'system',
+    titleKey: 'notification.title.worldReady',
+    bodyKey: 'notification.body.worldReady',
+  })
 }
 
 afterEach(() => {
@@ -20,6 +34,9 @@ afterEach(() => {
   Reflect.deleteProperty(window.navigator, 'connection')
   Reflect.deleteProperty(window.navigator, 'onLine')
   resetSessionStore()
+  resetNotificationStore()
+  resetMotionPrefsStore()
+  localStorage.clear()
 })
 
 describe('MobileStatusBar 能力不可用即隐藏', () => {
@@ -81,5 +98,40 @@ describe('MobileStatusBar 能力不可用即隐藏', () => {
     })
     render(<MobileStatusBar />)
     expect(screen.getByTestId('mobile-statusbar-user')).toHaveTextContent('羽衣')
+  })
+})
+
+describe('MobileStatusBar 通知铃铛（M2-2）', () => {
+  it('无未读：铃铛在场且未展开，徽标缺席（零未读零装饰）', () => {
+    render(<MobileStatusBar />)
+    const bell = screen.getByTestId('mobile-notification-bell')
+    expect(bell).toHaveAttribute('aria-expanded', 'false')
+    expect(bell).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(screen.queryByTestId('mobile-notification-badge')).toBeNull()
+  })
+
+  it('徽标计数 = 未读数（unreadCount），>9 折叠 9+，全部已读后徽标消失', () => {
+    render(<MobileStatusBar />)
+    act(() => {
+      pushWorldReady()
+    })
+    expect(screen.getByTestId('mobile-notification-badge')).toHaveTextContent('1')
+    act(() => {
+      for (let index = 0; index < 11; index += 1) pushWorldReady()
+    })
+    expect(screen.getByTestId('mobile-notification-badge')).toHaveTextContent('9+')
+    act(() => {
+      useNotificationStore.getState().markAllRead()
+    })
+    expect(screen.queryByTestId('mobile-notification-badge')).toBeNull()
+  })
+
+  it('点按铃铛开通知中心 Bottom Sheet（aria-expanded 反射，dialog 角色在场）', () => {
+    render(<MobileStatusBar />)
+    fireEvent.click(screen.getByTestId('mobile-notification-bell'))
+    expect(screen.getByTestId('mobile-notification-bell')).toHaveAttribute('aria-expanded', 'true')
+    const sheet = screen.getByTestId('mobile-notification-sheet')
+    expect(sheet).toHaveAttribute('role', 'dialog')
+    expect(sheet).toHaveAttribute('aria-label', '通知中心')
   })
 })

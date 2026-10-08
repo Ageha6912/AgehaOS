@@ -1,8 +1,14 @@
+import { useRef, useState } from 'react'
+
+import { Bell } from '@phosphor-icons/react'
+
 import { useTranslation } from '@/core/i18n'
+import { unreadCount, useNotificationStore } from '@/store/notification-store'
 import { useSessionStore } from '@/store/session-store'
 
 import { useClock } from '@/components/use-clock'
 
+import { MobileNotificationSheet } from '../notifications/MobileNotificationSheet'
 import { useBatteryLevel, useNetworkState } from './use-statusbar-sources'
 
 /**
@@ -15,8 +21,16 @@ import { useBatteryLevel, useNetworkState } from './use-statusbar-sources'
  * 视觉（DESIGN.md §35）：占位带高度契约仍由 index.css 的
  * `max(var(--safe-top), 24px)` 承担（不写死），本组件只在其内铺一行 11px
  * 等宽数据读出（§0.6 最小字号 11px）；状态条是玻璃白名单的 Header 位
- * （§35.1），M1-1 沿用 M0 的实色 --ag-surface 底不引入 blur。纯指示器
- * 无可点目标，44px touch-target 规则（§35.3）不适用。
+ * （§35.1），M1-1 沿用 M0 的实色 --ag-surface 底不引入 blur。
+ *
+ * M2-2 通知中心入口：右侧簇末尾通知铃铛（全状态栏首个可点目标）+ 未读
+ * 徽标（= notification-store 未读数，unreadCount 既有纯函数；>9 折叠 9+，
+ * 桌面铃铛同口径）+ 点按开 Bottom Sheet（../notifications/MobileNotificationSheet，
+ * 数据源 = notification-bridge 事件流）。§35.3 触控纪律：铃铛命中区 44×44
+ * ——占位带最小 24px 高（M0-4 契约），44px 盒居中必然上溢视口被裁，故用
+ * ::after 把命中区自盒中心向下延伸 44px，任何占位带高度下有效命中 ≥44px
+ * （下延区在 Home/应用视图顶部均为非交互留白，无目标冲突；z-20 压过
+ * AppHost 的 z-10）。图标本体仍与读数行同线居中（含刘海档 59px 槽）。
  */
 export function MobileStatusBar() {
   const { t } = useTranslation()
@@ -25,13 +39,24 @@ export function MobileStatusBar() {
   const network = useNetworkState()
   const user = useSessionStore((state) => state.user)
   const displayName = user ? (user.displayName ?? user.username) : null
+  // M2-2 通知中心：未读数直接订阅 store（unreadCount 纯函数，原始类型
+  // 选择器无引用相等问题）；开关状态归本组件（MobileAppGrid 持启动器同款），
+  // 关闭回焦铃铛（桌面弹层关闭契约 §0.4 的移动口径）。
+  const unread = useNotificationStore((state) => unreadCount(state.items))
+  const [centerOpen, setCenterOpen] = useState(false)
+  const bellRef = useRef<HTMLButtonElement>(null)
+  const closeCenter = (): void => {
+    setCenterOpen(false)
+    bellRef.current?.focus()
+  }
 
   return (
-    <div
-      data-testid="mobile-statusbar"
-      className="flex h-full items-center justify-between gap-3 px-4 text-[11px] tabular-nums"
-      style={{ color: 'var(--ag-text-muted)' }}
-    >
+    <>
+      <div
+        data-testid="mobile-statusbar"
+        className="flex h-full items-center justify-between gap-3 px-4 text-[11px] tabular-nums"
+        style={{ color: 'var(--ag-text-muted)' }}
+      >
       <time
         data-testid="mobile-statusbar-clock"
         className="shrink-0 font-medium"
@@ -67,7 +92,35 @@ export function MobileStatusBar() {
             {displayName}
           </span>
         )}
+        {/* M2-2 通知铃铛：44×44 命中区（::after 下延，见模块注释 §35.3 段）；
+            徽标 = 未读数（>9 折叠 9+，桌面铃铛同口径），无未读不渲染。 */}
+        <button
+          type="button"
+          ref={bellRef}
+          data-testid="mobile-notification-bell"
+          aria-label={t('notification.center')}
+          aria-haspopup="dialog"
+          aria-expanded={centerOpen}
+          onClick={() => setCenterOpen(true)}
+          className="relative z-20 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-opacity after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:content-[''] active:opacity-80"
+        >
+          <span className="relative">
+            <Bell size={16} weight="regular" aria-hidden="true" style={{ color: 'var(--ag-text)' }} />
+            {unread > 0 && (
+              <span
+                data-testid="mobile-notification-badge"
+                aria-hidden="true"
+                className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-contrast"
+              >
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+          </span>
+        </button>
       </div>
-    </div>
+      </div>
+      {/* M2-2 通知中心 Bottom Sheet：fixed 全屏覆盖层，开关状态在本组件。 */}
+      <MobileNotificationSheet open={centerOpen} onClose={closeCenter} />
+    </>
   )
 }
