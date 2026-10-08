@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { setLocale, useLocaleStore } from '@/core/i18n'
@@ -16,6 +16,8 @@ import { MobileAppGrid } from './MobileAppGrid'
  * - 整格点击 = mobile-nav-store.openApp 导航推进（M1-6 前不真实开窗）；
  * - 注册表 commit（安装/卸载）即刻重渲染；
  * - 空态（防御位）整块含标题不渲染（禁止空壳）。
+ * M2-1 增补：标题行右侧搜索按钮 = 启动器抽屉入口（开/关/回焦），抽屉内
+ * 全量应用 + 点击行 openApp 分发（抽屉自身契约在 launcher/MobileLauncher.test）。
  */
 
 /** 渲染结果里的瓦片 appId 序（= 排序纯函数的输出序）。 */
@@ -160,5 +162,59 @@ describe('MobileAppGrid', () => {
     expect(screen.queryByTestId('mobile-app-grid')).toBeNull()
     expect(screen.queryByRole('heading', { level: 2 })).toBeNull()
     expect(screen.queryByTestId('mobile-app-tile')).toBeNull()
+    // 启动器入口（M2-1）随网格同退：无网格 = 无入口按钮。
+    expect(screen.queryByTestId('mobile-launcher-open')).toBeNull()
+  })
+
+  it('M2-1 启动器入口：标题行搜索按钮打开抽屉，backdrop 点击 / Esc 关闭并回焦触发器', async () => {
+    render(<MobileAppGrid />)
+
+    // 入口在场：i18n 可访问名 + 44×44 命中区类（§35.3）；初始无抽屉。
+    const trigger = screen.getByTestId('mobile-launcher-open')
+    expect(trigger).toHaveAttribute('aria-label', '搜索应用')
+    expect(trigger).toHaveClass('h-11', 'w-11')
+    expect(screen.queryByTestId('mobile-launcher')).toBeNull()
+
+    // 打开：Bottom Sheet 在场（open 态）。
+    fireEvent.click(trigger)
+    expect(screen.getByTestId('mobile-launcher')).toHaveAttribute('data-state', 'open')
+    expect(screen.getByTestId('mobile-launcher-sheet')).toHaveAttribute('role', 'dialog')
+
+    // backdrop 点击关闭：退场帧（≤200ms）播完卸载，焦点回触发器（§0.4）。
+    fireEvent.click(screen.getByTestId('mobile-launcher-backdrop'))
+    await waitFor(
+      () => expect(screen.queryByTestId('mobile-launcher')).not.toBeInTheDocument(),
+      { timeout: 600 },
+    )
+    expect(trigger).toHaveFocus()
+
+    // Esc 关闭同路（document 捕获阶段）。
+    fireEvent.click(trigger)
+    expect(screen.getByTestId('mobile-launcher')).toHaveAttribute('data-state', 'open')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(
+      () => expect(screen.queryByTestId('mobile-launcher')).not.toBeInTheDocument(),
+      { timeout: 600 },
+    )
+    expect(trigger).toHaveFocus()
+  })
+
+  it('M2-1 抽屉内容 = 启动器同源：全量应用 + 点击行推进 nav（openApp 分发）', () => {
+    render(<MobileAppGrid />)
+
+    fireEvent.click(screen.getByTestId('mobile-launcher-open'))
+    // 抽屉列表 = 全量注册表（10 条），与网格同一排序纯函数的输出。
+    expect(screen.getAllByTestId('mobile-launcher-item')).toHaveLength(10)
+
+    fireEvent.click(
+      screen
+        .getAllByTestId('mobile-launcher-item')
+        .find((item) => item.getAttribute('data-app-id') === 'com.ageha.settings')!,
+    )
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.settings',
+      windowId: null,
+    })
   })
 })

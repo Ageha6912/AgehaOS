@@ -1197,3 +1197,66 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+/* 移动启动器（M2-1 MobileLauncher）：Bottom Sheet 应用抽屉——玻璃白名单
+   五处之一的 Bottom Sheet 位（DESIGN.md §35.1），玻璃材质在组件侧走
+   surface-glass + glass-raise 工具类（与 Dock 同档，本段只发遮罩色与动效、
+   不发玻璃声明，不落 .surface-glass→降透明兜底的玻璃源序区间）；backdrop
+   遮罩为纯色压暗（非玻璃、零 blur）。进出场只动 transform/opacity（合成
+   器接管），时长走既有 token --ag-motion-base（200ms，§35.5 档带
+   160–220ms）；prefers-reduced-motion 由全局 0.01ms 塌缩承接（§35.5：不建
+   第二套动效开关）；motion-prefs「窗口切换转场」关档由组件侧在根追加
+   .mobile-launcher-static 直切（与 .mobile-app-static 同口径，规则置于
+   state 规则之后靠源序取胜）。退场帧（data-state='leaving'）的
+   pointer-events-none + aria-hidden 在组件侧，不挡底下的 Home。 */
+.mobile-launcher-backdrop {
+  background-color: rgb(15 23 42 / 45%);
+}
+.mobile-launcher[data-state='open'] .mobile-launcher-backdrop {
+  animation: mobile-launcher-fade-in var(--ag-motion-base) var(--ag-motion-ease);
+}
+.mobile-launcher[data-state='open'] .mobile-launcher-sheet {
+  animation: mobile-launcher-sheet-in var(--ag-motion-base) var(--ag-motion-ease);
+}
+.mobile-launcher[data-state='leaving'] .mobile-launcher-backdrop {
+  animation: mobile-launcher-fade-out var(--ag-motion-base) var(--ag-motion-ease) forwards;
+}
+.mobile-launcher[data-state='leaving'] .mobile-launcher-sheet {
+  animation: mobile-launcher-sheet-out var(--ag-motion-base) var(--ag-motion-ease) forwards;
+}
+.mobile-launcher.mobile-launcher-static .mobile-launcher-backdrop,
+.mobile-launcher.mobile-launcher-static .mobile-launcher-sheet {
+  animation: none;
+}
+@keyframes mobile-launcher-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes mobile-launcher-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes mobile-launcher-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes mobile-launcher-sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}

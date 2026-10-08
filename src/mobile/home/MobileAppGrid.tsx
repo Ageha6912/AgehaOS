@@ -1,9 +1,14 @@
+import { useRef, useState } from 'react'
+
+import { MagnifyingGlass } from '@phosphor-icons/react'
+
 import { AppIcon } from '@/apps/app-icon'
 import { appDisplayName } from '@/apps/launch'
 import { useTranslation } from '@/core/i18n'
 import { useAppStore } from '@/store/app-store'
 import { useMobileNavStore } from '@/store/mobile-nav-store'
 
+import { MobileLauncher } from '../launcher/MobileLauncher'
 import { orderAppsForMobileGrid } from '../shared/mobile-app-order'
 
 /**
@@ -25,51 +30,86 @@ import { orderAppsForMobileGrid } from '../shared/mobile-app-order'
  * 不引入 blur；4 列 grid，徽章 56px（切片口径 52–64px 带）+ 标签 12px
  * （text-xs），整格命中区 ≥44×44px（§35.3，徽章本身已过线）；文案只有标题
  * 走 i18n 双词典（§35.6），应用名是数据。
+ *
+ * M2-1 启动器入口：标题行右侧搜索图标按钮（Phosphor MagnifyingGlass，
+ * 44×44 命中区 §35.3）打开 Bottom Sheet 应用抽屉（./launcher/MobileLauncher
+ * ——全部应用 + 实时搜索）。开关状态是本组件局部 state：抽屉是网格标题行
+ * 的直接延伸，关闭（backdrop/Esc/选中）回焦触发器（桌面弹层关闭契约
+ * §0.4 的移动口径）。
  */
 export function MobileAppGrid() {
   const { t } = useTranslation()
   const apps = useAppStore((state) => state.apps)
   const openApp = useMobileNavStore((state) => state.openApp)
+  const [launcherOpen, setLauncherOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const closeLauncher = (): void => {
+    setLauncherOpen(false)
+    triggerRef.current?.focus()
+  }
 
   // 每次渲染重排（不 memo）：注册表 commit 换引用即重排；locale 切换经
   // useTranslation 重渲染后重取本地化展示名（memo 按 apps 记忆会漏 locale）。
   const items = orderAppsForMobileGrid(apps, appDisplayName)
 
-  // 空态：整块连标题一起缺席（禁止空壳）。
+  // 空态：整块连标题一起缺席（禁止空壳）——启动器入口随网格同退。
   if (items.length === 0) return null
 
   return (
-    <section
-      data-testid="mobile-app-grid"
-      aria-label={t('mobile.home.apps.title')}
-      className="mt-7 px-5 pb-2"
-    >
-      <h2 className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ag-text)' }}>
-        {t('mobile.home.apps.title')}
-      </h2>
-      <ul className="mt-2 grid grid-cols-4" data-testid="mobile-app-grid-list">
-        {items.map((app) => (
-          <li key={app.id} className="min-w-0">
-            <button
-              type="button"
-              data-testid="mobile-app-tile"
-              data-app-id={app.id}
-              onClick={() => openApp(app.id)}
-              className="flex min-h-[44px] min-w-[44px] w-full flex-col items-center gap-1.5 rounded-xl px-1 py-2 transition-opacity active:opacity-80"
-            >
-              {/* AppIcon 无 label = 装饰位（aria-hidden），可访问名由下方
-                  应用名文本承担——与最近使用区/桌面启动器瓦片同口径。 */}
-              <AppIcon appId={app.id} size={56} />
-              <span
-                className="w-full truncate text-center text-xs"
-                style={{ color: 'var(--ag-text)' }}
+    <>
+      <section
+        data-testid="mobile-app-grid"
+        aria-label={t('mobile.home.apps.title')}
+        className="mt-7 px-5 pb-2"
+      >
+        <header className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ag-text)' }}>
+            {t('mobile.home.apps.title')}
+          </h2>
+          {/* M2-1 启动器入口：搜索图标按钮，命中区 44×44（§35.3），可访问名
+              走 i18n；字形是装饰位（aria-hidden）。 */}
+          <button
+            type="button"
+            ref={triggerRef}
+            data-testid="mobile-launcher-open"
+            aria-label={t('mobile.launcher.open')}
+            onClick={() => setLauncherOpen(true)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-opacity active:opacity-80"
+          >
+            <MagnifyingGlass
+              size={20}
+              weight="bold"
+              aria-hidden="true"
+              style={{ color: 'var(--ag-text)' }}
+            />
+          </button>
+        </header>
+        <ul className="mt-2 grid grid-cols-4" data-testid="mobile-app-grid-list">
+          {items.map((app) => (
+            <li key={app.id} className="min-w-0">
+              <button
+                type="button"
+                data-testid="mobile-app-tile"
+                data-app-id={app.id}
+                onClick={() => openApp(app.id)}
+                className="flex min-h-[44px] min-w-[44px] w-full flex-col items-center gap-1.5 rounded-xl px-1 py-2 transition-opacity active:opacity-80"
               >
-                {appDisplayName(app.id)}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
+                {/* AppIcon 无 label = 装饰位（aria-hidden），可访问名由下方
+                    应用名文本承担——与最近使用区/桌面启动器瓦片同口径。 */}
+                <AppIcon appId={app.id} size={56} />
+                <span
+                  className="w-full truncate text-center text-xs"
+                  style={{ color: 'var(--ag-text)' }}
+                >
+                  {appDisplayName(app.id)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+      {/* M2-1 应用抽屉：开关状态在本组件，关闭回调回焦入口按钮。 */}
+      <MobileLauncher open={launcherOpen} onClose={closeLauncher} />
+    </>
   )
 }

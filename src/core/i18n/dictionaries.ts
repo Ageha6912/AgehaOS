@@ -148,6 +148,13 @@ export const dictionaries = {
     /* M1-6 移动应用宿主：返回键可访问名（应用名走 appDisplayName 本地化
        展示名，与桌面窗口标题同源不入典；见 src/mobile/app/MobileAppHost.tsx）。 */
     'mobile.apphost.back': '返回',
+    /* M2-1 移动启动器：Bottom Sheet 应用抽屉（src/mobile/launcher/
+       MobileLauncher.tsx）——入口按钮可访问名 + 搜索框 placeholder（与其
+       可访问名同一句，桌面启动器「占位符与能力一致」§0.6 同口径）+ 无结果
+       空态文案（应用名是 appDisplayName 数据不入典，过滤按 manifest.name）。 */
+    'mobile.launcher.open': '搜索应用',
+    'mobile.launcher.searchPlaceholder': '搜索应用…',
+    'mobile.launcher.empty': '没有匹配的应用',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -726,6 +733,15 @@ export const dictionaries = {
        appDisplayName, the same localized display-name source as the desktop
        window title — not dictionary copy; see src/mobile/app/MobileAppHost.tsx). */
     'mobile.apphost.back': 'Back',
+    /* M2-1 mobile launcher: bottom-sheet app drawer (src/mobile/launcher/
+       MobileLauncher.tsx) — entry button accessible name + search placeholder
+       (doubles as its accessible name, same caliber as the desktop launcher's
+       §0.6 "placeholder matches capability") + the no-results empty-state copy
+       (app names are appDisplayName data, not dictionary copy; filtering goes
+       by manifest.name). */
+    'mobile.launcher.open': 'Search apps',
+    'mobile.launcher.searchPlaceholder': 'Search apps…',
+    'mobile.launcher.empty': 'No matching apps',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',
