@@ -133,6 +133,9 @@ export const dictionaries = {
     'mobile.today.world.apps': '{count} 款新应用',
     'mobile.today.world.signals': '{count} 条趋势信号',
     'mobile.today.world.view': '查看世界',
+    /* M1-3 最近使用区：唯一文案 = 分区标题（应用名是 manifest 数据，与
+       桌面启动器同源不走词典；见 src/mobile/home/RecentApps.tsx）。 */
+    'mobile.home.recents.title': '最近使用',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -693,6 +696,10 @@ export const dictionaries = {
     'mobile.today.world.apps': '{count} new apps',
     'mobile.today.world.signals': '{count} trending signals',
     'mobile.today.world.view': 'View world',
+    /* M1-3 recent apps section: the only copy is the section heading (app
+       names are manifest data shared with the desktop launcher, not
+       dictionary copy; see src/mobile/home/RecentApps.tsx). */
+    'mobile.home.recents.title': 'Recently Used',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',

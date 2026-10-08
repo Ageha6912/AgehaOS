@@ -7,6 +7,8 @@ import {
   seedEclosionForTests,
   useEclosionStore,
 } from '@/store/eclosion-store'
+import { resetAppStore } from '@/store/app-store'
+import { resetUsageStore, useUsageStore } from '@/store/usage-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 
 import { MobileHome } from './MobileHome'
@@ -15,7 +17,8 @@ import { MobileHome } from './MobileHome'
  * M1-1 移动 Home 契约：品牌头（BrandLogo + 名称 + 双语标语）+ 时段问候
  * （分档纯函数 + 真实会话用户名）。时段用注入 now 钉死，测试不依赖挂载
  * 时刻的钟点。M1-2 起问候之后追加今日世界卡（门控归 TodayWorldCard，这里
- * 钉挂载位：羽化关默认缺席、世界落地后在 Home 容器内在场）。
+ * 钉挂载位：羽化关默认缺席、世界落地后在 Home 容器内在场）；M1-3 起今日
+ * 世界卡之后续接最近使用区（门控归 RecentApps，usage-store 空态缺席）。
  */
 
 function seedUser(): void {
@@ -28,6 +31,9 @@ function seedUser(): void {
 }
 
 afterEach(() => {
+  localStorage.clear()
+  resetAppStore()
+  resetUsageStore()
   resetSessionStore()
   resetEclosionStore()
 })
@@ -116,5 +122,49 @@ describe('MobileHome', () => {
     expect(screen.getByTestId('mobile-home-greeting').compareDocumentPosition(card) &
       Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByTestId('mobile-today-world-stats')).toHaveTextContent('1 款新应用')
+  })
+
+  it('最近使用区（M1-3）：今日世界卡之后续接；usage-store 空态整块缺席', () => {
+    seedUser()
+    resetAppStore()
+    resetUsageStore()
+    // 今日世界落地（同上一用例的最小注入），让卡片与最近使用同屏比序。
+    seedEclosionForTests('u1', true)
+    useEclosionStore.getState().applyWorld({
+      worldDate: utcDayKey(),
+      headline: '边缘推理的浪潮',
+      paletteId: 'aurora-borealis',
+      accentHue: 212,
+      degraded: false,
+      signalCount: 1,
+      signals: {
+        titles: ['本地智能体编排框架冲上热榜'],
+        sourceName: 'GitHub Trending',
+        sourceUrl: 'https://example.com/trending',
+      },
+      apps: [],
+    })
+    const { rerender } = render(<MobileHome now={new Date(2026, 9, 7, 9, 0, 0)} />)
+
+    // 默认无最近记录：整块缺席（禁止空壳）。
+    expect(screen.queryByTestId('mobile-recent-apps')).toBeNull()
+
+    // 预置最近记录（内建清单已在册）后重渲染：区块续接今日世界卡。
+    useUsageStore.setState({
+      recent: [
+        { appId: 'com.ageha.notes', at: 1 },
+        { appId: 'com.ageha.files', at: 2 },
+      ],
+    })
+    rerender(<MobileHome now={new Date(2026, 9, 7, 9, 0, 0)} />)
+
+    const recents = screen.getByTestId('mobile-recent-apps')
+    expect(screen.getByTestId('mobile-home')).toContainElement(recents)
+    // DOM 序 = 视觉序（DESIGN.md §0.6）：今日世界卡在前、最近使用续接其后。
+    expect(
+      screen.getByTestId('mobile-today-world').compareDocumentPosition(recents) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(screen.getAllByTestId('mobile-recent-app')).toHaveLength(2)
   })
 })
