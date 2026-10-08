@@ -265,12 +265,16 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
   `app-deep-link.ts` 的模块级一次性意图范式（launch 前写入、打开时取走即清），
   不为深链扩 store 数据结构。
 
-### 3.25 双 Shell 架构（`src/mobile`，Milestone 0 五片，2026-10-07）
+### 3.25 双 Shell 架构（`src/mobile`，Milestone 0 五片 + M1 六片，2026-10-07/08）
 
 > M0 切片与提交：M0-1 设备能力探针 `1f7a2e4` → M0-2 Shell Selection
 > `a1ff3c3` → M0-3 Mobile Shell Root `d789ece` → M0-4 Safe Area `0896122`
 > → M0-5 PWA Foundation `7bc494e`。视觉契约见 DESIGN.md §35「Mobile
 > Design Contract」；裁决理由见 DECISIONS.md A24。
+> M1 切片与提交（Home Shell 六片）：M1-1 StatusBar+Home `15d7265` →
+> M1-2 今日世界卡 `66a1a23` → M1-3 最近使用 `3bfdc79` → M1-4 应用网格
+> `b417a11` → M1-5 Dock `5aafc61` → M1-6 MobileAppHost `87042df`。Home
+> 结构规格见 DESIGN.md §35.7；AppHost 生命周期映射见下。
 
 - **单点切换**：Shell 的选择全仓库只有一处——`App.tsx` 的 ready 分支
   （`shell === 'mobile' ? <MobileShell /> : <Desktop />`，`src/App.tsx:30`）。
@@ -299,6 +303,51 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
   `src/store/mobile-nav-store.ts` 是 Shell 层纯导航状态机（`{view:'home'} |
   {view:'app', appId}`）——刻意**不调 launchApp、不碰窗口管理器**，应用
   真实启动/权限门禁/生命周期归 M1 AppHost。
+- **M1 六片落地与 AppHost 生命周期映射（2026-10-08）**：M0 留空的三段已由
+  M1 填充——`MobileStatusBar`（真实数据源，能力不可用整项隐藏）、
+  `MobileHome`（品牌头/问候/今日世界卡/最近使用/应用网格，结构规格
+  DESIGN.md §35.7）、`MobileDock`（固定 5 位）。导航位置升级为
+  `{view:'app', appId, windowId}`（`src/store/mobile-nav-store.ts:21-23`，
+  windowId = launchApp 返回值，null = 启动未落地），store 依旧不调
+  launchApp——映射全部由 `src/mobile/app/MobileAppHost.tsx` 执行：
+  - **启动链（openApp → launchApp → app.started）**：Home/Dock/今日世界卡
+    各入口 `openApp(appId)`（同位置等值跳过）→ AppHost 启动 effect
+    （`MobileAppHost.tsx:103-124`）读 device-store viewport，以**显式全屏
+    几何** `{x:0, y:0, width, height}` 调 `launchApp(appId, geometry,
+    'user')`，返回 windowId 经 `setAppWindow` 记入 nav store。显式几何的
+    口径：`launch.ts` 只在**无**显式几何时做桌面级联居中与工作区钳制
+    （`src/apps/launch.ts:76-116`，左浮轨/右栏/菜单栏/Dock 的让位数学），
+    传入 x/y/width/height 则原样透传窗口引擎、整段绕开
+    （`src/apps/launch.ts:29-34`）——移动视口没有这些桌面 chrome 可让位，
+    全宽高由调用方自证。`source='user'` 照常记入 usage-store 最近使用
+    （`src/apps/launch.ts:118-120`）。**不新建 App Runtime**：窗口生命
+    周期仍归 window-store 单一事实源，`app.started`/`app.stopped` 由
+    `systemAppLifecycle` 从 `window.created`/`window.closed` 的 0→1/1→0
+    跳变派生（`src/core/runtime/app-lifecycle.ts:28-41`，`main.tsx:34`
+    boot 启动）——开窗即 started、关窗即 stopped，移动侧零新事件。
+  - **关闭链（backToHome → window close → app.stopped，三路同归）**：
+    backToHome / 切换 appId / 宿主窗口被外部关闭（羽化举报编排器关窗等）
+    都收敛为「nav 不再引用的 windowId 立即 `useWindowStore.close`」
+    （`MobileAppHost.tsx:79-100`，关窗 effect 刻意先于启动 effect 声明，
+    同一 commit 内先关旧窗再启新窗）+「window-store 查无此窗即强制回
+    home」的僵尸哨兵（`MobileAppHost.tsx:126-137`）——单窗口与视图同生
+    共死，app.stopped 派生自然正确。window-store open 恒新开（无去重），
+    从 Home 再进同一应用 = 新 windowId；同视图重复点击同一 appId 由 nav
+    store 等值跳过，不重复 launch。退场渲染滞后一拍：home 立即可交互，
+    应用面板带 `data-state='leaving'` 播完 200ms（`--ag-motion-base`）
+    再卸载，期间 pointer-events-none + aria-hidden。
+  - **popstate 返回契约（PRD §24.2）**：进入应用视图 pushState 一条同
+    文档栈位（`MobileAppHost.tsx:141-160`），popstate 只消化「退出应用」
+    → backToHome——返回键落在自己的栈位上，**不把用户退出 AgehaOS**；
+    UI 返回键不调 history.back（避免双跳），同一应用的连续帧不重复压栈。
+  - **失败路径与内容路由**：launchApp 返回 null（manifest 缺席 / 权限
+    门禁拒绝）直接 backToHome，`permission.denied` 由既有
+    notification-bridge 转通知，不造新机制（`MobileAppHost.tsx:117-121`）。
+    内容路由与桌面 WindowFrame 同序复用（能力复用、容器不复用）：
+    `componentFor` → `EclosionAppFrame`（先于 Type B 判定）→
+    `WebAppFrame`（allowlist）→ `MissingApp`，外层 AppErrorBoundary，
+    header 之外零桌面 chrome。manifest `mobile` 块（orientation/
+    presentation）本片**未消费**，归 M2 与用户对齐。
 - **Manifest `mobile` 块**（`src/core/runtime/manifest.ts`，M0-3）：可选
   `mobile: { supported, orientation: 'portrait'|'landscape'|'any',
   presentation: 'fullscreen' }`——缺席 = Manifest 对移动不表态，Shell 走
@@ -329,7 +378,14 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
   / `mobile-nav-store.test.ts` / `MobileShell.test.tsx`（DOM 结构契约）/
   `e2e/mobile-shell.spec.ts`（移动 context 两档设备：360×800 手动档 +
   iPhone 15 Pro 描述档，断言 `data-shell="mobile"` 且无桌面 chrome；
-  desktop context 回归不变 + 断言桌面根未声明 `--safe-top`）。
+  desktop context 回归不变 + 断言桌面根未声明 `--safe-top`）。M1 增补：
+  Home/Dock 各区块组件单测（MobileHome / greeting / MobileStatusBar /
+  sources / TodayWorldCard / RecentApps / recent-apps / MobileAppGrid /
+  mobile-app-order / MobileDock）+ `MobileAppHost.test.tsx`（320 行：
+  生命周期绑定 / 双跑竞态 / 僵尸哨兵 / popstate / 门禁拒绝）+
+  `e2e/mobile-app-host.spec.ts`（真实视口 Home→开→返回全链路、
+  `page.goBack()` 停在 AgehaOS、desktop context 回归）+
+  `e2e/mobile-dock.spec.ts`。
 
 ## 4. 后续模块技术要点
 

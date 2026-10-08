@@ -52,7 +52,7 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 
 ### 📱 Mobile Web / Mobile Shell
 
-同一套 OS Core 的移动形态：手机与平板打开 os.ageha.cn（或安装为 PWA）时渲染独立的 **MobileShell**——safe-area 三段骨架（状态栏 / 内容区 / Dock）+ 竖屏壁纸构图 + 全屏应用视图；桌面照旧渲染 Desktop Shell。**双 Shell、同一 Core**：窗口管理器、VFS、权限、应用注册表、i18n 与启动门禁（`launchApp`）完全共享，只有容器层分壳（桌面容器不进移动）。设备判定集中在 core 纯 TS 探针，`App.tsx` ready 分支单点切换（[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §3.25）。Milestone 0 已落 Shell 选择 / safe-area / PWA 地基，Home、Dock 与移动应用宿主随 M1 到来；视觉契约见 [docs/DESIGN.md](docs/DESIGN.md) §35。
+同一套 OS Core 的移动形态：手机与平板打开 os.ageha.cn（或安装为 PWA）时渲染独立的 **MobileShell**——safe-area 三段骨架（状态栏 / 内容区 / Dock）+ 竖屏壁纸构图 + 全屏应用视图；桌面照旧渲染 Desktop Shell。**双 Shell、同一 Core**：窗口管理器、VFS、权限、应用注册表、i18n 与启动门禁（`launchApp`）完全共享，只有容器层分壳（桌面容器不进移动）。设备判定集中在 core 纯 TS 探针，`App.tsx` ready 分支单点切换（[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §3.25）。Milestone 0 落 Shell 选择 / safe-area / PWA 地基，Milestone 1 六片补齐 **Home Shell**：**状态栏**（真实时钟/电量/网络/用户读数，能力不可用整项隐藏，绝不显示示例数据）、**今日世界卡**（羽化世界摘要一行读出，「查看世界」直达，无数据整卡隐藏）、**最近使用**（usage-store 最新 4 条）、**应用网格**（全量已安装应用 4 列）、**Dock**（Home 复位 + Files/Notes/今日世界/Settings 固定 5 位，唯一玻璃层）、**全屏应用**（任意入口直达真实启动——显式全屏几何开窗、浏览器返回键返回 Home 不退出站点、离开视图即关窗）。视觉契约见 [docs/DESIGN.md](docs/DESIGN.md) §35。
 
 ## 快速开始
 

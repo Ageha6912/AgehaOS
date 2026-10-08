@@ -1399,7 +1399,8 @@ CSS 互指钉扎纪律不变）。
 > Mobile Shell（`src/mobile`，架构见 ARCHITECTURE.md §3.25）的视觉契约。
 > M0 五片只落「骨架与纪律」（Shell 选择 / safe-area / PWA 基础，提交
 > 1f7a2e4→7bc494e），本节同时钉住 M1 组件的视觉边界；移动作用域内与
-> §0–§34 桌面契约冲突时以本节为准，桌面零接触。
+> §0–§34 桌面契约冲突时以本节为准，桌面零接触。M1 六片已于 2026-10-08
+> 落地（15d7265→87042df），Home 结构规格见 §35.7。
 
 ### 35.1 玻璃克制清单（白名单制）
 
@@ -1456,3 +1457,54 @@ only）+ reduced 归零语义；循环动画照旧走 §2.5 豁免评审。
 类型强制键位对齐、禁止硬编码**。首批键 `mobile.shell.heading` /
 `mobile.shell.brand` 已随 M0-2 入典（`src/core/i18n/dictionaries.ts`）；
 M1 全部新文案照此办理。
+
+### 35.7 Home 结构规格（M1 六片落地，2026-10-08）
+
+自上而下（`src/mobile/home/MobileHome.tsx` 挂 `mobile-content-scroll`，
+几何与字号以代码为唯一口径）：
+
+- **状态栏**（`mobile-statusbar-slot` 占位带）：带高 `max(env(safe-area-inset-top),
+  24px)`（`src/index.css:1132`）；`MobileStatusBar` 只在其内铺一行 **11px
+  等宽**读数（`text-[11px] tabular-nums`，`src/mobile/statusbar/MobileStatusBar.tsx:32`）
+  ——左系统时钟，右电池（Battery Status API）→ 网络（onLine +
+  connection.effectiveType）→ 用户名。数据源全部真实（§0.5）：某项能力
+  探测不到**整项隐藏**，绝不显示示例读数；纯指示器无可点目标，§35.3
+  不适用。
+- **品牌头**：`px-5 pt-8`，BrandLogo 44 + 品牌名 `text-xl font-semibold
+  tracking-tight` + 标语 `text-xs` muted（`src/mobile/home/MobileHome.tsx:35-55`）
+  ——一行轻头部，不是 Landing 页式大居中 Hero（M0 中央占位字随本片退役）。
+- **时段问候**：`pt-7`，正文 15px（`text-[15px]`）；早/午/晚三档纯函数
+  （`src/mobile/home/greeting.ts:19-23`，5/11/17 边界左闭右开、夜并入
+  晚档），用户名取 session-store 真实会话（displayName 缺省回退
+  username），连接符与用户名 muted 色。
+- **今日世界卡**：`mx-5 mt-7 rounded-2xl p-4`，`--ag-surface-raised` 实色
+  底 + `border-subtle` 细边——白名单「Today 卡」位（§35.1），M1 沿用
+  实色**不引入 blur**；标题行 Sparkle 16 + `text-sm` semibold，统计行
+  `text-xs`（新应用数 × 趋势信号数，真实字段不编造计数），「查看世界」
+  整宽按钮 `min-h-[44px]`（§35.3）primary 色（`src/mobile/home/TodayWorldCard.tsx:42-81`）；
+  **羽化开且世界落地才渲染**（:39），卡缺席即状态。
+- **最近使用**：`mt-7 px-5` 轻区块（**玻璃清单外零 blur，不做卡片容器**），
+  标题 `text-sm` semibold；usage-store 最新 **4 条**（`src/mobile/home/recent-apps.ts:9`，
+  先截取后解析、坏条目跳过不回填）一行四格，AppIcon **44px** = 命中区
+  主体 + `text-xs` truncate 标签，整格命中 ≥44×44（`src/mobile/home/RecentApps.tsx:56-62`）；
+  recent 为空或前 4 全解析失败时**整块连标题缺席**（:37）。
+- **应用网格**：`mt-7 px-5 pb-2`，**4 列** grid；徽章 **56px**（切片带
+  52–64px）+ 标签 `text-xs`，整格命中 ≥44×44（`src/mobile/home/MobileAppGrid.tsx:58-62`）；
+  排序 = 常量优先序在前、其余按本地化展示名排后（`src/mobile/shared/mobile-app-order.ts:16-24`）；
+  注册表空时整块缺席。当前全量直渲不分页（分页/独立启动器归 M2）。
+- **Dock**：坐 `mobile-dock-slot` 预留带（`max(env(safe-area-inset-bottom),
+  12px)`，`src/index.css:1138`）**上方**、本体零 env 消费；玻璃口径 =
+  §35.1 白名单 Dock 位的唯一玻璃层 `surface-glass` 基底 + `glass-raise`
+  （blur 20px 档，`src/index.css:571`）+ `border-t` 发丝边，清单外零 blur。
+  固定 **5 位** = Home 复位（44×44 中性瓷贴 `rounded-[24%]` + 白细环、
+  House 24——Shell 动作，不进应用徽章体系）+ Files / Notes / 今日世界 /
+  Settings（AppIcon 44，`src/mobile/shared/mobile-dock-slots.ts:15-20`）；
+  列内 `px-2 py-1.5 justify-around`，每格命中 ≥44×44（`src/mobile/dock/MobileDock.tsx:58-98`）；
+  当前位 2×16px primary 指示条 + `aria-current`（桌面 Dock 同一 Active
+  指示语言）；位上应用不在册该位不渲染（禁止死按钮优先于固定 5 位）。
+- **空态隐藏原则（全 Home 通用铁律）**：无数据不建可点死元素——今日
+  世界卡（羽化关/世界未落地）、最近使用（recent 空或前 4 全解析失败）、
+  应用网格（注册表空）、Dock 位（不在册）四处门控全部在组件内部，
+  **缺席即状态**，Home 其余区块照常；禁止空壳容器与占位骨架。
+- 触控目标收口：以上全部可点元素命中区 ≥44×44px（§35.3）；全屏应用视图
+  （AppHost）的返回键同为 44×44（`src/mobile/app/MobileAppHost.tsx:202`）。
