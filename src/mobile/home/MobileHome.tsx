@@ -4,6 +4,7 @@ import { useSessionStore } from '@/store/session-store'
 import { BrandLogo } from '@/components/brand-logo'
 
 import { greetingJoinKey, greetingPhaseKey, mobileGreetingPhase } from './greeting'
+import { MobileAppGrid } from './MobileAppGrid'
 import { RecentApps } from './RecentApps'
 import { TodayWorldCard } from './TodayWorldCard'
 
@@ -19,7 +20,8 @@ import { TodayWorldCard } from './TodayWorldCard'
  * 今日世界卡（M1-2）在问候之后向下追加：羽化开且世界落地才渲染（门控在
  * TodayWorldCard 内部）；最近使用（M1-3）续接其后——usage-store 前 4 条
  * 经 getAppManifest 解析，空态整块缺席（门控在 RecentApps 内部）；应用
- * 网格归 M1-5，继续在本容器向下追加（滚动容器 min-h-full 已备）。
+ * 网格（M1-4）续接最近使用之后，全量已安装应用 4 列网格（排序与空态在
+ * MobileAppGrid 内部），继续在本容器向下追加（滚动容器 min-h-full 已备）。
  */
 export function MobileHome({ now = new Date() }: { now?: Date }) {
   const { t } = useTranslation()
@@ -71,6 +73,9 @@ export function MobileHome({ now = new Date() }: { now?: Date }) {
       {/* M1-3 最近使用：usage-store 前 4 条 × getAppManifest 解析，空态整块
           缺席（门控在组件内）；整格点击 = openApp 导航推进。 */}
       <RecentApps />
+      {/* M1-4 应用网格：全量已安装应用 4 列网格（常量优先序 + 名称排序），
+          空态整块缺席（门控在组件内）；整格点击 = openApp 导航推进。 */}
+      <MobileAppGrid />
     </section>
   )
 }

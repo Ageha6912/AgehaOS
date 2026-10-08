@@ -7,7 +7,7 @@ import {
   seedEclosionForTests,
   useEclosionStore,
 } from '@/store/eclosion-store'
-import { resetAppStore } from '@/store/app-store'
+import { resetAppStore, useAppStore } from '@/store/app-store'
 import { resetUsageStore, useUsageStore } from '@/store/usage-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 
@@ -18,7 +18,9 @@ import { MobileHome } from './MobileHome'
  * （分档纯函数 + 真实会话用户名）。时段用注入 now 钉死，测试不依赖挂载
  * 时刻的钟点。M1-2 起问候之后追加今日世界卡（门控归 TodayWorldCard，这里
  * 钉挂载位：羽化关默认缺席、世界落地后在 Home 容器内在场）；M1-3 起今日
- * 世界卡之后续接最近使用区（门控归 RecentApps，usage-store 空态缺席）。
+ * 世界卡之后续接最近使用区（门控归 RecentApps，usage-store 空态缺席）；
+ * M1-4 起最近使用之后续接应用网格（全量注册表 4 列网格，门控归
+ * MobileAppGrid，空注册表缺席）。
  */
 
 function seedUser(): void {
@@ -166,5 +168,40 @@ describe('MobileHome', () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     expect(screen.getAllByTestId('mobile-recent-app')).toHaveLength(2)
+  })
+
+  it('应用网格（M1-4）：最近使用之后续接；boot 注册表全量 10 格（7 内置 + 羽化 L1）', () => {
+    seedUser()
+    resetUsageStore()
+    // 预置最近记录（内建清单已在册），让最近使用区在场以比 DOM 序。
+    useUsageStore.setState({
+      recent: [
+        { appId: 'com.ageha.notes', at: 1 },
+        { appId: 'com.ageha.files', at: 2 },
+      ],
+    })
+    // boot 注册表原样（resetAppStore 在 afterEach）：网格无条件在场（内置
+    // 注册在 boot 之前，网格没有数据门控，空注册表才是缺席态）。
+    const { rerender } = render(<MobileHome now={new Date(2026, 9, 7, 9, 0, 0)} />)
+
+    const grid = screen.getByTestId('mobile-app-grid')
+    expect(screen.getByTestId('mobile-home')).toContainElement(grid)
+    expect(screen.getAllByTestId('mobile-app-tile')).toHaveLength(10)
+
+    // DOM 序 = 视觉序（DESIGN.md §0.6）：最近使用在前、应用网格续接其后。
+    const recents = screen.getByTestId('mobile-recent-apps')
+    expect(recents.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    // 排序契约在 MobileHome 挂载位下同样成立：首格 = 常量优先序第一位。
+    expect(screen.getAllByTestId('mobile-app-tile')[0]).toHaveAttribute(
+      'data-app-id',
+      'com.ageha.dynamic.panel',
+    )
+
+    // 空注册表（防御位）：整块缺席且不拖垮 Home 其余区块。
+    useAppStore.setState({ apps: [] })
+    rerender(<MobileHome now={new Date(2026, 9, 7, 9, 0, 0)} />)
+    expect(screen.queryByTestId('mobile-app-grid')).toBeNull()
+    expect(screen.getByTestId('mobile-home-greeting')).toBeInTheDocument()
   })
 })

@@ -136,6 +136,10 @@ export const dictionaries = {
     /* M1-3 最近使用区：唯一文案 = 分区标题（应用名是 manifest 数据，与
        桌面启动器同源不走词典；见 src/mobile/home/RecentApps.tsx）。 */
     'mobile.home.recents.title': '最近使用',
+    /* M1-4 应用网格：唯一文案 = 分区标题（应用名走 appDisplayName 本地化
+       展示名，与桌面启动器同一来源；见
+       src/mobile/home/MobileAppGrid.tsx）。 */
+    'mobile.home.apps.title': '全部应用',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -700,6 +704,10 @@ export const dictionaries = {
        names are manifest data shared with the desktop launcher, not
        dictionary copy; see src/mobile/home/RecentApps.tsx). */
     'mobile.home.recents.title': 'Recently Used',
+    /* M1-4 app grid: the only copy is the section heading (app names come
+       from appDisplayName, the same localized display-name source as the
+       desktop launcher; see src/mobile/home/MobileAppGrid.tsx). */
+    'mobile.home.apps.title': 'All Apps',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',
