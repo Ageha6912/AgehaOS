@@ -61,5 +61,12 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
+    // fork 数上限（2026-10-08 门禁实测）：15GB/12 核的 Windows 门禁机上，
+    // 默认 ≈12 个 jsdom fork 会把提交内存逼到系统极限（实测整链跑挂
+    // FATAL ERROR: Zone Allocation failed / VirtualAlloc failed），紧随其后的
+    // server 套件在内存枯竭下回环 mock fetch 假失败（ai-upstream 假红，坑见
+    // server/vitest.config.ts 注释）。上限 4 个 fork 实测全套件 132s，远在
+    // 门禁 test 900s 预算内；CI（4 核）不受影响。
+    maxWorkers: 4,
   },
 })
