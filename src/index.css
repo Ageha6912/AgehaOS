@@ -1324,3 +1324,68 @@ body {
     transform: translateY(100%);
   }
 }
+
+/* 移动控制中心（M2-3 MobileControlCenterSheet）：Bottom Sheet——玻璃白名单
+   五处之一的 Bottom Sheet 位（DESIGN.md §35.1），玻璃材质在组件侧走
+   surface-glass + glass-raise 工具类（与 Dock/启动器/通知中心同档，本段只
+   发遮罩色与动效、不发玻璃声明，不落 .surface-glass→降透明兜底的玻璃源序
+   区间）；backdrop 遮罩为纯色压暗（非玻璃、零 blur）。进出场只动
+   transform/opacity（合成器接管），时长走既有 token --ag-motion-base
+   （200ms，§35.5 档带 160–220ms）；prefers-reduced-motion 由全局 0.01ms
+   塌缩承接（§35.5：不建第二套动效开关）；motion-prefs「窗口切换转场」
+   关档由组件侧在根追加 .mobile-controlcenter-static 直切（与
+   .mobile-notification-static 同口径，规则置于 state 规则之后靠源序取胜）
+   ——用户在本面板里开「减弱动效」时 sheet 当场转直切，所见即所得。退场帧
+   （data-state='leaving'）的 pointer-events-none + aria-hidden 在组件侧，
+   不挡底下的 Shell。 */
+.mobile-controlcenter-backdrop {
+  background-color: rgb(15 23 42 / 45%);
+}
+.mobile-controlcenter[data-state='open'] .mobile-controlcenter-backdrop {
+  animation: mobile-controlcenter-fade-in var(--ag-motion-base) var(--ag-motion-ease);
+}
+.mobile-controlcenter[data-state='open'] .mobile-controlcenter-sheet {
+  animation: mobile-controlcenter-sheet-in var(--ag-motion-base) var(--ag-motion-ease);
+}
+.mobile-controlcenter[data-state='leaving'] .mobile-controlcenter-backdrop {
+  animation: mobile-controlcenter-fade-out var(--ag-motion-base) var(--ag-motion-ease) forwards;
+}
+.mobile-controlcenter[data-state='leaving'] .mobile-controlcenter-sheet {
+  animation: mobile-controlcenter-sheet-out var(--ag-motion-base) var(--ag-motion-ease) forwards;
+}
+.mobile-controlcenter.mobile-controlcenter-static .mobile-controlcenter-backdrop,
+.mobile-controlcenter.mobile-controlcenter-static .mobile-controlcenter-sheet {
+  animation: none;
+}
+@keyframes mobile-controlcenter-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes mobile-controlcenter-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes mobile-controlcenter-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes mobile-controlcenter-sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}

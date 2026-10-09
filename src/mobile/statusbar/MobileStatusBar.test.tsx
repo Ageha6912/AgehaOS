@@ -15,6 +15,9 @@ import { MobileStatusBar } from './MobileStatusBar'
  * M2-2 增补：通知铃铛 + 未读徽标契约（全状态栏首个可点目标）——徽标 =
  * notification-store 未读数（unreadCount），>9 折叠 9+；点按开 Bottom
  * Sheet（aria-expanded 反射）。
+ *
+ * M2-3 增补：控制中心入口按钮（铃铛旁最右位）——i18n 可访问名 + dialog
+ * 语义 + 44×44 命中区（::after 下延同款）+ 关闭回焦。
  */
 
 function grantNavigator(prop: 'getBattery' | 'connection', value: unknown): void {
@@ -133,5 +136,45 @@ describe('MobileStatusBar 通知铃铛（M2-2）', () => {
     const sheet = screen.getByTestId('mobile-notification-sheet')
     expect(sheet).toHaveAttribute('role', 'dialog')
     expect(sheet).toHaveAttribute('aria-label', '通知中心')
+  })
+})
+
+describe('MobileStatusBar 控制中心入口（M2-3）', () => {
+  it('入口按钮：调节图标位 + i18n 可访问名 + dialog 语义，默认收起', () => {
+    render(<MobileStatusBar />)
+    const entry = screen.getByTestId('mobile-control-center-entry')
+    expect(entry).toHaveAttribute('aria-label', '控制中心')
+    expect(entry).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(entry).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('mobile-control-center')).toBeNull()
+  })
+
+  it('点按开控制中心 sheet；backdrop 关闭回焦入口（§0.4 移动口径）', async () => {
+    render(<MobileStatusBar />)
+    fireEvent.click(screen.getByTestId('mobile-control-center-entry'))
+    expect(screen.getByTestId('mobile-control-center-entry')).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    const sheet = screen.getByTestId('mobile-control-center-sheet')
+    expect(sheet).toHaveAttribute('role', 'dialog')
+    expect(sheet).toHaveAttribute('aria-label', '控制中心')
+
+    // backdrop 关闭 → 播完退场帧卸载，焦点回入口按钮。
+    fireEvent.click(screen.getByTestId('mobile-control-center-backdrop'))
+    expect(screen.getByTestId('mobile-control-center-entry')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(screen.getByTestId('mobile-control-center-entry')).toHaveFocus()
+    await waitFor(() => expect(screen.queryByTestId('mobile-control-center')).toBeNull())
+  })
+
+  it('触控纪律：入口命中区 44×44（h-11 w-11 + ::after 下延，与铃铛同款）', () => {
+    render(<MobileStatusBar />)
+    const entry = screen.getByTestId('mobile-control-center-entry')
+    expect(entry.className).toContain('h-11')
+    expect(entry.className).toContain('w-11')
+    expect(entry.className).toContain('after:h-11')
   })
 })

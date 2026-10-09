@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 
-import { Bell } from '@phosphor-icons/react'
+import { Bell, SlidersHorizontal } from '@phosphor-icons/react'
 
 import { useTranslation } from '@/core/i18n'
 import { unreadCount, useNotificationStore } from '@/store/notification-store'
@@ -8,6 +8,7 @@ import { useSessionStore } from '@/store/session-store'
 
 import { useClock } from '@/components/use-clock'
 
+import { MobileControlCenterSheet } from '../controlcenter/MobileControlCenterSheet'
 import { MobileNotificationSheet } from '../notifications/MobileNotificationSheet'
 import { useBatteryLevel, useNetworkState } from './use-statusbar-sources'
 
@@ -23,14 +24,21 @@ import { useBatteryLevel, useNetworkState } from './use-statusbar-sources'
  * 等宽数据读出（§0.6 最小字号 11px）；状态条是玻璃白名单的 Header 位
  * （§35.1），M1-1 沿用 M0 的实色 --ag-surface 底不引入 blur。
  *
- * M2-2 通知中心入口：右侧簇末尾通知铃铛（全状态栏首个可点目标）+ 未读
- * 徽标（= notification-store 未读数，unreadCount 既有纯函数；>9 折叠 9+，
- * 桌面铃铛同口径）+ 点按开 Bottom Sheet（../notifications/MobileNotificationSheet，
- * 数据源 = notification-bridge 事件流）。§35.3 触控纪律：铃铛命中区 44×44
- * ——占位带最小 24px 高（M0-4 契约），44px 盒居中必然上溢视口被裁，故用
- * ::after 把命中区自盒中心向下延伸 44px，任何占位带高度下有效命中 ≥44px
- * （下延区在 Home/应用视图顶部均为非交互留白，无目标冲突；z-20 压过
- * AppHost 的 z-10）。图标本体仍与读数行同线居中（含刘海档 59px 槽）。
+ * M2-2 通知中心入口：右侧通知铃铛 + 未读徽标（= notification-store 未读数，
+ * unreadCount 既有纯函数；>9 折叠 9+，桌面铃铛同口径）+ 点按开 Bottom
+ * Sheet（../notifications/MobileNotificationSheet，数据源 = notification-bridge
+ * 事件流）。
+ *
+ * M2-3 控制中心入口：铃铛旁调节图标按钮（最右位，iOS 控制中心同角）+ 点按
+ * 开 Bottom Sheet（../controlcenter/MobileControlCenterSheet）——开关状态
+ * 归本组件，与通知中心互斥天然成立（sheet 的全屏 backdrop 盖住状态栏，另
+ * 一个入口不可点）。
+ *
+ * §35.3 触控纪律：铃铛/调节按钮命中区 44×44——占位带最小 24px 高（M0-4
+ * 契约），44px 盒居中必然上溢视口被裁，故用 ::after 把命中区自盒中心向下
+ * 延伸 44px，任何占位带高度下有效命中 ≥44px（下延区在 Home/应用视图顶部
+ * 均为非交互留白，无目标冲突；z-20 压过 AppHost 的 z-10）。图标本体仍与
+ * 读数行同线居中（含刘海档 59px 槽）。
  */
 export function MobileStatusBar() {
   const { t } = useTranslation()
@@ -48,6 +56,13 @@ export function MobileStatusBar() {
   const closeCenter = (): void => {
     setCenterOpen(false)
     bellRef.current?.focus()
+  }
+  // M2-3 控制中心：开关状态同款归本组件，关闭回焦调节按钮。
+  const [controlOpen, setControlOpen] = useState(false)
+  const controlRef = useRef<HTMLButtonElement>(null)
+  const closeControl = (): void => {
+    setControlOpen(false)
+    controlRef.current?.focus()
   }
 
   return (
@@ -117,10 +132,31 @@ export function MobileStatusBar() {
             )}
           </span>
         </button>
+        {/* M2-3 控制中心入口：44×44 命中区（::after 下延，与铃铛同款，见模块
+            注释 §35.3 段）；右侧簇最右位（iOS 控制中心同角），i18n 可访问名。 */}
+        <button
+          type="button"
+          ref={controlRef}
+          data-testid="mobile-control-center-entry"
+          aria-label={t('mobile.controlcenter.open')}
+          aria-haspopup="dialog"
+          aria-expanded={controlOpen}
+          onClick={() => setControlOpen(true)}
+          className="relative z-20 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-opacity after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:content-[''] active:opacity-80"
+        >
+          <SlidersHorizontal
+            size={16}
+            weight="regular"
+            aria-hidden="true"
+            style={{ color: 'var(--ag-text)' }}
+          />
+        </button>
       </div>
       </div>
       {/* M2-2 通知中心 Bottom Sheet：fixed 全屏覆盖层，开关状态在本组件。 */}
       <MobileNotificationSheet open={centerOpen} onClose={closeCenter} />
+      {/* M2-3 控制中心 Bottom Sheet：同款覆盖层，开关状态在本组件。 */}
+      <MobileControlCenterSheet open={controlOpen} onClose={closeControl} />
     </>
   )
 }

@@ -155,6 +155,17 @@ export const dictionaries = {
     'mobile.launcher.open': '搜索应用',
     'mobile.launcher.searchPlaceholder': '搜索应用…',
     'mobile.launcher.empty': '没有匹配的应用',
+    /* M2-3 移动控制中心：Bottom Sheet 快捷面（src/mobile/controlcenter/
+       MobileControlCenterSheet.tsx）——入口按钮可访问名与 sheet 标题同一句
+       （mobile.launcher.open 同口径）+「减弱动效」开关文案（底层布尔 =
+       motion-prefs-store windowTilt 的反相呈现：关 = 通知中心/启动器/
+       AppHost 三处既有转场消费位直切；桌面 Settings 呈现同一布尔的正相档
+       「窗口切换转场」，移动侧按用户语义命名）。主题/字号/语言的分区标题
+       与选项复用 settings.* / theme.* / fontSize.* 既有键，登出复用
+       auth.logout（桌面 UserMenu 同键），语言选项是语言本名（简体中文/
+       English）不入典。 */
+    'mobile.controlcenter.open': '控制中心',
+    'mobile.controlcenter.reduceMotion': '减弱动效',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -742,6 +753,20 @@ export const dictionaries = {
     'mobile.launcher.open': 'Search apps',
     'mobile.launcher.searchPlaceholder': 'Search apps…',
     'mobile.launcher.empty': 'No matching apps',
+    /* M2-3 mobile control center: bottom-sheet quick panel
+       (src/mobile/controlcenter/MobileControlCenterSheet.tsx) — entry button
+       accessible name, same string as the sheet title (same caliber as
+       mobile.launcher.open) + the "reduce motion" switch copy (underlying
+       boolean = motion-prefs-store windowTilt presented inverted: off =
+       instant switch on the three existing transition consumers — the
+       notification sheet, the launcher and the AppHost; desktop Settings
+       presents the same boolean positively as "window transitions", mobile
+       names it by user intent). Theme / font-size / language section titles
+       and options reuse the existing settings.* / theme.* / fontSize.* keys,
+       sign-out reuses auth.logout (same key as the desktop UserMenu),
+       language options are native language names (not dictionary copy). */
+    'mobile.controlcenter.open': 'Control center',
+    'mobile.controlcenter.reduceMotion': 'Reduce motion',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',
