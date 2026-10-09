@@ -26,6 +26,7 @@ import { joinPath, splitPath, Vfs, MAX_FILE_BYTES } from '@/core/filesystem'
 import type { VfsNode } from '@/core/filesystem'
 
 import { vfsErrorMessageKey } from './error-messages'
+import { useNarrowContainer } from './use-narrow-container'
 
 interface FileEntry {
   node: VfsNode
@@ -80,6 +81,10 @@ export interface FileManagerProps {
 
 export function FileManager({ vfs, windowId, initialTrash = false }: FileManagerProps) {
   const { t } = useTranslation()
+  // 窄容器分支（M2-5）：按根元素内容盒宽（<560px）折叠布局与触屏语义，
+  // 与设备判定（device-store）无关——桌面窄窗口同样进入窄分支，移动宽视口
+  // （平板横屏 ≥560px）保持宽布局。
+  const { ref: rootRef, narrow } = useNarrowContainer()
   const [path, setPath] = useState('/')
   const [trashMode, setTrashMode] = useState(initialTrash)
   const [query, setQuery] = useState('')
@@ -249,8 +254,11 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
     : ''
 
   return (
-    <div className="surface-panel flex h-full text-sm">
-      <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface/60 p-2">
+    <div ref={rootRef} className="surface-panel flex h-full text-sm">
+      {/* 宽容器（≥560px）：固定侧栏原样渲染（桌面 DOM/样式与改前等价）；
+          窄容器整块不渲染，目录切换由主列顶部的 chip 行接管。 */}
+      {!narrow && (
+        <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface/60 p-2">
         <p className="px-2 py-1 text-xs text-text-muted">{t('files.quickAccess')}</p>
         <ul>
           {quickAccess.map((item) => {
@@ -291,11 +299,65 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
           </li>
         </ul>
       </aside>
+      )}
 
       {/* 主列 = 容器查询上下文（container-type: inline-size）：列宽由 flex
           决定、与内容无关， containment 无布局副作用；工具栏行按容器宽度
           分支（@max-[640px]），桌面宽容器布局零变化。 */}
       <div className="@container flex min-w-0 flex-1 flex-col">
+        {/* 窄容器（根内容盒 <560px）：固定侧栏收起为顶部目录切换 chip 行
+            （M2-5）——8 个快速访问目录 + 回收站，标签与侧栏同源
+            （SYSTEM_FOLDER_KEYS / files.trash.title，i18n 双语）。
+            行本身是横向滚动面：照 M2-4 契约打 data-no-edge-back
+            （use-edge-back 整体豁免 + index.css 对该面及后代重放 pan-x），
+            chip 命中区 min-h-[44px]（§35.3）。宽容器整块不渲染。 */}
+        {narrow && (
+          <nav
+            data-no-edge-back
+            data-testid="files-dir-switcher"
+            aria-label={t('files.quickAccess')}
+            className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border px-3 py-1.5"
+          >
+            {quickAccess.map((item) => {
+              const active = !trashMode && path === item.path
+              return (
+                <button
+                  key={item.path}
+                  type="button"
+                  aria-current={active ? 'true' : undefined}
+                  title={item.path}
+                  className={`flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs ${
+                    active
+                      ? 'border-primary bg-primary/10 font-medium text-primary'
+                      : 'border-border text-text'
+                  }`}
+                  onClick={() => navigate(item.path)}
+                >
+                  <item.icon
+                    aria-hidden="true"
+                    size={14}
+                    className={active ? 'text-primary' : 'text-text-muted'}
+                  />
+                  {folderLabel(item.path, t) ?? item.name}
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              aria-current={trashMode ? 'true' : undefined}
+              className={`flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs ${
+                trashMode
+                  ? 'border-primary bg-primary/10 font-medium text-primary'
+                  : 'border-border text-text'
+              }`}
+              onClick={openTrash}
+            >
+              <Trash aria-hidden="true" size={14} className={trashMode ? 'text-primary' : 'text-text-muted'} />
+              {t('files.trash.title')}
+            </button>
+          </nav>
+        )}
+
         {/* 窄容器（移动全屏视图 / 小窗口）：面包屑收缩 + 操作簇溢出改为
             本行横向滚动（overflow-x-auto）并标记 data-no-edge-back——
             移动边缘返回手势对该面豁免（hook 跳过 + index.css 重放
@@ -305,7 +367,7 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
         <div
           data-no-edge-back
           data-testid="files-toolbar"
-          className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3 @max-[640px]:overflow-x-auto"
+          className={`flex ${narrow ? 'min-h-14' : 'h-10'} shrink-0 items-center gap-2 border-b border-border px-3 @max-[640px]:overflow-x-auto`}
         >
           {trashMode ? (
             <span className="flex items-center gap-2 font-medium text-text">
@@ -319,7 +381,9 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
             >
               <button
                 type="button"
-                className="rounded px-1.5 py-0.5 text-text-muted hover:bg-surface-raised hover:text-text"
+                className={`rounded px-1.5 py-0.5 text-text-muted hover:bg-surface-raised hover:text-text ${
+                  narrow ? 'flex min-h-[44px] items-center' : ''
+                }`}
                 onClick={() => navigate('/')}
                 title="/"
               >
@@ -333,6 +397,8 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                     key={target}
                     type="button"
                     className={`max-w-40 truncate rounded px-1.5 py-0.5 ${
+                      narrow ? 'flex min-h-[44px] items-center ' : ''
+                    }${
                       last
                         ? 'font-medium text-text'
                         : 'text-text-muted hover:bg-surface-raised hover:text-text'
@@ -350,12 +416,13 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             {trashMode ? (
               <>
-                <ToolbarButton label={t('files.restore')} disabled={!selected} onClick={restoreSelected} />
-                <ToolbarButton label={t('files.purge')} disabled={!selected} onClick={purgeSelected} danger />
+                <ToolbarButton narrow={narrow} label={t('files.restore')} disabled={!selected} onClick={restoreSelected} />
+                <ToolbarButton narrow={narrow} label={t('files.purge')} disabled={!selected} onClick={purgeSelected} danger />
               </>
             ) : (
               <>
                 <ToolbarButton
+                  narrow={narrow}
                   label={t('files.newFile')}
                   icon={<FilePlus aria-hidden="true" size={14} />}
                   primary
@@ -365,6 +432,7 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                   }}
                 />
                 <ToolbarButton
+                  narrow={narrow}
                   label={t('files.upload')}
                   icon={<UploadSimple aria-hidden="true" size={14} />}
                   onClick={() => uploadInputRef.current?.click()}
@@ -384,6 +452,7 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                   }}
                 />
                 <ToolbarButton
+                  narrow={narrow}
                   label={t('files.newFolder')}
                   icon={<FolderPlus aria-hidden="true" size={14} />}
                   onClick={() => {
@@ -392,6 +461,7 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                   }}
                 />
                 <ToolbarButton
+                  narrow={narrow}
                   label={t('files.rename')}
                   disabled={!selected}
                   onClick={() => {
@@ -400,6 +470,7 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                   }}
                 />
                 <ToolbarButton
+                  narrow={narrow}
                   label={t('files.delete')}
                   disabled={!selected || selected.node.parentId === null}
                   onClick={deleteSelected}
@@ -419,7 +490,7 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                 placeholder={t('files.search.placeholder')}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                className="h-7 w-40 rounded-md border border-border bg-surface-raised pr-2 pl-6 text-xs text-text placeholder:text-text-muted focus:border-primary"
+                className={`${narrow ? 'h-11' : 'h-7'} w-40 rounded-md border border-border bg-surface-raised pr-2 pl-6 text-xs text-text placeholder:text-text-muted focus:border-primary`}
               />
             </div>
           </div>
@@ -459,7 +530,19 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                         ? 'border-primary bg-primary/10'
                         : 'border-transparent hover:border-border hover:bg-surface-raised'
                     }`}
-                    onClick={() => select(entry)}
+                    onClick={() => {
+                      if (!narrow) {
+                        // 宽容器（桌面）：单击选中、双击打开——与改前一致。
+                        select(entry)
+                        return
+                      }
+                      // 窄容器触屏语义（M2-5）：首击选中——接通工具栏重命名/
+                      // 删除/还原/彻底删除；已选中再击 = 打开（进目录 / 文件
+                      // 预览）。不依赖触屏上派发不可靠的 dblclick。整格命中
+                      // 区（图标 28 + 双行文本 + p-2.5）≥44×44（§35.3）。
+                      if (selectedId === entry.node.id) void openEntry(entry)
+                      else select(entry)
+                    }}
                     onDoubleClick={() => void openEntry(entry)}
                   >
                     {entry.node.type === 'directory' ? (
@@ -513,7 +596,9 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
               <h2 className="truncate font-mono text-xs text-text">{preview.path}</h2>
               <button
                 type="button"
-                className="rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:bg-surface-raised hover:text-text"
+                className={`rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:bg-surface-raised hover:text-text ${
+                  narrow ? 'min-h-[44px]' : ''
+                }`}
                 onClick={() => setPreview(null)}
               >
                 {t('files.preview.close')}
@@ -535,6 +620,7 @@ function ToolbarButton({
   primary = false,
   danger = false,
   icon = null,
+  narrow = false,
   onClick,
 }: {
   label: string
@@ -542,6 +628,8 @@ function ToolbarButton({
   primary?: boolean
   danger?: boolean
   icon?: React.ReactNode
+  /** 窄容器（M2-5）：命中区抬到 ≥44px（§35.3），其余视觉档不变。 */
+  narrow?: boolean
   onClick: () => void
 }) {
   return (
@@ -549,7 +637,7 @@ function ToolbarButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs ${
+      className={`flex ${narrow ? 'min-h-[44px]' : 'h-7'} items-center gap-1.5 rounded-md px-2.5 text-xs ${
         primary
           ? 'border border-transparent bg-primary text-primary-contrast hover:opacity-90'
           : danger

@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MAX_FILE_BYTES, MemoryAdapter } from '@/core/filesystem'
 import { Vfs } from '@/core/filesystem'
@@ -279,5 +279,154 @@ describe('FileManager upload（Phase 3 二进制承载 UI 面）', () => {
 
     expect(screen.queryByTestId('file-upload-input')).toBeNull()
     expect(screen.queryByRole('button', { name: '上传文件' })).toBeNull()
+  })
+})
+
+/**
+ * 窄容器分支（M2-5）：jsdom 无 ResizeObserver 时 use-narrow-container 降级
+ * 恒 wide（桌面兜底——上方全部既有用例即在此路径运行，零改动通过）。本组
+ * stub 一个最小 ResizeObserver 显式喂容器宽度驱动窄分支；几何级断言（横向
+ * 溢出 / 命中区实测 / 触屏滚动语义）归 e2e/mobile-files.spec.ts 真实视口。
+ */
+class FakeResizeObserver {
+  static instances: FakeResizeObserver[] = []
+  private readonly callback: ResizeObserverCallback
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    FakeResizeObserver.instances.push(this)
+  }
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+  /** 手动喂一次观测回调（内容盒宽度）。真实 RO 在 observe 时必发初始帧。 */
+  emit(width: number): void {
+    this.callback(
+      [{ contentRect: { width } } as ResizeObserverEntry],
+      this as unknown as ResizeObserver,
+    )
+  }
+}
+
+describe('FileManager 窄容器（M2-5）', () => {
+  beforeEach(() => {
+    FakeResizeObserver.instances = []
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver as unknown as typeof ResizeObserver)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  async function renderNarrow(vfs: Vfs) {
+    render(<FileManager vfs={vfs} windowId="w-files" />)
+    await act(async () => {
+      FakeResizeObserver.instances.at(-1)?.emit(360)
+    })
+  }
+
+  it('窄容器：固定侧栏收起为顶部目录 chip 行，操作簇触控抬到 44px', async () => {
+    const vfs = await createVfs()
+    await renderNarrow(vfs)
+
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+    const switcher = screen.getByTestId('files-dir-switcher')
+    expect(switcher).toHaveAttribute('data-no-edge-back')
+    expect(switcher).toHaveAttribute('aria-label', '快速访问')
+    expect(within(switcher).getByRole('button', { name: '文档' })).toBeInTheDocument()
+    expect(within(switcher).getByRole('button', { name: '回收站' })).toBeInTheDocument()
+    // 工具栏操作钮窄容器抬到 min-h-[44px]，行体 min-h-14 容住命中区。
+    expect(screen.getByRole('button', { name: '新建文本文件' }).className).toContain('min-h-[44px]')
+    expect(screen.getByTestId('files-toolbar').className).toContain('min-h-14')
+    // M2-4 的横向滚动面契约保持在场（宽窄分支叠加，不互斥）。
+    expect(screen.getByTestId('files-toolbar').className).toContain('@max-[640px]:overflow-x-auto')
+  })
+
+  it('窄容器：chip 行切换目录与回收站，aria-current 跟随当前视图', async () => {
+    const vfs = await createVfs()
+    await renderNarrow(vfs)
+
+    const switcher = screen.getByTestId('files-dir-switcher')
+    fireEvent.click(within(switcher).getByRole('button', { name: '文档' }))
+
+    // 页脚路径跟随（真实路径保持英文——VFS/SDK 契约不动）。
+    expect(screen.getByText('/Documents')).toBeInTheDocument()
+    expect(within(switcher).getByRole('button', { name: '文档' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+
+    fireEvent.click(within(switcher).getByRole('button', { name: '回收站' }))
+    expect(await screen.findByText('回收站是空的')).toBeInTheDocument()
+    expect(within(switcher).getByRole('button', { name: '回收站' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+    expect(within(switcher).getByRole('button', { name: '文档' })).not.toHaveAttribute(
+      'aria-current',
+    )
+  })
+
+  it('窄容器触屏语义：首击选中、再击打开（进目录 / 文件预览）', async () => {
+    const vfs = await createVfs()
+    await vfs.createDirectory('/Documents/projects')
+    await vfs.writeFile('/Documents/projects/note.txt', 'hello')
+    await renderNarrow(vfs)
+
+    fireEvent.click(
+      within(screen.getByTestId('files-dir-switcher')).getByRole('button', { name: '文档' }),
+    )
+    const dirTile = await screen.findByRole('button', { name: /projects/ })
+
+    // 首击：仅选中（选中态接通工具栏重命名/删除），不进入目录。
+    fireEvent.click(dirTile)
+    expect(dirTile).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('/Documents')).toBeInTheDocument()
+
+    // 再击：进入目录。
+    fireEvent.click(dirTile)
+    expect(await screen.findByText('/Documents/projects')).toBeInTheDocument()
+
+    // 文件：首击选中（无预览弹层），再击打开预览。
+    const fileTile = await screen.findByRole('button', { name: /note\.txt/ })
+    fireEvent.click(fileTile)
+    expect(fileTile).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('dialog', { name: '文件预览' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /note\.txt/ }))
+    expect(await screen.findByRole('dialog', { name: '文件预览' })).toBeInTheDocument()
+  })
+
+  it('窄容器：回收站深链（initialTrash）→ 回收站 chip 高亮、上传入口缺席', async () => {
+    const vfs = await createVfs()
+    await vfs.writeFile('/Documents/gone.txt', 'x')
+    await vfs.remove('/Documents/gone.txt')
+    render(<FileManager vfs={vfs} windowId="w-files" initialTrash />)
+    await act(async () => {
+      FakeResizeObserver.instances.at(-1)?.emit(360)
+    })
+
+    const switcher = screen.getByTestId('files-dir-switcher')
+    expect(within(switcher).getByRole('button', { name: '回收站' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+    expect(screen.queryByTestId('file-upload-input')).toBeNull()
+  })
+
+  it('宽容器（880px 桌面窗口档）：侧栏在场、chip 行不渲染、单击仍仅选中', async () => {
+    const vfs = await createVfs()
+    render(<FileManager vfs={vfs} windowId="w-files" />)
+    await act(async () => {
+      FakeResizeObserver.instances.at(-1)?.emit(880)
+    })
+
+    expect(screen.getByRole('complementary')).toBeInTheDocument()
+    expect(screen.queryByTestId('files-dir-switcher')).not.toBeInTheDocument()
+    // 桌面交互语义原样：单击仅选中、不进入（网格 tile 以 pressed 过滤，
+    // 与侧栏同名按钮区分）。
+    const tile = await screen.findByRole('button', { name: '下载', pressed: false })
+    fireEvent.click(tile)
+    expect(tile).toHaveAttribute('aria-pressed', 'true')
+    // 未发生目录进入：根目录网格原样在场。
+    expect(screen.getByRole('button', { name: '图片', pressed: false })).toBeInTheDocument()
   })
 })
