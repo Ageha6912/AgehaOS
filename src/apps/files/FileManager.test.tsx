@@ -41,6 +41,21 @@ describe('FileManager', () => {
     ).toBeInTheDocument()
   })
 
+  it('工具栏行是边缘手势豁免的横向滚动面（窄容器分支，M2-4 QA）', async () => {
+    // 360px 移动视口下操作簇（新建/上传/重命名/删除 + 搜索）min-content
+    // 超出视口，工具栏行按容器查询分支转为横向滚动行并打 data-no-edge-back
+    // ——触屏可横滚 + 边缘返回手势豁免（hook 跳过 + index.css 重放 pan-x）。
+    // 桌面宽容器无 @max 分支生效，布局与改前一致（桌面 E2E 为准）。
+    const vfs = await createVfs()
+    render(<FileManager vfs={vfs} windowId="w-files" />)
+
+    const row = screen.getByTestId('files-toolbar')
+    expect(row).toHaveAttribute('data-no-edge-back')
+    expect(row.className).toContain('@max-[640px]:overflow-x-auto')
+    // 容器查询上下文在主列（行宽由列决定，containment 无布局副作用）。
+    expect(row.parentElement).toHaveClass('@container')
+  })
+
   it('shows localized names for system folders while keeping the real path', async () => {
     const vfs = await createVfs()
     render(<FileManager vfs={vfs} windowId="w-files" />)

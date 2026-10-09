@@ -292,8 +292,21 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
         </ul>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
+      {/* 主列 = 容器查询上下文（container-type: inline-size）：列宽由 flex
+          决定、与内容无关， containment 无布局副作用；工具栏行按容器宽度
+          分支（@max-[640px]），桌面宽容器布局零变化。 */}
+      <div className="@container flex min-w-0 flex-1 flex-col">
+        {/* 窄容器（移动全屏视图 / 小窗口）：面包屑收缩 + 操作簇溢出改为
+            本行横向滚动（overflow-x-auto）并标记 data-no-edge-back——
+            移动边缘返回手势对该面豁免（hook 跳过 + index.css 重放
+            pan-x），触屏可横滚到被裁剪的操作簇（M2-4 QA：360px 视口下
+            操作簇 min-content ~454px 全部在视口外）。宽容器（桌面）：
+            无 overflow 声明、行为与改前完全一致。 */}
+        <div
+          data-no-edge-back
+          data-testid="files-toolbar"
+          className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3 @max-[640px]:overflow-x-auto"
+        >
           {trashMode ? (
             <span className="flex items-center gap-2 font-medium text-text">
               <Trash aria-hidden="true" size={14} className="text-text-muted" />

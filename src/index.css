@@ -1159,6 +1159,26 @@ body {
 .mobile-app-host {
   background-color: var(--ag-surface);
 }
+/* 边缘返回手势（M2-4）与原生滚动的划界：应用面板子树默认只放行纵向原生
+   滚动（pan-y），横向触摸拖拽不进浏览器滚动管线——否则起于纵向滚动面
+   （Files 侧栏等 overflow-y-auto，touch-action 默认 auto）的横向拖拽在第
+   一拍就被 pointercancel 吃掉，手势到不了判定。作用域必须落在滚动容器
+   本身：浏览器的 touch-action 合取在「目标元素 → 最近滚动容器」处截止，
+   祖先面板上的 pan-y 管不到子滚动面，故用子树通配；同样的合取规则也意
+   味着豁免必须覆盖到标记容器的后代——只标记容器自身时，后代仍被通配规则
+   钉在 pan-y，链条交集照样封死横滚。纵向滚动不受影响；Type B/羽化
+   iframe 是独立文档不受宿主 touch-action 约束。逃生口（横向滚动面须同时
+   满足两点）：①在其容器打 [data-no-edge-back]——JS 侧 hook 整体豁免，
+   横向交互完全归该面；②本规则对该面及其后代重放 pan-x（首个消费方：
+   FileManager 工具栏行，窄容器分支见 src/apps/files/FileManager.tsx）。 */
+.mobile-app-host,
+.mobile-app-host * {
+  touch-action: pan-y;
+}
+.mobile-app-host [data-no-edge-back],
+.mobile-app-host [data-no-edge-back] * {
+  touch-action: pan-x pan-y;
+}
 .mobile-app-host[data-state='open'] {
   animation: mobile-app-in var(--ag-motion-base) var(--ag-motion-ease);
 }

@@ -16,6 +16,7 @@ import { useMobileNavStore } from '@/store/mobile-nav-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useWindowStore } from '@/store/window-store'
 import { getAppManifest } from '@/store/app-store'
+import { useEdgeBack } from '@/mobile/gesture/use-edge-back'
 
 /**
  * 移动应用宿主（M1-6 MobileAppHost，HANDOFF §4.0-7）：把 mobile-nav-store
@@ -58,6 +59,24 @@ import { getAppManifest } from '@/store/app-store'
  * 转场开关）关闭时走 .mobile-app-static 直切。退场用「渲染滞后一拍」：
  * home 立即显示，应用面板带 data-state='leaving' 播完退场再卸载（期间
  * pointer-events-none + aria-hidden，不挡交互不进可达树）。
+ *
+ * 边缘返回手势（M2-4，HANDOFF §4.0-4）：view='app' 时在宿主面板挂
+ * useEdgeBack（src/mobile/gesture/use-edge-back.ts）——左缘 ≤24px 起点的
+ * 横向拖拽跟手滑入，过半或快速甩动确认，确认走 backToHome（与返回键/
+ * popstate 同一出口，不绕过 nav store，HANDOFF §4.0-4「手势返回也应走
+ * backToHome」）。跟手动画的降级开关与本组件转场同一档：motion-prefs
+ * windowTilt 关 → followMotion=false 直切；prefers-reduced-motion 由 hook
+ * 在 pointerdown 时实时探测。冲突审计（2026-10-09 修订，QA 实测纠偏）：
+ * `.mobile-app-body` 只声明 overflow-y:auto（index.css），但 CSS 的
+ * visible/auto 配对规则会把 x 轴也算成 auto——应用内容 min-content 超出
+ * 视口时宿主面板自身就是横向滚动面（QA 实测 Files 在 360px 视口
+ * scrollWidth=796），这类面 grep src/apps 抓不到。横向交互的归属：宿主
+ * 面板子树 touch-action 默认 pan-y（index.css），真横向滚动面必须收进
+ * 显式标记 data-no-edge-back 的容器（hook 整体豁免 + index.css 对该面及
+ * 后代重放 pan-x）；首个消费方 = Files 工具栏行（容器查询窄分支，
+ * src/apps/files/FileManager.tsx，M2-5 窄容器适配时新增横向面照此办理）。
+ * Type B/羽化应用是 sandbox iframe，指针事件天然不达宿主文档，M2 三张
+ * Bottom Sheet 是 z-20 覆盖层、按下落在覆盖层元素上不经过本面板。
  */
 
 /** 退场渲染滞后 = 进出场时长；与 index.css 的 --ag-motion-base（200ms）同值。 */
@@ -71,6 +90,17 @@ export function MobileAppHost() {
   const transitionsOn = useMotionPrefsStore((state) => state.windowTilt)
 
   const inApp = nav.view === 'app'
+
+  // ── 边缘返回手势（M2-4）：挂在宿主面板元素上，view='app' 时启用 ────────
+  //    确认 = backToHome（与返回键/popstate 同一出口）；跟手动画跟随转场
+  //    档（windowTilt），reduced-motion 由 hook 落下时实时探测。
+  const hostRef = useRef<HTMLElement | null>(null)
+  useEdgeBack({
+    targetRef: hostRef,
+    enabled: inApp,
+    followMotion: transitionsOn,
+    onConfirm: backToHome,
+  })
 
   // ── 离开宿主位：关窗 + 退场渲染滞后（声明先于启动 effect，同一 commit
   //    内先关旧窗再启新窗）──────────────────────────────────────────────
@@ -176,6 +206,7 @@ export function MobileAppHost() {
 
   return (
     <section
+      ref={hostRef}
       data-testid="mobile-app-host"
       data-app-id={panel.appId}
       data-window-id={inApp ? (nav.windowId ?? '') : undefined}

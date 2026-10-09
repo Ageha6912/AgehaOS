@@ -318,3 +318,138 @@ describe('MobileAppHost', () => {
     expect(screen.getByTestId('mobile-app-title')).toHaveTextContent('Calculator')
   })
 })
+
+/**
+ * M2-4 边缘返回手势集成（判定/降级细节归 gesture 目录单测，这里钉宿主
+ * 挂载契约：view='app' 时手势可用、确认 = backToHome 同一出口、跟手动画
+ * 跟随转场档、data-no-edge-back 逃生口在宿主树内生效）。
+ */
+describe('MobileAppHost 边缘返回手势', () => {
+  // jsdom 零布局：hook 视口取样回退 window.innerWidth/Height——钉成 360×800
+  // 与 E2E 设备档同口径（确认线 = 半屏 180px）。
+  beforeEach(() => {
+    vi.stubGlobal('innerWidth', 360)
+    vi.stubGlobal('innerHeight', 800)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /** 在面板上驱动一段 pointer 拖拽（bubbles 冒泡到宿主 section）。 */
+  function swipeOnHost(
+    target: Element,
+    points: Array<{ x: number; y: number }>,
+    pointerType = 'touch',
+  ): void {
+    for (const [index, p] of points.entries()) {
+      const type = index === 0 ? 'pointerdown' : index === points.length - 1 ? 'pointerup' : 'pointermove'
+      act(() => {
+        target.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 1,
+            pointerType,
+            clientX: p.x,
+            clientY: p.y,
+          }),
+        )
+      })
+    }
+  }
+
+  function openCalculator(): void {
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+  }
+
+  it('边缘拖过半（非跟手档）：确认 = backToHome 同一出口，窗口同步关闭', async () => {
+    // 转场关档 → followMotion=false：零 rAF 依赖，释放即直切。
+    act(() => {
+      useMotionPrefsStore.setState({ windowTilt: false })
+    })
+    openCalculator()
+
+    swipeOnHost(screen.getByTestId('mobile-app-host'), [
+      { x: 10, y: 400 },
+      { x: 250, y: 400 },
+    ])
+
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+  })
+
+  it('非边缘起点拖过半：不触发', () => {
+    act(() => {
+      useMotionPrefsStore.setState({ windowTilt: false })
+    })
+    openCalculator()
+
+    swipeOnHost(screen.getByTestId('mobile-app-host'), [
+      { x: 120, y: 400 },
+      { x: 340, y: 400 },
+    ])
+
+    expect(useMobileNavStore.getState().nav.view).toBe('app')
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+  })
+
+  it('跟手档：拖拽中面板 transform 直写（零 render 跟手），释放过半确认', async () => {
+    openCalculator()
+    const host = screen.getByTestId('mobile-app-host')
+    const pev = (type: string, x: number, y: number): void => {
+      act(() => {
+        host.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            pointerId: 1,
+            pointerType: 'touch',
+            clientX: x,
+            clientY: y,
+          }),
+        )
+      })
+    }
+
+    pev('pointerdown', 10, 400)
+    pev('pointermove', 160, 400)
+    // 真实 rAF（jsdom pretendToBeVisual ~16ms 帧）：等一帧让采样跑完。
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+    })
+    expect(host.style.transform).toBe('translate3d(150px, 0, 0)')
+
+    pev('pointermove', 250, 400)
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+    })
+    expect(host.style.transform).toBe('translate3d(240px, 0, 0)')
+
+    pev('pointerup', 250, 400)
+    // jsdom 无 WAAPI → 瞬时终态：立即确认，样式还原。
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+    expect(host.style.transform).toBe('')
+  })
+
+  it('data-no-edge-back 标记元素内的起点：手势豁免（横向滚动面逃生口）', () => {
+    act(() => {
+      useMotionPrefsStore.setState({ windowTilt: false })
+    })
+    openCalculator()
+    const backButton = screen.getByTestId('mobile-app-back')
+    backButton.setAttribute('data-no-edge-back', '')
+
+    swipeOnHost(backButton, [
+      { x: 10, y: 24 },
+      { x: 250, y: 24 },
+    ])
+
+    expect(useMobileNavStore.getState().nav.view).toBe('app')
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+  })
+})

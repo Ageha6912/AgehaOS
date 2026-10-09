@@ -7,6 +7,15 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  // worker 上限（M2-4 起钉住）：默认 workers ≈ 核数一半（本机 12 核 = 6 个
+  // 并行 Chromium），叠加 desktop-stress（20 窗口）等重规格时在 15GB 内存
+  // 的 Windows 门禁机上间歇击穿——实测 flake 三型：page.reload 报
+  // ERR_INSUFFICIENT_RESOURCES、页面 60s 加载不出（goto 超时）、浏览器进程
+  // 直接崩（Target page/context closed）。本机常驻用户 Chrome（~2-3GB），
+  // 门禁真实预算只有 ~4GB 空闲——2 个并发 Chromium（~1.2GB）稳进预算。
+  // 与 77a2686（vitest worker 上限）同一病灶同一手法：显式封顶换确定性
+  // （全套 ~4-5min，仍远低于门禁预算）。
+  workers: 2,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   timeout: 60_000,
