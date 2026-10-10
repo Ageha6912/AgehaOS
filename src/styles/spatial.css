@@ -1,0 +1,127 @@
+/*
+ * 空间化地基（Desktop Shell 空间化改造，2026-10-10 用户批准裁决落地）：
+ * --sp-* 命名空间——空间设计令牌 + 通用玻璃面类。本文件由 index.css 顶部
+ * （@import 'tailwindcss' 之后）引入，内部自持源序：令牌 → 基规则 → 增量
+ * → 降级兜底。
+ * 作用域纪律：空间视觉效果仅桌面作用域；移动端 §35 玻璃白名单五处不扩。
+ * 档位纪律：空间玻璃走独立低透明档位，不消费 --ag-glass-bg、不回调既有
+ * chrome 白玻璃 8% 裁决；对比度从不依赖 blur——两处实色兜底随附。
+ * 前缀纪律：backdrop-filter 只写标准属性，源码出现 -webkit- 前缀会被构建
+ * 链剥掉标准属性导致全应用玻璃失效（根因 A）。
+ * 动效纪律：只动 transform/opacity；prefers-reduced-motion 由 index.css
+ * 全局 0.01ms 塌缩覆盖；motion-prefs 关档由组件挂静态类直切（静态类位于
+ * 浮动类之后，同特异性下源序必胜，与 mobile 静态类同口径）。
+ * 主题成对纪律：随主题翻转的令牌（玻璃三档/窗口阴影）在 .dark 成对重声明；
+ * 主题无关几何常量（圆角/深度/透视/浮动参数）只入 :root（同红绿灯与
+ * --ag-tooltip-bg 的既有先例）。 */
+
+/* ---- 空间令牌 ---- */
+:root {
+  /* 圆角档：窗口 28px（自 20px rounded-xl 升档，已批准裁决）、空间小组件
+     面 20px。 */
+  --sp-window-radius: 28px;
+  --sp-widget-radius: 20px;
+
+  /* 空间玻璃三档（浅色 = 低透白起步；档内递进 light < medium < heavy）。
+     独立低透明档位：不消费 --ag-glass-bg，不回调 chrome 白玻璃 8% 裁决。 */
+  --sp-glass-light: rgb(255 255 255 / 10%);
+  --sp-glass-medium: rgb(255 255 255 / 16%);
+  --sp-glass-heavy: rgb(255 255 255 / 24%);
+
+  /* 深度档（深度类消费 translateZ）；perspective 供消费方侧舞台容器建立
+     3D 上下文——translateZ 的视觉位移依赖祖先透视。 */
+  --sp-lift-near: 80px;
+  --sp-lift-middle: 40px;
+  --sp-lift-far: 0px;
+  --sp-perspective: 1400px;
+
+  /* 常驻环境浮动参数（浮动关键帧消费；默认开启、可在设置关）。 */
+  --sp-float-duration: 9s;
+  --sp-float-distance: 5px;
+
+  /* 空间窗口阴影：比 --ag-shadow-window（0 16px 48px）更大更弥散的漂浮档；
+     浅色同 align 既有冷墨 rgb(18 32 62 / x%) 家族。 */
+  --sp-shadow-window: 0 32px 96px rgb(18 32 62 / 22%), 0 8px 28px rgb(18 32 62 / 10%);
+}
+
+.dark {
+  /* 空间玻璃深色成对档：冷墨 rgb(16 23 40 / x%) 家族（--ag-glass-bg 深色
+     配方同族），仍保持独立低透明档位（远低于 chrome 档 66%）。 */
+  --sp-glass-light: rgb(16 23 40 / 20%);
+  --sp-glass-medium: rgb(16 23 40 / 28%);
+  --sp-glass-heavy: rgb(16 23 40 / 40%);
+
+  /* 空间窗口阴影深色成对：纯黑家族。 */
+  --sp-shadow-window: 0 32px 96px rgb(0 0 0 / 55%), 0 8px 28px rgb(0 0 0 / 32%);
+}
+
+/* ---- 基规则：空间玻璃面 ---- */
+.spatial-window {
+  position: relative;
+  background: var(--sp-glass-medium);
+  backdrop-filter: blur(40px) saturate(150%);
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: var(--sp-window-radius);
+  box-shadow: var(--sp-shadow-window);
+}
+
+/* 斜向高光：120deg 白 12% 渐隐至 40%，克制不刺眼；装饰层不截胡交互。 */
+.spatial-window::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgb(255 255 255 / 12%), transparent 40%);
+  pointer-events: none;
+}
+
+/* ---- 增量 ---- */
+/* 深色主题：细边降为白 10%（与 --ag-glass-border 深色档同口径）。 */
+.dark .spatial-window {
+  border-color: rgb(255 255 255 / 10%);
+}
+
+/* 深度三档：translateZ 消费 --sp-lift-*，近档附加 scale(1.02)。变换不改
+   变静止布局盒（E2E 几何探针按静止态测量）；透视由消费方舞台提供。 */
+.sp-depth-near {
+  transform: translateZ(var(--sp-lift-near)) scale(1.02);
+}
+.sp-depth-middle {
+  transform: translateZ(var(--sp-lift-middle));
+}
+.sp-depth-far {
+  transform: translateZ(var(--sp-lift-far));
+}
+
+/* 常驻环境浮动：9s 周期上下 5px，只动 transform；关档直切类位于其后。 */
+.sp-ambient-float {
+  animation: sp-float var(--sp-float-duration) ease-in-out infinite;
+}
+@keyframes sp-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(calc(-1 * var(--sp-float-distance)));
+  }
+}
+/* 关档直切：motion-prefs 空间动效关档时组件挂它，与浮动类共存、同特异性
+   源序必胜（animation: none 压过浮动动画；与 mobile 静态类同口径）。 */
+.sp-motion-static {
+  animation: none;
+}
+
+/* ---- 降级兜底（源序即降级：兜底块在后，降级环境必胜；实色取
+   --ag-surface-popover 家族，与既有玻璃兜底同口径）---- */
+@media (prefers-reduced-transparency: reduce) {
+  .spatial-window {
+    background: var(--ag-surface-popover);
+    backdrop-filter: none;
+  }
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .spatial-window {
+    background: var(--ag-surface-popover);
+  }
+}

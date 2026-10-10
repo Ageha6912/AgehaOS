@@ -8,6 +8,9 @@ import { describe, expect, it } from 'vitest'
  * v1 兼容别名。样式值本身不在本测试断言范围（属 DESIGN.md 表格）。
  */
 const css = readFileSync(join(process.cwd(), 'src', 'index.css'), 'utf8')
+/* 空间化地基契约（src/styles/spatial.css，--sp-* 命名空间）：令牌双主题、
+ * 玻璃基规则、深度/浮动增量与两处实色兜底的自持源序，同读源文本钉扎。 */
+const spatial = readFileSync(join(process.cwd(), 'src', 'styles', 'spatial.css'), 'utf8')
 
 function block(open: string): string {
   const start = css.indexOf(open)
@@ -18,6 +21,15 @@ function block(open: string): string {
 const root = block(':root {')
 const dark = block('.dark {')
 const theme = block('@theme inline {')
+
+function spatialBlock(open: string): string {
+  const start = spatial.indexOf(open)
+  const end = spatial.indexOf('\n}', start)
+  return start >= 0 && end > start ? spatial.slice(start, end) : ''
+}
+
+const spRoot = spatialBlock(':root {')
+const spDark = spatialBlock('.dark {')
 
 function has(scope: string, name: string): boolean {
   return new RegExp(`--${name}:`).test(scope)
@@ -466,5 +478,106 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(scroll).toMatch(/min-height:\s*0/)
     expect(scroll).toMatch(/overflow-y:\s*auto/)
     expect(scroll).not.toContain('backdrop-filter')
+  })
+
+  it('imports spatial.css right after tailwindcss at the top of index.css', () => {
+    // 空间化地基独立文件由 index.css 顶部引入（@import 'tailwindcss' 之后
+    // 第一行）；--sp-* 令牌与类在最前段注册，内部自持源序（基规则→增量→
+    // 兜底）不受 index.css 未分层区影响。
+    expect(css.slice(0, 120)).toMatch(
+      /@import 'tailwindcss';\s*@import '\.\/styles\/spatial\.css';/,
+    )
+  })
+
+  it('defines the spatial tokens (geometry constants + both-theme glass/shadow pairing)', () => {
+    // 主题无关几何常量只入 :root（同红绿灯/--ag-tooltip-bg 先例）：圆角
+    // 升档（20px rounded-xl → 28px 空间档）、深度、透视与浮动参数。
+    expect(spRoot).toMatch(/--sp-window-radius:\s*28px/)
+    expect(spRoot).toMatch(/--sp-widget-radius:\s*20px/)
+    expect(spRoot).toMatch(/--sp-lift-near:\s*80px/)
+    expect(spRoot).toMatch(/--sp-lift-middle:\s*40px/)
+    expect(spRoot).toMatch(/--sp-lift-far:\s*0px/)
+    expect(spRoot).toMatch(/--sp-perspective:\s*1400px/)
+    expect(spRoot).toMatch(/--sp-float-duration:\s*9s/)
+    expect(spRoot).toMatch(/--sp-float-distance:\s*5px/)
+    // 随主题翻转的档位成对声明：浅色低透白 10/16/24；深色冷墨
+    // rgb(16 23 40 / x%) 家族（--ag-glass-bg 深色配方同族，独立低透明档）。
+    expect(spRoot).toMatch(/--sp-glass-light:\s*rgb\(255 255 255 \/ 10%\)/)
+    expect(spRoot).toMatch(/--sp-glass-medium:\s*rgb\(255 255 255 \/ 16%\)/)
+    expect(spRoot).toMatch(/--sp-glass-heavy:\s*rgb\(255 255 255 \/ 24%\)/)
+    for (const name of ['sp-glass-light', 'sp-glass-medium', 'sp-glass-heavy']) {
+      expect(has(spDark, name), `${name} in .dark`).toBe(true)
+      expect(spDark).toMatch(new RegExp(`--${name}:\\s*rgb\\(16 23 40 \\/ \\d+%\\)`))
+    }
+    // 空间窗口阴影双主题成对：浅 = 冷墨家族、深 = 纯黑家族；比
+    // --ag-shadow-window（0 16px 48px）更大更弥散（96px 漂浮档）。
+    expect(spRoot).toMatch(/--sp-shadow-window:\s*0 32px 96px rgb\(18 32 62 \/ 22%\)/)
+    expect(spDark).toMatch(/--sp-shadow-window:\s*0 32px 96px rgb\(0 0 0 \/ 55%\)/)
+  })
+
+  it('builds the spatial glass face on the independent sp tiers (never ag glass)', () => {
+    const at = spatial.indexOf('.spatial-window {')
+    const rule = spatial.slice(at, spatial.indexOf('}', at))
+    expect(rule).toContain('background: var(--sp-glass-medium)')
+    expect(rule).toContain('backdrop-filter: blur(40px) saturate(150%)')
+    expect(rule).toContain('border: 1px solid rgb(255 255 255 / 24%)')
+    expect(rule).toContain('border-radius: var(--sp-window-radius)')
+    expect(rule).toContain('box-shadow: var(--sp-shadow-window)')
+    // 斜向高光装饰层：120deg 白 12% 渐隐至 40%，克制不刺眼、不截胡交互。
+    const beforeAt = spatial.indexOf('.spatial-window::before')
+    const before = spatial.slice(beforeAt, spatial.indexOf('}', beforeAt))
+    expect(before).toContain('linear-gradient(120deg, rgb(255 255 255 / 12%), transparent 40%)')
+    expect(before).toContain('pointer-events: none')
+  })
+
+  it('keeps the depth ladder and float/static pair with the static cutoff after float', () => {
+    // 深度三档：translateZ 消费 --sp-lift-*，近档附加 scale(1.02)；变换不
+    // 改变静止布局盒。
+    expect(spatial).toMatch(
+      /\.sp-depth-near\s*\{\s*transform:\s*translateZ\(var\(--sp-lift-near\)\)\s*scale\(1\.02\);/,
+    )
+    expect(spatial).toMatch(
+      /\.sp-depth-middle\s*\{\s*transform:\s*translateZ\(var\(--sp-lift-middle\)\);/,
+    )
+    expect(spatial).toMatch(
+      /\.sp-depth-far\s*\{\s*transform:\s*translateZ\(var\(--sp-lift-far\)\);/,
+    )
+    // 常驻浮动：关键帧只动 transform（translateY 上下），参数走 --sp-float-*。
+    expect(spatial).toMatch(
+      /animation:\s*sp-float var\(--sp-float-duration\) ease-in-out infinite/,
+    )
+    const keyframesAt = spatial.indexOf('@keyframes sp-float')
+    const keyframes = spatial.slice(keyframesAt, keyframesAt + 260)
+    expect(keyframes).toContain('transform: translateY(0)')
+    expect(keyframes).toContain('translateY(calc(-1 * var(--sp-float-distance)))')
+    expect(keyframes).not.toMatch(/(width|height|top|margin):/)
+    // 关档直切类必须位于浮动类之后：同特异性源序必胜（mobile 静态类同口径）。
+    const floatAt = spatial.indexOf('.sp-ambient-float')
+    const staticAt = spatial.indexOf('.sp-motion-static')
+    expect(floatAt).toBeGreaterThan(0)
+    expect(staticAt, 'static cutoff after the float rule').toBeGreaterThan(floatAt)
+    const staticRule = spatial.slice(staticAt, spatial.indexOf('}', staticAt))
+    expect(staticRule).toContain('animation: none')
+  })
+
+  it('falls back to solid surfaces inside spatial.css with self-contained source order', () => {
+    // 空间玻璃对比度从不依赖 blur：spatial.css 内部自持源序——基规则 →
+    // 增量 → 两处实色兜底（--ag-surface-popover 家族，与既有 .surface-glass
+    // 兜底同口径）；前缀禁令同样适用本文件（根因 A）。
+    const base = spatial.indexOf('.spatial-window {')
+    const rti = spatial.indexOf('prefers-reduced-transparency')
+    const nbf = spatial.indexOf('@supports not (backdrop-filter')
+    expect(base).toBeGreaterThan(0)
+    expect(rti, 'reduced-transparency fallback after the base rule').toBeGreaterThan(base)
+    expect(
+      nbf,
+      'supports-not fallback after the reduced-transparency fallback',
+    ).toBeGreaterThan(rti)
+    const rtiBlock = spatial.slice(rti, spatial.indexOf('}', rti))
+    expect(rtiBlock).toContain('background: var(--ag-surface-popover)')
+    expect(rtiBlock).toContain('backdrop-filter: none')
+    const nbfBlock = spatial.slice(nbf, spatial.indexOf('}', nbf))
+    expect(nbfBlock).toContain('background: var(--ag-surface-popover)')
+    expect(spatial).not.toContain('-webkit-backdrop-filter')
   })
 })

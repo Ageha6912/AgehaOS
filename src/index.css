@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './styles/spatial.css';
 
 /* Theme strategy (PRD §27): raw tokens flip on `.dark`, utilities stay stable.
    Direction (2026-09-30 「Calm Future」；Shell 2.0 精修 2026-10-02，Floating OS
@@ -1178,6 +1179,18 @@ body {
 .mobile-app-host [data-no-edge-back],
 .mobile-app-host [data-no-edge-back] * {
   touch-action: pan-x pan-y;
+}
+/* 上滑唤起启动器手势（M3-1 use-swipe-up）与浏览器手势管线的划界：Dock 区
+   （Dock 本体 + safe-area 预留带的包裹层）声明 touch-action: none——默认
+   auto 时 Chromium 会在第一拍 touchmove 就把底缘垂直拖拽认领给原生滚动
+   尝试（哪怕没有任何可滚面），pointer 直接被 pointercancel 吃掉，手势到
+   不了判定（2026-10-10 E2E 实测）。none 之后 touch 系指针事件全程流到
+   pointerup；Dock 位点击（tap）不受影响（touch-action 不约束 tap），
+   预留带/按钮无可滚面也无缩放依赖，零原生行为被牺牲。合取规则与上同：
+   后代无法再放宽。内容区纵向滚动不受此规则影响（起点在 Dock 区之外，
+   touch-action 按起点元素计）。 */
+.mobile-dock-zone {
+  touch-action: none;
 }
 .mobile-app-host[data-state='open'] {
   animation: mobile-app-in var(--ag-motion-base) var(--ag-motion-ease);
