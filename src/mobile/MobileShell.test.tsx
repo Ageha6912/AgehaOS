@@ -1,8 +1,9 @@
 import { act, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MobileShell } from './MobileShell'
 import { resetAppStore } from '@/store/app-store'
+import { resetMobileLauncherStore, useMobileLauncherStore } from '@/store/mobile-launcher-store'
 import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 import { resetWindowStore } from '@/store/window-store'
@@ -17,8 +18,11 @@ import { resetWindowStore } from '@/store/window-store'
  */
 describe('MobileShell', () => {
   afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
     resetSessionStore()
     resetMobileNavStore()
+    resetMobileLauncherStore()
     resetWindowStore()
   })
 
@@ -127,6 +131,75 @@ describe('MobileShell', () => {
     // 固定 5 位齐：Home 位 + Files/Notes/今日世界/Settings 四应用位。
     expect(screen.getByTestId('mobile-dock-home')).toBeInTheDocument()
     expect(screen.getAllByTestId('mobile-dock-app')).toHaveLength(4)
+  })
+
+  // M3-1 上滑唤起启动器：Dock 区包裹层（mobile-dock-zone）把 Dock 本体与
+  // safe-area 预留带收进同一指针采集面——手势挂载点的结构契约（几何与真实
+  // 触控归 E2E mobile-swipe-up-launcher.spec.ts）。
+  it('Dock 区包裹层收拢 Dock 本体与预留带：上滑手势触发区的结构契约（M3-1）', () => {
+    localStorage.clear()
+    resetAppStore()
+    render(<MobileShell />)
+
+    const zone = screen.getByTestId('mobile-dock-zone')
+    const dock = screen.getByTestId('mobile-dock')
+    const band = screen.getByTestId('mobile-dock-slot')
+
+    // 包裹层只承担指针采集（无样式无角色，shrink-0 保三段骨架高度契约）。
+    expect(zone).toHaveClass('shrink-0')
+    // Dock 本体与预留带都是包裹层子元素（挂载面 = Dock 底缘 + 预留带）。
+    expect(zone).toContainElement(dock)
+    expect(zone).toContainElement(band)
+    // 预留带契约不变：纯占位空带、辅助技术不可见（M0-4）。
+    expect(band).toHaveAttribute('aria-hidden', 'true')
+    expect(band).toBeEmptyDOMElement()
+  })
+
+  // M3-1 接线：底缘带上滑（touch 指针）→ mobile-launcher-store.open →
+  // 抽屉在场。jsdom rect 恒 0，hook 视口回退 window 尺寸（1024×768），
+  // 底缘带 = y ≥ 696；rAF/时钟用 fake timers 驱动。
+  it('Dock 区上滑 → 打开启动器（手势确认写 mobile-launcher-store）（M3-1）', () => {
+    localStorage.clear()
+    resetAppStore()
+    render(<MobileShell />)
+
+    vi.useFakeTimers({
+      toFake: ['requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'setTimeout', 'clearTimeout'],
+    })
+    expect(screen.queryByTestId('mobile-launcher')).toBeNull()
+
+    const zone = screen.getByTestId('mobile-dock-zone')
+    const swipe = (type: string, y: number): void => {
+      act(() => {
+        zone.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 1,
+            pointerType: 'touch',
+            clientX: 512,
+            clientY: y,
+          }),
+        )
+      })
+    }
+
+    // down(760) → move(660) + 推一帧 → move(600) + 推一帧 → up：距离 160 >
+    // 0.15×768 = 115.2，距离档确认。
+    swipe('pointerdown', 760)
+    swipe('pointermove', 660)
+    act(() => {
+      vi.advanceTimersByTime(16)
+    })
+    swipe('pointermove', 600)
+    act(() => {
+      vi.advanceTimersByTime(16)
+    })
+    swipe('pointerup', 600)
+
+    expect(useMobileLauncherStore.getState().open).toBe(true)
+    expect(screen.getByTestId('mobile-launcher')).toHaveAttribute('data-state', 'open')
+    expect(screen.getByTestId('mobile-launcher-sheet')).toHaveAttribute('role', 'dialog')
   })
 
   // M1-6 AppHost：内容区按 nav 分支——home 挂 MobileHome；view='app' 换成

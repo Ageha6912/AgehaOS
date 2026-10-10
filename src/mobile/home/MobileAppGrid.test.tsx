@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { setLocale, useLocaleStore } from '@/core/i18n'
 import { installApp, resetAppStore, uninstallApp, useAppStore } from '@/store/app-store'
+import { resetMobileLauncherStore, useMobileLauncherStore } from '@/store/mobile-launcher-store'
 import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
 
 import { MOBILE_APP_ORDER } from '../shared/mobile-app-order'
@@ -32,6 +33,8 @@ beforeEach(() => {
   // 内建清单入场（与 app-store.test.ts 同口径：7 内置 + 羽化 L1 三件套）。
   resetAppStore()
   resetMobileNavStore()
+  // 抽屉开合归 store（M3-1 起与上滑手势共享）：用例间回关闭态。
+  resetMobileLauncherStore()
 })
 
 afterEach(() => {
@@ -173,12 +176,14 @@ describe('MobileAppGrid', () => {
     const trigger = screen.getByTestId('mobile-launcher-open')
     expect(trigger).toHaveAttribute('aria-label', '搜索应用')
     expect(trigger).toHaveClass('h-11', 'w-11')
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByTestId('mobile-launcher')).toBeNull()
 
-    // 打开：Bottom Sheet 在场（open 态）。
+    // 打开：Bottom Sheet 在场（open 态），aria-expanded 反射 store 开合。
     fireEvent.click(trigger)
     expect(screen.getByTestId('mobile-launcher')).toHaveAttribute('data-state', 'open')
     expect(screen.getByTestId('mobile-launcher-sheet')).toHaveAttribute('role', 'dialog')
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
 
     // backdrop 点击关闭：退场帧（≤200ms）播完卸载，焦点回触发器（§0.4）。
     fireEvent.click(screen.getByTestId('mobile-launcher-backdrop'))
@@ -216,5 +221,32 @@ describe('MobileAppGrid', () => {
       appId: 'com.ageha.settings',
       windowId: null,
     })
+  })
+
+  it('M3-1 第二入口共享开合：store 外部打开（上滑手势出口）→ 抽屉在场；关闭归零', async () => {
+    render(<MobileAppGrid />)
+
+    // 手势路径：MobileShell 确认回调写 store（本用例直接驱动同一出口），
+    // 网格渲染位响应 store 开合挂出抽屉。
+    act(() => {
+      useMobileLauncherStore.getState().openLauncher()
+    })
+    expect(screen.getByTestId('mobile-launcher')).toHaveAttribute('data-state', 'open')
+
+    // 关闭路径收敛到同一 store：选中应用行（openApp + onClose）后开合归零，
+    // 导航照常推进。
+    fireEvent.click(
+      screen
+        .getAllByTestId('mobile-launcher-item')
+        .find((item) => item.getAttribute('data-app-id') === 'com.ageha.notes')!,
+    )
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.notes',
+      windowId: null,
+    })
+    await waitFor(
+      () => expect(useMobileLauncherStore.getState().open).toBe(false),
+    )
   })
 })

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 
 import { MagnifyingGlass } from '@phosphor-icons/react'
 
@@ -6,6 +6,7 @@ import { AppIcon } from '@/apps/app-icon'
 import { appDisplayName } from '@/apps/launch'
 import { useTranslation } from '@/core/i18n'
 import { useAppStore } from '@/store/app-store'
+import { useMobileLauncherStore } from '@/store/mobile-launcher-store'
 import { useMobileNavStore } from '@/store/mobile-nav-store'
 
 import { MobileLauncher } from '../launcher/MobileLauncher'
@@ -33,18 +34,22 @@ import { orderAppsForMobileGrid } from '../shared/mobile-app-order'
  *
  * M2-1 启动器入口：标题行右侧搜索图标按钮（Phosphor MagnifyingGlass，
  * 44×44 命中区 §35.3）打开 Bottom Sheet 应用抽屉（./launcher/MobileLauncher
- * ——全部应用 + 实时搜索）。开关状态是本组件局部 state：抽屉是网格标题行
- * 的直接延伸，关闭（backdrop/Esc/选中）回焦触发器（桌面弹层关闭契约
- * §0.4 的移动口径）。
+ * ——全部应用 + 实时搜索）。M3-1 起开合归 mobile-launcher-store：底缘上滑
+ * 手势（MobileShell 的 mobile-dock-zone）是第二个入口，与按钮共享同一
+ * 开合（桌面 launcher-store 多入口共享面板的同一模式），渲染位仍在网格
+ * （抽屉是网格标题行的直接延伸）；按钮路径关闭（backdrop/Esc/选中）回焦
+ * 触发器（桌面弹层关闭契约 §0.4 的移动口径）。
  */
 export function MobileAppGrid() {
   const { t } = useTranslation()
   const apps = useAppStore((state) => state.apps)
   const openApp = useMobileNavStore((state) => state.openApp)
-  const [launcherOpen, setLauncherOpen] = useState(false)
+  const launcherOpen = useMobileLauncherStore((state) => state.open)
+  const openLauncher = useMobileLauncherStore((state) => state.openLauncher)
+  const closeLauncher = useMobileLauncherStore((state) => state.closeLauncher)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const closeLauncher = (): void => {
-    setLauncherOpen(false)
+  const closeLauncherAndRefocus = (): void => {
+    closeLauncher()
     triggerRef.current?.focus()
   }
 
@@ -67,13 +72,15 @@ export function MobileAppGrid() {
             {t('mobile.home.apps.title')}
           </h2>
           {/* M2-1 启动器入口：搜索图标按钮，命中区 44×44（§35.3），可访问名
-              走 i18n；字形是装饰位（aria-hidden）。 */}
+              走 i18n；字形是装饰位（aria-hidden）。M3-1 起动作写 store（与
+              上滑手势同一出口）。 */}
           <button
             type="button"
             ref={triggerRef}
             data-testid="mobile-launcher-open"
             aria-label={t('mobile.launcher.open')}
-            onClick={() => setLauncherOpen(true)}
+            aria-expanded={launcherOpen}
+            onClick={openLauncher}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-opacity active:opacity-80"
           >
             <MagnifyingGlass
@@ -108,8 +115,9 @@ export function MobileAppGrid() {
           ))}
         </ul>
       </section>
-      {/* M2-1 应用抽屉：开关状态在本组件，关闭回调回焦入口按钮。 */}
-      <MobileLauncher open={launcherOpen} onClose={closeLauncher} />
+      {/* M2-1 应用抽屉：开合归 mobile-launcher-store（M3-1 起与上滑手势
+          共享），按钮路径关闭回焦入口按钮。 */}
+      <MobileLauncher open={launcherOpen} onClose={closeLauncherAndRefocus} />
     </>
   )
 }

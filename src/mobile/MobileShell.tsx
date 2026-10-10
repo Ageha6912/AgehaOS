@@ -1,9 +1,14 @@
+import { useRef } from 'react'
+
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
+import { useMobileLauncherStore } from '@/store/mobile-launcher-store'
 import { useMobileNavStore } from '@/store/mobile-nav-store'
+import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { MobileAppHost } from './app/MobileAppHost'
 import { MobileHome } from './home/MobileHome'
+import { useSwipeUp } from './gesture/use-swipe-up'
 import { MobileStatusBar } from './statusbar/MobileStatusBar'
 import { MobileDock } from './dock/MobileDock'
 
@@ -44,10 +49,36 @@ import { MobileDock } from './dock/MobileDock'
  * window-store 窗口总数，供 E2E 断言「视图推进与窗口生命周期同步」（同一
  * 断言口先例：桌面侧窗口状态经 WindowFrame DOM 可见，移动窗口不渲染桌面
  * 容器，需要这条显式反射）。
+ *
+ * 上滑唤起启动器（M3-1）：`mobile-dock-zone` 包裹层把 Dock 本体与 safe-area
+ * 预留带收进同一个指针采集面，`useSwipeUp` 挂在包裹层上——底缘上滑（含
+ * 甩动）打开 MobileLauncher。**刻意只挂 Dock 区、不挂全局**：内容区
+ * （`.mobile-content-scroll`）的纵向原生滚动与该手势同为垂直方向，全局
+ * 挂载只能在判定层猜「滚动还是唤起」，边界情形永远打架；Dock 与预留带均
+ * 不可滚动，起于底缘带的上滑没有「本来想滚动」的解读——冲突在挂载点的
+ * 空间隔离上消解（几何带判定是第二道门，两层都过才激活）。开关走
+ * mobile-launcher-store（与网格搜索按钮同一开合出口，桌面 launcher-store
+ * 多入口共享面板的同一模式）；确认回调 = `openLauncher`，Launcher 打开
+ * 期间 enabled=false 手势不重复触发，应用视图（抽屉不挂载）同样不响应。
+ * 跟手动画跟随 motion-prefs 转场档，reduced-motion 由 hook 落下时实时
+ * 探测（降级直开，use-swipe-up.ts 模块注释）。
  */
 export function MobileShell() {
   const nav = useMobileNavStore((state) => state.nav)
   const windowCount = useWindowStore((state) => state.windows.length)
+  const launcherOpen = useMobileLauncherStore((state) => state.open)
+  const openLauncher = useMobileLauncherStore((state) => state.openLauncher)
+  // 窗口切换转场档（motion-prefs）：关档 = 跟手/回弹全免，确认直开。
+  const transitionsOn = useMotionPrefsStore((state) => state.windowTilt)
+
+  // ── 上滑唤起启动器（M3-1）：挂在 Dock 区包裹层，home 且抽屉关闭时启用 ──
+  const dockZoneRef = useRef<HTMLDivElement | null>(null)
+  useSwipeUp({
+    targetRef: dockZoneRef,
+    enabled: nav.view === 'home' && !launcherOpen,
+    followMotion: transitionsOn,
+    onConfirm: openLauncher,
+  })
 
   return (
     <div
@@ -96,17 +127,24 @@ export function MobileShell() {
             <MobileAppHost />
           </div>
         </div>
-        {/* 底部 Dock（M1-5）：坐在 Dock 安全区预留带上方（HANDOFF §4.0-6），
-            safe-area bottom 高度仍由下方预留带承担，本组件零 env 消费。 */}
-        <MobileDock />
-        {/* 底部 Dock 安全区预留带（M0-4）：max(env(safe-area-inset-bottom),
-            12px) 给 Home indicator 留呼吸；纯占位空带保持 aria-hidden，
-            Dock 本体在带上方。 */}
-        <div
-          data-testid="mobile-dock-slot"
-          aria-hidden="true"
-          className="mobile-dock-slot shrink-0"
-        />
+        {/* 底部 Dock 区（M3-1 上滑手势挂载面）：Dock 本体（M1-5）+ safe-area
+            预留带（M0-4）收进同一个指针采集面——上滑唤起启动器的触发区 =
+            Dock 底缘 + 预留带（内容区纵向滚动与此手势空间隔离，见模块注释）。
+            包裹层只是布局面（无角色，shrink-0 保三段骨架高度契约）；类名
+            mobile-dock-zone 承接 index.css 的 touch-action: none（否则浏览器
+            把底缘垂直拖拽认领给原生滚动尝试，pointer 中途被 pointercancel
+            吃掉），Dock 与预留带的 testid/aria 契约原样保留。 */}
+        <div ref={dockZoneRef} data-testid="mobile-dock-zone" className="mobile-dock-zone shrink-0">
+          <MobileDock />
+          {/* 底部 Dock 安全区预留带（M0-4）：max(env(safe-area-inset-bottom),
+              12px) 给 Home indicator 留呼吸；纯占位空带保持 aria-hidden，
+              Dock 本体在带上方。 */}
+          <div
+            data-testid="mobile-dock-slot"
+            aria-hidden="true"
+            className="mobile-dock-slot shrink-0"
+          />
+        </div>
       </div>
     </div>
   )
