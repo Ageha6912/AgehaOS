@@ -24,6 +24,10 @@ import { useSettingsStore } from '@/store/settings-store'
  *   指针与画布效果、移动 Shell 无消费位，不摆出来伪造开关）。桌面
  *   Settings 呈现同一布尔的正相档「窗口切换转场」，移动侧按用户语义命名
  *   ——同一 store 布尔，两处呈现共享存储与实效；
+ * - 减弱空间动效 = motion-prefs-store.spatialMotion 的反相呈现（2026-10-10
+ *   空间化裁决 3/5：控制中心接空间动效开关属状态接线；桌面 Settings 呈现
+ *   同一布尔的正相档「空间动效」——窗口深度与悬浮氛围动效总开关，纯桌面
+ *   作用域，reduceMotion 同款反相先例）；
  * - 登出 = session-store.logout，与桌面 UserMenu 完全同行为（UserMenu
  *   .tsx:62-65：点按即 logout，无二次确认——先读桌面实现后对齐）；登出后
  *   App.tsx 的 phase 分支（ready + anonymous → login）自然回登录态，
@@ -133,11 +137,14 @@ export function MobileControlCenterSheet({
   const setLocalePref = useSettingsStore((s) => s.setLocale)
   const locale = useLocaleStore((s) => s.locale)
   const windowTilt = useMotionPrefsStore((s) => s.windowTilt)
+  const spatialMotion = useMotionPrefsStore((s) => s.spatialMotion)
   const setPref = useMotionPrefsStore((s) => s.setPref)
   const logout = useSessionStore((s) => s.logout)
 
   // 「减弱动效」= windowTilt 反相呈现：开 = 转场直切（见模块注释）。
   const motionReduced = !windowTilt
+  // 「减弱空间动效」= spatialMotion 反相呈现（reduceMotion 同款先例）。
+  const spatialReduced = !spatialMotion
 
   // ── 开关状态机：与 MobileLauncher/MobileNotificationSheet 同款（open→false
   //    不经 null 空档，退场帧与原树同一 commit 接续；渲染期校正，重开即时
@@ -266,6 +273,35 @@ export function MobileControlCenterSheet({
               <span
                 className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full transition-[left] ${
                   motionReduced
+                    ? 'left-[calc(100%-1.125rem)] bg-primary-contrast'
+                    : 'left-0.5 bg-text-muted/60'
+                }`}
+              />
+            </span>
+          </button>
+          {/* 减弱空间动效：spatialMotion 反相呈现（reduceMotion 同款整行
+              switch 契约，aria-checked 语义与本行文案一致）；桌面 Settings
+              呈现同一布尔的正相档「空间动效」，两处共享存储与实效。 */}
+          <button
+            type="button"
+            role="switch"
+            data-testid="mobile-control-spatial-motion-switch"
+            aria-checked={spatialReduced}
+            onClick={() => setPref('spatialMotion', spatialReduced)}
+            className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl px-1 text-left transition-opacity active:opacity-80"
+          >
+            <span className="text-sm text-text">
+              {t('mobile.controlcenter.reduceSpatialMotion')}
+            </span>
+            <span
+              aria-hidden="true"
+              className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+                spatialReduced ? 'bg-primary' : 'border border-border bg-surface-raised'
+              }`}
+            >
+              <span
+                className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full transition-[left] ${
+                  spatialReduced
                     ? 'left-[calc(100%-1.125rem)] bg-primary-contrast'
                     : 'left-0.5 bg-text-muted/60'
                 }`}

@@ -21,6 +21,9 @@ export interface MotionPrefs {
   dockSheen: boolean
   /** 主题氛围光晕（enhance-advanced theme-glow，主题色光斑呼吸）。 */
   themeGlow: boolean
+  /** 空间动效（2026-10-10 空间化裁决 3）：常驻环境浮动动画——窗口深度
+   * （悬浮/氛围）总开关；移动控制中心以「减弱空间动效」反相呈现同一布尔。 */
+  spatialMotion: boolean
 }
 
 export type MotionPrefKey = keyof MotionPrefs
@@ -35,6 +38,7 @@ const DEFAULTS: MotionPrefs = {
   windowTilt: true,
   dockSheen: true,
   themeGlow: true,
+  spatialMotion: true,
 }
 
 function sanitize(raw: unknown): MotionPrefs {
@@ -45,6 +49,8 @@ function sanitize(raw: unknown): MotionPrefs {
     windowTilt: typeof value.windowTilt === 'boolean' ? value.windowTilt : DEFAULTS.windowTilt,
     dockSheen: typeof value.dockSheen === 'boolean' ? value.dockSheen : DEFAULTS.dockSheen,
     themeGlow: typeof value.themeGlow === 'boolean' ? value.themeGlow : DEFAULTS.themeGlow,
+    spatialMotion:
+      typeof value.spatialMotion === 'boolean' ? value.spatialMotion : DEFAULTS.spatialMotion,
   }
 }
 

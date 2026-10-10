@@ -166,6 +166,10 @@ export const dictionaries = {
        English）不入典。 */
     'mobile.controlcenter.open': '控制中心',
     'mobile.controlcenter.reduceMotion': '减弱动效',
+    /* 「减弱空间动效」= motion-prefs-store spatialMotion 的反相呈现（同
+       reduceMotion 先例：关 = 桌面空间动效总开关关闭；桌面 Settings 呈现
+       同一布尔的正相档「空间动效」）。 */
+    'mobile.controlcenter.reduceSpatialMotion': '减弱空间动效',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -437,6 +441,10 @@ export const dictionaries = {
     'settings.motionWindowTilt': '窗口切换转场',
     'settings.motionDockSheen': 'Dock 高光滑过',
     'settings.motionThemeGlow': '主题氛围光晕',
+    /* 2026-10-10 空间化裁决 3：常驻环境浮动动画总开关（窗口深度与悬浮氛围
+       动效）；移动控制中心以「减弱空间动效」反相呈现同一布尔。 */
+    'settings.motionSpatial': '空间动效',
+    'settings.motionSpatialHint': '窗口深度与悬浮氛围动效',
     'theme.light': '浅色',
     'theme.dark': '深色',
     'theme.system': '跟随系统',
@@ -775,6 +783,10 @@ export const dictionaries = {
        language options are native language names (not dictionary copy). */
     'mobile.controlcenter.open': 'Control center',
     'mobile.controlcenter.reduceMotion': 'Reduce motion',
+    /* "Reduce spatial motion" = motion-prefs-store spatialMotion presented
+       inverted (same reduceMotion precedent: desktop Settings presents the
+       same boolean positively as "Spatial motion"). */
+    'mobile.controlcenter.reduceSpatialMotion': 'Reduce spatial motion',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',
@@ -1052,6 +1064,11 @@ export const dictionaries = {
     'settings.motionWindowTilt': 'Window switch transition',
     'settings.motionDockSheen': 'Dock sheen sweep',
     'settings.motionThemeGlow': 'Theme ambient glow',
+    /* 2026-10-10 spatial verdict 3: master switch for the perpetual ambient
+       floating motion (window depth and hover ambience); the mobile control
+       center presents the same boolean inverted as "Reduce spatial motion". */
+    'settings.motionSpatial': 'Spatial motion',
+    'settings.motionSpatialHint': 'Window depth and ambient floating motion',
     'theme.light': 'Light',
     'theme.dark': 'Dark',
     'theme.system': 'System',

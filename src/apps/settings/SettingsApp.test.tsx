@@ -6,7 +6,7 @@ import { requestSettingsSection, resetAppDeepLinks } from '@/apps/app-deep-link'
 import type { User } from '@/core/auth/types'
 import { useLocaleStore } from '@/core/i18n'
 import { resetAppStore } from '@/store/app-store'
-import { resetMotionPrefsStore } from '@/store/motion-prefs-store'
+import { resetMotionPrefsStore, useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetSettingsStore, useSettingsStore } from '@/store/settings-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 
@@ -75,6 +75,25 @@ describe('SettingsApp', () => {
     expect(screen.getByTestId('motion-aurora-toggle').getAttribute('aria-checked')).toBe('false')
     expect(JSON.parse(localStorage.getItem('agehaos.motion.prefs.v1') ?? '{}')).toMatchObject({
       aurora: false,
+    })
+  })
+
+  it('exposes the spatial motion toggle defaulting on with its hint (2026-10-10 空间化裁决 3)', () => {
+    render(<SettingsApp />)
+
+    // 正相呈现（桌面档）：spatialMotion 默认开，带一句说明（窗口深度与悬浮氛围动效）。
+    const toggle = screen.getByTestId('motion-spatial-toggle')
+    expect(useMotionPrefsStore.getState().spatialMotion).toBe(true)
+    expect(toggle).toHaveAttribute('role', 'switch')
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    expect(toggle).toHaveAttribute('aria-label', '空间动效')
+    expect(screen.getByText('窗口深度与悬浮氛围动效')).toBeInTheDocument()
+
+    // 关掉空间动效 → 偏好落库（设备本地），开关 aria-checked 跟随。
+    fireEvent.click(toggle)
+    expect(screen.getByTestId('motion-spatial-toggle').getAttribute('aria-checked')).toBe('false')
+    expect(JSON.parse(localStorage.getItem('agehaos.motion.prefs.v1') ?? '{}')).toMatchObject({
+      spatialMotion: false,
     })
   })
 

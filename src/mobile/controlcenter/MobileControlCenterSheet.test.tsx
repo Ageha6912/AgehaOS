@@ -17,6 +17,8 @@ import { MobileControlCenterSheet } from './MobileControlCenterSheet'
  *   本面板自身文案同步切英文，驱动全部 useTranslation 消费方重渲染）；
  * - 减弱动效 = motion-prefs-store.windowTilt 反相呈现（checked = !windowTilt；
  *   关档时本 sheet 自身追加 .mobile-controlcenter-static 直切）；
+ * - 减弱空间动效 = motion-prefs-store.spatialMotion 反相呈现（同上先例：
+ *   桌面 Settings 呈现同一布尔的正相档「空间动效」，两处共享存储与实效）；
  * - 登出 = session-store.logout（与桌面 UserMenu 同：无二次确认，先收面板
  *   再登出）；登出后 App.tsx phase 分支回登录态属 App 层，不在本组件。
  * - 关闭 = backdrop 点击 / Esc（document 捕获阶段）回调 onClose；open→false
@@ -174,6 +176,28 @@ describe('MobileControlCenterSheet 各开关分发对应 store action', () => {
     expect(useMotionPrefsStore.getState().windowTilt).toBe(true)
   })
 
+  it('减弱空间动效开关分发 motion-prefs：checked = spatialMotion 反相，点按翻转布尔', () => {
+    render(<MobileControlCenterSheet open onClose={vi.fn()} />)
+
+    // 出厂 spatialMotion=true（空间动效开）→「减弱空间动效」未勾选。
+    // 行内可见文案即开关可访问名（整行 button 包文案，reduceMotion 同契约）。
+    const spatial = screen.getByTestId('mobile-control-spatial-motion-switch')
+    expect(useMotionPrefsStore.getState().spatialMotion).toBe(true)
+    expect(spatial).toHaveAttribute('role', 'switch')
+    expect(spatial).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByText('减弱空间动效')).toBeInTheDocument()
+
+    fireEvent.click(spatial)
+    expect(useMotionPrefsStore.getState().spatialMotion).toBe(false)
+    expect(screen.getByTestId('mobile-control-spatial-motion-switch')).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+
+    fireEvent.click(screen.getByTestId('mobile-control-spatial-motion-switch'))
+    expect(useMotionPrefsStore.getState().spatialMotion).toBe(true)
+  })
+
   it('motion-prefs 转场关档时本 sheet 直切（.mobile-controlcenter-static）', () => {
     act(() => {
       useMotionPrefsStore.setState({ windowTilt: false })
@@ -212,6 +236,9 @@ describe('MobileControlCenterSheet 触控纪律（§35.3）', () => {
       }
     }
     expect(screen.getByTestId('mobile-control-motion-switch').className).toContain('min-h-[44px]')
+    expect(screen.getByTestId('mobile-control-spatial-motion-switch').className).toContain(
+      'min-h-[44px]',
+    )
     expect(screen.getByTestId('mobile-control-logout').className).toContain('min-h-[44px]')
   })
 })

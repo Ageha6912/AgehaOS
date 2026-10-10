@@ -257,13 +257,21 @@ function OptionRow({
   )
 }
 
-/** 动效实验室开关组（§32.5 修订 10）：设备本地偏好，默认全开。 */
+/** 动效实验室开关组（§32.5 修订 10；spatialMotion = 2026-10-10 空间化裁决
+ * 3）：设备本地偏好，默认全开。 */
 const MOTION_TOGGLES: Array<{
   key: MotionPrefKey
   labelKey: MessageKey
   testId: string
+  /** 可选说明行（label 下方 muted 小字）：glow / spatialMotion 各一句。 */
+  hintKey?: MessageKey
 }> = [
-  { key: 'glow', labelKey: 'settings.motionGlow', testId: 'motion-glow-toggle' },
+  {
+    key: 'glow',
+    labelKey: 'settings.motionGlow',
+    testId: 'motion-glow-toggle',
+    hintKey: 'settings.motionGlowHint',
+  },
   { key: 'aurora', labelKey: 'settings.motionAurora', testId: 'motion-aurora-toggle' },
   {
     key: 'windowTilt',
@@ -275,6 +283,12 @@ const MOTION_TOGGLES: Array<{
     key: 'themeGlow',
     labelKey: 'settings.motionThemeGlow',
     testId: 'motion-theme-glow-toggle',
+  },
+  {
+    key: 'spatialMotion',
+    labelKey: 'settings.motionSpatial',
+    testId: 'motion-spatial-toggle',
+    hintKey: 'settings.motionSpatialHint',
   },
 ]
 
@@ -311,14 +325,12 @@ function AppearanceSection({ narrow = false }: { narrow?: boolean }) {
         onSelect={(value) => setFontSize(value as FontSize)}
       />
       <p className="pb-1 pt-2 text-xs text-text-muted">{t('settings.motionGroupHint')}</p>
-      {MOTION_TOGGLES.map(({ key, labelKey, testId }) => (
+      {MOTION_TOGGLES.map(({ key, labelKey, testId, hintKey }) => (
         <div key={key} className="flex items-center justify-between gap-3 py-2">
           <span className="min-w-0">
             <span className="block text-sm text-text">{t(labelKey)}</span>
-            {key === 'glow' && (
-              <span className="mt-0.5 block text-xs text-text-muted">
-                {t('settings.motionGlowHint')}
-              </span>
+            {hintKey && (
+              <span className="mt-0.5 block text-xs text-text-muted">{t(hintKey)}</span>
             )}
           </span>
           <ToggleSwitch
