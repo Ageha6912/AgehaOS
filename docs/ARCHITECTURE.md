@@ -265,7 +265,7 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
   `app-deep-link.ts` 的模块级一次性意图范式（launch 前写入、打开时取走即清），
   不为深链扩 store 数据结构。
 
-### 3.25 双 Shell 架构（`src/mobile`，Milestone 0 五片 + M1 六片，2026-10-07/08）
+### 3.25 双 Shell 架构（`src/mobile`，Milestone 0 五片 + M1 六片 + M2 六片，2026-10-07/10）
 
 > M0 切片与提交：M0-1 设备能力探针 `1f7a2e4` → M0-2 Shell Selection
 > `a1ff3c3` → M0-3 Mobile Shell Root `d789ece` → M0-4 Safe Area `0896122`
@@ -275,6 +275,12 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
 > M1-2 今日世界卡 `66a1a23` → M1-3 最近使用 `3bfdc79` → M1-4 应用网格
 > `b417a11` → M1-5 Dock `5aafc61` → M1-6 MobileAppHost `87042df`。Home
 > 结构规格见 DESIGN.md §35.7；AppHost 生命周期映射见下。
+> M2 切片与提交（系统面六片）：M2-1 启动器 `4a53934` → M2-2 移动通知
+> 中心 `2be7690` → M2-3 控制中心 `154ccf6` → M2-4 边缘返回手势 `0af3615`
+> → M2-5 Files 窄容器 `9a5819f` → M2-6 Notes+Settings 窄容器
+> `0c6119e`（另测试基建 `77a2686`：vitest workers 封顶，Windows 门禁
+> 内存护栏）。Sheet/控制中心/边缘返回视觉规格见 DESIGN.md §35.8；
+> 窄容器适配契约见本节末。
 
 - **单点切换**：Shell 的选择全仓库只有一处——`App.tsx` 的 ready 分支
   （`shell === 'mobile' ? <MobileShell /> : <Desktop />`，`src/App.tsx:30`）。
@@ -386,6 +392,89 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
   `e2e/mobile-app-host.spec.ts`（真实视口 Home→开→返回全链路、
   `page.goBack()` 停在 AgehaOS、desktop context 回归）+
   `e2e/mobile-dock.spec.ts`。
+- **M2 六片落地与系统面映射（2026-10-08/10）**：M1 骨架上补齐系统面——
+  三张 Bottom Sheet + 一个手势 hook + 三个共享应用的窄容器适配。三张
+  sheet 同构（组件模块注释互指）：`closed/open/leaving` 三相位状态机、
+  backdrop 纯色压暗零 blur、`surface-glass + glass-raise` 唯一玻璃档
+  （DESIGN.md §35.8）。
+  - **启动器（M2-1）**：`src/mobile/launcher/MobileLauncher.tsx` Bottom
+    Sheet 应用抽屉 = 全部已安装应用（`orderAppsForMobileGrid`，与 Home
+    应用网格同一排序纯函数）+ 顶部实时搜索。过滤口径刻意与桌面启动器
+    不同：`launcher-filter.ts:13-20` 纯函数按 **manifest.name 大小写
+    不敏感子串**（注册表数据、locale 无关），不复刻桌面启动器的展示名
+    三路匹配（`MobileLauncher.tsx` 模块注释「桌面启动器的展示名语义不在
+    此复刻」）。入口 = Home 应用网格标题行搜索按钮
+    （`src/mobile/home/MobileAppGrid.tsx:71-85`，开关状态归网格组件、
+    关闭回焦触发器）；点击列表项 = `mobile-nav-store.openApp` + onClose
+    ——导航语义不变，真实启动/权限门禁仍归 M1-6 AppHost。
+  - **移动通知中心（M2-2）**：`src/mobile/notifications/
+    MobileNotificationSheet.tsx`——数据源 = 桌面**同一** notification-store
+    （`src/store/notification-store.ts`，notification-bridge 从系统事件
+    喂入，移动侧零推送逻辑、零新引擎）；未读语义复用既有 read 标记与
+    `unreadCount`（`notification-store.ts:104`，无 schema 扩展）；
+    **打开即 `markAllRead`**（iOS 中心同款：徽标 =「尚未在中心过目」，
+    查看期间新 push 保持未读，`MobileNotificationSheet.tsx:116-118`）。
+    **桌面 NotificationCenter（`src/desktop/taskbar/NotificationCenter.tsx`）
+    与 NotificationToasts 零接触不动**——同一 store、两个呈现容器各自
+    独立。入口 = 状态栏铃铛（未读徽标 >9 折叠 9+，桌面铃铛同口径，
+    `src/mobile/statusbar/MobileStatusBar.tsx:110-134`）。
+  - **控制中心（M2-3）**：`src/mobile/controlcenter/MobileControlCenterSheet.tsx`
+    快捷设置，**真实能力开关清单**（每个开关都改既有 store 即全局生效，
+    零伪造开关）：主题/字号 = settings-store `setTheme/setFontSize`（与
+    SettingsApp 同一入口函数）；语言 = `setLocale` → core i18n
+    localeStore（词典键与桌面外观/语言段同一组，不另造键）；
+    「减弱动效」= motion-prefs `windowTilt` **反相呈现**（同一 store
+    布尔两处呈现——桌面叫「窗口切换转场」，通知中心/启动器/AppHost 三处
+    既有转场消费位全部跟随，`MobileControlCenterSheet.tsx:139-140`）；
+    登出 = `session-store.logout`（桌面 UserMenu 同行为：无二次确认）。
+    glow/dockSheen/themeGlow/aurora 是桌面指针与画布效果、移动 Shell 无
+    消费位，**不摆出来伪造开关**。入口 = 状态栏调节按钮（最右位）。
+  - **边缘返回手势（M2-4）**：判定全在纯函数
+    `src/mobile/gesture/edge-back-decision.ts`（`DEFAULT_EDGE_BACK_CONFIG`
+    `:34-40`：左缘激活带 **24px** / 轴向死区 10px / 距离确认 **过半 0.5**
+    / 甩动确认 **0.5px/ms** ≈ 500px/s），hook `use-edge-back.ts` 只做
+    pointer 采集 + rAF 节流（拖动全程零 React render）；甩动速度 =
+    释放时由 **150ms pointermove 事件滑动窗口**一次求出（不用 rAF 采样
+    落点，`use-edge-back.ts:76`）。**挂载点唯一** = MobileAppHost 宿主
+    面板（`src/mobile/app/MobileAppHost.tsx:97-103`，`enabled =
+    view==='app'`），确认回调 = `backToHome`——与返回键/popstate 同一
+    出口、不绕过 nav store。降级：motion-prefs 转场关档（followMotion
+    false）或 prefers-reduced-motion（pointerdown 时实时探测）→ 判定
+    不变、确认直切。冲突防护：`.mobile-app-host` 子树 `touch-action:
+    pan-y`（`src/index.css:1174-1180`）保纵向滚动；真横向滚动面必须
+    标记 `[data-no-edge-back]`（hook 整体豁免 + CSS 重放 pan-x），首个
+    消费方 = Files 窄容器目录 chip 行与工具栏行（`FileManager.tsx:316/368`）。
+  - **共享应用组件窄容器适配契约（M2-5/M2-6）**：`src/apps/use-narrow-container.ts`
+    ——ResizeObserver 观测应用根元素内容盒，`width <
+    APP_NARROW_BREAKPOINT(560)` 即 narrow（`use-narrow-container.ts:34`）。
+    铁律三条：① **按容器宽度分支、禁止视口 media query**——Files/Notes/
+    Settings 是共享应用组件，同时服务桌面窗口与移动 host（桌面窄窗口
+    同样进入窄分支、平板横屏 ≥560px 保持宽布局），与 device-store 设备
+    判定无关；② **桌面宽容器等价**——宽容器 DOM/样式与改前字面等价
+    （条件渲染而非 CSS 隐藏）；刻意不用 Tailwind 4 container query：
+    `container-type: inline-size` 自带 layout containment，会把应用内联
+    `fixed inset-0` 弹层（PromptDialog/文件预览遮罩）的包含块从视口缩进
+    窗口，桌面行为不再等价（`use-narrow-container.ts:11-27`）；
+    ③ jsdom 无 ResizeObserver 降级恒 `narrow=false`（桌面行为兜底、既有
+    测试零改动；窄分支用例 stub 显式喂宽，真实几何归 E2E）。分支面：
+    **Files**（M2-5）固定侧栏收起为顶部目录 chip 行 + 工具栏溢出改本行
+    横滚（360px 视口操作簇 min-content ~454px 全在视口外）+ 主列表
+    **首击选中、再击打开**（触屏 dblclick 派发不可靠，`FileManager.tsx:534-545`）；
+    **Notes/Settings**（M2-6）「列表↔详情」单面切换而非上下堆叠（编辑器
+    要整幅纵向空间；`NotesApp.tsx:247-260`、`SettingsApp.tsx:125`）——
+    选中/新建/保存等底层流程宽窄同一条代码路径，窄分支只追加「切面」；
+    窄分支触控命中区一律 ≥44px（DESIGN.md §35.3，桌面 h-8/h-7 密度档
+    §28 不带入）。横向滚动面照 M2-4 契约标记 `data-no-edge-back`。
+  - M2 顺延：manifest `mobile` 块（orientation/presentation）六片**仍未
+    消费**（消费与「缺席块默认策略」继续顺延）；DESIGN.md §35.4 竖屏
+    壁纸 object-position 未动。
+  - 测试与 E2E（M2 增补）：单测 `MobileLauncher` / `launcher-filter` /
+    `MobileNotificationSheet` / `MobileControlCenterSheet` /
+    `edge-back-decision` / `use-edge-back` / `use-narrow-container` +
+    `MobileAppHost`（手势挂载与豁免）/ `FileManager` / `NotesApp` /
+    `SettingsApp` 窄容器组；E2E `e2e/mobile-launcher|mobile-notifications|
+    mobile-control-center|mobile-edge-back|mobile-files|
+    mobile-notes-settings.spec.ts`。
 
 ## 4. 后续模块技术要点
 

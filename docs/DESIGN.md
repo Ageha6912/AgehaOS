@@ -1400,7 +1400,9 @@ CSS 互指钉扎纪律不变）。
 > M0 五片只落「骨架与纪律」（Shell 选择 / safe-area / PWA 基础，提交
 > 1f7a2e4→7bc494e），本节同时钉住 M1 组件的视觉边界；移动作用域内与
 > §0–§34 桌面契约冲突时以本节为准，桌面零接触。M1 六片已于 2026-10-08
-> 落地（15d7265→87042df），Home 结构规格见 §35.7。
+> 落地（15d7265→87042df），Home 结构规格见 §35.7。M2 六片已于
+> 2026-10-08/10 落地（4a53934→0c6119e），Bottom Sheet 形态语言、控制
+> 中心与边缘返回手势规格见 §35.8。
 
 ### 35.1 玻璃克制清单（白名单制）
 
@@ -1491,7 +1493,8 @@ M1 全部新文案照此办理。
 - **应用网格**：`mt-7 px-5 pb-2`，**4 列** grid；徽章 **56px**（切片带
   52–64px）+ 标签 `text-xs`，整格命中 ≥44×44（`src/mobile/home/MobileAppGrid.tsx:58-62`）；
   排序 = 常量优先序在前、其余按本地化展示名排后（`src/mobile/shared/mobile-app-order.ts:16-24`）；
-  注册表空时整块缺席。当前全量直渲不分页（分页/独立启动器归 M2）。
+  注册表空时整块缺席。当前全量直渲不分页（M2-1 已落独立启动器抽屉、
+  网格保持全量直渲不变，抽屉规格见 §35.8）。
 - **Dock**：坐 `mobile-dock-slot` 预留带（`max(env(safe-area-inset-bottom),
   12px)`，`src/index.css:1138`）**上方**、本体零 env 消费；玻璃口径 =
   §35.1 白名单 Dock 位的唯一玻璃层 `surface-glass` 基底 + `glass-raise`
@@ -1508,3 +1511,57 @@ M1 全部新文案照此办理。
   **缺席即状态**，Home 其余区块照常；禁止空壳容器与占位骨架。
 - 触控目标收口：以上全部可点元素命中区 ≥44×44px（§35.3）；全屏应用视图
   （AppHost）的返回键同为 44×44（`src/mobile/app/MobileAppHost.tsx:202`）。
+
+### 35.8 Bottom Sheet 形态语言、控制中心与边缘返回规格（M2 六片落地，2026-10-08/10）
+
+三张 Bottom Sheet——启动器抽屉（`src/mobile/launcher/MobileLauncher.tsx`）、
+通知中心（`src/mobile/notifications/MobileNotificationSheet.tsx`）、控制
+中心（`src/mobile/controlcenter/MobileControlCenterSheet.tsx`）——共用同
+一套形态语言（同构实现，动画段集中在 `src/index.css` 移动段）：
+
+- **玻璃口径（§35.1）**：白名单「Bottom Sheet」位的唯一玻璃层 =
+  `surface-glass` 基底 + `glass-raise`（与 Dock 同档 blur 20px，
+  `src/index.css:571`）+ `rounded-t-2xl` 顶部发丝边；sheet 锚底升出、
+  `max-h-[80%]` 给 Home 留呼吸（`MobileLauncher.tsx:123-130`，三张同构）；
+  顶部抓手条 `h-1 w-9` 纯装饰（aria-hidden）。backdrop 是**纯色压暗遮罩
+  （非玻璃、零 blur）**（`rgb(15 23 42 / 45%)`，`src/index.css:1362`）。
+- **开关状态机与退场**：`closed/open/leaving` 三相位——`open→false` 不经
+  null 空档、退场帧与原树同一 commit 接续（input 不重挂、关闭回焦触发器
+  不被抢），leaving 播完 200ms 再卸载，期间 `pointer-events-none +
+  aria-hidden` 不挡底下 Home。关闭路径 = backdrop 点击 + Esc（document
+  捕获阶段），关闭回焦入口按钮（桌面弹层关闭契约 §0.4 的移动口径）。
+- **动效（§35.5）**：进出场 200ms 只动 transform/opacity（既有 token
+  `--ag-motion-base`）；prefers-reduced-motion 由全局 0.01ms 塌缩承接；
+  motion-prefs「窗口切换转场」关档 → 根上 `mobile-*-static` 直切（用户在
+  控制中心开「减弱动效」时 sheet 当场转直切，所见即所得）。
+- **触控 ≥44px（§35.3）**：抽屉搜索框 `h-11`、列表行 `min-h-[44px]`
+  （`MobileLauncher.tsx:146/168`）；通知单条清除钮 44×44（
+  `MobileNotificationSheet.tsx:86`）、清空钮 `min-h-[44px]`（:181）；
+  控制中心选项 chip `min-h-[44px]`、「减弱动效」整行 switch、登出整宽
+  44px（`MobileControlCenterSheet.tsx:106/255/282`）——桌面 Settings 的
+  h-8 chip 密度档（§28）不带入移动。**状态栏入口特例**：铃铛/调节按钮的
+  44×44 盒在最小 24px 高的占位带内居中必然上溢视口被裁，命中区用 `::after`
+  自盒中心向下延伸 44px（`MobileStatusBar.tsx:120/145`）——任何占位带
+  高度下有效命中 ≥44px。
+- **通知中心特有**：打开即 `markAllRead`（徽标语义 =「尚未在中心过目」，
+  `MobileNotificationSheet.tsx:116-118`）；清空按钮只在有通知时在场
+  （禁止空态死按钮，§35.7 同口径）；未读行 primary 细边 + 圆点，已读行
+  中性边——数据源与桌面同一 notification-store（架构 §3.25，桌面
+  NotificationCenter 零改动）。
+- **控制中心 = 真实能力开关清单（零伪造开关）**：主题/字号/语言三组
+  chip（与桌面 SettingsApp 同一 store 入口与同一组词典键）+「减弱动效」
+  整行 switch（role/aria-checked 对齐桌面 ToggleSwitch 契约）= motion-prefs
+  `windowTilt` **反相呈现**（同一 store 布尔两处呈现，桌面叫「窗口切换
+  转场」）+ 登出整宽钮（`session-store.logout`，桌面 UserMenu 同行为：
+  无二次确认）。glow/dockSheen/themeGlow/aurora 是桌面指针与画布效果、
+  移动 Shell 无消费位，**不摆出来**。
+- **边缘返回手势（M2-4）**：判定参数（`src/mobile/gesture/edge-back-decision.ts:34-40`
+  默认档）——左缘激活带 **24px** 起点 + 轴向死区 10px（保住缘带内纵向
+  原生滚动与点击）；释放时**过半**（向内位移 > 视口宽 × 0.5）**或甩动**
+  （≥0.5px/ms ≈ 500px/s，150ms pointermove 滑动窗口求速）即确认；确认 =
+  backToHome（与返回键/popstate 同一出口）。跟手 1:1 位移钳一个屏宽
+  （rAF 直写 transform，拖动全程零 React render），确认滑出 120ms
+  （`--ag-motion-fast` 档 ease-in）、取消回弹 200ms（base 档）；转场关档
+  或 prefers-reduced-motion（落下时实时探测）→ 直切。`[data-no-edge-back]`
+  标记面 = 横向滚动逃生口（hook 整体豁免 + CSS 对该面及后代重放 pan-x，
+  `src/index.css:1178-1180`）。挂载点与系统映射见 ARCHITECTURE.md §3.25。
