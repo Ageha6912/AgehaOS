@@ -513,6 +513,14 @@ export const dictionaries = {
     'notes.listEmptyHint': '点击上方按钮写下第一条',
     'notes.editor': '笔记编辑器',
     'notes.unsaved': '有未保存的更改',
+    /* M2-6 窄容器：Notes「列表↔编辑器」单面切换的返回键可访问名（宽容器
+       双栏在场时不渲染，见 src/apps/notes/NotesApp.tsx）。 */
+    'notes.backToList': '返回笔记列表',
+
+    /* M2-6 窄容器：Settings「分区列表↔分区详情」单列切换的地标名与返回键
+       可访问名（宽容器双栏在场时不渲染，见 src/apps/settings/SettingsApp.tsx）。 */
+    'settings.sectionsNav': '设置分区',
+    'settings.backToSections': '返回分区列表',
 
     'dynamicDesktop.section': '动态桌面',
     'dynamic.layout.cardTitle': '桌面编排建议',
@@ -1122,6 +1130,17 @@ export const dictionaries = {
     'notes.listEmptyHint': 'Click the button above to write your first note',
     'notes.editor': 'Note editor',
     'notes.unsaved': 'Unsaved changes',
+    /* M2-6 narrow container: accessible name of the back button in the
+       Notes list↔editor single-pane switch (not rendered when the wide
+       two-pane layout is up; see src/apps/notes/NotesApp.tsx). */
+    'notes.backToList': 'Back to note list',
+
+    /* M2-6 narrow container: landmark name and back-button accessible name
+       of the Settings sections↔section single-column switch (not rendered
+       when the wide two-pane layout is up; see
+       src/apps/settings/SettingsApp.tsx). */
+    'settings.sectionsNav': 'Settings sections',
+    'settings.backToSections': 'Back to section list',
 
     'dynamicDesktop.section': 'Dynamic desktop',
     'dynamic.layout.cardTitle': 'Desktop layout suggestion',

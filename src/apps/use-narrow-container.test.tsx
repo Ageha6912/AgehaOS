@@ -1,11 +1,12 @@
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { FILES_NARROW_BREAKPOINT, useNarrowContainer } from './use-narrow-container'
+import { APP_NARROW_BREAKPOINT, useNarrowContainer } from './use-narrow-container'
 
 /**
- * 窄容器判定 hook（M2-5）专项契约。组件级行为（侧栏收起 / chip 行 /
- * 触屏语义）归 FileManager.test.tsx 窄容器组；这里钉 hook 本体四条：
+ * 窄容器判定 hook（M2-5 引入、M2-6 提升为 src/apps 根共享模块）专项契约。
+ * 组件级行为（侧栏收起 / 单面切换 / 触屏语义）归各应用 test 的窄容器组；
+ * 这里钉 hook 本体四条：
  * ① 断点边界按内容盒宽判定（<560 narrow，≥560 wide）且随 resize 双向跟随；
  * ② 同档宽度重复观测不翻动状态（布尔等值 bail-out 路径）；
  * ③ 无 ResizeObserver 环境（vitest jsdom 原生状态）降级恒 wide——桌面兜底；
@@ -70,8 +71,8 @@ describe('useNarrowContainer', () => {
     act(() => observer!.emit(559))
     expect(getByTestId('narrow-probe').getAttribute('data-narrow')).toBe('true')
 
-    // 断点本身（560 = FILES_NARROW_BREAKPOINT）：不算窄（width < breakpoint）。
-    act(() => observer!.emit(FILES_NARROW_BREAKPOINT))
+    // 断点本身（560 = APP_NARROW_BREAKPOINT）：不算窄（width < breakpoint）。
+    act(() => observer!.emit(APP_NARROW_BREAKPOINT))
     expect(getByTestId('narrow-probe').getAttribute('data-narrow')).toBe('false')
 
     // 再缩回去：不粘连，双向跟随（窗口拖拽缩放往返）。
@@ -104,7 +105,7 @@ describe('useNarrowContainer', () => {
 
   it('无 ResizeObserver 环境：降级恒 wide（桌面兜底，绝不抛错）', () => {
     // jsdom 原生无 ResizeObserver，本用例刻意不 stub——hook 必须安静降级，
-    // 既有桌面用例（FileManager.test.tsx 其余组）即在此路径零改动通过。
+    // 既有桌面用例（各应用 test 的其余组）即在此路径零改动通过。
     expect(typeof ResizeObserver).toBe('undefined')
     const { getByTestId, unmount } = render(<Probe />)
     expect(getByTestId('narrow-probe').getAttribute('data-narrow')).toBe('false')

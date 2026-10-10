@@ -26,7 +26,7 @@ import { joinPath, splitPath, Vfs, MAX_FILE_BYTES } from '@/core/filesystem'
 import type { VfsNode } from '@/core/filesystem'
 
 import { vfsErrorMessageKey } from './error-messages'
-import { useNarrowContainer } from './use-narrow-container'
+import { useNarrowContainer } from '@/apps/use-narrow-container'
 
 interface FileEntry {
   node: VfsNode

@@ -4,11 +4,12 @@ import { version as appVersion } from '../../../package.json'
 
 import { consumeSettingsSection } from '@/apps/app-deep-link'
 import { appDisplayName } from '@/apps/launch'
+import { useNarrowContainer } from '@/apps/use-narrow-container'
 
 import { BrandLogo } from '@/components/brand-logo'
 import { ToggleSwitch } from '@/components/toggle-switch'
 import { useMotionPrefsStore, type MotionPrefKey } from '@/store/motion-prefs-store'
-import { GlobeHemisphereWest, Butterfly, ListChecks, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
+import { CaretLeft, GlobeHemisphereWest, Butterfly, ListChecks, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
 
 import { useTranslation, useLocaleStore } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
@@ -51,10 +52,36 @@ const LOCALE_OPTIONS: Array<{ value: 'zh-CN' | 'en'; label: string }> = [
   { value: 'en', label: 'English' },
 ]
 
+/**
+ * Settings system app。
+ *
+ * 窄容器适配（M2-6，同 M2-5 Files 方案：按应用根内容盒宽 <560px 分支，
+ * 禁止视口 media query）：宽容器保持「分区侧栏 + 分区内容」双栏原样（桌面
+ * DOM 与改前等价）；窄容器去双栏，改「分区列表↔分区详情」纵向单列切换
+ * ——列表面为纵向单列的分区入口（非 Files 的横向 chip 行：9 个分区名横滚
+ * 不如纵列可达，分区是低频一级导航），点入即单列展示该分区，详情面左上
+ * 返回键回列表。**刻意不把全部分区纵向堆叠成一面**：多个分区挂载即带副
+ * 作用（EclosionSection 挂载即拉额度快照、AccountSection 远程模式拉会话
+ * 列表、admin 分区拉目录/复审数据），堆叠会为用户未访问的分区触发这些
+ * 行为——「一次只挂载当前分区」的语义与桌面完全一致。§32 深链命中时窄
+ * 容器首面直接落在该分区详情面（「本次启动直接落在账户分区」语义不变）。
+ * 其内 PermissionsSection 直调 permissionManager 的既有反例保持原样——
+ * 不修复、不扩散（M2-6 切片裁决）。
+ */
 export function SettingsApp() {
   const { t } = useTranslation()
-  // §32 深链：左栏「用户中心」请求本次启动直接落在账户分区（取走即清）。
-  const [section, setSection] = useState<SectionId>(() => consumeSettingsSection() ?? 'appearance')
+  // 窄容器分支（M2-6）：按根元素内容盒宽（<560px）折叠布局，与设备判定
+  // （device-store）无关——桌面窄窗口同样进入窄分支，移动宽视口（平板横屏
+  // ≥560px）保持宽布局。
+  const { ref: rootRef, narrow } = useNarrowContainer()
+  // §32 深链：左栏「用户中心」请求本次启动直接落在账户分区（取走即清，
+  // 单次消费；M2-6 起命中与否同时决定窄容器首面是否直接进分区详情）。
+  const [initialSection] = useState<SectionId | null>(() => consumeSettingsSection())
+  const [section, setSection] = useState<SectionId>(initialSection ?? 'appearance')
+  // 窄容器单面切换状态：仅 narrow 时被消费；宽容器恒渲染双栏不读它。
+  const [pane, setPane] = useState<'sections' | 'section'>(
+    initialSection === null ? 'sections' : 'section',
+  )
   // ADR 20：目录管理仅对 admin 角色可见（远程模式才有 admin）。
   const isAdmin = useSessionStore((s) => s.user?.role === 'admin')
 
@@ -74,46 +101,120 @@ export function SettingsApp() {
     { id: 'about', labelKey: 'settings.about', icon: <BrandLogo size={14} /> },
   ]
 
-  return (
-    <div className="surface-panel flex h-full text-sm">
-      <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface/60 p-2">
-        <ul>
-          {sections.map((item) => {
-            const active = section === item.id
-            return (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  aria-current={active ? 'true' : undefined}
-                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
-                    active
-                      ? 'bg-primary/10 font-medium text-primary'
-                      : 'text-text hover:bg-surface-raised'
-                  }`}
-                  onClick={() => setSection(item.id)}
-                >
-                  <span aria-hidden="true" className={active ? 'text-primary' : 'text-text-muted'}>
-                    {item.icon}
-                  </span>
-                  {t(item.labelKey)}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      </aside>
+  // 分区内容（宽窄同源）：一次只挂载当前分区（含 admin 门控），桌面与
+  // 窄容器共用同一份映射，行为零分叉。
+  const sectionContent = (
+    <>
+      {section === 'account' && <AccountSection />}
+      {section === 'appearance' && <AppearanceSection narrow={narrow} />}
+      {section === 'dynamic' && <DynamicDesktopSection />}
+      {section === 'eclosion' && <EclosionSection />}
+      {section === 'catalog' && isAdmin && <CatalogSection />}
+      {section === 'review' && isAdmin && <SampleReviewSection />}
+      {section === 'language' && <LanguageSection narrow={narrow} />}
+      {section === 'permissions' && <PermissionsSection />}
+      {section === 'about' && <AboutSection />}
+    </>
+  )
 
-      <div className="min-w-0 flex-1 overflow-y-auto p-4">
-        {section === 'account' && <AccountSection />}
-        {section === 'appearance' && <AppearanceSection />}
-        {section === 'dynamic' && <DynamicDesktopSection />}
-        {section === 'eclosion' && <EclosionSection />}
-        {section === 'catalog' && isAdmin && <CatalogSection />}
-        {section === 'review' && isAdmin && <SampleReviewSection />}
-        {section === 'language' && <LanguageSection />}
-        {section === 'permissions' && <PermissionsSection />}
-        {section === 'about' && <AboutSection />}
-      </div>
+  // 窄容器详情面标题 = 当前分区本地化名（列表面条目与宽容器侧栏同源）。
+  const activeSection = sections.find((item) => item.id === section)
+
+  return (
+    <div ref={rootRef} className="surface-panel flex h-full text-sm">
+      {narrow ? (
+        pane === 'sections' ? (
+          <nav
+            data-testid="settings-section-nav"
+            aria-label={t('settings.sectionsNav')}
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2"
+          >
+            <ul>
+              {sections.map((item) => {
+                const active = section === item.id
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      aria-current={active ? 'true' : undefined}
+                      className={`flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
+                        active
+                          ? 'bg-primary/10 font-medium text-primary'
+                          : 'text-text hover:bg-surface-raised'
+                      }`}
+                      onClick={() => {
+                        setSection(item.id)
+                        setPane('section')
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={active ? 'text-primary' : 'text-text-muted'}
+                      >
+                        {item.icon}
+                      </span>
+                      {t(item.labelKey)}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </nav>
+        ) : (
+          <div data-testid="settings-section-pane" className="flex min-w-0 flex-1 flex-col">
+            <div className="flex min-h-14 shrink-0 items-center gap-1 border-b border-border px-2">
+              {/* 窄容器（M2-6）：回分区列表的返回键，命中区 44×44（§35.3）。 */}
+              <button
+                type="button"
+                data-testid="settings-back-to-sections"
+                aria-label={t('settings.backToSections')}
+                className="-ml-1.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text hover:bg-surface-raised"
+                onClick={() => setPane('sections')}
+              >
+                <CaretLeft aria-hidden="true" size={18} weight="bold" />
+              </button>
+              <span className="min-w-0 truncate text-sm font-semibold text-text">
+                {activeSection ? t(activeSection.labelKey) : ''}
+              </span>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">{sectionContent}</div>
+          </div>
+        )
+      ) : (
+        <>
+          <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface/60 p-2">
+            <ul>
+              {sections.map((item) => {
+                const active = section === item.id
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      aria-current={active ? 'true' : undefined}
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
+                        active
+                          ? 'bg-primary/10 font-medium text-primary'
+                          : 'text-text hover:bg-surface-raised'
+                      }`}
+                      onClick={() => setSection(item.id)}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={active ? 'text-primary' : 'text-text-muted'}
+                      >
+                        {item.icon}
+                      </span>
+                      {t(item.labelKey)}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </aside>
+
+          <div className="min-w-0 flex-1 overflow-y-auto p-4">{sectionContent}</div>
+        </>
+      )}
     </div>
   )
 }
@@ -122,11 +223,14 @@ function OptionRow({
   label,
   options,
   currentValue,
+  narrow = false,
   onSelect,
 }: {
   label: string
   options: Array<{ value: string; label: string }>
   currentValue: string
+  /** 窄容器（M2-6）：命中区抬到 ≥44px（§35.3），其余视觉档不变。 */
+  narrow?: boolean
   onSelect: (value: string) => void
 }) {
   return (
@@ -138,7 +242,7 @@ function OptionRow({
               key={option.value}
               type="button"
               aria-pressed={currentValue === option.value}
-              className={`h-8 rounded-md border px-3 text-xs ${
+              className={`${narrow ? 'min-h-[44px]' : 'h-8'} rounded-md border px-3 text-xs ${
                 currentValue === option.value
                   ? 'border-primary bg-primary/10 font-medium text-text'
                   : 'border-border text-text-muted hover:bg-surface-raised hover:text-text'
@@ -174,7 +278,7 @@ const MOTION_TOGGLES: Array<{
   },
 ]
 
-function AppearanceSection() {
+function AppearanceSection({ narrow = false }: { narrow?: boolean }) {
   const { t } = useTranslation()
   const theme = useSettingsStore((s) => s.theme)
   const fontSize = useSettingsStore((s) => s.fontSize)
@@ -193,6 +297,7 @@ function AppearanceSection() {
           label: t(option.labelKey),
         }))}
         currentValue={theme}
+        narrow={narrow}
         onSelect={(value) => setTheme(value as ThemePreference)}
       />
       <OptionRow
@@ -202,6 +307,7 @@ function AppearanceSection() {
           label: t(option.labelKey),
         }))}
         currentValue={fontSize}
+        narrow={narrow}
         onSelect={(value) => setFontSize(value as FontSize)}
       />
       <p className="pb-1 pt-2 text-xs text-text-muted">{t('settings.motionGroupHint')}</p>
@@ -227,7 +333,7 @@ function AppearanceSection() {
   )
 }
 
-function LanguageSection() {
+function LanguageSection({ narrow = false }: { narrow?: boolean }) {
   const { t } = useTranslation()
   const locale = useLocaleStore((s) => s.locale)
   const setLocale = useSettingsStore((s) => s.setLocale)
@@ -239,6 +345,7 @@ function LanguageSection() {
         label={t('settings.language')}
         options={LOCALE_OPTIONS}
         currentValue={locale}
+        narrow={narrow}
         onSelect={(value) => setLocale(value as 'zh-CN' | 'en')}
       />
     </section>

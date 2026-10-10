@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { version } from '../../../package.json'
+import { requestSettingsSection, resetAppDeepLinks } from '@/apps/app-deep-link'
 import type { User } from '@/core/auth/types'
 import { useLocaleStore } from '@/core/i18n'
 import { resetAppStore } from '@/store/app-store'
@@ -143,5 +144,120 @@ describe('SettingsApp', () => {
     render(<SettingsApp />)
     fireEvent.click(screen.getByRole('button', { name: '内容复审' }))
     expect(screen.getByTestId('sample-review-section')).toBeInTheDocument()
+  })
+})
+
+/**
+ * 窄容器分支（M2-6）：jsdom 无 ResizeObserver 时 use-narrow-container 降级
+ * 恒 wide（桌面兜底——上方全部既有用例即在此路径运行，零改动通过）。本组
+ * stub 一个最小 ResizeObserver 显式喂容器宽度驱动窄分支；几何级断言（横向
+ * 溢出 / 命中区实测）归 e2e/mobile-notes-settings.spec.ts 真实视口。
+ */
+class FakeResizeObserver {
+  static instances: FakeResizeObserver[] = []
+  private readonly callback: ResizeObserverCallback
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    FakeResizeObserver.instances.push(this)
+  }
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+  /** 手动喂一次观测回调（内容盒宽度）。真实 RO 在 observe 时必发初始帧。 */
+  emit(width: number): void {
+    this.callback(
+      [{ contentRect: { width } } as ResizeObserverEntry],
+      this as unknown as ResizeObserver,
+    )
+  }
+}
+
+describe('SettingsApp 窄容器（M2-6）', () => {
+  beforeEach(() => {
+    FakeResizeObserver.instances = []
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver as unknown as typeof ResizeObserver)
+    resetAppDeepLinks()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  async function renderNarrow() {
+    render(<SettingsApp />)
+    await act(async () => {
+      FakeResizeObserver.instances.at(-1)?.emit(360)
+    })
+  }
+
+  it('窄容器：分区列表单列首面（去双栏、默认不挂载分区内容、行 44px）', async () => {
+    await renderNarrow()
+
+    // 双栏整块不渲染：侧栏 aside 与分区内容都不在场，纵向单列分区列表接管。
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '外观' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('motion-glow-toggle')).not.toBeInTheDocument()
+    const nav = screen.getByTestId('settings-section-nav')
+    expect(nav).toHaveAttribute('aria-label', '设置分区')
+
+    // 分区入口 ≥44px（§35.3）：分区列表是纵向单列（非 Files 的横向 chip 行）。
+    const row = within(nav).getByRole('button', { name: '外观' })
+    expect(row.className).toContain('min-h-[44px]')
+    // admin 门控跟随：普通用户列表无 远程目录 / 内容复审。
+    expect(within(nav).queryByRole('button', { name: '远程目录' })).toBeNull()
+    expect(within(nav).queryByRole('button', { name: '内容复审' })).toBeNull()
+  })
+
+  it('窄容器：点入分区→单列详情面，切换设置项生效，返回后 aria-current 跟随', async () => {
+    await renderNarrow()
+
+    // 点入外观：详情面 = 返回键 + 分区标题 + 单列分区内容（一次只挂载当前分区）。
+    fireEvent.click(within(screen.getByTestId('settings-section-nav')).getByRole('button', { name: '外观' }))
+    expect(screen.getByTestId('settings-section-pane')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '外观' })).toBeInTheDocument()
+
+    // 触控 ≥44px（§35.3）：主题选项按钮抬档；切换设置项（深色）真实生效。
+    const dark = screen.getByRole('button', { name: '深色' })
+    expect(dark.className).toContain('min-h-[44px]')
+    fireEvent.click(dark)
+    expect(dark).toHaveAttribute('aria-pressed', 'true')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+
+    // 返回：分区列表回归，当前分区高亮（aria-current）。
+    fireEvent.click(screen.getByTestId('settings-back-to-sections'))
+    expect(screen.getByTestId('settings-section-nav')).toBeInTheDocument()
+    expect(screen.queryByTestId('settings-section-pane')).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('settings-section-nav')).getByRole('button', { name: '外观' }),
+    ).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('窄容器深链：requestSettingsSection 命中时首面直接落在该分区详情面', async () => {
+    requestSettingsSection('account')
+    await renderNarrow()
+
+    // §32「本次启动直接落在账户分区」在窄容器同样成立：跳过列表面。
+    expect(screen.getByTestId('settings-section-pane')).toBeInTheDocument()
+    expect(screen.queryByTestId('settings-section-nav')).not.toBeInTheDocument()
+    expect(screen.getByTestId('settings-section-pane')).toHaveTextContent('账户')
+    // 深链只定面不改门控：未登录（本地认证无会话）时账户分区内容仍不挂载。
+    expect(screen.queryByRole('region', { name: '账户' })).not.toBeInTheDocument()
+  })
+
+  it('宽容器（840px 桌面窗口档）：双栏原样、单列结构缺席、桌面密度档保持', async () => {
+    render(<SettingsApp />)
+    await act(async () => {
+      FakeResizeObserver.instances.at(-1)?.emit(840)
+    })
+
+    // 宽容器双栏原样：侧栏在场 + 默认挂载外观分区；窄容器专属结构不渲染。
+    expect(screen.getByRole('complementary')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '外观' })).toBeInTheDocument()
+    expect(screen.queryByTestId('settings-section-nav')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('settings-section-pane')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('settings-back-to-sections')).not.toBeInTheDocument()
+    // 桌面密度档保持：主题选项按钮不带 44px 抬档。
+    expect(screen.getByRole('button', { name: '浅色' }).className).toContain('h-8')
+    expect(screen.getByRole('button', { name: '浅色' }).className).not.toContain('min-h-[44px]')
   })
 })
