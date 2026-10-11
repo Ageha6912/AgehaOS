@@ -40,11 +40,11 @@
   --sp-float-duration: 7s;
   --sp-float-distance: 9px;
 
-  /* 悬停浮起缓动（2026-10-11 用户反馈二「放缓更丝滑」→ 反馈三「再慢一点」：
-     680ms 慢起缓出长尾软着陆，离开对称回落同速；不再借用 --ag-motion-base
-     的 200ms 立即起浮。主题无关常量只入 :root；reduced-motion 仍由全局
-     塌缩接管。 */
-  --sp-hover-duration: 680ms;
+  /* 悬停浮起缓动（2026-10-11 用户反馈二「放缓更丝滑」→ 三「再慢一点」680ms
+     → 四「加快一点点」560ms）：慢起缓出长尾软着陆，离开对称回落同速；不再
+     借用 --ag-motion-base 的 200ms。主题无关常量只入 :root；坑 79 修复后
+     此过渡才真正生效。reduced-motion 仍由全局塌缩接管。 */
+  --sp-hover-duration: 560ms;
   --sp-hover-ease: cubic-bezier(0.33, 0, 0.2, 1);
 
   /* Dock 弱倒影高度（.dock-reflection 消费；2026-10-11 用户反馈加大：
