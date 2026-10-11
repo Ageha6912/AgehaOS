@@ -1231,6 +1231,19 @@ body {
   overscroll-behavior: contain;
 }
 
+/* 移动作用域弹层控件触控目标（M3-4 Store 安装确认流）：PermissionConsentDialog
+   等共享弹层组件在 src/components（窄容器适配的 src/apps/** 豁免范围之外，
+   组件文件不动），其内联 fixed 弹层无 portal、落在 .mobile-shell 子树内——
+   在此以壳作用域把弹层内一切可点目标（按钮 / 可点标签行）命中区抬到
+   ≥44px（DESIGN.md §35.3「移动作用域内一切可点击目标」）。桌面无
+   .mobile-shell 祖先，零接触；未分层声明压过 Tailwind 工具类（DESIGN.md
+   §0.3），正是「基态进 index.css」的既有口径。本段是触控作用域段、非玻璃
+   材质，不落 .surface-glass→降透明兜底的玻璃源序区间。 */
+.mobile-shell [role='dialog'] button,
+.mobile-shell [role='dialog'] label {
+  min-height: 44px;
+}
+
 /* 移动启动器（M2-1 MobileLauncher）：Bottom Sheet 应用抽屉——玻璃白名单
    五处之一的 Bottom Sheet 位（DESIGN.md §35.1），玻璃材质在组件侧走
    surface-glass + glass-raise 工具类（与 Dock 同档，本段只发遮罩色与动效、

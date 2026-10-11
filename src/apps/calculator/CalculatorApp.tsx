@@ -2,9 +2,18 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { useTranslation } from '@/core/i18n'
 
+import { useNarrowContainer } from '@/apps/use-narrow-container'
+
 /**
  * Calculator（PRD §26 P1）：经典即时执行模型——数字进 current，
  * 运算符把 (accumulator, op) 挂起，等号结算。纯状态机，无 eval。
+ *
+ * 窄容器适配（M3-4）：按键网格触控化——根内容盒 <560px 时按键命中区抬到
+ * ≥44px（DESIGN.md §35.3）、间距放宽、加触压反馈。显示区宽窄同档（text-2xl
+ * 等宽字体，输入上限 14 位数字 ⇒ 至多 16 字符 ≈ 230px，360px 视口内容盒
+ * ~328px 装得下，不截断；几何归 e2e/mobile-calculator-store.spec.ts 断言）。
+ * use-narrow-container 契约：与设备判定无关（桌面窄窗口同样进窄分支）、
+ * 禁视口 media query、宽容器 DOM 字面等价（类名模板宽档逐字保留）。
  */
 
 type Operator = '+' | '-' | '×' | '÷'
@@ -160,6 +169,9 @@ const KEYBOARD_MAP: Record<string, string> = {
 
 export function CalculatorApp() {
   const { t } = useTranslation()
+  // 窄容器分支（M3-4）：观测应用根内容盒宽，与设备判定（device-store）无关
+  // ——桌面窄窗口同样进入窄分支，移动宽视口保持宽布局。
+  const { ref: rootRef, narrow } = useNarrowContainer()
   const [state, setState] = useState<CalcState>(INITIAL)
 
   const press = useCallback((key: string) => setState((s) => pressKey(s, key)), [])
@@ -181,20 +193,23 @@ export function CalculatorApp() {
   }, [press])
 
   return (
-    <div className="surface-panel flex h-full flex-col" aria-label={t('app.calculator.title')}>
+    <div ref={rootRef} className="surface-panel flex h-full flex-col" aria-label={t('app.calculator.title')}>
       <output
         data-testid="calculator-display"
         className="select-none border-b border-border px-4 py-4 text-right font-mono text-2xl font-semibold tabular-nums text-text"
       >
         {state.display}
       </output>
-      <div className="grid min-h-0 flex-1 grid-cols-4 gap-1.5 p-2.5">
+      {/* 窄容器（移动全屏视图 / 小窗口）：间距放宽 + 按键命中区 ≥44px
+          （§35.3）+ 触压反馈（与 MobileAppGrid/MobileDock 的 active 同档）。
+          宽容器（桌面）：类名与改前逐字一致。 */}
+      <div className={`grid min-h-0 flex-1 grid-cols-4 ${narrow ? 'gap-2 p-3' : 'gap-1.5 p-2.5'}`}>
         {BUTTONS.map((button) => (
           <button
             key={button.key}
             type="button"
             data-testid={`calculator-key-${button.key}`}
-            className={`rounded-md text-sm font-medium tabular-nums ${
+            className={`rounded-md ${narrow ? 'min-h-[44px] text-base active:opacity-80' : 'text-sm'} font-medium tabular-nums ${
               button.kind === 'eq'
                 ? 'bg-primary text-primary-contrast hover:opacity-90'
                 : button.kind === 'op'

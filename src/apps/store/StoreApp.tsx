@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { CheckCircle, Trash } from '@phosphor-icons/react'
 
 import { AppIcon } from '@/apps/app-icon'
+import { useNarrowContainer } from '@/apps/use-narrow-container'
 import { useTranslation } from '@/core/i18n'
 import { PermissionConsentDialog } from '@/components/permission-consent-dialog'
 import { ScrollFadeList } from '@/components/scroll-fade-list'
@@ -18,6 +19,17 @@ import { STORE_CATALOG } from './catalog'
  * 目录（Ed25519 验签，失败整包忽略）。浏览 → 权限确认（Default Deny，§10.2）
  * → installApp 注册 → 持久化，重装系统后自动恢复。卸载同步遗忘权限（§10.3）。
  * 列表图标 = 应用徽章系统（DESIGN.md §8）：精选 + 确定性生成，与桌面一致。
+ *
+ * 窄容器适配（M3-4）：卡片内部转单列——内容行（徽章 + 名称/版本/描述）在上、
+ * 操作行整幅铺开在下，安装/卸载按钮命中区抬到 ≥44px（DESIGN.md §35.3），
+ * 名称与徽章行 flex-wrap 防溢出。use-narrow-container 契约：与设备判定无关
+ * （桌面窄窗口同样进窄分支）、禁视口 media query、宽容器 DOM 字面等价（宽档
+ * 类名与结构逐字保留）。安装确认弹层（PermissionConsentDialog）是
+ * src/components 共享组件——窄容器适配的 src/apps/** 豁免范围之外，组件文件
+ * 不动；其触控命中区由 index.css 的 `.mobile-shell [role='dialog']` 作用域
+ * 规则抬升（桌面无 .mobile-shell 祖先，零接触）。
+ * 直调 permissionManager 的既有反例（应用层越级，归 §10 装配链）不修复也
+ * 不扩散——本片不改安装流语义。
  */
 
 interface StoreEntry {
@@ -32,6 +44,9 @@ const BUILTIN_ENTRIES: StoreEntry[] = STORE_CATALOG.map((entry) => ({
 
 export function StoreApp() {
   const { t } = useTranslation()
+  // 窄容器分支（M3-4）：观测应用根内容盒宽，与设备判定（device-store）无关
+  // ——桌面窄窗口同样进入窄分支，移动宽视口保持宽布局。
+  const { ref: rootRef, narrow } = useNarrowContainer()
   const apps = useAppStore((s) => s.apps)
   const [consenting, setConsenting] = useState<number | null>(null)
   const [remote, setRemote] = useState<{
@@ -82,7 +97,7 @@ export function StoreApp() {
   }
 
   return (
-    <div className="surface-panel flex h-full flex-col text-sm">
+    <div ref={rootRef} className="surface-panel flex h-full flex-col text-sm">
       <div className="border-b border-border px-4 py-3">
         <h2 className="text-base font-semibold text-text">{t('app.store.title')}</h2>
         <p className="mt-0.5 text-xs text-text-muted">{t('store.hint')}</p>
@@ -102,65 +117,48 @@ export function StoreApp() {
               key={entry.manifest.id}
               className="rounded-lg border border-border bg-surface-raised/50 p-3"
             >
-              <div className="flex items-start gap-3">
-                <AppIcon appId={entry.manifest.id} size={36} className="mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-2 font-medium text-text">
-                    {entry.manifest.name}
-                    <span className="rounded border border-border px-1 font-mono text-[11px] text-text-muted">
-                      {t('store.webApp')}
-                    </span>
-                    {entry.remote && (
-                      <span
-                        className="rounded border border-primary/50 px-1 font-mono text-[11px] text-primary"
-                        data-testid="store-remote-badge"
-                      >
-                        {t('store.remoteBadge')}
-                      </span>
-                    )}
-                    {installed && (
-                      <span className="flex items-center gap-1 text-xs text-success">
-                        <CheckCircle size={12} weight="fill" />
-                        {t('store.installed')}
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-0.5 text-xs text-text-muted">
-                    v{installedApp?.version ?? entry.manifest.version} · {entry.manifest.author}
-                  </p>
-                  <p className="mt-1 text-xs text-text-muted">{entry.manifest.description}</p>
+              {narrow ? (
+                /* 窄容器（M3-4）：卡片内部转单列——内容行在上、操作行整幅
+                    铺开在下；安装键占满操作行，卸载键 44×44 方键（§35.3）。 */
+                <div className="flex flex-col gap-3" data-testid="store-card-narrow">
+                  <div className="flex items-start gap-3">
+                    <AppIcon appId={entry.manifest.id} size={36} className="mt-0.5 shrink-0" />
+                    <EntryDetails
+                      entry={entry}
+                      installed={installed}
+                      version={installedApp?.version ?? entry.manifest.version}
+                      wrapBadges
+                    />
+                  </div>
+                  <EntryActions
+                    narrow
+                    installed={installed}
+                    name={entry.manifest.name}
+                    onOpen={() => launchApp(entry.manifest.id)}
+                    onUninstall={() => uninstallApp(entry.manifest.id)}
+                    onInstall={() => setConsenting(index)}
+                  />
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {installed ? (
-                    <>
-                      <button
-                        type="button"
-                        className="rounded-md border border-border px-2.5 py-1.5 text-xs text-text hover:bg-surface-raised"
-                        onClick={() => launchApp(entry.manifest.id)}
-                      >
-                        {t('store.open')}
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`${t('store.uninstall')} ${entry.manifest.name}`}
-                        title={t('store.uninstall')}
-                        className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-raised hover:text-danger"
-                        onClick={() => uninstallApp(entry.manifest.id)}
-                      >
-                        <Trash size={13} weight="regular" />
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-contrast hover:opacity-90"
-                      onClick={() => setConsenting(index)}
-                    >
-                      {t('store.install')}
-                    </button>
-                  )}
+              ) : (
+                /* 宽容器（桌面）：与改前逐字一致的结构与类名。 */
+                <div className="flex items-start gap-3">
+                  <AppIcon appId={entry.manifest.id} size={36} className="mt-0.5" />
+                  <EntryDetails
+                    entry={entry}
+                    installed={installed}
+                    version={installedApp?.version ?? entry.manifest.version}
+                  />
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <EntryActions
+                      installed={installed}
+                      name={entry.manifest.name}
+                      onOpen={() => launchApp(entry.manifest.id)}
+                      onUninstall={() => uninstallApp(entry.manifest.id)}
+                      onInstall={() => setConsenting(index)}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </li>
           )
         })}
@@ -175,5 +173,123 @@ export function StoreApp() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * 卡片文字块（名称 + 徽章行 / 版本 / 描述）——宽窄两个布局共用同一份内容
+ * 源，防双分支漂移。宽容器类名与改前逐字一致；窄容器徽章行加 flex-wrap
+ * （360px 视口下 名称+Web 应用+远程/已安装 可能超出文字块宽度）。
+ */
+function EntryDetails({
+  entry,
+  installed,
+  version,
+  wrapBadges = false,
+}: {
+  entry: StoreEntry
+  installed: boolean
+  /** 已安装则显示已装版本（store 面板既有口径），否则目录版本。 */
+  version: string
+  wrapBadges?: boolean
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="min-w-0 flex-1">
+      <p
+        className={`flex ${wrapBadges ? 'flex-wrap ' : ''}items-center gap-2 font-medium text-text`}
+      >
+        {entry.manifest.name}
+        <span className="rounded border border-border px-1 font-mono text-[11px] text-text-muted">
+          {t('store.webApp')}
+        </span>
+        {entry.remote && (
+          <span
+            className="rounded border border-primary/50 px-1 font-mono text-[11px] text-primary"
+            data-testid="store-remote-badge"
+          >
+            {t('store.remoteBadge')}
+          </span>
+        )}
+        {installed && (
+          <span className="flex items-center gap-1 text-xs text-success">
+            <CheckCircle size={12} weight="fill" />
+            {t('store.installed')}
+          </span>
+        )}
+      </p>
+      <p className="mt-0.5 text-xs text-text-muted">
+        v{version} · {entry.manifest.author}
+      </p>
+      <p className="mt-1 text-xs text-text-muted">{entry.manifest.description}</p>
+    </div>
+  )
+}
+
+/**
+ * 卡片操作键——安装 / 打开 / 卸载。宽容器类名与改前逐字一致（外层操作簇
+ * 容器由调用方持有）；窄容器命中区 ≥44px（§35.3）+ 触压反馈，安装键
+ * flex-1 占满操作行。
+ */
+function EntryActions({
+  narrow = false,
+  installed,
+  name,
+  onOpen,
+  onUninstall,
+  onInstall,
+}: {
+  /** 窄容器（M3-4）：命中区抬到 ≥44px（§35.3），其余视觉档不变。 */
+  narrow?: boolean
+  installed: boolean
+  /** 卸载键的可访问名（`卸载 <应用名>`），与改前同源 manifest.name。 */
+  name: string
+  onOpen: () => void
+  onUninstall: () => void
+  onInstall: () => void
+}) {
+  const { t } = useTranslation()
+  if (installed) {
+    return (
+      <>
+        <button
+          type="button"
+          className={
+            narrow
+              ? 'flex min-h-[44px] flex-1 items-center justify-center rounded-md border border-border px-4 text-sm text-text hover:bg-surface-raised active:opacity-80'
+              : 'rounded-md border border-border px-2.5 py-1.5 text-xs text-text hover:bg-surface-raised'
+          }
+          onClick={onOpen}
+        >
+          {t('store.open')}
+        </button>
+        <button
+          type="button"
+          aria-label={`${t('store.uninstall')} ${name}`}
+          title={t('store.uninstall')}
+          className={
+            narrow
+              ? 'flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-raised hover:text-danger active:opacity-80'
+              : 'flex h-7 w-7 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-raised hover:text-danger'
+          }
+          onClick={onUninstall}
+        >
+          <Trash size={narrow ? 16 : 13} weight="regular" />
+        </button>
+      </>
+    )
+  }
+  return (
+    <button
+      type="button"
+      className={
+        narrow
+          ? 'flex min-h-[44px] flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm text-primary-contrast hover:opacity-90 active:opacity-80'
+          : 'rounded-md bg-primary px-3 py-1.5 text-xs text-primary-contrast hover:opacity-90'
+      }
+      onClick={onInstall}
+    >
+      {t('store.install')}
+    </button>
   )
 }

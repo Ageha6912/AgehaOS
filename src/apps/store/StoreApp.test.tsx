@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RemoteCatalogResult } from '@/core/apps/remote-catalog'
 import { resetAppStore } from '@/store/app-store'
@@ -91,5 +91,91 @@ describe('StoreApp', () => {
     render(<StoreApp />)
 
     expect(screen.getByTestId('store-list').className).toContain('scroll-thin')
+  })
+
+  it('wide container: action buttons keep the pre-change literal classes', () => {
+    render(<StoreApp />)
+
+    // 逐字钉住改前模板产物（含 wide 档类名），防后续重构悄悄动桌面 DOM。
+    expect(screen.getAllByRole('button', { name: '安装' })[0]!.className).toBe(
+      'rounded-md bg-primary px-3 py-1.5 text-xs text-primary-contrast hover:opacity-90',
+    )
+    expect(screen.getAllByRole('button', { name: '安装' })[0]!.className).not.toContain(
+      'min-h-[44px]',
+    )
+  })
+})
+
+/**
+ * 窄容器分支（M3-4）：jsdom 无 ResizeObserver 时 use-narrow-container 降级
+ * 恒 wide（桌面兜底——上方全部既有用例即在此路径运行，零改动通过）。本组
+ * stub 一个最小 ResizeObserver 显式喂容器宽度驱动窄分支；几何级断言（命中
+ * 区实测 / 无横向溢出）归 e2e/mobile-calculator-store.spec.ts 真实视口
+ * （与 NotesApp/FileManager 窄容器组同一分工口径）。
+ */
+class FakeResizeObserver {
+  static instances: FakeResizeObserver[] = []
+  private readonly callback: ResizeObserverCallback
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    FakeResizeObserver.instances.push(this)
+  }
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+  /** 手动喂一次观测回调（内容盒宽度）。真实 RO 在 observe 时必发初始帧。 */
+  emit(width: number): void {
+    this.callback(
+      [{ contentRect: { width } } as ResizeObserverEntry],
+      this as unknown as ResizeObserver,
+    )
+  }
+}
+
+describe('StoreApp 窄容器（M3-4）', () => {
+  beforeEach(() => {
+    resetAppStore()
+    remoteCatalog.result = { ok: false, reason: 'unavailable' }
+    FakeResizeObserver.instances = []
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver as unknown as typeof ResizeObserver)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  async function renderNarrow() {
+    render(<StoreApp />)
+    await act(async () => {
+      FakeResizeObserver.instances.at(-1)?.emit(360)
+    })
+  }
+
+  it('窄容器：卡片转单列（操作行在内容行之下），安装键触控档 44px', async () => {
+    await renderNarrow()
+
+    const install = screen.getAllByRole('button', { name: '安装' })[0]!
+    expect(install.className).toContain('min-h-[44px]')
+    // 单列卡片：卡片根纵向排布，操作键是内容行的弟弟（不在同一行右侧）。
+    const cardRoot = install.closest('li')!.firstElementChild as HTMLElement
+    expect(cardRoot.className).toContain('flex-col')
+    expect(cardRoot.firstElementChild!.className).toContain('items-start')
+    // 徽章行可换行（名称 + Web 应用 + 已安装 不撑破 360px 文字块）。
+    expect(cardRoot.querySelector('p')!.className).toContain('flex-wrap')
+  })
+
+  it('窄容器：安装确认流可用（安装 → 允许并安装 → 已安装），卸载键 44×44', async () => {
+    await renderNarrow()
+
+    fireEvent.click(screen.getAllByRole('button', { name: '安装' })[0]!)
+    const dialog = screen.getByRole('dialog', { name: '应用权限申请' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '允许并安装' }))
+
+    expect(await screen.findByText('已安装')).toBeInTheDocument()
+    const uninstall = screen.getByRole('button', { name: '卸载 时钟' })
+    expect(uninstall.className).toContain('h-11 w-11')
+    expect(uninstall.className).toContain('active:opacity-80')
+    // 打开键同步触控档。
+    expect(screen.getByRole('button', { name: '打开' }).className).toContain('min-h-[44px]')
   })
 })
