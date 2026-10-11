@@ -170,6 +170,18 @@ export const dictionaries = {
        reduceMotion 先例：关 = 桌面空间动效总开关关闭；桌面 Settings 呈现
        同一布尔的正相档「空间动效」）。 */
     'mobile.controlcenter.reduceSpatialMotion': '减弱空间动效',
+    /* M3-2 最近任务切换器：Bottom Sheet 卡片区（src/mobile/recents/
+       MobileRecentsSheet.tsx）——sheet 标题（= dialog 可访问名）+「全部
+       关闭」+ 单卡删除钮可访问名 + 卡片可访问名整句（连接符随语言，同
+       greeting.join 先例；{name} = appDisplayName 数据、{time} =
+       toLocaleTimeString 数据，时间本体不入典）+ 卡面打开时间从句。
+       入口文案复用 mobile.dock.home（Dock Home 位短按回 Home 仍是主动作，
+       长按/上滑开本层）。 */
+    'mobile.recents.title': '最近任务',
+    'mobile.recents.closeAll': '全部关闭',
+    'mobile.recents.close': '关闭「{name}」',
+    'mobile.recents.cardLabel': '{name}，打开于 {time}',
+    'mobile.recents.openedAt': '打开于 {time}',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -787,6 +799,20 @@ export const dictionaries = {
        inverted (same reduceMotion precedent: desktop Settings presents the
        same boolean positively as "Spatial motion"). */
     'mobile.controlcenter.reduceSpatialMotion': 'Reduce spatial motion',
+    /* M3-2 recent tasks switcher: bottom-sheet card area
+       (src/mobile/recents/MobileRecentsSheet.tsx) — sheet title (doubles as
+       the dialog accessible name) + "close all" + per-card remove button
+       accessible name + full card accessible name sentence (the joiner
+       follows the language, same caliber as greeting.join; {name} =
+       appDisplayName data, {time} = toLocaleTimeString data, the time itself
+       is not dictionary copy) + the on-card opened-at clause. Entry copy
+       reuses mobile.dock.home (short-press Home remains the dock's primary
+       action; long-press / swipe-up open this layer). */
+    'mobile.recents.title': 'Recent tasks',
+    'mobile.recents.closeAll': 'Close all',
+    'mobile.recents.close': 'Close {name}',
+    'mobile.recents.cardLabel': '{name}, opened {time}',
+    'mobile.recents.openedAt': 'Opened {time}',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',

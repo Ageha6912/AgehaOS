@@ -1422,3 +1422,80 @@ body {
     transform: translateY(100%);
   }
 }
+
+/* 移动最近任务切换器（M3-2 MobileRecentsSheet）：Bottom Sheet——玻璃白名单
+   五处之一的 Bottom Sheet 位（DESIGN.md §35.1），玻璃材质在组件侧走
+   surface-glass + glass-raise 工具类（与 Dock/启动器/通知/控制中心同档，
+   本段只发遮罩色与动效、不发玻璃声明，不落 .surface-glass→降透明兜底的
+   玻璃源序区间）；backdrop 遮罩为纯色压暗（非玻璃、零 blur）。进出场只动
+   transform/opacity（合成器接管），时长走既有 token --ag-motion-base
+   （200ms，§35.5 档带 160–220ms）；prefers-reduced-motion 由全局 0.01ms
+   塌缩承接（§35.5：不建第二套动效开关）；motion-prefs「窗口切换转场」
+   关档由组件侧在根追加 .mobile-recents-static 直切（与
+   .mobile-controlcenter-static 同口径，规则置于 state 规则之后靠源序取胜）。
+   退场帧（data-state='leaving'）的 pointer-events-none + aria-hidden 在
+   组件侧，不挡底下的 Shell。 */
+.mobile-recents-backdrop {
+  background-color: rgb(15 23 42 / 45%);
+}
+.mobile-recents[data-state='open'] .mobile-recents-backdrop {
+  animation: mobile-recents-fade-in var(--ag-motion-base) var(--ag-motion-ease);
+}
+.mobile-recents[data-state='open'] .mobile-recents-sheet {
+  animation: mobile-recents-sheet-in var(--ag-motion-base) var(--ag-motion-ease);
+}
+.mobile-recents[data-state='leaving'] .mobile-recents-backdrop {
+  animation: mobile-recents-fade-out var(--ag-motion-base) var(--ag-motion-ease) forwards;
+}
+.mobile-recents[data-state='leaving'] .mobile-recents-sheet {
+  animation: mobile-recents-sheet-out var(--ag-motion-base) var(--ag-motion-ease) forwards;
+}
+.mobile-recents.mobile-recents-static .mobile-recents-backdrop,
+.mobile-recents.mobile-recents-static .mobile-recents-sheet {
+  animation: none;
+}
+@keyframes mobile-recents-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes mobile-recents-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes mobile-recents-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes mobile-recents-sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+/* 卡片轨道与上滑关闭的两轴划界（M2-4 touch-action 方法学，轨道横滚 +
+   卡片上滑关闭正交）：轨道声明 pan-x——横向拖拽归原生横滚（浏览器接管即
+   pointercancel，use-recents-card-dismiss 静默复位），纵向无滚动面可认领，
+   pointer 事件全程可达卡片手势；卡片显式 pan-x 同口径（默认 auto 时纵向
+   拖拽可能被浏览器滚动手势管线认领出 pointercancel 竞态，钉死语义）。
+   作用域收在 .mobile-recents 覆盖层内，不与 .mobile-app-host 子树规则
+   （pan-y）相交——sheet 不是宿主面板后代。 */
+.mobile-recents .mobile-recents-rail {
+  touch-action: pan-x;
+}
+.mobile-recents .mobile-recents-card {
+  touch-action: pan-x;
+}

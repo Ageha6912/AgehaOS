@@ -6,6 +6,7 @@ import { resetUsageStore, useUsageStore } from '@/store/usage-store'
 import { resetAppStore } from '@/store/app-store'
 import { resetDynamicDesktopStore, useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { resetLauncherStore } from '@/store/launcher-store'
+import { resetMotionPrefsStore, useMotionPrefsStore } from '@/store/motion-prefs-store'
 
 import { dockWaveTransform, DOCK_WAVE_SIGMA_PX } from './dock-wave'
 import { Taskbar } from './Taskbar'
@@ -18,6 +19,8 @@ beforeEach(() => {
   resetDynamicDesktopStore()
   resetUsageStore()
   resetLauncherStore()
+  // 动效偏好隔离（2026-10-11 环境抛光：倒影随 spatialMotion 挂/卸）。
+  resetMotionPrefsStore()
 })
 
 describe('Taskbar', () => {
@@ -486,6 +489,32 @@ describe('Taskbar', () => {
     fireEvent.pointerEnter(bar)
     fireEvent.pointerLeave(bar)
     expect(bar).toHaveAttribute('data-state', 'revealed')
+  })
+
+  it('dock 弱倒影：随胶囊挂载、空间动效关档整层消失（2026-10-11 环境抛光）', () => {
+    render(<Taskbar />)
+
+    // 默认开档（motion-prefs 默认 spatialMotion: true）：装饰倒影挂在胶囊
+    // （relative 舱体）内——与胶囊同宽、正贴下缘（24px 渐隐条由 spatial.css
+    // 定）；aria-hidden 纯装饰、不参与波浪（无 data-wave-icon）。
+    const pill = (screen.getByRole('contentinfo') as HTMLElement).firstElementChild as HTMLElement
+    const reflection = screen.getByTestId('dock-reflection')
+    expect(pill).toContainElement(reflection)
+    expect(reflection.getAttribute('aria-hidden')).toBe('true')
+    expect(reflection.className).toBe('dock-reflection')
+    expect(reflection.querySelector('[data-wave-icon]')).toBeNull()
+
+    // 空间动效关档：整层消失（条件渲染，DOM 不存在——非视觉隐藏）。
+    act(() => {
+      useMotionPrefsStore.getState().setPref('spatialMotion', false)
+    })
+    expect(screen.queryByTestId('dock-reflection')).toBeNull()
+
+    // 复位回开档：倒影随档回来（可逆接线）。
+    act(() => {
+      useMotionPrefsStore.getState().setPref('spatialMotion', true)
+    })
+    expect(screen.getByTestId('dock-reflection')).toBeInTheDocument()
   })
 })
 

@@ -3,12 +3,14 @@ import { useRef } from 'react'
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
 import { useMobileLauncherStore } from '@/store/mobile-launcher-store'
 import { useMobileNavStore } from '@/store/mobile-nav-store'
+import { useMobileRecentsStore } from '@/store/mobile-recents-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { MobileAppHost } from './app/MobileAppHost'
 import { MobileHome } from './home/MobileHome'
 import { useSwipeUp } from './gesture/use-swipe-up'
+import { MobileRecentsSheet } from './recents/MobileRecentsSheet'
 import { MobileStatusBar } from './statusbar/MobileStatusBar'
 import { MobileDock } from './dock/MobileDock'
 
@@ -62,14 +64,30 @@ import { MobileDock } from './dock/MobileDock'
  * 期间 enabled=false 手势不重复触发，应用视图（抽屉不挂载）同样不响应。
  * 跟手动画跟随 motion-prefs 转场档，reduced-motion 由 hook 落下时实时
  * 探测（降级直开，use-swipe-up.ts 模块注释）。
+ *
+ * 最近任务切换器（M3-2）：Bottom Sheet 覆盖层挂 Shell 根（fixed z-20，
+ * Home 与应用视图之上——与状态栏两张 sheet 同层语义），开合归
+ * mobile-recents-store；唯一入口 = Dock Home 位的长按/上滑（MobileDock
+ * 内的手势 hook，Home 位 data-no-edge-back 让 M3-1 的 zone 级上滑在该
+ * 起点让位）。关闭路径（backdrop/Esc/切卡/全部关闭后的空态兜底）回焦
+ * Dock Home 位触发器——触发器与覆盖层分属两组件，经 testid 在本根作用
+ * 域内定位回焦（桌面弹层关闭契约 §0.4 的移动口径）。
  */
 export function MobileShell() {
   const nav = useMobileNavStore((state) => state.nav)
   const windowCount = useWindowStore((state) => state.windows.length)
   const launcherOpen = useMobileLauncherStore((state) => state.open)
   const openLauncher = useMobileLauncherStore((state) => state.openLauncher)
+  const recentsOpen = useMobileRecentsStore((state) => state.open)
+  const closeRecents = useMobileRecentsStore((state) => state.closeRecents)
   // 窗口切换转场档（motion-prefs）：关档 = 跟手/回弹全免，确认直开。
   const transitionsOn = useMotionPrefsStore((state) => state.windowTilt)
+
+  // 最近任务关闭回焦触发器（Dock Home 位）：关闭路径统一经这里。
+  const closeRecentsAndRefocus = (): void => {
+    closeRecents()
+    document.querySelector<HTMLButtonElement>('[data-testid="mobile-dock-home"]')?.focus()
+  }
 
   // ── 上滑唤起启动器（M3-1）：挂在 Dock 区包裹层，home 且抽屉关闭时启用 ──
   const dockZoneRef = useRef<HTMLDivElement | null>(null)
@@ -145,6 +163,10 @@ export function MobileShell() {
             className="mobile-dock-slot shrink-0"
           />
         </div>
+        {/* M3-2 最近任务切换器：Bottom Sheet 覆盖层挂 Shell 根（Home 与
+            应用视图之上）；开合归 mobile-recents-store，关闭回焦 Dock
+            Home 位（见模块注释）。 */}
+        <MobileRecentsSheet open={recentsOpen} onClose={closeRecentsAndRefocus} />
       </div>
     </div>
   )

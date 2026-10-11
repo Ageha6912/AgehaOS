@@ -3,7 +3,8 @@ import { expect, test, type Page } from '@playwright/test'
 /**
  * M2-4 边缘返回手势 E2E（结构契约归 src/mobile/gesture/*.test.tsx；真实
  * 触控输入归本文件，生产构建 + vite preview 全链路）：
- * - 左缘滑入过半 → 确认回 home（视图复位 + 窗口关闭 + Home 完整在场）；
+ * - 左缘滑入过半 → 确认回 home（视图复位 + Home 完整在场；M3-2 起窗口
+ *   常驻——返回不关窗，app 留在最近任务里可切回）；
  * - 快速甩动（距离 < 半屏）同样确认（速度判据的真实时序验证）；
  * - 短慢拖（不过半不甩动）→ 取消回弹，停在应用视图；
  * - 非边缘起点滑动 → 不激活（应用视图原样）；
@@ -76,7 +77,8 @@ async function touchSwipe(
 async function expectBackAtHome(page: Page): Promise<void> {
   const shell = page.locator('[data-shell="mobile"]')
   await expect(shell).toHaveAttribute('data-nav-view', 'home')
-  await expect(shell).toHaveAttribute('data-window-count', '0')
+  // M3-2 窗口常驻：返回不关窗（app 留在最近任务，可切回）。
+  await expect(shell).toHaveAttribute('data-window-count', '1')
   await expect(page.getByTestId('mobile-home')).toBeVisible()
   await expect(page.getByTestId('mobile-app-host')).toHaveCount(0)
 }
@@ -93,7 +95,7 @@ test.describe('mobile context（360×800 iPhone UA，touchscreen）', () => {
     userAgent: IPHONE_UA,
   })
 
-  test('左缘滑入过半：确认回 home，窗口关闭', async ({ page }) => {
+  test('左缘滑入过半：确认回 home，窗口保留（M3-2 窗口常驻）', async ({ page }) => {
     await registerAndReachShell(page, 'e2eedgeback')
     await openFiles(page)
 

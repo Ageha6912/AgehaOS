@@ -6,6 +6,7 @@ import { installApp, resetAppStore } from '@/store/app-store'
 import { permissionManager } from '@/core/permissions'
 import { resetDeviceStore, useDeviceStore } from '@/store/device-store'
 import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
+import { resetMobileRecentsStore, useMobileRecentsStore } from '@/store/mobile-recents-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetUsageStore, useUsageStore } from '@/store/usage-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
@@ -17,11 +18,15 @@ import { MobileAppHost } from './MobileAppHost'
  * e2e/mobile-app-host.spec.ts）：
  * - view='app' 真实 launchApp：显式全屏几何（device-store viewport，x=0 y=0
  *   全宽高）、windowId 记入 nav store、source='user' 记入最近使用；
- * - 生命周期绑定：header 返回 / 视图内切换应用 / 外部关窗（僵尸哨兵）都
- *   保证 window-store 与视图同步（app.started/stopped 派生正确的根基）；
+ * - 生命周期绑定（M3-2 重推演：窗口与视图解耦）：回 home / 切换视图不再
+ *   关窗（窗口常驻 = 最近任务的前提）；关窗由 apps 记录移除驱动
+ *   （closeApp/closeAllApps 的订阅执行，app.started/stopped 派生正确的
+ *   根基）；单实例切回（openApp/switchToApp 指向已有 windowId）不重新
+ *   launchApp；外部关窗（僵尸哨兵）宿主位回 home、后台位剪记录；
  * - 拒绝路径：launchApp 返回 null（权限门禁）自动回 home，不开窗；
  * - 浏览器返回键：进应用 pushState 一条同文档栈位，popstate → backToHome
- *   （不退出 AgehaOS）；home 态 popstate no-op；
+ *   （不退出 AgehaOS）；最近任务覆盖层打开时先关覆盖层（popstate 消费者
+ *   唯一 = 本组件）；home 态 popstate no-op；
  * - 内容路由与桌面 WindowFrame 同序：APP_UI_META → 羽化前缀 → Type B
  *   allowlist → MissingApp（EclosionAppFrame/WebAppFrame 以 stub 替身参与
  *   路由断言，重型 iframe 机制各有自有单测）；
@@ -66,6 +71,7 @@ beforeEach(() => {
   resetWindowStore()
   resetAppStore()
   resetMobileNavStore()
+  resetMobileRecentsStore()
   resetUsageStore()
   resetDeviceStore()
 })
@@ -118,7 +124,7 @@ describe('MobileAppHost', () => {
     expect(useUsageStore.getState().recent[0]?.appId).toBe('com.ageha.calculator')
   })
 
-  it('header 返回键：backToHome + 宿主窗口关闭，退场帧播完卸载', async () => {
+  it('header 返回键：backToHome，窗口保留（M3-2 视图与窗口解耦），退场帧播完卸载', async () => {
     render(<MobileAppHost />)
     act(() => {
       useMobileNavStore.getState().openApp('com.ageha.calculator')
@@ -128,12 +134,14 @@ describe('MobileAppHost', () => {
 
     fireEvent.click(screen.getByTestId('mobile-app-back'))
 
-    // 视图与窗口同步：立即回 home + 窗口关闭（app.stopped 派生正确）。
+    // 视图复位但窗口常驻（app 可在最近任务切回；app.stopped 不派生——
+    // 窗口还开着，派生语义保持正确）。
     expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
-    expect(useWindowStore.getState().windows).toHaveLength(0)
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+    expect(useMobileNavStore.getState().apps.map((app) => app.windowId)).toEqual([windowId])
 
     // 退场帧：面板保留一拍（data-state='leaving'，只有 header 骨架，
-    // 不渲染已关窗口的内容），随后卸载。
+    // 不渲染窗口内容），随后卸载——卸载的是视图，不是窗口。
     const leaving = screen.getByTestId('mobile-app-host')
     expect(leaving).toHaveAttribute('data-state', 'leaving')
     expect(leaving).toHaveAttribute('aria-hidden', 'true')
@@ -172,7 +180,7 @@ describe('MobileAppHost', () => {
     expect(useWindowStore.getState().windows).toHaveLength(1)
   })
 
-  it('视图内切换应用：旧窗立即关闭 + 新窗启动（单窗口生命周期）', () => {
+  it('视图内切换应用：旧窗保留 + 新窗启动（M3-2 多已开 App View 并存）', () => {
     render(<MobileAppHost />)
     act(() => {
       useMobileNavStore.getState().openApp('com.ageha.calculator')
@@ -182,15 +190,19 @@ describe('MobileAppHost', () => {
       useMobileNavStore.getState().openApp('com.ageha.notes')
     })
 
+    // 旧窗常驻 + 新窗落地：两窗口并存，各自有记录（最近任务的数据面）。
     const windows = useWindowStore.getState().windows
-    expect(windows).toHaveLength(1)
-    expect(windows[0]?.appId).toBe('com.ageha.notes')
-    expect(windows[0]?.id).not.toBe(firstWindowId)
+    expect(windows).toHaveLength(2)
+    expect(windows.map((win) => win.id)).toContain(firstWindowId)
+    const notesWindowId = windows.find((win) => win.id !== firstWindowId)?.id
     expect(useMobileNavStore.getState().nav).toEqual({
       view: 'app',
       appId: 'com.ageha.notes',
-      windowId: windows[0]?.id,
+      windowId: notesWindowId,
     })
+    expect(useMobileNavStore.getState().apps.map((app) => app.windowId).sort()).toEqual(
+      [firstWindowId, notesWindowId].sort(),
+    )
   })
 
   it('浏览器返回键：进应用 pushState 一条，popstate → backToHome（不退出 AgehaOS）', () => {
@@ -209,7 +221,8 @@ describe('MobileAppHost', () => {
       window.dispatchEvent(new PopStateEvent('popstate'))
     })
     expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
-    expect(useWindowStore.getState().windows).toHaveLength(0)
+    // M3-2：窗口常驻——返回键退出的是视图，窗口留在最近任务里。
+    expect(useWindowStore.getState().windows).toHaveLength(1)
     expect(window.location.href).toBe(hrefBefore)
   })
 
@@ -221,7 +234,7 @@ describe('MobileAppHost', () => {
     expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
   })
 
-  it('僵尸窗口哨兵：宿主窗口被外部关闭 → 视图自动回 home', () => {
+  it('僵尸窗口哨兵：宿主窗口被外部关闭 → 视图自动回 home + 记录修剪', () => {
     render(<MobileAppHost />)
     act(() => {
       useMobileNavStore.getState().openApp('com.ageha.calculator')
@@ -234,6 +247,8 @@ describe('MobileAppHost', () => {
       useWindowStore.getState().close(windowId!)
     })
     expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+    // M3-2：记录同步修剪（最近任务卡片不显示死窗）。
+    expect(useMobileNavStore.getState().apps).toEqual([])
   })
 
   it('内容路由：APP_UI_META 内置组件优先（计算器真实挂载）', () => {
@@ -367,7 +382,7 @@ describe('MobileAppHost 边缘返回手势', () => {
     expect(useWindowStore.getState().windows).toHaveLength(1)
   }
 
-  it('边缘拖过半（非跟手档）：确认 = backToHome 同一出口，窗口同步关闭', async () => {
+  it('边缘拖过半（非跟手档）：确认 = backToHome 同一出口，窗口保留（M3-2）', async () => {
     // 转场关档 → followMotion=false：零 rAF 依赖，释放即直切。
     act(() => {
       useMotionPrefsStore.setState({ windowTilt: false })
@@ -380,7 +395,8 @@ describe('MobileAppHost 边缘返回手势', () => {
     ])
 
     expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
-    expect(useWindowStore.getState().windows).toHaveLength(0)
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+    expect(useMobileNavStore.getState().apps).toHaveLength(1)
   })
 
   it('非边缘起点拖过半：不触发', () => {
@@ -430,9 +446,9 @@ describe('MobileAppHost 边缘返回手势', () => {
     expect(host.style.transform).toBe('translate3d(240px, 0, 0)')
 
     pev('pointerup', 250, 400)
-    // jsdom 无 WAAPI → 瞬时终态：立即确认，样式还原。
+    // jsdom 无 WAAPI → 瞬时终态：立即确认，样式还原；窗口保留（M3-2）。
     expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
-    expect(useWindowStore.getState().windows).toHaveLength(0)
+    expect(useWindowStore.getState().windows).toHaveLength(1)
     expect(host.style.transform).toBe('')
   })
 
@@ -450,6 +466,196 @@ describe('MobileAppHost 边缘返回手势', () => {
     ])
 
     expect(useMobileNavStore.getState().nav.view).toBe('app')
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+  })
+})
+
+/**
+ * M3-2 最近任务生命周期（数据形状归 mobile-nav-store.test.ts，覆盖层 UI 归
+ * MobileRecentsSheet.test.tsx，这里钉 AppHost 作为 window-store 唯一执行者
+ * 的三段接线：单实例切回不重开 / 记录移除→关窗 / 后台僵尸剪枝 + popstate
+ * 覆盖层层级）。
+ */
+describe('MobileAppHost 最近任务（M3-2）', () => {
+  function openApp(appId: string): string {
+    act(() => {
+      useMobileNavStore.getState().openApp(appId)
+    })
+    const nav = useMobileNavStore.getState().nav
+    if (nav.view === 'app' && nav.windowId !== null) return nav.windowId
+    const win = useWindowStore
+      .getState()
+      .windows.find((candidate) => candidate.appId === appId)
+    expect(win).toBeDefined()
+    return win!.id
+  }
+
+  it('单实例切回：回 home 再进同一应用 = 指回已有 windowId，不重新 launchApp', () => {
+    render(<MobileAppHost />)
+    const windowId = openApp('com.ageha.calculator')
+    expect(useUsageStore.getState().recent).toHaveLength(1)
+
+    act(() => {
+      useMobileNavStore.getState().backToHome()
+    })
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.calculator',
+      windowId,
+    })
+    // 窗口不换（无第二次 launch）、usage 只记一次（source='user' 记录随
+    // launchApp 走，切回不经过它）。
+    expect(useWindowStore.getState().windows).toHaveLength(1)
+    expect(useWindowStore.getState().windows[0]?.id).toBe(windowId)
+    expect(useUsageStore.getState().recent).toHaveLength(1)
+    // 内容真实挂载（calculator-display），不是启动过渡帧。
+    expect(screen.getByTestId('mobile-app-host')).toHaveAttribute('data-window-id', windowId)
+    expect(screen.getByTestId('calculator-display')).toBeInTheDocument()
+  })
+
+  it('switchToApp 切回已有窗口：面板 windowId 跟随、零新窗（最近任务点卡片的服务端）', () => {
+    render(<MobileAppHost />)
+    const calcId = openApp('com.ageha.calculator')
+    const notesId = openApp('com.ageha.notes')
+    expect(useWindowStore.getState().windows).toHaveLength(2)
+
+    act(() => {
+      useMobileNavStore.getState().switchToApp(calcId)
+    })
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.calculator',
+      windowId: calcId,
+    })
+    expect(useWindowStore.getState().windows).toHaveLength(2)
+    expect(screen.getByTestId('mobile-app-host')).toHaveAttribute('data-window-id', calcId)
+    expect(notesId).toBeDefined()
+  })
+
+  it('closeApp（后台记录）→ 记录移除 + 对应窗口关闭（app.stopped 派生正确），宿主视图不动', () => {
+    render(<MobileAppHost />)
+    const calcId = openApp('com.ageha.calculator')
+    const notesId = openApp('com.ageha.notes')
+
+    act(() => {
+      useMobileNavStore.getState().closeApp(calcId)
+    })
+    expect(useMobileNavStore.getState().apps.map((app) => app.windowId)).toEqual([notesId])
+    expect(useWindowStore.getState().windows.map((win) => win.id)).toEqual([notesId])
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.notes',
+      windowId: notesId,
+    })
+  })
+
+  it('closeApp（宿主记录）→ 窗口关闭 + nav 回 home + 退场帧', async () => {
+    render(<MobileAppHost />)
+    openApp('com.ageha.notes')
+
+    act(() => {
+      useMobileNavStore.getState().closeApp(
+        useMobileNavStore.getState().apps[0]?.windowId ?? '',
+      )
+    })
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+    await waitFor(
+      () => expect(screen.queryByTestId('mobile-app-host')).not.toBeInTheDocument(),
+      { timeout: 600 },
+    )
+  })
+
+  it('closeAllApps → 全部窗口关闭 + 回 home', () => {
+    render(<MobileAppHost />)
+    openApp('com.ageha.calculator')
+    openApp('com.ageha.notes')
+    expect(useWindowStore.getState().windows).toHaveLength(2)
+
+    act(() => {
+      useMobileNavStore.getState().closeAllApps()
+    })
+    expect(useMobileNavStore.getState().apps).toEqual([])
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+  })
+
+  it('后台窗口被外部关闭 → 哨兵剪记录，宿主视图不动', () => {
+    render(<MobileAppHost />)
+    const calcId = openApp('com.ageha.calculator')
+    const notesId = openApp('com.ageha.notes')
+
+    act(() => {
+      useWindowStore.getState().close(calcId)
+    })
+    expect(useMobileNavStore.getState().apps.map((app) => app.windowId)).toEqual([notesId])
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.notes',
+      windowId: notesId,
+    })
+  })
+
+  it('popstate 层级：覆盖层打开时返回键先关覆盖层（应用栈位不被花掉）', () => {
+    render(<MobileAppHost />)
+    openApp('com.ageha.calculator')
+    const lengthAfterApp = window.history.length
+
+    act(() => {
+      useMobileRecentsStore.getState().openRecents()
+    })
+    // 覆盖层压自己的栈位，应用栈位原样。
+    expect(window.history.length).toBe(lengthAfterApp + 1)
+    expect(window.history.state?.agehaMobileRecents).toBe(true)
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileRecentsStore.getState().open).toBe(false)
+    // 应用视图原样（backToHome 没被这个返回键触发）。
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.calculator',
+      windowId: useWindowStore.getState().windows[0]?.id,
+    })
+  })
+
+  it('popstate（home 档覆盖层打开）：先关覆盖层，nav 保持 home', () => {
+    render(<MobileAppHost />)
+    openApp('com.ageha.calculator')
+    act(() => {
+      useMobileNavStore.getState().backToHome()
+    })
+
+    act(() => {
+      useMobileRecentsStore.getState().openRecents()
+    })
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileRecentsStore.getState().open).toBe(false)
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+  })
+
+  it('覆盖层关闭后的下一次 popstate 仍退出应用视图（应用栈位完好）', () => {
+    render(<MobileAppHost />)
+    openApp('com.ageha.calculator')
+    act(() => {
+      useMobileRecentsStore.getState().openRecents()
+    })
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate')) // 消化覆盖层栈位
+    })
+    expect(useMobileRecentsStore.getState().open).toBe(false)
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate')) // 消化应用栈位
+    })
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
     expect(useWindowStore.getState().windows).toHaveLength(1)
   })
 })

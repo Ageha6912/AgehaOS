@@ -88,6 +88,9 @@ export function Taskbar() {
 
   useEffect(() => clearWave, [])
   const dockSheen = useMotionPrefsStore((s) => s.dockSheen)
+  // 空间动效总开关（2026-10-10 空间化裁决 3）：Dock 弱倒影随档挂载/卸载
+  // （关则整层消失）；波浪与悬停行为零关联（2026-10-05 终态裁决不动）。
+  const spatialMotion = useMotionPrefsStore((s) => s.spatialMotion)
 
   const toggleWindow = (id: string, focused: boolean, minimized: boolean) => {
     if (minimized) restore(id)
@@ -175,6 +178,16 @@ export function Taskbar() {
           {/* Dock 高光滑过（§32.5 修订 10）：低频釉面扫光，覆盖层内裁剪，
               不裁波浪放大的图标；盖在图标上做「玻璃反光」（pointer-events-none）。 */}
           {dockSheen && <div aria-hidden="true" data-testid="dock-sheen" className="dock-sheen is-on" />}
+          {/* Dock 弱倒影（2026-10-11 环境抛光切片）：胶囊正下方 24px 渐变
+              mask 伪倒影（spatial.css .dock-reflection，峰值透明度 ≤12%）。
+              挂在胶囊（relative 舱体）内：与胶囊同宽、top:100% 正贴下缘；
+              绝对定位不占布局，静止盒零变化。装饰层 aria-hidden，指针由类内
+              pointer-events:none 放行。门控双保险：空间动效关档整层不挂载
+              （关则整层消失）；prefers-reduced-motion 由 spatial.css
+              display:none 兜底。不加悬停浮起、不改波浪。 */}
+          {spatialMotion && (
+            <div aria-hidden="true" data-testid="dock-reflection" className="dock-reflection" />
+          )}
           <AppLauncher />
           <div aria-hidden="true" className="h-8 w-px shrink-0 bg-border" />
 

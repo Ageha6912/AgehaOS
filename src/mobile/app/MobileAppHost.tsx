@@ -13,21 +13,22 @@ import { EclosionAppFrame } from '@/components/eclosion-app-frame'
 import { WebAppFrame } from '@/components/web-app-frame'
 import { useDeviceStore } from '@/store/device-store'
 import { useMobileNavStore } from '@/store/mobile-nav-store'
+import { useMobileRecentsStore } from '@/store/mobile-recents-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useWindowStore } from '@/store/window-store'
 import { getAppManifest } from '@/store/app-store'
 import { useEdgeBack } from '@/mobile/gesture/use-edge-back'
 
 /**
- * 移动应用宿主（M1-6 MobileAppHost，HANDOFF §4.0-7）：把 mobile-nav-store
- * 的 `openApp` 从纯导航状态升级为真实全屏应用——view = 'app' 时以显式全屏
- * 几何（device-store viewport，x=0 y=0 全宽高，绕开 launch.ts 的桌面级联/
- * 工作区数学）调 `launchApp(appId, geometry, 'user')`，返回的 windowId 记入
- * nav store；返回 null（manifest 缺席 / 权限门禁拒绝）直接回 home——
- * permission.denied 事件由既有 notification-bridge（main.tsx 装配链）转通知，
- * 不造新机制。**不新建 App Runtime**：窗口生命周期仍归 window-store（单一
- * 事实源），app.started/stopped 由 systemAppLifecycle 从 window.created/
- * closed 派生（backToHome 关窗即保证派生正确）。
+ * 移动应用宿主（M1-6 MobileAppHost / M3-2 最近任务重推演，HANDOFF §4.0）：
+ * 把 mobile-nav-store 的 `openApp` 从纯导航状态升级为真实全屏应用——view =
+ * 'app' 时以显式全屏几何（device-store viewport，x=0 y=0 全宽高，绕开
+ * launch.ts 的桌面级联/工作区数学）调 `launchApp(appId, geometry, 'user')`，
+ * 返回的 windowId 记入 nav store；返回 null（manifest 缺席 / 权限门禁拒绝）
+ * 直接回 home——permission.denied 事件由既有 notification-bridge（main.tsx
+ * 装配链）转通知，不造新机制。**不新建 App Runtime**：窗口生命周期仍归
+ * window-store（单一事实源），app.started/stopped 由 systemAppLifecycle 从
+ * window.created/closed 派生（`core/runtime/app-lifecycle.ts`）。
  *
  * 内容路由与桌面 WindowFrame.tsx 同序（复用边界，ARCHITECTURE.md §3.25
  * 「能力复用、容器不复用」）：`componentFor(appId)`（APP_UI_META 内置组件）
@@ -38,19 +39,29 @@ import { useEdgeBack } from '@/mobile/gesture/use-edge-back'
  * `.mobile-app-body` overflow 滚动容器（应用自己不带滚动容器），header 之外
  * 不渲染 WindowFrame 任何桌面 chrome。
  *
- * 窗口生命周期绑定（本组件持有宿主位，store 不反向依赖 UI）：
- * - 离开宿主位（backToHome / 切换 appId）→ 立即 `useWindowStore.close` 该
- *   窗口——移动应用视图 = 单窗口生命周期与视图同生共死；window-store 既有
- *   行为是「open 永远新开」（WindowManager.create 无去重/复用），因此从
- *   home 再次进入同一应用自然得到新窗口（复用语义无从谈起），同视图内重复
- *   点击同一 appId 则由 nav store 的等值跳过天然去重，不重复 launch；
- * - 宿主窗口被外部关闭（羽化举报链路的编排器关窗等）→ 视图跟随回 home，
- *   防止渲染僵尸 windowId。
+ * 窗口生命周期绑定（M3-2 重推演：**窗口与视图解耦**，本组件仍是唯一的
+ * window-store 执行者，store 不反向依赖 UI）：
+ * - **启动链不变**：view='app' 且 windowId 尚未落地 → launchApp（openApp
+ *   命中活记录时 nav 直接携带已有 windowId，本 effect 不触发——单实例切换
+ *   不重开，从最近任务/网格/Dock 再进同一应用都是切回）；
+ * - **关窗链改由记录驱动**：M1-6 的「离开宿主位即关窗」退役（窗口常驻是
+ *   最近任务的前提），改为订阅 nav store 的 apps 记录 diff——closeApp /
+ *   closeAllApps 从记录里移除的 windowId 立即 `useWindowStore.close`
+ *   （app.stopped 派生保持正确）；window-store open 恒新开（无去重），
+ *   记录 upsert（setAppWindow）保证一个 appId 至多一条活记录；
+ * - **僵尸哨兵扩展**：window-store 查无此窗的记录随时修剪——宿主位记录被
+ *   剪 → nav 回 home（M1-6 既有语义）；后台记录被剪（羽化举报编排器关
+ *   后台窗等）→ 最近任务卡片不显示死窗。closeApp 是纯状态，剪枝路径里
+ *   窗口已不在，关窗订阅对缺失窗口 engine.close 幂等无害。
  *
- * 浏览器返回键（PRD §24.2 移动导航）：进入应用视图 pushState 一条同文档
- * 栈位，popstate 触发 backToHome——返回键落在我们的栈位上消化掉，**不把
- * 用户退出 AgehaOS**；UI 返回不调 history.back（避免双跳），残留栈位只会在
- * 同文档内移动，同样不会离开页面。
+ * 浏览器返回键（PRD §24.2 移动导航 + M3-2 覆盖层层级）：进入应用视图
+ * pushState 一条同文档栈位，popstate 触发 backToHome——返回键落在我们的
+ * 栈位上消化掉，**不把用户退出 AgehaOS**；最近任务覆盖层打开时再压一条
+ * 自己的栈位，popstate **先关覆盖层**（覆盖层栈位被消化，应用栈位不受
+ * 影响——否则会把应用的栈位花在关层上，应用视图失去返回保护）；UI 关闭
+ * 不调 history.back（避免双跳），残留栈位只会在同文档内移动，不会退出
+ * 页面（M1-6 同款口径）。popstate 消费者唯一 = 本组件（依赖 nav +
+ * recentsOpen 双档激活），不与覆盖层组件各挂各的监听。
  *
  * 过渡动效（DESIGN.md §35.5）：进出 200ms transform/opacity（既有 token
  * --ag-motion-base，档带 160–220ms 内）；prefers-reduced-motion 由全局
@@ -58,7 +69,8 @@ import { useEdgeBack } from '@/mobile/gesture/use-edge-back'
  * 转场」档（Settings → 流畅度，useMotionPrefsStore.windowTilt——现有唯一
  * 转场开关）关闭时走 .mobile-app-static 直切。退场用「渲染滞后一拍」：
  * home 立即显示，应用面板带 data-state='leaving' 播完退场再卸载（期间
- * pointer-events-none + aria-hidden，不挡交互不进可达树）。
+ * pointer-events-none + aria-hidden，不挡交互不进可达树）。窗口常驻不改变
+ * 退场帧语义：面板卸载的是「视图」，窗口仍在 store 里等最近任务切回。
  *
  * 边缘返回手势（M2-4，HANDOFF §4.0-4）：view='app' 时在宿主面板挂
  * useEdgeBack（src/mobile/gesture/use-edge-back.ts）——左缘 ≤24px 起点的
@@ -75,7 +87,7 @@ import { useEdgeBack } from '@/mobile/gesture/use-edge-back'
  * 显式标记 data-no-edge-back 的容器（hook 整体豁免 + index.css 对该面及
  * 后代重放 pan-x）；首个消费方 = Files 工具栏行（容器查询窄分支，
  * src/apps/files/FileManager.tsx，M2-5 窄容器适配时新增横向面照此办理）。
- * Type B/羽化应用是 sandbox iframe，指针事件天然不达宿主文档，M2 三张
+ * Type B/羽化应用是 sandbox iframe，指针事件天然不达宿主文档，最近任务等
  * Bottom Sheet 是 z-20 覆盖层、按下落在覆盖层元素上不经过本面板。
  */
 
@@ -88,6 +100,8 @@ export function MobileAppHost() {
   const backToHome = useMobileNavStore((state) => state.backToHome)
   // 窗口切换转场档（motion-prefs）：关档 = 视图直切（见模块注释动效段）。
   const transitionsOn = useMotionPrefsStore((state) => state.windowTilt)
+  // 最近任务覆盖层开合（M3-2）：popstate 层级的第二激活档（见下）。
+  const recentsOpen = useMobileRecentsStore((state) => state.open)
 
   const inApp = nav.view === 'app'
 
@@ -102,23 +116,42 @@ export function MobileAppHost() {
     onConfirm: backToHome,
   })
 
-  // ── 离开宿主位：关窗 + 退场渲染滞后（声明先于启动 effect，同一 commit
-  //    内先关旧窗再启新窗）──────────────────────────────────────────────
+  // ── 窗口生命周期绑定 ①：记录移除 → 关窗（M3-2）────────────────────
+  //    closeApp/closeAllApps 移除的 windowId 立即关窗（app.stopped 派生
+  //    正确）；M1-6 的「离开宿主位即关窗」随窗口常驻退役。挂载一次的
+  //    订阅（本组件在 Shell 里常驻，面板只是其渲染产物）。
+  useEffect(() => {
+    return useMobileNavStore.subscribe((state, prev) => {
+      if (state.apps === prev.apps) return
+      const kept = new Set(state.apps.map((app) => app.windowId))
+      for (const app of prev.apps) {
+        if (!kept.has(app.windowId)) useWindowStore.getState().close(app.windowId)
+      }
+    })
+  }, [])
+
+  // ── 窗口生命周期绑定 ②：僵尸窗口哨兵（M1-6 语义 + M3-2 后台记录扩展）──
+  //    window-store 查无此窗的记录随时修剪：宿主位被剪 → nav 回 home（防
+  //    渲染僵尸 windowId）；后台被剪 → 最近任务卡片不显示死窗。
+  useEffect(() => {
+    const reconcile = (): void => {
+      const { apps, closeApp } = useMobileNavStore.getState()
+      if (apps.length === 0) return
+      const ids = new Set(useWindowStore.getState().windows.map((win) => win.id))
+      for (const app of apps) {
+        if (!ids.has(app.windowId)) closeApp(app.windowId)
+      }
+    }
+    reconcile()
+    return useWindowStore.subscribe(reconcile)
+  }, [])
+
+  // ── 退场渲染滞后：app → home 时保留最后一帧应用面板 200ms 播退场 ──────
   const prevNavRef = useRef(nav)
   const [leaving, setLeaving] = useState<{ appId: string; windowId: string | null } | null>(null)
   useEffect(() => {
     const prev = prevNavRef.current
     prevNavRef.current = nav
-
-    // ① 窗口生命周期绑定：不再被 nav 引用的宿主窗口立即关闭（回 home /
-    //    切换 appId）。同 windowId 视为仍在宿主位（setAppWindow 补记帧）。
-    if (prev.view === 'app' && prev.windowId !== null) {
-      const stillHosted = nav.view === 'app' && nav.windowId === prev.windowId
-      if (!stillHosted) useWindowStore.getState().close(prev.windowId)
-    }
-
-    // ② 退场动画滞后：app → home 时保留最后一帧应用面板 200ms 播退场，
-    //    home 立即可见可交互（面板只叠加淡出）。
     if (nav.view === 'app') {
       setLeaving(null)
       return
@@ -153,41 +186,44 @@ export function MobileAppHost() {
     useMobileNavStore.getState().setAppWindow(launched)
   }, [nav])
 
-  // ── 僵尸窗口哨兵：宿主窗口被外部关闭（羽化举报等编排器链路）→ 回 home ──
-  const hostedId = inApp ? nav.windowId : null
-  useEffect(() => {
-    if (hostedId === null) return
-    const reconcile = (): void => {
-      if (useWindowStore.getState().windows.some((win) => win.id === hostedId)) return
-      const live = useMobileNavStore.getState()
-      if (live.nav.view === 'app' && live.nav.windowId === hostedId) live.backToHome()
-    }
-    reconcile()
-    return useWindowStore.subscribe(reconcile)
-  }, [hostedId])
-
-  // ── 浏览器返回键：进应用 pushState 一条，popstate → backToHome ─────────
+  // ── 浏览器返回键：popstate 消费者唯一，双档激活（app 视图 / 覆盖层打开）─
   const pushedAppRef = useRef<string | null>(null)
+  const pushedRecentsRef = useRef(false)
   useEffect(() => {
-    if (nav.view !== 'app') {
+    if (nav.view !== 'app' && !recentsOpen) {
       pushedAppRef.current = null
+      pushedRecentsRef.current = false
       return
     }
     // 每次进入应用视图压一条同文档栈位；同一应用在栈上的连续帧（补记
     // windowId 等）不重复压。StrictMode 双跑由 ref 挡住（同一实例）。
-    if (pushedAppRef.current !== nav.appId) {
+    if (nav.view === 'app' && pushedAppRef.current !== nav.appId) {
       pushedAppRef.current = nav.appId
       window.history.pushState({ agehaMobileApp: nav.appId }, '')
     }
+    // 最近任务覆盖层（M3-2）：打开时压自己的栈位——返回键先关覆盖层，
+    // 应用自身的栈位不被花掉（层级见模块注释）。
+    if (recentsOpen && !pushedRecentsRef.current) {
+      pushedRecentsRef.current = true
+      window.history.pushState({ agehaMobileRecents: true }, '')
+    }
+    if (!recentsOpen) pushedRecentsRef.current = false
     const onPopState = (): void => {
-      // 返回键只消化「退出应用」：回 home，不退出 AgehaOS。
+      // 层级 ①：覆盖层在场上 → 返回键只关覆盖层（栈位已被本次返回消化，
+      // 不再 history.back——双跳禁令，M1-6 同款）。
+      if (useMobileRecentsStore.getState().open) {
+        useMobileRecentsStore.getState().closeRecents()
+        return
+      }
+      // 层级 ②：返回键只消化「退出应用视图」——回 home，不退出 AgehaOS；
+      // 窗口常驻（M3-2），app 仍在最近任务里可切回。
       if (useMobileNavStore.getState().nav.view === 'app') {
         useMobileNavStore.getState().backToHome()
       }
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [nav])
+  }, [nav, recentsOpen])
 
   // ── 渲染：home 态退场滞后已结束 → 不渲染；否则渲染当前/退场面板 ────────
   const panel =
@@ -219,7 +255,8 @@ export function MobileAppHost() {
     >
       {/* 应用 header：返回 + 图标 + 应用名（appDisplayName 本地化展示名，
           与桌面窗口标题同源）。返回键命中区 44×44（DESIGN.md §35.3）。
-          实色底不加 blur——玻璃白名单五处（§35.1）不含应用 header。 */}
+          实色底不加 blur——玻璃白名单五处（§35.1）不含应用 header。
+          M3-2：返回 = 回 Home（窗口保留，应用可在最近任务切回）。 */}
       <header
         data-testid="mobile-app-header"
         className="flex h-12 shrink-0 items-center gap-1 border-b px-1.5"

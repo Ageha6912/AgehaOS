@@ -1,10 +1,11 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MobileShell } from './MobileShell'
 import { resetAppStore } from '@/store/app-store'
 import { resetMobileLauncherStore, useMobileLauncherStore } from '@/store/mobile-launcher-store'
 import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
+import { resetMobileRecentsStore, useMobileRecentsStore } from '@/store/mobile-recents-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 import { resetWindowStore } from '@/store/window-store'
 
@@ -23,6 +24,7 @@ describe('MobileShell', () => {
     resetSessionStore()
     resetMobileNavStore()
     resetMobileLauncherStore()
+    resetMobileRecentsStore()
     resetWindowStore()
   })
 
@@ -227,5 +229,34 @@ describe('MobileShell', () => {
     expect(host).toHaveAttribute('data-app-id', 'com.ageha.calculator')
     expect(host.getAttribute('data-window-id')).not.toBe('')
     expect(shell).toHaveAttribute('data-window-count', '1')
+  })
+
+  // M3-2 最近任务覆盖层：Bottom Sheet 挂 Shell 根（Home 与应用视图之上），
+  // 开合归 mobile-recents-store，关闭回焦 Dock Home 位（回焦接线在本组件，
+  // 经 testid 定位触发器）。
+  it('M3-2 最近任务覆盖层挂 Shell 根：开合写 store，关闭回焦 Dock Home 位', () => {
+    localStorage.clear()
+    resetAppStore()
+    resetWindowStore()
+    render(<MobileShell />)
+
+    expect(screen.queryByTestId('mobile-recents')).not.toBeInTheDocument()
+
+    // 造一条已开记录（真实启动归 AppHost 集成测试/E2E）再开门。
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.files')
+      useMobileNavStore.getState().setAppWindow('win-files')
+      useMobileRecentsStore.getState().openRecents()
+    })
+    const layer = screen.getByTestId('mobile-recents')
+    expect(layer).toHaveAttribute('data-state', 'open')
+    expect(screen.getByTestId('mobile-recents-sheet')).toHaveAttribute('role', 'dialog')
+    // 卡片带 data-window-id（E2E 断言口）。
+    expect(screen.getByTestId('mobile-recents-card')).toHaveAttribute('data-window-id', 'win-files')
+
+    // 关闭（backdrop 路径统一经 onClose 回焦接线）→ store 关 + Home 位回焦。
+    fireEvent.click(screen.getByTestId('mobile-recents-backdrop'))
+    expect(useMobileRecentsStore.getState().open).toBe(false)
+    expect(document.activeElement).toBe(screen.getByTestId('mobile-dock-home'))
   })
 })

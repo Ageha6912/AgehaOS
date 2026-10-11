@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setLocale, useLocaleStore } from '@/core/i18n'
 import { resetAppStore, uninstallApp } from '@/store/app-store'
 import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
+import { resetMobileRecentsStore, useMobileRecentsStore } from '@/store/mobile-recents-store'
 
 import { MobileDock } from './MobileDock'
 import { MOBILE_DOCK_APP_IDS } from '../shared/mobile-dock-slots'
@@ -41,9 +42,11 @@ function renderedAppIds(): string[] {
 
 beforeEach(() => {
   localStorage.clear()
+  vi.useRealTimers()
   // 内建清单入场（与 MobileAppGrid.test.tsx 同口径）+ 导航归位。
   resetAppStore()
   resetMobileNavStore()
+  resetMobileRecentsStore()
 })
 
 afterEach(() => {
@@ -203,5 +206,85 @@ describe('MobileDock', () => {
     expect(screen.getByTestId('mobile-dock-home')).toHaveAttribute('aria-label', 'Home Screen')
     // 应用位名称跟随 appDisplayName 同步重取（en titleKey）。
     expect(appTile('com.ageha.files')).toHaveAttribute('aria-label', 'Files')
+  })
+
+  // M3-2 Home 位：data-no-edge-back = 手势家族逃生口（M3-1 zone 级上滑在
+  // 该起点让位，Home 位纵向手势归 use-dock-home-gesture）+ select-none 压
+  // 长按文本选择 callout。
+  it('M3-2 Home 位标记：data-no-edge-back + select-none（zone 上滑让位的结构契约）', () => {
+    render(<MobileDock />)
+
+    const home = screen.getByTestId('mobile-dock-home')
+    expect(home).toHaveAttribute('data-no-edge-back')
+    expect(home.className).toContain('select-none')
+  })
+
+  // M3-2 入口（真实行为）：有已开应用时长按 Home 位打开最近任务，随后的
+  // click 被抑制（不会「开完层又回 Home」双动作）。
+  it('M3-2 入口：已开应用时长按 Home 位 → openRecents，紧随的 click 不触发 backToHome', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    render(<MobileDock />)
+
+    // 造一条已开记录（AppHost 真实启动在集成测试/E2E，这里只造数据面）；
+    // act 包裹让 Dock 重渲染拿到 apps.length>0（入口档的门在组件闭包里）。
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.files')
+      useMobileNavStore.getState().setAppWindow('win-files')
+      // 先进 Notes 视图（当前在 app，Dock Home 位短按应回 home）。
+      useMobileNavStore.getState().openApp('com.ageha.notes')
+    })
+
+    const home = screen.getByTestId('mobile-dock-home')
+    fireEvent.pointerDown(home, { pointerId: 1, pointerType: 'touch', clientX: 36, clientY: 760 })
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(useMobileRecentsStore.getState().open).toBe(true)
+
+    fireEvent.pointerUp(home, { pointerId: 1, pointerType: 'touch', clientX: 36, clientY: 760 })
+    fireEvent.click(home)
+    expect(useMobileNavStore.getState().nav.view).toBe('app')
+  })
+
+  it('M3-2 入口空态档：无已开应用时（apps 空）长按/上滑不开层（整层不可达）', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    render(<MobileDock />)
+
+    const home = screen.getByTestId('mobile-dock-home')
+    // 长按到点。
+    fireEvent.pointerDown(home, { pointerId: 1, pointerType: 'touch', clientX: 36, clientY: 760 })
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(useMobileRecentsStore.getState().open).toBe(false)
+    fireEvent.pointerUp(home, { pointerId: 1, pointerType: 'touch', clientX: 36, clientY: 760 })
+
+    // 上滑过阈。
+    fireEvent.pointerDown(home, { pointerId: 1, pointerType: 'touch', clientX: 36, clientY: 770 })
+    fireEvent.pointerMove(home, { pointerId: 1, pointerType: 'touch', clientX: 36, clientY: 740 })
+    fireEvent.pointerUp(home, { pointerId: 1, pointerType: 'touch', clientX: 36, clientY: 690 })
+    expect(useMobileRecentsStore.getState().open).toBe(false)
+  })
+
+  it('M3-2 入口：已开应用时上滑 Home 位 → openRecents；短按 click 仍回 Home', () => {
+    render(<MobileDock />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.files')
+      useMobileNavStore.getState().setAppWindow('win-files')
+      useMobileNavStore.getState().backToHome()
+    })
+
+    const home = screen.getByTestId('mobile-dock-home')
+    fireEvent.pointerDown(home, { pointerId: 1, pointerType: 'touch', clientX: 36, clientY: 770 })
+    fireEvent.pointerMove(home, { pointerId: 1, pointerType: 'touch', clientX: 36, clientY: 740 })
+    fireEvent.pointerUp(home, { pointerId: 1, pointerType: 'touch', clientX: 36, clientY: 690 })
+    fireEvent.click(home) // 手势吞掉（抑制器），不会回 Home
+    expect(useMobileRecentsStore.getState().open).toBe(true)
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+
+    // 纯短按（无位移）：click 原样 → backToHome 路径照常（fireEvent.click
+    // 直接触发 onClick，不经过手势）。
+    fireEvent.click(home)
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
   })
 })
