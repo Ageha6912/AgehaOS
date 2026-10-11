@@ -182,6 +182,22 @@ export const dictionaries = {
     'mobile.recents.close': '关闭「{name}」',
     'mobile.recents.cardLabel': '{name}，打开于 {time}',
     'mobile.recents.openedAt': '打开于 {time}',
+    /* M3-3 PWA 安装提示（src/mobile/pwa/MobileInstallBar.tsx）：Home 尾部
+       非侵入安装条。Chromium 分支 = 标题/描述/安装钮（pending 态是同一钮
+       的等待文案）/关闭钮可访问名 + 浏览器对话框取消后的结果反馈行；iOS
+       分支 = 指引标题/描述 + 两步文案（分享 → 添加到主屏幕，Safari 无
+       beforeinstallprompt，指引是真实能力的全部，不摆假按钮）。dismiss 持
+       久化走 localStorage 版本键（install-prompt-decision.ts），无词典键。 */
+    'mobile.pwa.install.title': '安装 AgehaOS',
+    'mobile.pwa.install.description': '添加到主屏幕，以独立全屏应用打开。',
+    'mobile.pwa.install.action': '安装',
+    'mobile.pwa.install.pending': '等待确认…',
+    'mobile.pwa.install.dismiss': '关闭，不再提示',
+    'mobile.pwa.install.dismissedOutcome': '已在浏览器中取消安装，之后仍可从浏览器菜单安装。',
+    'mobile.pwa.install.iosTitle': '把 AgehaOS 添加到主屏幕',
+    'mobile.pwa.install.iosDescription': '用 Safari 的分享功能把 AgehaOS 安装为独立应用：',
+    'mobile.pwa.install.iosStepShare': '1. 点击屏幕底部工具栏的「分享」按钮',
+    'mobile.pwa.install.iosStepAdd': '2. 选择「添加到主屏幕」并确认',
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
@@ -813,6 +829,25 @@ export const dictionaries = {
     'mobile.recents.close': 'Close {name}',
     'mobile.recents.cardLabel': '{name}, opened {time}',
     'mobile.recents.openedAt': 'Opened {time}',
+    /* M3-3 PWA install prompt (src/mobile/pwa/MobileInstallBar.tsx): the
+       non-intrusive install bar at the tail of Home. Chromium branch =
+       title/description/install button (pending state reuses the same
+       button)/dismiss accessible name + the result line shown after the
+       browser dialog is dismissed; iOS branch = guidance title/description +
+       two text steps (Share → Add to Home Screen; Safari has no
+       beforeinstallprompt, guidance is the whole real capability — no fake
+       button). Dismissal persists via a versioned localStorage key
+       (install-prompt-decision.ts), no dictionary key. */
+    'mobile.pwa.install.title': 'Install AgehaOS',
+    'mobile.pwa.install.description': 'Add to your home screen and open AgehaOS as a standalone app.',
+    'mobile.pwa.install.action': 'Install',
+    'mobile.pwa.install.pending': 'Waiting for confirmation…',
+    'mobile.pwa.install.dismiss': 'Close, don\'t ask again',
+    'mobile.pwa.install.dismissedOutcome': 'Installation was cancelled in the browser. You can still install from the browser menu later.',
+    'mobile.pwa.install.iosTitle': 'Add AgehaOS to your Home Screen',
+    'mobile.pwa.install.iosDescription': 'Use Safari\'s Share feature to install AgehaOS as a standalone app:',
+    'mobile.pwa.install.iosStepShare': '1. Tap the Share button in the toolbar at the bottom of the screen',
+    'mobile.pwa.install.iosStepAdd': '2. Choose "Add to Home Screen" and confirm',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',
