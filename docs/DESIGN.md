@@ -1612,7 +1612,7 @@ M1 全部新文案照此办理。
 | `--sp-lift-near/middle/far` | 80 / 40 / 0px（仅 :root） | 深度三档 translateZ（§36.4） |
 | `--sp-perspective` | 1100px（仅 :root；§36.8 自 1400px 加大） | 消费方侧舞台建 3D 上下文（窗口 = `WindowLayer.tsx:44`） |
 | `--sp-float-duration/distance` | 7s / 9px（仅 :root；§36.8 自 9s/5px 加大） | `sp-float` 关键帧（§36.5/§36.6） |
-| `--sp-hover-duration/ease` | 480ms / `cubic-bezier(0.33, 0, 0.2, 1)`（仅 :root；§36.9 四轮调参终档） | 悬停浮起过渡丝滑档（§36.9） |
+| `--sp-hover-duration/ease` | 480ms / `cubic-bezier(0.34, 1.3, 0.64, 1)`（仅 :root；§36.9 五轮调参终档，ease = `--ml-ease-spring-bounce` 回弹档） | 悬停浮起过渡丝滑档（§36.9） |
 | `--sp-dock-reflection-height` | 40px（仅 :root；§36.8 自 24px 加大） | `.dock-reflection`（§36.6） |
 | `--sp-shadow-window` | `0 24px 72px` 冷墨 14% + `0 6px 20px` 8% + rim / 纯黑 44% + 24%（§36.8 拉陡） | `.spatial-window` 基档（比 `--ag-shadow-window` 0 16px 48px 更大更弥散的漂浮档） |
 | `--sp-shadow-window-hover` | 44px/120px 冷墨 26% 递进 / 纯黑 60% 递进 | 失焦悬停浮起加深档（仍低于聚焦档） |
@@ -1751,12 +1751,14 @@ transition 挂在类上——拖拽开始即摘类，拖拽进行中天然无过
 `e2e/multi-window-visual.spec.ts`（阴影双档）。窗口面实度 72%/84% 与
 blur 40px 不动（材质档未变，变的只是空间表达的振幅）。
 
-### 36.9 悬停浮起缓动（2026-10-11 用户反馈二~四调参，终档 480ms）
+### 36.9 悬停浮起缓动（2026-10-11 用户反馈二~五调参，终档 480ms + 轻回弹）
 
 浮起过渡自 `--ag-motion-base`（200ms 标准缓动）改为空间域专属档：
-**`--sp-hover-duration` 480ms（二 480ms 起 → 三 680ms → 四回调 480ms 终档）+
-`--sp-hover-ease` cubic-bezier(0.33, 0,
-0.2, 1)**（慢起、缓出、长尾软着陆），transform 与 box-shadow 同步走该档；
+**`--sp-hover-duration` 480ms（二 480ms → 三 680ms → 四回调 480ms）+
+`--sp-hover-ease` cubic-bezier(0.34, 1.3, 0.64, 1)**（五：对齐 motion-lab
+归档 `--ml-ease-spring-bounce`——y2=1.3 轻过冲 ≈8%，升到顶轻回 1px 再稳住
+的 iOS spring 手感；离开对称回落同曲线）。transform 与 box-shadow
+同步走该档；
 **transition 挂在 `sp-win-hover` 类上而非 `:hover`**——鼠标离开时对称回落
 同速同曲线，进出皆丝滑。opacity 分量维持 200ms。既有语义不变：聚焦点击即
 摘类（浮起立即落定 = 聚焦锁定感）、拖拽开始即摘类（跟手零延迟）、
