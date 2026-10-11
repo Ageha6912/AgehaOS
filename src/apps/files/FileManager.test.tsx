@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MAX_FILE_BYTES, MemoryAdapter } from '@/core/filesystem'
 import { Vfs } from '@/core/filesystem'
+import { resetFilesTargetStore, useFilesTargetStore } from '@/store/files-target-store'
 
 import { FileManager } from './FileManager'
 
@@ -660,5 +661,55 @@ describe('FileManager 窄容器（M2-5）', () => {
       expect(tile).toHaveAttribute('aria-pressed', 'true')
       await flushTimers()
     })
+  })
+})
+
+describe('Files 定位通道（M4-1 移动全域搜索落点）', () => {
+  beforeEach(() => {
+    resetFilesTargetStore()
+  })
+
+  afterEach(() => {
+    resetFilesTargetStore()
+  })
+
+  it('请求在先：挂载后 effect 消费 pending 并定位（Home 直开 = 新启动路径）', async () => {
+    const vfs = await createVfs()
+    await vfs.writeFile('/Documents/m4.txt', 'x')
+    act(() => {
+      useFilesTargetStore.getState().requestFilesTarget('/Documents')
+    })
+
+    render(<FileManager vfs={vfs} windowId="w-files" />)
+
+    expect(await screen.findByText('/Documents')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /m4\.txt/ })).toBeInTheDocument()
+    // 消费即清：pending 不会残留给下一次启动。
+    expect(useFilesTargetStore.getState().pending).toBeNull()
+  })
+
+  it('请求在后：在场实例订阅即时导航（M3-2 切回不重挂的承接路径）', async () => {
+    const vfs = await createVfs()
+    await vfs.writeFile('/Documents/live.txt', 'x')
+    render(<FileManager vfs={vfs} windowId="w-files" />)
+    await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' })
+
+    act(() => {
+      useFilesTargetStore.getState().requestFilesTarget('/Documents')
+    })
+
+    expect(await screen.findByText('/Documents')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /live\.txt/ })).toBeInTheDocument()
+    expect(useFilesTargetStore.getState().pending).toBeNull()
+  })
+
+  it('无请求：默认根目录零迁移，pending 恒 null（桌面零影响的组件面）', async () => {
+    const vfs = await createVfs()
+    render(<FileManager vfs={vfs} windowId="w-files" />)
+    await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' })
+
+    expect(useFilesTargetStore.getState().pending).toBeNull()
+    // 页脚路径仍是根（面包屑根按钮与页脚同文案，getAll 断言其一在场即可）。
+    expect(screen.getAllByText('/', { exact: true }).length).toBeGreaterThan(0)
   })
 })

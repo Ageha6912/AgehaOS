@@ -23,6 +23,7 @@ import { systemBus } from '@/core/events'
 import { formatMessage, useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { joinPath, splitPath, Vfs, MAX_FILE_BYTES } from '@/core/filesystem'
+import { consumeFilesTarget, useFilesTargetStore } from '@/store/files-target-store'
 
 import { vfsErrorMessageKey } from './error-messages'
 import { useNarrowContainer } from '@/apps/use-narrow-container'
@@ -231,12 +232,13 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
     }
   }
 
-  const navigate = (target: string) => {
+  // useCallback（依赖恒空）：M4-1 定位通道的订阅 effect 以它为稳定依赖。
+  const navigate = useCallback((target: string) => {
     setQuery('')
     setSelectedId(null)
     setTrashMode(false)
     setPath(target)
-  }
+  }, [])
 
   const openTrash = () => {
     setQuery('')
@@ -244,6 +246,22 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
     setTrashMode(true)
     setPath('/')
   }
+
+  // ── Files 定位通道（M4-1 移动全域搜索的落点）：files-target-store 的
+  //    pending 非空 = 某入口（当前唯一发起方：移动启动器的文件结果）请求
+  //    「打开即定位」。在场实例经订阅即时消费（consume 读走即清 + navigate
+  //    ——既有导航函数一并清查询/选中/回收站态）；未挂载时留在 store，由
+  //    下一次 Files 挂载后的本轮 effect 消费（app-deep-link「请求下一次
+  //    启动」同语义）。桌面零影响：桌面无人 request，pending 恒 null，
+  //    consume 恒 null，本 effect 永远 no-op。M3-2 窗口常驻下 Files 已开时
+  //    openApp 是「切回已有窗口」（不重挂）——挂载期一次性消费接不住这种
+  //    分发，必须订阅。 ────────────────────────────────────────────────
+  const pendingTarget = useFilesTargetStore((state) => state.pending)
+  useEffect(() => {
+    const target = consumeFilesTarget()
+    if (target === null) return
+    navigate(target)
+  }, [pendingTarget, navigate])
 
   // ── 行操作单（M3-6，仅窄容器启用）：长按行 = 选中该行 + 弹出操作单。────
   //    判定在 use-long-press（阈值纯函数 long-press-decision，500ms 驻留 /

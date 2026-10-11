@@ -151,10 +151,15 @@ export const dictionaries = {
     /* M2-1 移动启动器：Bottom Sheet 应用抽屉（src/mobile/launcher/
        MobileLauncher.tsx）——入口按钮可访问名 + 搜索框 placeholder（与其
        可访问名同一句，桌面启动器「占位符与能力一致」§0.6 同口径）+ 无结果
-       空态文案（应用名是 appDisplayName 数据不入典，过滤按 manifest.name）。 */
+       空态文案（应用名是 appDisplayName 数据不入典，过滤按 manifest.name）。
+       M4-1 全域搜索：placeholder/空态升为「应用与文件」双域口径；分组标题
+       两键 + 静态截断提示（count=全量、limit=每组上限，均带参数插值）。 */
     'mobile.launcher.open': '搜索应用',
-    'mobile.launcher.searchPlaceholder': '搜索应用…',
-    'mobile.launcher.empty': '没有匹配的应用',
+    'mobile.launcher.searchPlaceholder': '搜索应用与文件…',
+    'mobile.launcher.empty': '没有匹配的结果',
+    'mobile.launcher.groupApps': '应用',
+    'mobile.launcher.groupFiles': '文件',
+    'mobile.launcher.groupTruncated': '共 {count} 条，仅显示前 {limit} 条',
     /* M2-3 移动控制中心：Bottom Sheet 快捷面（src/mobile/controlcenter/
        MobileControlCenterSheet.tsx）——入口按钮可访问名与 sheet 标题同一句
        （mobile.launcher.open 同口径）+「减弱动效」开关文案（底层布尔 =
@@ -242,6 +247,7 @@ export const dictionaries = {
     'notification.markAllRead': '全部已读',
     'notification.remove': '删除通知',
     'notification.clear': '清空',
+    'notification.open': '打开',
     'notification.toasts': '桌面通知',
 
     'search.placeholder': '搜索应用与文件…',
@@ -801,8 +807,11 @@ export const dictionaries = {
        (app names are appDisplayName data, not dictionary copy; filtering goes
        by manifest.name). */
     'mobile.launcher.open': 'Search apps',
-    'mobile.launcher.searchPlaceholder': 'Search apps…',
-    'mobile.launcher.empty': 'No matching apps',
+    'mobile.launcher.searchPlaceholder': 'Search apps and files…',
+    'mobile.launcher.empty': 'No matching results',
+    'mobile.launcher.groupApps': 'Apps',
+    'mobile.launcher.groupFiles': 'Files',
+    'mobile.launcher.groupTruncated': '{count} results, showing first {limit}',
     /* M2-3 mobile control center: bottom-sheet quick panel
        (src/mobile/controlcenter/MobileControlCenterSheet.tsx) — entry button
        accessible name, same string as the sheet title (same caliber as
@@ -900,6 +909,7 @@ export const dictionaries = {
     'notification.markAllRead': 'Mark all read',
     'notification.remove': 'Delete notification',
     'notification.clear': 'Clear all',
+    'notification.open': 'Open',
     'notification.toasts': 'Desktop notifications',
 
     'search.placeholder': 'Search apps and files…',
