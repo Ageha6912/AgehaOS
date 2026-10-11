@@ -33,6 +33,12 @@ export interface DeviceCapabilities {
   orientation: 'portrait' | 'landscape'
   /** 独立窗口模式（PWA display-mode: standalone 或 iOS 主屏 Web App）。 */
   standalone: boolean
+  /**
+   * iOS / iPadOS 家族（iPhone/iPad/iPod UA 令牌，或 iPadOS 13+ 的
+   * 「Macintosh UA + 触点 > 0」识别——与 uaMobile 同一线索）。消费方：
+   * PWA 安装提示的 iOS 指引分支（Safari 无 beforeinstallprompt）。
+   */
+  isIos: boolean
 }
 
 /**
@@ -68,6 +74,13 @@ const MOBILE_UA_PATTERN = /Android|iPhone|Mobile Safari/i
  * 「Macintosh UA + 触点 > 0」（真 Mac 无触屏，maxTouchPoints 恒 0）。
  */
 const MACINTOSH_UA_PATTERN = /Macintosh/i
+
+/**
+ * iOS / iPadOS UA 家族令牌（iPhone/iPad/iPod）。与 MOBILE_UA_PATTERN 并列
+ * 的平台族判定（不是设备类别判断），供需要按 OS 分支的能力（PWA 安装指引
+ * 等）只读探针结果使用；iPadOS 13+ 桌面级 UA 归入 MACINTOSH+触点线索。
+ */
+const IOS_UA_PATTERN = /iPhone|iPad|iPod/i
 
 /** matchMedia 安全读取：API 缺失或抛错一律 false，绝不抛出。 */
 function mediaQueryMatches(query: string): boolean {
@@ -129,9 +142,22 @@ function looksLikeMobileUa(maxTouchPoints: number): boolean {
   }
 }
 
+/** iOS / iPadOS 家族判定：UA 令牌，或 iPadOS 13+ 的「Macintosh + 触点」线索。 */
+function looksLikeIosUa(maxTouchPoints: number): boolean {
+  try {
+    if (typeof navigator === 'undefined') return false
+    const ua = typeof navigator.userAgent === 'string' ? navigator.userAgent : ''
+    if (IOS_UA_PATTERN.test(ua)) return true
+    return MACINTOSH_UA_PATTERN.test(ua) && maxTouchPoints > 0
+  } catch {
+    return false
+  }
+}
+
 /** 纯分类：输入各路探测结果，产出互斥三档 + 能力位快照。 */
 function classifyCapabilities(input: {
   uaMobile: boolean
+  isIos: boolean
   isTouch: boolean
   hasHover: boolean
   width: number
@@ -156,6 +182,7 @@ function classifyCapabilities(input: {
     viewportHeight: input.height,
     orientation: input.width >= input.height ? 'landscape' : 'portrait',
     standalone: mediaQueryMatches('(display-mode: standalone)') || readIosNavigatorStandalone(),
+    isIos: input.isIos,
   }
 }
 
@@ -170,6 +197,7 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
   const hasHover = mediaQueryMatches('(hover: hover)')
   return classifyCapabilities({
     uaMobile: looksLikeMobileUa(maxTouchPoints),
+    isIos: looksLikeIosUa(maxTouchPoints),
     isTouch,
     hasHover,
     width,

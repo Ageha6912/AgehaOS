@@ -6,6 +6,7 @@ import { BrandLogo } from '@/components/brand-logo'
 import { greetingJoinKey, greetingPhaseKey, mobileGreetingPhase } from './greeting'
 import { MobileAppGrid } from './MobileAppGrid'
 import { RecentApps } from './RecentApps'
+import { MobileInstallBar } from '@/mobile/pwa/MobileInstallBar'
 import { TodayWorldCard } from './TodayWorldCard'
 
 /**
@@ -21,7 +22,9 @@ import { TodayWorldCard } from './TodayWorldCard'
  * TodayWorldCard 内部）；最近使用（M1-3）续接其后——usage-store 前 4 条
  * 经 getAppManifest 解析，空态整块缺席（门控在 RecentApps 内部）；应用
  * 网格（M1-4）续接最近使用之后，全量已安装应用 4 列网格（排序与空态在
- * MobileAppGrid 内部），继续在本容器向下追加（滚动容器 min-h-full 已备）。
+ * MobileAppGrid 内部），继续在本容器向下追加（滚动容器 min-h-full 已备）；
+ * PWA 安装条（M3-3）坐 Home 尾部非侵入位（分支门控在 MobileInstallBar
+ * 内部，hidden 整条缺席，只存在于 MobileShell 的 Home 视图）。
  */
 export function MobileHome({ now = new Date() }: { now?: Date }) {
   const { t } = useTranslation()
@@ -76,6 +79,10 @@ export function MobileHome({ now = new Date() }: { now?: Date }) {
       {/* M1-4 应用网格：全量已安装应用 4 列网格（常量优先序 + 名称排序），
           空态整块缺席（门控在组件内）；整格点击 = openApp 导航推进。 */}
       <MobileAppGrid />
+      {/* M3-3 PWA 安装条：Home 尾部非侵入位（随内容滚动，不遮任何入口）；
+          分支门控在组件内（hidden 整条缺席 = 缺席即状态），只存在于
+          MobileShell 的 Home 视图内。 */}
+      <MobileInstallBar />
     </section>
   )
 }

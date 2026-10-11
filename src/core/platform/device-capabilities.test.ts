@@ -258,6 +258,41 @@ describe('detectDeviceCapabilities：特殊形态', () => {
   })
 })
 
+describe('detectDeviceCapabilities：isIos 能力位（M3-3 PWA 安装指引）', () => {
+  it('iPhone UA → isIos；桌面 UA → 非 iOS', () => {
+    stubProbe({
+      viewport: [390, 844],
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+      maxTouchPoints: 5,
+      coarsePointer: true,
+      hoverHover: false,
+    })
+    expect(detectDeviceCapabilities().isIos).toBe(true)
+
+    stubProbe({ viewport: [1280, 720], hoverHover: true })
+    expect(detectDeviceCapabilities().isIos).toBe(false)
+  })
+
+  it('iPadOS 13+ 桌面级 UA（Macintosh + 触点 > 0）→ isIos；真 Mac（零触点）不受误伤', () => {
+    const MACINTOSH_UA
+      = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15'
+    stubProbe({ viewport: [1024, 1366], userAgent: MACINTOSH_UA, maxTouchPoints: 5, coarsePointer: true })
+    expect(detectDeviceCapabilities().isIos).toBe(true)
+
+    stubProbe({ viewport: [1280, 720], userAgent: MACINTOSH_UA, maxTouchPoints: 0, hoverHover: true })
+    expect(detectDeviceCapabilities().isIos).toBe(false)
+  })
+
+  it('UA 缺失 / navigator 缺失：isIos 安全归 false，不抛错', () => {
+    stubProbe({ viewport: [390, 844], userAgent: '', maxTouchPoints: 5, coarsePointer: true })
+    expect(detectDeviceCapabilities().isIos).toBe(false)
+
+    stubProbe({ viewport: [390, 844], omitNavigator: true })
+    expect(detectDeviceCapabilities().isIos).toBe(false)
+  })
+})
+
 describe('detectDeviceCapabilities：能力缺失安全兜底', () => {
   it('matchMedia 缺失：coarse/hover/standalone 一律 false，不抛错', () => {
     stubProbe({ viewport: [1024, 768], omitMatchMedia: true })

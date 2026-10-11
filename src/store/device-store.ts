@@ -50,6 +50,7 @@ function sameCapabilities(a: DeviceCapabilities, b: DeviceCapabilities): boolean
     && a.viewportHeight === b.viewportHeight
     && a.orientation === b.orientation
     && a.standalone === b.standalone
+    && a.isIos === b.isIos
 }
 
 export const useDeviceStore = create<DeviceState>()(() => measure())

@@ -88,6 +88,7 @@ function caps(overrides: Partial<DeviceCapabilities>): DeviceCapabilities {
     viewportHeight: 1080,
     orientation: 'landscape',
     standalone: false,
+    isIos: false,
     ...overrides,
   }
 }
