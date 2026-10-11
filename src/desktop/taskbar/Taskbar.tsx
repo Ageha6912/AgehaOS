@@ -52,6 +52,10 @@ export function Taskbar() {
     if (!dock) return
     const spans = dock.querySelectorAll<HTMLElement>('[data-wave-icon]')
     spans.forEach((el) => {
+      // 坑 79 防复发：跟手段必须零过渡——rAF 每帧直写的目标若被 CSS 的
+      // 220ms 过渡拖拽（坑 79 修复后该过渡复活），峰值会滞后抹平成慢包
+      // （2026-10-11 用户报告「波浪没了」）。过渡只属于 clearWave 的软回落。
+      el.style.transition = 'none'
       const rect = el.getBoundingClientRect()
       const transform = dockWaveTransform(Math.abs(waveX.current - (rect.left + rect.width / 2)))
       el.style.transform = transform ?? ''
@@ -82,6 +86,8 @@ export function Taskbar() {
       waveFrame.current = null
     }
     dockRef.current?.querySelectorAll<HTMLElement>('[data-wave-icon]').forEach((el) => {
+      // 摘除 inline transition:none → 恢复 index.css 的 220ms 过渡：软回落。
+      el.style.transition = ''
       el.style.transform = ''
     })
   }

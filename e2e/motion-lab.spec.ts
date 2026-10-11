@@ -51,12 +51,21 @@ test('motion lab: aurora/glow/sheen present, dock wave peaks at pointer, toggles
   expect(neighborScale).toBeGreaterThan(1)
   expect(neighborScale).toBeLessThan(1.08)
   expect(await computedTransform(filesPin)).toBe('none')
+  // 坑 79 防回归：跟手段 inline transition 必须为 none（rAF 直写零阻尼脆
+  // 跟手；CSS 220ms 过渡若在跟手段复活会把峰值抹平成慢包，2026-10-11）。
+  expect(
+    await terminalPin.locator('[data-wave-icon]').evaluate((el) => el.style.transition),
+  ).toBe('none')
 
   // ②b 移开指针：浮起与波浪一并回落归位。
   await page.mouse.move(960, 300)
   await page.waitForTimeout(300)
   expect(await computedTransform(terminalPin)).toBe('none')
   expect(await computedTransform(storePin)).toBe('none')
+  // 回落段摘除 inline → 恢复 CSS 220ms 过渡（软回落，clearWave 契约）。
+  expect(
+    await terminalPin.locator('[data-wave-icon]').evaluate((el) => el.style.transition),
+  ).toBe('')
 
   // ②c 运行中行滚动条 UI 隐藏：浮起 scale 变换边界会撑出可滚动区域，
   //    滚动条不得随悬停闪现（修订 11）。
