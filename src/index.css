@@ -1520,3 +1520,68 @@ body {
 .mobile-recents .mobile-recents-card {
   touch-action: pan-x;
 }
+
+/* Files 行操作单（M3-6 FileActionSheet，长按文件行弹出的 Bottom Sheet）：
+   玻璃白名单五处之一的 Bottom Sheet 位（DESIGN.md §35.1），玻璃材质在组件
+   侧走 surface-glass + glass-raise 工具类（与 Dock/启动器/通知/控制中心/
+   最近任务同档，本段只发遮罩色与动效、不发玻璃声明，不落 .surface-glass→
+   降透明兜底的玻璃源序区间）；backdrop 遮罩为纯色压暗（非玻璃、零 blur）。
+   进出场只动 transform/opacity（合成器接管），时长走既有 token
+   --ag-motion-base（200ms，§35.5 档带 160–220ms）；prefers-reduced-motion
+   由全局 0.01ms 塌缩承接（§35.5：不建第二套动效开关）；motion-prefs「窗口
+   切换转场」关档由组件侧在根追加 .mobile-fileactions-static 直切（与
+   .mobile-recents-static 同口径，规则置于 state 规则之后靠源序取胜）。退场
+   帧（data-state='leaving'）的 pointer-events-none + aria-hidden 在组件侧，
+   不挡底下的应用。挂载点在 Files 应用内部（.mobile-shell 作用域内），桌面
+   宽容器此组件永不渲染。 */
+.mobile-fileactions-backdrop {
+  background-color: rgb(15 23 42 / 45%);
+}
+.mobile-fileactions[data-state='open'] .mobile-fileactions-backdrop {
+  animation: mobile-fileactions-fade-in var(--ag-motion-base) var(--ag-motion-ease);
+}
+.mobile-fileactions[data-state='open'] .mobile-fileactions-sheet {
+  animation: mobile-fileactions-sheet-in var(--ag-motion-base) var(--ag-motion-ease);
+}
+.mobile-fileactions[data-state='leaving'] .mobile-fileactions-backdrop {
+  animation: mobile-fileactions-fade-out var(--ag-motion-base) var(--ag-motion-ease) forwards;
+}
+.mobile-fileactions[data-state='leaving'] .mobile-fileactions-sheet {
+  animation: mobile-fileactions-sheet-out var(--ag-motion-base) var(--ag-motion-ease) forwards;
+}
+.mobile-fileactions.mobile-fileactions-static .mobile-fileactions-backdrop,
+.mobile-fileactions.mobile-fileactions-static .mobile-fileactions-sheet {
+  animation: none;
+}
+@keyframes mobile-fileactions-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes mobile-fileactions-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes mobile-fileactions-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes mobile-fileactions-sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}

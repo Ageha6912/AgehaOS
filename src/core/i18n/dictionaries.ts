@@ -182,6 +182,12 @@ export const dictionaries = {
     'mobile.recents.close': '关闭「{name}」',
     'mobile.recents.cardLabel': '{name}，打开于 {time}',
     'mobile.recents.openedAt': '打开于 {time}',
+    /* M3-6 Files 长按操作单（src/apps/files/FileActionSheet.tsx）：sheet
+       可访问名 + 「打开」动作项。重命名/删除/还原/彻底删除复用 files.*
+       既有键、取消行复用 files.dialog.cancel（与桌面 Files 同一词典键，
+       A1：同一语义不另造键）。 */
+    'mobile.files.actions.title': '文件操作',
+    'mobile.files.actions.open': '打开',
     /* M3-3 PWA 安装提示（src/mobile/pwa/MobileInstallBar.tsx）：Home 尾部
        非侵入安装条。Chromium 分支 = 标题/描述/安装钮（pending 态是同一钮
        的等待文案）/关闭钮可访问名 + 浏览器对话框取消后的结果反馈行；iOS
@@ -829,6 +835,13 @@ export const dictionaries = {
     'mobile.recents.close': 'Close {name}',
     'mobile.recents.cardLabel': '{name}, opened {time}',
     'mobile.recents.openedAt': 'Opened {time}',
+    /* M3-6 Files long-press action sheet (src/apps/files/FileActionSheet.tsx):
+       sheet accessible name + the "open" action row. Rename/delete/restore/
+       purge reuse the existing files.* keys and the cancel row reuses
+       files.dialog.cancel (the same dictionary keys as desktop Files, A1:
+       one meaning, one key). */
+    'mobile.files.actions.title': 'File actions',
+    'mobile.files.actions.open': 'Open',
     /* M3-3 PWA install prompt (src/mobile/pwa/MobileInstallBar.tsx): the
        non-intrusive install bar at the tail of Home. Chromium branch =
        title/description/install button (pending state reuses the same

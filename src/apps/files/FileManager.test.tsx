@@ -429,4 +429,236 @@ describe('FileManager 窄容器（M2-5）', () => {
     // 未发生目录进入：根目录网格原样在场。
     expect(screen.getByRole('button', { name: '图片', pressed: false })).toBeInTheDocument()
   })
+
+  // ── 行操作单（M3-6 长按，仅窄容器）：长按判定阈值语义归
+  //    long-press-decision / use-long-press 各自单测，这里钉「长按 → 操作单
+  //    → 动作走 Files 既有逻辑」的组件级接线；真实视口几何与触屏时序归
+  //    e2e/mobile-files.spec.ts。 ────────────────────────────────────────────
+  describe('行操作单（M3-6 长按）', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    /** 触屏长按：按下 → 驻留 500ms（fake timers 推时钟）→ 抬起 → 推过
+        50ms click 抑制窗口（真实浏览器里紧随的 click 要么已派发被吞、要么
+        窗口到期自拆；jsdom 不从 pointerup 合成 click，须显式推钟过期。
+        expireSuppression=false 留在窗口内——「落回 click 被吞」用例专用）。 */
+    function longPress(tile: Element, { expireSuppression = true }: { expireSuppression?: boolean } = {}): void {
+      vi.useFakeTimers({ toFake: ['performance', 'setTimeout', 'clearTimeout'] })
+      act(() => {
+        tile.dispatchEvent(
+          new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 1,
+            pointerType: 'touch',
+            button: 0,
+            clientX: 10,
+            clientY: 10,
+          }),
+        )
+      })
+      act(() => {
+        vi.advanceTimersByTime(500)
+      })
+      act(() => {
+        tile.dispatchEvent(
+          new PointerEvent('pointerup', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 1,
+            pointerType: 'touch',
+            button: 0,
+            clientX: 10,
+            clientY: 10,
+          }),
+        )
+      })
+      if (expireSuppression) {
+        act(() => {
+          vi.advanceTimersByTime(50)
+        })
+      }
+    }
+
+    /** 收尾：冲掉退场/刷新计时器与微任务后回到真实时钟。 */
+    async function flushTimers(): Promise<void> {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400)
+      })
+      vi.useRealTimers()
+    }
+
+    it('长按文件行弹操作单：动作清单 = 打开/重命名/删除，长按即选中', async () => {
+      const vfs = await createVfs()
+      await vfs.writeFile('/Documents/note.txt', 'hello')
+      await renderNarrow(vfs)
+      fireEvent.click(
+        within(screen.getByTestId('files-dir-switcher')).getByRole('button', { name: '文档' }),
+      )
+      const tile = await screen.findByRole('button', { name: /note\.txt/ })
+
+      longPress(tile)
+
+      const sheet = screen.getByTestId('files-action-sheet')
+      expect(sheet).toHaveAttribute('data-state', 'open')
+      expect(screen.getByTestId('files-action-title')).toHaveTextContent('note.txt')
+      // 长按即选中（与「首击选中」同语义，操作单复用 selectedId 既有逻辑）。
+      expect(tile).toHaveAttribute('aria-pressed', 'true')
+      expect(within(sheet).getByRole('button', { name: '打开' })).toBeInTheDocument()
+      expect(within(sheet).getByRole('button', { name: '重命名' })).toBeInTheDocument()
+      expect(within(sheet).getByRole('button', { name: '删除' })).toBeInTheDocument()
+      expect(within(sheet).getByRole('button', { name: '取消' })).toBeInTheDocument()
+    })
+
+    it('确认后落回原行的 click 被吞：不再触发「已选中再击 = 打开」的预览', async () => {
+      const vfs = await createVfs()
+      await vfs.writeFile('/Documents/note.txt', 'hello')
+      await renderNarrow(vfs)
+      fireEvent.click(
+        within(screen.getByTestId('files-dir-switcher')).getByRole('button', { name: '文档' }),
+      )
+      const tile = await screen.findByRole('button', { name: /note\.txt/ })
+
+      // expireSuppression=false：留在 click 抑制窗口内。
+      longPress(tile, { expireSuppression: false })
+      // 长按确认后抬起派发的 click 落回原行——抑制器吞掉，不打开预览。
+      fireEvent.click(tile)
+
+      expect(screen.queryByRole('dialog', { name: '文件预览' })).not.toBeInTheDocument()
+      await flushTimers()
+      expect(screen.queryByRole('dialog', { name: '文件预览' })).not.toBeInTheDocument()
+    })
+
+    it('操作单重命名走既有 PromptDialog：改名落地、操作单退场', async () => {
+      const vfs = await createVfs()
+      await vfs.writeFile('/Documents/old.txt', 'x')
+      await renderNarrow(vfs)
+      fireEvent.click(
+        within(screen.getByTestId('files-dir-switcher')).getByRole('button', { name: '文档' }),
+      )
+      const tile = await screen.findByRole('button', { name: /old\.txt/ })
+      longPress(tile)
+
+      fireEvent.click(within(screen.getByTestId('files-action-sheet')).getByRole('button', { name: '重命名' }))
+
+      // 操作单退场（leaving 播完卸载），重命名弹层 = 既有 PromptDialog。
+      const dialog = screen.getByRole('dialog', { name: '重命名' })
+      expect(dialog).toBeInTheDocument()
+      await flushTimers()
+      expect(screen.queryByTestId('files-action-sheet')).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'renamed.txt' } })
+      fireEvent.click(screen.getByRole('button', { name: '确定' }))
+
+      expect(await screen.findByText('renamed.txt')).toBeInTheDocument()
+      expect(screen.queryByText('old.txt')).not.toBeInTheDocument()
+    })
+
+    it('操作单删除走既有逻辑：条目进回收站', async () => {
+      const vfs = await createVfs()
+      await vfs.writeFile('/Documents/temp.txt', 'x')
+      await renderNarrow(vfs)
+      fireEvent.click(
+        within(screen.getByTestId('files-dir-switcher')).getByRole('button', { name: '文档' }),
+      )
+      const tile = await screen.findByRole('button', { name: /temp\.txt/ })
+      longPress(tile)
+
+      fireEvent.click(within(screen.getByTestId('files-action-sheet')).getByRole('button', { name: '删除' }))
+
+      await flushTimers()
+      await waitFor(() => {
+        expect(screen.queryByText('temp.txt')).not.toBeInTheDocument()
+      })
+      // 删除 = 进回收站（既有 vfs.remove 语义，不新增业务）。
+      expect((await vfs.listTrash()).map((n) => n.name)).toContain('temp.txt')
+    })
+
+    it('操作单「打开」进目录（目录行的真实可用动作）', async () => {
+      const vfs = await createVfs()
+      await vfs.createDirectory('/Documents/projects')
+      await renderNarrow(vfs)
+      fireEvent.click(
+        within(screen.getByTestId('files-dir-switcher')).getByRole('button', { name: '文档' }),
+      )
+      const tile = await screen.findByRole('button', { name: /projects/ })
+      longPress(tile)
+
+      fireEvent.click(within(screen.getByTestId('files-action-sheet')).getByRole('button', { name: '打开' }))
+
+      await flushTimers()
+      expect(await screen.findByText('/Documents/projects')).toBeInTheDocument()
+    })
+
+    it('取消行与 Esc 关闭操作单，回焦长按行（关闭回焦契约）', async () => {
+      const vfs = await createVfs()
+      await vfs.writeFile('/Documents/note.txt', 'x')
+      await renderNarrow(vfs)
+      fireEvent.click(
+        within(screen.getByTestId('files-dir-switcher')).getByRole('button', { name: '文档' }),
+      )
+      const tile = await screen.findByRole('button', { name: /note\.txt/ })
+      longPress(tile)
+      expect(screen.getByTestId('files-action-sheet')).toHaveAttribute('data-state', 'open')
+
+      fireEvent.click(within(screen.getByTestId('files-action-sheet')).getByRole('button', { name: '取消' }))
+      await flushTimers()
+      expect(screen.queryByTestId('files-action-sheet')).not.toBeInTheDocument()
+      expect(tile).toHaveFocus()
+
+      // Esc 同样关闭（document 捕获阶段）。
+      longPress(tile)
+      expect(screen.getByTestId('files-action-sheet')).toBeInTheDocument()
+      fireEvent.keyDown(document, { key: 'Escape' })
+      await flushTimers()
+      expect(screen.queryByTestId('files-action-sheet')).not.toBeInTheDocument()
+    })
+
+    it('回收站内操作单 = 还原/彻底删除（不摆打开/重命名），还原走既有逻辑', async () => {
+      const vfs = await createVfs()
+      await vfs.writeFile('/Documents/gone.txt', 'x')
+      await vfs.remove('/Documents/gone.txt')
+      await renderNarrow(vfs)
+      fireEvent.click(
+        within(screen.getByTestId('files-dir-switcher')).getByRole('button', { name: '回收站' }),
+      )
+      const tile = await screen.findByRole('button', { name: /gone\.txt/ })
+      longPress(tile)
+
+      const sheet = screen.getByTestId('files-action-sheet')
+      expect(within(sheet).getByRole('button', { name: '还原' })).toBeInTheDocument()
+      expect(within(sheet).getByRole('button', { name: '彻底删除' })).toBeInTheDocument()
+      expect(within(sheet).queryByRole('button', { name: '打开' })).not.toBeInTheDocument()
+      expect(within(sheet).queryByRole('button', { name: '重命名' })).not.toBeInTheDocument()
+
+      fireEvent.click(within(sheet).getByRole('button', { name: '还原' }))
+      await flushTimers()
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: /gone\.txt/ })).not.toBeInTheDocument()
+      })
+      expect((await vfs.list('/Documents')).map((n) => n.name)).toContain('gone.txt')
+    })
+
+    it('宽容器长按无效：操作单不出现，桌面行为与改前等价', async () => {
+      const vfs = await createVfs()
+      await vfs.writeFile('/Documents/note.txt', 'x')
+      render(<FileManager vfs={vfs} windowId="w-files" />)
+      await act(async () => {
+        FakeResizeObserver.instances.at(-1)?.emit(880)
+      })
+      fireEvent.click(
+        await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' }),
+      )
+      const tile = await screen.findByRole('button', { name: /note\.txt/ })
+
+      longPress(tile)
+
+      expect(screen.queryByTestId('files-action-sheet')).not.toBeInTheDocument()
+      // 桌面单击语义原样：长按（按下+抬起）之后的 click 仍选中该行。
+      fireEvent.click(tile)
+      expect(tile).toHaveAttribute('aria-pressed', 'true')
+      await flushTimers()
+    })
+  })
 })

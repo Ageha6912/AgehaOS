@@ -23,15 +23,12 @@ import { systemBus } from '@/core/events'
 import { formatMessage, useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { joinPath, splitPath, Vfs, MAX_FILE_BYTES } from '@/core/filesystem'
-import type { VfsNode } from '@/core/filesystem'
 
 import { vfsErrorMessageKey } from './error-messages'
 import { useNarrowContainer } from '@/apps/use-narrow-container'
-
-interface FileEntry {
-  node: VfsNode
-  path: string
-}
+import { useLongPress } from '@/mobile/gesture/use-long-press'
+import { FileActionSheet } from './FileActionSheet'
+import type { FileEntry, FileRowAction } from './file-actions'
 
 type DialogState =
   { kind: 'newFolder' } | { kind: 'newFile' } | { kind: 'rename'; entry: FileEntry } | null
@@ -96,6 +93,11 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
   const [dialogError, setDialogError] = useState<MessageKey | null>(null)
   const [preview, setPreview] = useState<PreviewState | null>(null)
   const uploadInputRef = useRef<HTMLInputElement>(null)
+  // 行操作单（M3-6，仅窄容器触发）：长按行 = 选中该行 + 弹出操作单；
+  // null = 关闭。动作执行全部走下方既有逻辑，不新增业务。
+  const [sheetEntry, setSheetEntry] = useState<FileEntry | null>(null)
+  /** 主列表容器：长按手势的委托宿主（一次挂载服务全部行）。 */
+  const listRef = useRef<HTMLUListElement | null>(null)
 
   /**
    * 上传入口（Phase 3 二进制承载的 UI 面）：本机文件 → writeFileBytes 落入
@@ -241,6 +243,59 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
     setSelectedId(null)
     setTrashMode(true)
     setPath('/')
+  }
+
+  // ── 行操作单（M3-6，仅窄容器启用）：长按行 = 选中该行 + 弹出操作单。────
+  //    判定在 use-long-press（阈值纯函数 long-press-decision，500ms 驻留 /
+  //    10px 位移容忍）；与「首击选中、再击打开」共存——阈值内抬起 = 正常
+  //    点击（hook 不吞 click），按下即计时对点击路径零感知。宽容器不挂
+  //    （enabled=narrow），桌面行为与改前等价。委托宿主用应用根（首帧即
+  //    在场——列表 ul 晚于首帧挂载，effect 只随 enabled 重挂，追不到）；
+  //    命中解析用行上的 data-entry-id（仅窄容器渲染该属性），未命中（工具
+  //    栏/操作单本身等）返回 false 放行 click。选中与「首击选中」同语义：
+  //    操作单的删除/还原/彻底删除直接复用下方以 selectedId 为准的既有
+  //    处理函数，不新增业务路径。
+  useLongPress({
+    targetRef: rootRef,
+    enabled: narrow,
+    onLongPress: ({ target }) => {
+      const row = target.closest('[data-entry-id]')
+      const id = row?.getAttribute('data-entry-id') ?? null
+      const entry = entries?.find((candidate) => candidate.node.id === id) ?? null
+      if (!entry) return false
+      setSelectedId(entry.node.id)
+      setSheetEntry(entry)
+      return true
+    },
+  })
+
+  const runSheetAction = (action: FileRowAction, entry: FileEntry) => {
+    setSheetEntry(null)
+    if (action === 'open') {
+      void openEntry(entry)
+      return
+    }
+    if (action === 'rename') {
+      setDialogError(null)
+      setDialog({ kind: 'rename', entry })
+      return
+    }
+    // 删除/还原/彻底删除：长按已把该行选中，走既有 selectedId 处理函数
+    // （与工具栏同一代码路径，含 parentId 保护和 vfsErrorMessageKey 映射）。
+    if (action === 'delete') void deleteSelected()
+    if (action === 'restore') void restoreSelected()
+    if (action === 'purge') void purgeSelected()
+  }
+
+  // 关闭回焦长按行（§0.4 弹层关闭契约的移动口径，触发器 = 行按钮）；动作
+  // 关闭不走这里——重命名的 PromptDialog 要 autoFocus，不能被回焦抢走。
+  const closeSheet = () => {
+    const entry = sheetEntry
+    setSheetEntry(null)
+    if (!entry) return
+    listRef.current
+      ?.querySelector<HTMLButtonElement>(`[data-entry-id="${entry.node.id}"]`)
+      ?.focus()
   }
 
   const loading = entries === null
@@ -519,17 +574,18 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
               </p>
             </div>
           ) : (
-            <ul role="list" className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2">
+            <ul ref={listRef} role="list" className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2">
               {entries.map((entry) => (
                 <li key={entry.node.id}>
                   <button
                     type="button"
                     aria-pressed={selectedId === entry.node.id}
+                    {...(narrow ? { 'data-entry-id': entry.node.id } : {})}
                     className={`flex w-full flex-col items-center gap-1.5 rounded-md border p-2.5 text-center ${
                       selectedId === entry.node.id
                         ? 'border-primary bg-primary/10'
                         : 'border-transparent hover:border-border hover:bg-surface-raised'
-                    }`}
+                    } ${narrow ? 'select-none' : ''}`}
                     onClick={() => {
                       if (!narrow) {
                         // 宽容器（桌面）：单击选中、双击打开——与改前一致。
@@ -540,6 +596,8 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                       // 删除/还原/彻底删除；已选中再击 = 打开（进目录 / 文件
                       // 预览）。不依赖触屏上派发不可靠的 dblclick。整格命中
                       // 区（图标 28 + 双行文本 + p-2.5）≥44×44（§35.3）。
+                      // 长按（M3-6）与此共存：阈值内抬起 = 正常点击，走这里；
+                      // 驻留到阈 = 操作单（hook 确认后吞掉落回本行的 click）。
                       if (selectedId === entry.node.id) void openEntry(entry)
                       else select(entry)
                     }}
@@ -610,6 +668,18 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
           </div>
         </div>
       )}
+
+      {/* 行操作单（M3-6）：长按行弹出的移动 Bottom Sheet（玻璃白名单位）。
+          仅窄容器会置 sheetEntry（长按 hook enabled=narrow），桌面宽容器此
+          组件永不渲染、桌面右键菜单零接触。动作执行走既有逻辑（上方
+          runSheetAction），本处只供形态与动作清单（file-actions.ts 分发）。 */}
+      <FileActionSheet
+        entry={sheetEntry}
+        mode={trashMode ? 'trash' : 'browse'}
+        titleFor={(target) => folderLabel(target.path, t) ?? target.node.name}
+        onClose={closeSheet}
+        onAction={runSheetAction}
+      />
     </div>
   )
 }

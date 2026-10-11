@@ -139,6 +139,52 @@ test.describe('mobile context（360×800 iPhone UA）：Files 窄容器', () => 
     expect(contract!.switcher.scrollWidth).toBeGreaterThan(contract!.switcher.clientWidth)
     expect(contract!.toolbarExempt).toBe(true)
   })
+
+  test('长按文件行弹操作单（M3-6）：重命名/删除走既有逻辑', async ({ page }) => {
+    await registerAndReachShell(page, 'e2emobilefileact')
+    await openFilesFromDock(page)
+
+    const switcher = page.getByTestId('files-dir-switcher')
+    await switcher.getByRole('button', { name: '文档' }).click()
+
+    // 工具栏新建 note.txt（既有路径，触屏可横滚到达）。
+    await page.getByRole('button', { name: '新建文本文件' }).click()
+    const createDialog = page.getByRole('dialog', { name: '新建文本文件' })
+    await expect(createDialog).toBeVisible()
+    await createDialog.getByRole('textbox').fill('note.txt')
+    await createDialog.getByRole('button', { name: '确定' }).click()
+    const fileTile = page
+      .locator('[data-window-id]')
+      .getByRole('button', { name: /note\.txt/ })
+    await expect(fileTile).toBeVisible()
+
+    // 长按（按住 700ms ≥ 500ms 驻留阈值；hook 触屏与鼠标一致）→ 操作单
+    // 升起（Bottom Sheet 玻璃白名单位），长按即选中该行。
+    await fileTile.click({ delay: 700 })
+    const sheet = page.getByTestId('files-action-sheet')
+    await expect(sheet).toHaveAttribute('data-state', 'open')
+    await expect(page.getByTestId('files-action-title')).toHaveText('note.txt')
+    await expect(fileTile).toHaveAttribute('aria-pressed', 'true')
+
+    // 重命名：操作单 → 既有 PromptDialog → 改名落地、操作单退场。
+    await sheet.getByRole('button', { name: '重命名' }).click()
+    const renameDialog = page.getByRole('dialog', { name: '重命名' })
+    await expect(renameDialog).toBeVisible()
+    await renameDialog.getByRole('textbox').fill('renamed.txt')
+    await renameDialog.getByRole('button', { name: '确定' }).click()
+    const renamedTile = page
+      .locator('[data-window-id]')
+      .getByRole('button', { name: /renamed\.txt/ })
+    await expect(renamedTile).toBeVisible()
+    await expect(sheet).toHaveCount(0)
+
+    // 再长按 → 删除（进回收站，既有 vfs.remove 语义）→ 行消失。
+    await renamedTile.click({ delay: 700 })
+    await expect(sheet).toHaveAttribute('data-state', 'open')
+    await sheet.getByRole('button', { name: '删除' }).click()
+    await expect(renamedTile).toHaveCount(0)
+    await expect(sheet).toHaveCount(0)
+  })
 })
 
 test.describe('desktop context 回归：Files 宽容器与改前等价', () => {
@@ -176,5 +222,13 @@ test.describe('desktop context 回归：Files 宽容器与改前等价', () => {
       page.getByRole('navigation', { name: 'breadcrumb' }).getByRole('button', { name: '文档' }),
     ).toBeVisible()
     await expect(windowBody.getByRole('button', { name: '下载', pressed: false })).toHaveCount(0)
+
+    // 宽容器长按（≥500ms 驻留）不触发移动操作单——长按 hook 只在窄容器
+    // 挂载（enabled=narrow），桌面交互与改前等价（M3-6 回归）。
+    await page
+      .getByRole('navigation', { name: 'breadcrumb' })
+      .getByRole('button', { name: '文档' })
+      .click({ delay: 700 })
+    await expect(page.getByTestId('files-action-sheet')).toHaveCount(0)
   })
 })
