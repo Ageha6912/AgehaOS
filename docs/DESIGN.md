@@ -1565,3 +1565,159 @@ M1 全部新文案照此办理。
   或 prefers-reduced-motion（落下时实时探测）→ 直切。`[data-no-edge-back]`
   标记面 = 横向滚动逃生口（hook 整体豁免 + CSS 对该面及后代重放 pan-x，
   `src/index.css:1178-1180`）。挂载点与系统映射见 ARCHITECTURE.md §3.25。
+
+## 36. 空间窗口层（Spatial Window System，2026-10-10 五项用户裁决落地）
+
+> 桌面空间的第三层进化：在「Calm Future」玻璃语言（§0）与 Workspace
+> Environment 结构（§34）之上，把窗口域升级为**空间化材质与深度语言**。
+> 五项用户裁决 2026-10-10 批准，随两个切片落地：窗口空间化（b319611——
+> spatial-window 玻璃体系、聚焦/失焦深度档与失焦悬停浮起）→ 环境抛光
+> （2f8d068——Dock 弱倒影与右栏 quiet 双卡慢浮动）。实现唯一落点 =
+> `src/styles/spatial.css`（`src/index.css:2` 顶部引入、紧随
+> `@import 'tailwindcss'`，引入位由 `src/index.css.test.ts:483` 钉扎）；
+> 文件内部**自持源序：令牌 → 基规则 → 增量 → 降级兜底**（§0.3 同律），
+> `@eslint/css` 接管 src/styles 定向 lint。本节与 §21 / §34.7（窗口
+> 20px rounded-xl / 深玻璃 blur 36px 档）冲突时**以本节为准**；窗口状态
+> 语义、几何钳制与 core（window-manager）**零改动**。空间视觉效果**仅
+> 桌面作用域**（裁决 5），移动端零扩散。
+
+### 36.1 五项裁决（2026-10-10 用户批准，照此执行勿再发挥）
+
+1. **悬停浮起只给失焦窗口**；Dock 域不加悬停浮起（高斯波浪仍是唯一浮起，
+   §13 的 2026-10-05 终态裁决不动）。
+2. **窗口圆角 20px（rounded-xl）升到 28px**（`--sp-window-radius` 档）。
+3. **常驻环境浮动动画默认开启、可在设置关**（motion-prefs 新布尔
+   `spatialMotion`，`src/store/motion-prefs-store.ts:26`，默认 true）。
+4. **空间玻璃走独立低透明档位（`--sp-*` 命名空间）**，不消费
+   `--ag-glass-bg`、不回调既有 chrome 白玻璃 8% 裁决（§34.1 veil 终裁
+   不受影响）；**对比度从不依赖 blur**——两处实色兜底随附（§0 材质铁律
+   的空间域重申）。
+5. **空间视觉效果仅桌面作用域**；移动端 §35.1 玻璃白名单五处不扩（唯一
+   例外：移动控制中心接空间动效开关，属**状态接线非玻璃**，见 §36.5）。
+
+### 36.2 `--sp-*` 令牌表（`src/styles/spatial.css:19-66`）
+
+主题成对纪律：随主题翻转的令牌（玻璃三档/窗口阴影）在 `.dark` 成对重声明；
+主题无关几何常量（圆角/深度/透视/浮动参数）只入 `:root`（同红绿灯与
+`--ag-tooltip-bg` 先例）。钉扎：`src/index.css.test.ts:492-516`。
+
+| 令牌 | 浅色 / 深色 `.dark` | 消费位 |
+|---|---|---|
+| `--sp-window-radius` | 28px（仅 :root） | `.spatial-window` 圆角档（裁决 2） |
+| `--sp-widget-radius` | 20px（仅 :root） | 空间小组件面圆角（预留档） |
+| `--sp-glass-light` | 白 10% / 冷墨 `rgb(16 23 40)` 20% | 预留低档（无消费位） |
+| `--sp-glass-medium` | 白 16% / 冷墨 28% | `.spatial-window` 面底（唯一在用玻璃档） |
+| `--sp-glass-heavy` | 白 24% / 冷墨 40% | 预留高档（无消费位） |
+| `--sp-lift-near/middle/far` | 80 / 40 / 0px（仅 :root） | 深度三档 translateZ（§36.4） |
+| `--sp-perspective` | 1400px（仅 :root） | 消费方侧舞台建 3D 上下文（窗口 = `WindowLayer.tsx:44`） |
+| `--sp-float-duration/distance` | 9s / 5px（仅 :root） | `sp-float` 关键帧（§36.5/§36.6） |
+| `--sp-dock-reflection-height` | 24px（仅 :root） | `.dock-reflection`（§36.6） |
+| `--sp-shadow-window` | `0 32px 96px` 冷墨 22% + `0 8px 28px` 10% / 纯黑 55% + 32% | `.spatial-window` 基档（比 `--ag-shadow-window` 0 16px 48px 更大更弥散的漂浮档） |
+| `--sp-shadow-window-hover` | 36px/104px 冷墨 25% 递进 / 纯黑 58% 递进 | 失焦悬停浮起加深档（仍低于聚焦档） |
+| `--sp-shadow-window-active` | 40px/112px 冷墨 27% 递进 / 纯黑 62% 递进 | 聚焦窗口（flat < hover < active，同 `--ag-shadow-window` 族语义） |
+
+### 36.3 `.spatial-window` 材质与两处降级兜底（`spatial.css:68-92`）
+
+基规则配方：`background: var(--sp-glass-medium)` + `backdrop-filter:
+blur(40px) saturate(150%)` + `border: 1px solid rgb(255 255 255 / 24%)`
+（深色增量降为白 10%，与 `--ag-glass-border` 深色档同口径）+
+`border-radius: var(--sp-window-radius)` + `box-shadow:
+var(--sp-shadow-window)`；`::before` 斜向高光装饰层（120deg 白 12% 渐隐至
+40%，`pointer-events: none` 不截胡交互）。**通用玻璃面壳**
+`src/components/spatial/GlassSurface.tsx`：纯展示壳、零 store，props 驱动
+depth/float/motionStatic，供后续空间面消费；窗口不走它（走 sp-win 作用域，
+§36.4）。
+
+降级兜底（源序即降级，`spatial.css:225-242`）：①
+`@media (prefers-reduced-transparency: reduce)` → `background:
+var(--ag-surface-popover)` + `backdrop-filter: none`；② `@supports not
+(backdrop-filter: blur(1px))` → 同实色。窗口状态档（`.sp-win-focused` 等）
+特异性更高，兜底选择器组**同等特异性并列、靠源序取胜**——新增状态档必须
+同步并入兜底选择器组。backdrop-filter 只写标准属性、严禁 `-webkit-` 前缀
+（构建链剥标准属性根因 A，§35.8 同律）。
+
+### 36.4 深度契约：聚焦 near / 失焦 middle / 最大化与 ghost 无深度
+
+通用深度梯（`spatial.css:96-104`）：`sp-depth-near` = translateZ(80px) +
+scale(1.02)、`sp-depth-middle` = translateZ(40px)、`sp-depth-far` = 0；
+透视由**消费方侧舞台**以 `--sp-perspective` 提供（translateZ 的视觉位移
+依赖祖先透视）。组件契约（`WindowFrame.tsx:114-119`）：聚焦挂 near、
+失焦可见挂 middle；**最大化 / 最小化 / ghost 不挂深度类**（ghost 是关闭
+退场快照，永不参与空间态）。
+
+**窗口工作面测量契约（红线 10 的消解，`spatial.css:156-207`）**：窗口
+section 是 responsive-quad boundingBox 与 window-resize ±2px 的 E2E
+测量面——translateZ 在本层 1400px perspective 下是**投影型变换**（z=80
+实测投影 ≈ +6.1% 放大且随离心位移，Chromium getBoundingClientRect 计入
+透视），直接挂会实时改变静止渲染盒。故窗口作用域把深度梯与失焦退后
+（`is-tilt-dim`，§32.5 修订 10 windowTilt 域）一律解析为
+`transform: none`（特异性压过通用深度梯）——**类照挂（组件契约不变）、
+变换归零（测量面契约）**，深度语义改由状态类栈表达：面实度
+`--ag-glass-bg`（失焦基档）→ `--ag-window-face-active`（聚焦，只提实度
+不加色相）+ 中性细边 `--ag-border` → `border-strong` + 空间阴影基档 →
+active 档。`sp-win` 基档同时以 `position: absolute` 抵消基规则 relative
+（窗口几何仍由 inline left/top 定位，行为零变化）；`sp-win-max` =
+`border-radius: 0`（§32.5 修订 12 真全屏不变，unlayered 同字段覆写）。
+钉扎：`src/index.css.test.ts:563` 起整段。
+
+### 36.5 悬停浮起与空间动效开关（motion-prefs `spatialMotion`）
+
+**悬停浮起（裁决 1，`spatial.css:209-223`）**：仅「失焦 + 非最大化 +
+非最小化 + 非拖拽中 + 空间动效开档」时组件挂 `sp-win-hover`
+（`WindowFrame.tsx:122-125`；ghost 永不浮起），hover 态
+`translateY(-6px) scale(1.01)` + `--sp-shadow-window-hover` 加深。栈内
+唯一 transform 写入者即此 `:hover` 规则（静止态几何探针永不命中）；
+transition 挂在类上——拖拽开始即摘类，拖拽进行中天然无过渡（跟手零
+延迟）。Dock 域零悬停浮起（裁决 1 后半），高斯波浪（§13）仍是 Dock
+唯一浮起。`prefers-reduced-motion` 由 index.css 全局 0.01ms 塌缩接管。
+
+**开关（裁决 3）**：`spatialMotion` 默认开，桌面入口 = 设置 → 外观 →
+动效实验室「空间动效」（`settings.motionSpatial` / 说明行
+`settings.motionSpatialHint`「窗口深度与悬浮氛围动效」，testid
+`motion-spatial-toggle`，`SettingsApp.tsx:288-292`）；移动控制中心同一
+布尔**反相呈现**为「减弱空间动效」（`mobile.controlcenter.reduceSpatialMotion`，
+`MobileControlCenterSheet.tsx:147/290`）——同一 store 布尔两处呈现、
+所见即所得，属裁决 5 的唯一移动例外（状态接线非玻璃）。关档语义 =
+组件挂 `sp-motion-static`（`animation: none`）**直切**：与浮动类共存、
+同特异性下源序必胜（静态类必须位于浮动类之后，与 mobile 静态类同口径，
+`index.css.test.ts:554-560` 钉扎）；WindowFrame 同时摘深度类与悬停类
+（`WindowFrame.tsx:114-125`），`WindowFrame.test.tsx:195-259` 钉住整条
+类栈门控。
+
+### 36.6 环境抛光：Dock 弱倒影与右栏慢浮动（2026-10-11 切片 2f8d068）
+
+- **Dock 弱倒影**（`spatial.css:125-154`，Taskbar 消费
+  `Taskbar.tsx:188-190`）：胶囊正下方 24px 高（`--sp-dock-reflection-
+  height`）的渐变 mask 伪倒影——`top: 100%` 贴胶囊下缘、与胶囊同宽、
+  `border-radius: inherit` 随动，峰值白 12%（任务书上限；深色成对降档
+  9%）+ `mask-image` 纵向渐隐至 82%。**非玻璃件**：零 backdrop-filter，
+  两处实色兜底不适用；纯装饰（aria-hidden + `pointer-events: none`），
+  absolute 定位不占布局、静止盒零变化。**门控双保险**：空间动效关档 →
+  Taskbar 条件渲染整层不挂载（关则整层消失）；`prefers-reduced-motion` →
+  spatial.css 内 `display: none` 兜底（覆盖系统偏好路径）。波浪唯一浮起
+  裁决（§13）与既有 Dock 几何 token 零改动。
+- **右栏 quiet 双卡慢浮动**（`WidgetRail.tsx:93-113`）：仅 quiet 档两卡
+  （最近通知/今日世界，§34.4 权重分级）挂常驻环境浮动——**装饰包装层**
+  `AmbientFloatLayer` 承载 `.sp-ambient-float`（9s 周期上下 5px，只动
+  transform），卡片 section（E2E 测量面）不挂任何动画类，静止布局盒零
+  变化（红线 10）；`0s / -4.5s` 负 animation-delay 错峰反相，两卡不同步
+  晃动。包装层不画材质不吃指针，`shrink-0` 接手卡片原防压缩职责；关档
+  追加 `sp-motion-static` 直切。**时钟/系统卡稳定不浮**（full 档卡是
+  信息锚点）。
+
+### 36.7 E2E 兼容前提与测试钉扎
+
+- **静止布局盒不变（红线 10）三通道**：浮动只挂装饰包装层；悬停变换只在
+  `:hover` 态发生；窗口深度在窗口作用域解析为 `transform: none`
+  （§36.4）——E2E 几何探针（responsive-quad 四档 boundingBox、
+  window-resize ±2px、window-visual/multi-window-visual 实测断言）按
+  静止态测量，全部前提成立。
+- **core 零改动**：窗口状态语义、焦点/z 序/几何钳制（window-manager）
+  与本层无关，空间化全部落在样式与组件类栈；既有 E2E spec 无需知情。
+- **单测钉扎**（jsdom 无 ResizeObserver/backdrop-filter，几何归 E2E）：
+  `src/index.css.test.ts:483` 起（引入位/令牌双主题/独立 sp 档基规则/
+  深度梯与浮动-静态源序/窗口作用域消解/兜底）；`WindowFrame.test.tsx:195`
+  起（类栈与 spatialMotion 门控）；`GlassSurface.test.tsx`、
+  `motion-prefs-store.test.ts`、`SettingsApp.test.tsx`（开关接线）、
+  `dock-reflection.test.ts` + `Taskbar.test.tsx`、`WidgetRail.test.tsx`
+  （环境抛光）、`MobileControlCenterSheet.test.tsx`（反相开关）。

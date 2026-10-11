@@ -40,7 +40,7 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 
 ### 🖥 Desktop Shell 3.0 · Workspace Environment
 
-窗口管理器（拖拽/缩放/焦点档/Genie/幽灵关闭）、虚拟文件系统 + 文件管理器、App Store 与沙箱应用运行时（Type B iframe + Type C SDK）、通知中心、Ctrl+K 全局搜索（应用 / 文件 / 动作三域）、终端与计算器等系统应用。视觉契约见 [docs/DESIGN.md](docs/DESIGN.md) §17-§34。
+窗口管理器（拖拽/缩放/焦点档/Genie/幽灵关闭）、虚拟文件系统 + 文件管理器、App Store 与沙箱应用运行时（Type B iframe + Type C SDK）、通知中心、Ctrl+K 全局搜索（应用 / 文件 / 动作三域）、终端与计算器等系统应用。视觉契约见 [docs/DESIGN.md](docs/DESIGN.md) §17-§34、§36。
 
 ### 🌅 AI 动态桌面
 
