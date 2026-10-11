@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { consumeLauncherCategory, resetLauncherIntent } from '@/desktop/taskbar/launcher-intent'
@@ -6,6 +6,7 @@ import { resetAppStore } from '@/store/app-store'
 import { resetDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { resetEclosionStore, useEclosionStore } from '@/store/eclosion-store'
 import { resetLauncherStore } from '@/store/launcher-store'
+import { resetMotionPrefsStore, useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
 import { resetWindowStore } from '@/store/window-store'
 
@@ -28,6 +29,8 @@ beforeEach(() => {
   resetEclosionStore()
   resetLauncherStore()
   resetLauncherIntent()
+  // 动效偏好隔离（2026-10-11 环境抛光：浮动层随 spatialMotion 门控）。
+  resetMotionPrefsStore()
 })
 
 afterEach(() => {
@@ -85,6 +88,9 @@ describe('WidgetRail (STEP 4 Floating System Center)', () => {
 
     // 羽化默认关：第四层整卡不渲染（WorldSignals 同款门控，桌面保持安静）。
     expect(screen.queryByTestId('widgets-world')).toBeNull()
+    // 环境浮动包装层在门控之后返回：不产生幻影空包装层（flex gap 节奏不变，
+    // 2026-10-11 环境抛光）。
+    expect(screen.queryByTestId('widgets-world-float')).toBeNull()
   })
 
   it('shows the world summary card when eclosion is on and routes to the launcher today category', () => {
@@ -281,5 +287,51 @@ describe('WidgetRail (STEP 4 Floating System Center)', () => {
     // 容器无独立玻璃底：观感 = 桌面上独立漂浮面板，非连续 Dashboard 侧栏。
     expect(rail.classList.contains('surface-glass')).toBe(false)
     expect(rail.classList.contains('widget-card')).toBe(false)
+  })
+
+  it('ambients the two quiet cards on decorative float layers with staggered delays（2026-10-11 环境抛光）', () => {
+    seedWorld()
+    render(<WidgetRail />)
+
+    // quiet 档两卡（最近通知/今日世界）挂环境慢浮动包装层；包装层常驻
+    // sp-ambient-float 类，不吃指针（容器 none 继承 + 自身显式 none，
+    // 卡片 pointer-events-auto 契约不变）。
+    const notifLayer = screen.getByTestId('widgets-notifications-float')
+    const worldLayer = screen.getByTestId('widgets-world-float')
+    for (const layer of [notifLayer, worldLayer]) {
+      expect(layer.className).toContain('sp-ambient-float')
+      expect(layer.className).toContain('pointer-events-none')
+      expect(layer.className).not.toContain('pointer-events-auto')
+    }
+    // 错峰：通知卡 0s、世界卡 -4.5s（9s 周期半程负延迟 = 反相），不同步晃动。
+    expect(notifLayer.style.animationDelay).toBe('0s')
+    expect(worldLayer.style.animationDelay).toBe('-4.5s')
+    // 浮动挂装饰包装层：卡片测量面（section）自身不挂动画类（红线 10，
+    // E2E 几何探针按静止态测量）。
+    expect(screen.getByTestId('widgets-notifications').className).not.toContain('sp-ambient-float')
+    expect(screen.getByTestId('widgets-world').className).not.toContain('sp-ambient-float')
+    // 时钟/系统卡稳定不浮动（数值可读性优先）：直挂 rail、无包装层包裹。
+    const rail = screen.getByTestId('widget-rail')
+    expect(screen.getByTestId('widgets-clock').parentElement).toBe(rail)
+    expect(screen.getByTestId('widgets-system').parentElement).toBe(rail)
+    // 包装层是 flex 项，接手卡片原 shrink-0 防压缩职责（列高度兜底滚动场景）。
+    expect(notifLayer.className).toContain('shrink-0')
+    expect(worldLayer.className).toContain('shrink-0')
+  })
+
+  it('switches the float layers to the static class when spatial motion is off（motion-prefs 门控）', () => {
+    seedWorld()
+    act(() => {
+      useMotionPrefsStore.getState().setPref('spatialMotion', false)
+    })
+    render(<WidgetRail />)
+
+    // 关档直切：静态类与浮动类共存（同特异性源序必胜，WindowFrame 同口径），
+    // 动画停摆、卡片落回静止位。
+    for (const id of ['widgets-notifications-float', 'widgets-world-float']) {
+      const layer = screen.getByTestId(id)
+      expect(layer.className).toContain('sp-motion-static')
+      expect(layer.className).toContain('sp-ambient-float')
+    }
   })
 })
