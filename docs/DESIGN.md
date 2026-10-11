@@ -1402,7 +1402,9 @@ CSS 互指钉扎纪律不变）。
 > §0–§34 桌面契约冲突时以本节为准，桌面零接触。M1 六片已于 2026-10-08
 > 落地（15d7265→87042df），Home 结构规格见 §35.7。M2 六片已于
 > 2026-10-08/10 落地（4a53934→0c6119e），Bottom Sheet 形态语言、控制
-> 中心与边缘返回手势规格见 §35.8。
+> 中心与边缘返回手势规格见 §35.8。M3 六片已于 2026-10-10/11 落地
+> （e6a5b29→5d180cb），最近任务覆盖层 / PWA 安装条 / Files 长按操作单
+> 规格见 §35.9。
 
 ### 35.1 玻璃克制清单（白名单制）
 
@@ -1415,7 +1417,7 @@ backdrop-filter」）。桌面 §33.1 的七面玻璃材质表不在移动作用
 ### 35.2 safe-area 契约（M0-3/M0-4 已落）
 
 - **声明**：`--safe-top/right/bottom/left`（`env(safe-area-inset-*, 0px)`）
-  只在 `.mobile-shell` 根类上声明（`src/index.css:1114`），**不进
+  只在 `.mobile-shell` 根类上声明（`src/index.css:1123-1128`），**不进
   `:root`/`.dark`**——桌面根上未声明（E2E 钉住空串，`e2e/mobile-shell.spec.ts`
   desktop context）。无刘海视口 env 恒 0。
 - **消费位**（M1 新组件一律走这两类既有消费位，不得自读 env()）：
@@ -1466,14 +1468,14 @@ M1 全部新文案照此办理。
 几何与字号以代码为唯一口径）：
 
 - **状态栏**（`mobile-statusbar-slot` 占位带）：带高 `max(env(safe-area-inset-top),
-  24px)`（`src/index.css:1132`）；`MobileStatusBar` 只在其内铺一行 **11px
-  等宽**读数（`text-[11px] tabular-nums`，`src/mobile/statusbar/MobileStatusBar.tsx:32`）
+  24px)`（`src/index.css:1141`）；`MobileStatusBar` 只在其内铺一行 **11px
+  等宽**读数（`text-[11px] tabular-nums`，`src/mobile/statusbar/MobileStatusBar.tsx:72`）
   ——左系统时钟，右电池（Battery Status API）→ 网络（onLine +
   connection.effectiveType）→ 用户名。数据源全部真实（§0.5）：某项能力
   探测不到**整项隐藏**，绝不显示示例读数；纯指示器无可点目标，§35.3
   不适用。
 - **品牌头**：`px-5 pt-8`，BrandLogo 44 + 品牌名 `text-xl font-semibold
-  tracking-tight` + 标语 `text-xs` muted（`src/mobile/home/MobileHome.tsx:35-55`）
+  tracking-tight` + 标语 `text-xs` muted（`src/mobile/home/MobileHome.tsx:38-59`）
   ——一行轻头部，不是 Landing 页式大居中 Hero（M0 中央占位字随本片退役）。
 - **时段问候**：`pt-7`，正文 15px（`text-[15px]`）；早/午/晚三档纯函数
   （`src/mobile/home/greeting.ts:19-23`，5/11/17 边界左闭右开、夜并入
@@ -1491,18 +1493,19 @@ M1 全部新文案照此办理。
   主体 + `text-xs` truncate 标签，整格命中 ≥44×44（`src/mobile/home/RecentApps.tsx:56-62`）；
   recent 为空或前 4 全解析失败时**整块连标题缺席**（:37）。
 - **应用网格**：`mt-7 px-5 pb-2`，**4 列** grid；徽章 **56px**（切片带
-  52–64px）+ 标签 `text-xs`，整格命中 ≥44×44（`src/mobile/home/MobileAppGrid.tsx:58-62`）；
+  52–64px）+ 标签 `text-xs`，整格命中 ≥44×44（`src/mobile/home/MobileAppGrid.tsx:97-106`）；
   排序 = 常量优先序在前、其余按本地化展示名排后（`src/mobile/shared/mobile-app-order.ts:16-24`）；
   注册表空时整块缺席。当前全量直渲不分页（M2-1 已落独立启动器抽屉、
   网格保持全量直渲不变，抽屉规格见 §35.8）。
 - **Dock**：坐 `mobile-dock-slot` 预留带（`max(env(safe-area-inset-bottom),
-  12px)`，`src/index.css:1138`）**上方**、本体零 env 消费；玻璃口径 =
+  12px)`，`src/index.css:1147`）**上方**、本体零 env 消费；玻璃口径 =
   §35.1 白名单 Dock 位的唯一玻璃层 `surface-glass` 基底 + `glass-raise`
   （blur 20px 档，`src/index.css:571`）+ `border-t` 发丝边，清单外零 blur。
   固定 **5 位** = Home 复位（44×44 中性瓷贴 `rounded-[24%]` + 白细环、
-  House 24——Shell 动作，不进应用徽章体系）+ Files / Notes / 今日世界 /
+  House 24——Shell 动作，不进应用徽章体系；M3-2 起长按/上滑兼作最近
+  任务入口，见 §35.9）+ Files / Notes / 今日世界 /
   Settings（AppIcon 44，`src/mobile/shared/mobile-dock-slots.ts:15-20`）；
-  列内 `px-2 py-1.5 justify-around`，每格命中 ≥44×44（`src/mobile/dock/MobileDock.tsx:58-98`）；
+  列内 `px-2 py-1.5 justify-around`，每格命中 ≥44×44（`src/mobile/dock/MobileDock.tsx:92-143`）；
   当前位 2×16px primary 指示条 + `aria-current`（桌面 Dock 同一 Active
   指示语言）；位上应用不在册该位不渲染（禁止死按钮优先于固定 5 位）。
 - **空态隐藏原则（全 Home 通用铁律）**：无数据不建可点死元素——今日
@@ -1510,7 +1513,7 @@ M1 全部新文案照此办理。
   应用网格（注册表空）、Dock 位（不在册）四处门控全部在组件内部，
   **缺席即状态**，Home 其余区块照常；禁止空壳容器与占位骨架。
 - 触控目标收口：以上全部可点元素命中区 ≥44×44px（§35.3）；全屏应用视图
-  （AppHost）的返回键同为 44×44（`src/mobile/app/MobileAppHost.tsx:202`）。
+  （AppHost）的返回键同为 44×44（`src/mobile/app/MobileAppHost.tsx:270`）。
 
 ### 35.8 Bottom Sheet 形态语言、控制中心与边缘返回规格（M2 六片落地，2026-10-08/10）
 
@@ -1521,10 +1524,10 @@ M1 全部新文案照此办理。
 
 - **玻璃口径（§35.1）**：白名单「Bottom Sheet」位的唯一玻璃层 =
   `surface-glass` 基底 + `glass-raise`（与 Dock 同档 blur 20px，
-  `src/index.css:571`）+ `rounded-t-2xl` 顶部发丝边；sheet 锚底升出、
+  `src/index.css:577`）+ `rounded-t-2xl` 顶部发丝边；sheet 锚底升出、
   `max-h-[80%]` 给 Home 留呼吸（`MobileLauncher.tsx:123-130`，三张同构）；
   顶部抓手条 `h-1 w-9` 纯装饰（aria-hidden）。backdrop 是**纯色压暗遮罩
-  （非玻璃、零 blur）**（`rgb(15 23 42 / 45%)`，`src/index.css:1362`）。
+  （非玻璃、零 blur）**（`rgb(15 23 42 / 45%)`，`src/index.css:1267`）。
 - **开关状态机与退场**：`closed/open/leaving` 三相位——`open→false` 不经
   null 空档、退场帧与原树同一 commit 接续（input 不重挂、关闭回焦触发器
   不被抢），leaving 播完 200ms 再卸载，期间 `pointer-events-none +
@@ -1564,7 +1567,89 @@ M1 全部新文案照此办理。
   （`--ag-motion-fast` 档 ease-in）、取消回弹 200ms（base 档）；转场关档
   或 prefers-reduced-motion（落下时实时探测）→ 直切。`[data-no-edge-back]`
   标记面 = 横向滚动逃生口（hook 整体豁免 + CSS 对该面及后代重放 pan-x，
-  `src/index.css:1178-1180`）。挂载点与系统映射见 ARCHITECTURE.md §3.25。
+  `src/index.css:1187-1190`）。挂载点与系统映射见 ARCHITECTURE.md §3.25。
+
+### 35.9 最近任务覆盖层、PWA 安装条与 Files 长按操作单规格（M3 六片落地，2026-10-10/11）
+
+M3 的三张新面共用 §35.8 的形态语言（`closed/open/leaving` 三相位、退场
+不经 null 空档、backdrop 纯色压暗零 blur、200ms 只动 transform/opacity、
+motion-prefs「窗口切换转场」关档 `*-static` 直切、关闭回焦触发器）；
+架构映射（多 App View 模型 / 手势家族 / PWA 双分支）见 ARCHITECTURE.md
+§3.25 M3 段，此处只钉视觉与交互规格。
+
+- **最近任务覆盖层（M3-2，`src/mobile/recents/MobileRecentsSheet.tsx`）**：
+  第四张 Bottom Sheet，挂 Shell 根 `fixed inset-0 z-20`（Home 与应用视图
+  之上，与状态栏两张 sheet 同层语义）。玻璃口径（§35.1）= Bottom Sheet
+  白名席位——`surface-glass + glass-raise`（Dock 同档 blur 20px）+
+  `rounded-t-2xl` 顶部发丝边，锚底升出 `max-h-[80%]`、抓手条 `h-1 w-9`
+  纯装饰；backdrop 纯色压暗（`src/index.css:1460`）。卡片 = `h-28 w-44
+  rounded-2xl` 实色 `--ag-surface-raised` + `border-subtle`（**白名单外
+  零 blur**），AppIcon 40 + 名称 `text-sm` + 打开时间 `text-[11px]
+  tabular-nums`（`<time dateTime>` 语义标记），呈现序 = 打开序反转
+  （新→旧）；横向轨道 `overflow-x-auto + overscroll-contain`，
+  轨道与卡片 `touch-action: pan-x`（`src/index.css:1517-1521`）——纵向
+  拖拽无原生滚动面可认领、归卡片上滑关闭手势，横向归轨道原生横滚
+  （两轴正交，冲突在 touch-action 划界上消解）。**触控 ≥44px（§35.3）**：
+  卡片整格可点、右上删除钮 44×44、标题行「全部关闭」`min-h-[44px]`
+  （只在有卡片时在场——空态死按钮禁令）。**手势阈值**（卡片上滑关闭，
+  `recents-card-decision.ts:21-25` 默认档）：上滑位移 > **64px**（约一个
+  卡片高）**或**甩动 ≥ **0.5px/ms**（150ms pointermove 滑动窗口，与
+  边缘返回同档）即确认；跟手上移钳 **120px**，确认滑出 120ms
+  （ease-in 档 `cubic-bezier(0.55, 0, 1, 0.45)`）、取消回弹 200ms
+  （`use-recents-card-dismiss.ts:51-54`）；轴向裁决复用 swipe-up 的
+  classifyVerticalDrag（家族同一套轴向语义）。**空态整层不可达**：
+  入口档在 Dock Home 位（无已开应用时长按/上滑不分发），兜底档在
+  sheet（开着时记录清空立即退场，不留空壳层）。关闭回焦 Dock Home 位
+  触发器（`MobileShell.tsx:87-90`，经 testid 定位）。
+- **Dock Home 位三动作手势（M3-2 入口）**：短按 = 原生 click 回 Home
+  （hook 不拦截不复制）；长按 **500ms** 驻留（位移死区 **10px**，出死区
+  取消）或上滑 **24px** 且上滑分量大于横向 → 打开最近任务
+  （`dock-home-gesture.ts:35-39` 默认档）。无跟手动画（按钮不位移、
+  零逐帧 DOM 工作）；确认后一次性吞 click（50ms 没等到自拆）；Home 位
+  带 `data-no-edge-back` + `select-none`——起于 Home 位的手势归本位
+  （M3-1 zone 级上滑在该起点让位），长按文本选择 callout 压掉。
+- **PWA 安装条（M3-3，`src/mobile/pwa/MobileInstallBar.tsx`）**：Home
+  尾部非侵入位（`mx-5 mt-7 mb-2`，随内容滚动、不遮任何入口，应用视图
+  不挂载）——**不在玻璃白名单**：Today 卡同款实色卡面（`--ag-surface-raised`
+  + `border-subtle` + `rounded-2xl p-4`，§35.1 清单外零 blur，不引入）。
+  双分支呈现：**chromium 分支**（捕获到 beforeinstallprompt）= 标题
+  `text-sm` semibold + 描述 `text-xs` + 「安装」整宽钮 `min-h-[44px]`
+  primary 色（pending 禁用防重复消费；浏览器对话框取消 → 安装钮退场换
+  `text-xs` 结果反馈行——prompt 已消费，再点必败是死按钮）；**iOS 指引
+  分支** = 两步有序文案（分享 → 添加到主屏幕，`<ol>` 列表），无可点
+  安装钮——不摆假按钮。关闭钮 44×44 叠卡片右上角（RecentsCard 删除钮
+  同款布局），dismiss 记 localStorage 版本键永不再打扰；hidden 分支
+  整条缺席（缺席即状态）。
+- **Files 长按操作单（M3-6，`src/apps/files/FileActionSheet.tsx`）**：
+  第五张同构 Bottom Sheet，`fixed inset-0 z-[70]`（盖过应用宿主 z-10
+  与最近任务 z-20）；玻璃口径 = Bottom Sheet 白名席位同款
+  `surface-glass + glass-raise` + 发丝边 + 抓手条，backdrop 纯色压暗
+  （`src/index.css:1538`）。面板 = 目标名行（`text-xs` muted，长按后
+  浮层盖住原行、让用户明确在操作谁）+ 动作清单（每行 `min-h-[44px]`
+  §35.3，Phosphor 图标 18 + `text-sm`；**删除/彻底删除 danger 色**——
+  工具栏同语言）+ 分隔线 + 取消行 `min-h-[44px]`（backdrop/Esc 之外的
+  第三条关闭路）。动作子集随视图切换（浏览：打开/重命名/删除；回收站：
+  还原/彻底删除；根级受保护条目不摆删除——`file-actions.ts:32-37`
+  纯函数钉住），执行全走 Files 既有逻辑零新业务；关闭回焦长按行
+  （动作关闭不走回焦——重命名 PromptDialog 要 autoFocus）。**手势阈值**
+  （`long-press-decision.ts:22-25` 默认档）：驻留 **500ms** 确认 /
+  位移容忍 **10px**（超限 = 滚动意图取消，pointercancel 静默复位）；
+  与「首击选中、再击打开」共存——阈值内抬起 = 正常点击（click 抑制器
+  从未挂上）。仅窄容器分支启用（委托宿主 = 应用根，行上窄容器才渲染
+  `data-entry-id`），桌面宽容器此组件永不渲染。
+- **共享弹层触控作用域（M3-4）**：`src/components` 共享弹层
+  （PermissionConsentDialog 等 Store 安装确认流）不在 `src/apps/**`
+  窄容器适配范围，由 `.mobile-shell [role='dialog'] button/label`
+  壳作用域把可点目标命中区抬到 ≥44px（`src/index.css:1254-1256`）——
+  §35.3「移动作用域内一切可点击目标」的收口条款，桌面无 `.mobile-shell`
+  祖先零接触。
+- **手势阈值速查（移动 Shell 全家族，判定纯函数各自单测钉扎）**：
+  边缘返回（M2-4）左缘 24px / 死区 10px / 过半 0.5 或甩动 0.5px/ms；
+  底缘上滑（M3-1）带 72px / 距离 0.15 视口高或甩动 0.5px/ms / 跟手钳
+  80px；Dock Home 位（M3-2）长按 500ms / 死区 10px / 上滑 24px；最近
+  任务卡片（M3-2）上滑 64px 或甩动 0.5px/ms / 跟手钳 120px；长按操作单
+  （M3-6）驻留 500ms / 容忍 10px。共同纪律见 ARCHITECTURE.md §3.25
+  M3 手势家族段。
 
 ## 36. 空间窗口层（Spatial Window System，2026-10-10 五项用户裁决落地）
 

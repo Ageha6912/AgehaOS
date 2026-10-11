@@ -52,7 +52,7 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web Desktop」
 
 ### 📱 Mobile Web / Mobile Shell
 
-同一套 OS Core 的移动形态：手机与平板打开 os.ageha.cn（或安装为 PWA）时渲染独立的 **MobileShell**——safe-area 三段骨架（状态栏 / 内容区 / Dock）+ 竖屏壁纸构图 + 全屏应用视图；桌面照旧渲染 Desktop Shell。**双 Shell、同一 Core**：窗口管理器、VFS、权限、应用注册表、i18n 与启动门禁（`launchApp`）完全共享，只有容器层分壳（桌面容器不进移动）。设备判定集中在 core 纯 TS 探针，`App.tsx` ready 分支单点切换（[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §3.25）。Milestone 0 落 Shell 选择 / safe-area / PWA 地基，Milestone 1 六片补齐 **Home Shell**：**状态栏**（真实时钟/电量/网络/用户读数，能力不可用整项隐藏，绝不显示示例数据）、**今日世界卡**（羽化世界摘要一行读出，「查看世界」直达，无数据整卡隐藏）、**最近使用**（usage-store 最新 4 条）、**应用网格**（全量已安装应用 4 列）、**Dock**（Home 复位 + Files/Notes/今日世界/Settings 固定 5 位，唯一玻璃层）、**全屏应用**（任意入口直达真实启动——显式全屏几何开窗、浏览器返回键返回 Home 不退出站点、离开视图即关窗）。Milestone 2 六片补齐**系统面**：**应用抽屉启动器**（网格标题行搜索打开 Bottom Sheet，全量应用 + 实时搜索）、**通知中心**（状态栏铃铛 Bottom Sheet，与桌面共享同一 notification-store，打开即全部已读，桌面通知中心零改动）、**控制中心**（状态栏入口 Bottom Sheet——主题/字号/语言/减弱动效/登出，全部改既有 store 即全局生效的真实开关）、**边缘返回手势**（左缘 24px 滑入、过半或甩动确认，与返回键同一 backToHome 出口）、**Files/Notes/Settings 窄容器适配**（560px 容器断点：侧栏收起为目录 chip 行、列表↔详情单面切换、首击选中再击打开；桌面宽容器行为零变化）。视觉契约见 [docs/DESIGN.md](docs/DESIGN.md) §35（sheet / 控制中心 / 手势规格 §35.8）。
+同一套 OS Core 的移动形态：手机与平板打开 os.ageha.cn（或安装为 PWA）时渲染独立的 **MobileShell**——safe-area 三段骨架（状态栏 / 内容区 / Dock）+ 竖屏壁纸构图 + 全屏应用视图；桌面照旧渲染 Desktop Shell。**双 Shell、同一 Core**：窗口管理器、VFS、权限、应用注册表、i18n 与启动门禁（`launchApp`）完全共享，只有容器层分壳（桌面容器不进移动）。设备判定集中在 core 纯 TS 探针，`App.tsx` ready 分支单点切换（[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §3.25）。Milestone 0 落 Shell 选择 / safe-area / PWA 地基，Milestone 1 六片补齐 **Home Shell**：**状态栏**（真实时钟/电量/网络/用户读数，能力不可用整项隐藏，绝不显示示例数据）、**今日世界卡**（羽化世界摘要一行读出，「查看世界」直达，无数据整卡隐藏）、**最近使用**（usage-store 最新 4 条）、**应用网格**（全量已安装应用 4 列）、**Dock**（Home 复位 + Files/Notes/今日世界/Settings 固定 5 位，唯一玻璃层）、**全屏应用**（任意入口直达真实启动——显式全屏几何开窗、浏览器返回键返回 Home 不退出站点、离开视图即关窗）。Milestone 2 六片补齐**系统面**：**应用抽屉启动器**（网格标题行搜索打开 Bottom Sheet，全量应用 + 实时搜索）、**通知中心**（状态栏铃铛 Bottom Sheet，与桌面共享同一 notification-store，打开即全部已读，桌面通知中心零改动）、**控制中心**（状态栏入口 Bottom Sheet——主题/字号/语言/减弱动效/登出，全部改既有 store 即全局生效的真实开关）、**边缘返回手势**（左缘 24px 滑入、过半或甩动确认，与返回键同一 backToHome 出口）、**Files/Notes/Settings 窄容器适配**（560px 容器断点：侧栏收起为目录 chip 行、列表↔详情单面切换、首击选中再击打开；桌面宽容器行为零变化）。Milestone 3 六片补齐**手势与多窗**：**底缘上滑唤起启动器**（Dock 区上滑或快速上甩打开应用抽屉，与搜索按钮同一出口）、**最近任务切换器**（Dock Home 位长按/上滑打开卡片轨道——点卡片切回已开应用、卡片上滑或删除钮关闭单应用、支持全部关闭；窗口常驻后台，切回不重启）、**PWA 安装条**（Chromium 走真实 `beforeinstallprompt` 安装流，iOS 给「添加到主屏幕」两步指引；已安装或关闭后不再打扰）、**Files 长按操作单**（长按文件行弹出 打开/重命名/删除 操作单，回收站为 还原/彻底删除，动作执行与桌面同一条代码路径）、**Calculator/Store/Terminal/今日面板窄容器适配**（按键与卡片触控化、软键盘避让）。视觉契约见 [docs/DESIGN.md](docs/DESIGN.md) §35（sheet / 控制中心 / 手势规格 §35.8，最近任务 / 安装条 / 长按操作单 §35.9）。
 
 ## 快速开始
 
@@ -117,7 +117,7 @@ server/              # Fastify 5 后端（认证 / AI 代理 / 羽化编排 / �
 
 ## 测试与质量基线
 
-**~1220 前端单测（Vitest，123 文件）+ 后端测试（11 文件）+ 部署库测试 + Playwright E2E 全域**，四道门禁（`typecheck / lint / test / test:e2e`）全绿才交付；CI 对 push/PR 跑同一门禁。协作与质量约定见 [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)。
+**~1686 前端单测（Vitest，164 文件）+ 后端测试（11 文件）+ 部署库测试 + Playwright E2E 全域**，四道门禁（`typecheck / lint / test / test:e2e`）全绿才交付；CI 对 push/PR 跑同一门禁。协作与质量约定见 [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)。
 
 ## 文档
 

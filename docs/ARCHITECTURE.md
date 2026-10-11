@@ -265,7 +265,7 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
   `app-deep-link.ts` 的模块级一次性意图范式（launch 前写入、打开时取走即清），
   不为深链扩 store 数据结构。
 
-### 3.25 双 Shell 架构（`src/mobile`，Milestone 0 五片 + M1 六片 + M2 六片，2026-10-07/10）
+### 3.25 双 Shell 架构（`src/mobile`，Milestone 0 五片 + M1 六片 + M2 六片 + M3 六片，2026-10-07/11）
 
 > M0 切片与提交：M0-1 设备能力探针 `1f7a2e4` → M0-2 Shell Selection
 > `a1ff3c3` → M0-3 Mobile Shell Root `d789ece` → M0-4 Safe Area `0896122`
@@ -281,6 +281,13 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
 > `0c6119e`（另测试基建 `77a2686`：vitest workers 封顶，Windows 门禁
 > 内存护栏）。Sheet/控制中心/边缘返回视觉规格见 DESIGN.md §35.8；
 > 窄容器适配契约见本节末。
+> M3 切片与提交（手势与多窗六片）：M3-1 上滑唤起启动器 `e6a5b29` →
+> M3-2 最近任务切换器 `60f4215`（`c610783` 自误收提交移出桌面域文件、
+> `b4dab41` 补 i18n 词典）→ M3-3 PWA 安装提示 `5f7ee1c` → M3-4
+> Calculator/Store 窄容器 `1317240` → M3-5 Terminal/今日面板窄容器
+> `72a2d0e` → M3-6 Files 长按操作单 `5d180cb`。最近任务多 App View
+> 模型、手势家族与 PWA 双分支见本节末 M3 段；安装条/长按操作单视觉
+> 规格见 DESIGN.md §35.9。
 
 - **单点切换**：Shell 的选择全仓库只有一处——`App.tsx` 的 ready 分支
   （`shell === 'mobile' ? <MobileShell /> : <Desktop />`，`src/App.tsx:30`）。
@@ -313,12 +320,13 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
   M1 填充——`MobileStatusBar`（真实数据源，能力不可用整项隐藏）、
   `MobileHome`（品牌头/问候/今日世界卡/最近使用/应用网格，结构规格
   DESIGN.md §35.7）、`MobileDock`（固定 5 位）。导航位置升级为
-  `{view:'app', appId, windowId}`（`src/store/mobile-nav-store.ts:21-23`，
-  windowId = launchApp 返回值，null = 启动未落地），store 依旧不调
+  `{view:'app', appId, windowId}`（`src/store/mobile-nav-store.ts:37-39`，
+  windowId = launchApp 返回值，null = 启动未落地；M3-2 起另持 `apps`
+  已开应用记录，见下方 M3 段），store 依旧不调
   launchApp——映射全部由 `src/mobile/app/MobileAppHost.tsx` 执行：
   - **启动链（openApp → launchApp → app.started）**：Home/Dock/今日世界卡
     各入口 `openApp(appId)`（同位置等值跳过）→ AppHost 启动 effect
-    （`MobileAppHost.tsx:103-124`）读 device-store viewport，以**显式全屏
+    （`MobileAppHost.tsx:166-187`）读 device-store viewport，以**显式全屏
     几何** `{x:0, y:0, width, height}` 调 `launchApp(appId, geometry,
     'user')`，返回 windowId 经 `setAppWindow` 记入 nav store。显式几何的
     口径：`launch.ts` 只在**无**显式几何时做桌面级联居中与工作区钳制
@@ -334,21 +342,26 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
   - **关闭链（backToHome → window close → app.stopped，三路同归）**：
     backToHome / 切换 appId / 宿主窗口被外部关闭（羽化举报编排器关窗等）
     都收敛为「nav 不再引用的 windowId 立即 `useWindowStore.close`」
-    （`MobileAppHost.tsx:79-100`，关窗 effect 刻意先于启动 effect 声明，
+    （M1 时点 `MobileAppHost.tsx:79-100`，关窗 effect 刻意先于启动 effect 声明，
     同一 commit 内先关旧窗再启新窗）+「window-store 查无此窗即强制回
-    home」的僵尸哨兵（`MobileAppHost.tsx:126-137`）——单窗口与视图同生
+    home」的僵尸哨兵（M1 时点 `:126-137`）——单窗口与视图同生
     共死，app.stopped 派生自然正确。window-store open 恒新开（无去重），
     从 Home 再进同一应用 = 新 windowId；同视图重复点击同一 appId 由 nav
     store 等值跳过，不重复 launch。退场渲染滞后一拍：home 立即可交互，
     应用面板带 `data-state='leaving'` 播完 200ms（`--ag-motion-base`）
-    再卸载，期间 pointer-events-none + aria-hidden。
+    再卸载，期间 pointer-events-none + aria-hidden。**M3-2 起本段两条旧
+    语义（「离开宿主位即关窗」「再进同一应用 = 新 windowId」）随窗口
+    常驻退役，重推演为「窗口与视图解耦」的多 App View 模型（见下方 M3
+    段）；僵尸哨兵保留并扩展到后台记录（`MobileAppHost.tsx:136-147`）。**
   - **popstate 返回契约（PRD §24.2）**：进入应用视图 pushState 一条同
-    文档栈位（`MobileAppHost.tsx:141-160`），popstate 只消化「退出应用」
+    文档栈位（`MobileAppHost.tsx:189-226`；M3-2 起扩双档——最近任务
+    覆盖层打开时再压自己的栈位，返回键**先关覆盖层**、应用栈位不被
+    花掉，popstate 消费者唯一 = AppHost，见 M3 段），popstate 只消化「退出应用」
     → backToHome——返回键落在自己的栈位上，**不把用户退出 AgehaOS**；
     UI 返回键不调 history.back（避免双跳），同一应用的连续帧不重复压栈。
   - **失败路径与内容路由**：launchApp 返回 null（manifest 缺席 / 权限
     门禁拒绝）直接 backToHome，`permission.denied` 由既有
-    notification-bridge 转通知，不造新机制（`MobileAppHost.tsx:117-121`）。
+    notification-bridge 转通知，不造新机制（`MobileAppHost.tsx:180-184`）。
     内容路由与桌面 WindowFrame 同序复用（能力复用、容器不复用）：
     `componentFor` → `EclosionAppFrame`（先于 Type B 判定）→
     `WebAppFrame`（allowlist）→ `MissingApp`，外层 AppErrorBoundary，
@@ -404,7 +417,7 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
     不敏感子串**（注册表数据、locale 无关），不复刻桌面启动器的展示名
     三路匹配（`MobileLauncher.tsx` 模块注释「桌面启动器的展示名语义不在
     此复刻」）。入口 = Home 应用网格标题行搜索按钮
-    （`src/mobile/home/MobileAppGrid.tsx:71-85`，开关状态归网格组件、
+    （`src/mobile/home/MobileAppGrid.tsx:77-92`，开关状态归网格组件、
     关闭回焦触发器）；点击列表项 = `mobile-nav-store.openApp` + onClose
     ——导航语义不变，真实启动/权限门禁仍归 M1-6 AppHost。
   - **移动通知中心（M2-2）**：`src/mobile/notifications/
@@ -436,14 +449,16 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
     pointer 采集 + rAF 节流（拖动全程零 React render）；甩动速度 =
     释放时由 **150ms pointermove 事件滑动窗口**一次求出（不用 rAF 采样
     落点，`use-edge-back.ts:76`）。**挂载点唯一** = MobileAppHost 宿主
-    面板（`src/mobile/app/MobileAppHost.tsx:97-103`，`enabled =
+    面板（`src/mobile/app/MobileAppHost.tsx:111-117`，`enabled =
     view==='app'`），确认回调 = `backToHome`——与返回键/popstate 同一
     出口、不绕过 nav store。降级：motion-prefs 转场关档（followMotion
     false）或 prefers-reduced-motion（pointerdown 时实时探测）→ 判定
     不变、确认直切。冲突防护：`.mobile-app-host` 子树 `touch-action:
-    pan-y`（`src/index.css:1174-1180`）保纵向滚动；真横向滚动面必须
+    pan-y`（`src/index.css:1185-1191`）保纵向滚动；真横向滚动面必须
     标记 `[data-no-edge-back]`（hook 整体豁免 + CSS 重放 pan-x），首个
-    消费方 = Files 窄容器目录 chip 行与工具栏行（`FileManager.tsx:316/368`）。
+    消费方 = Files 窄容器目录 chip 行与工具栏行（`FileManager.tsx:371/423`；
+    M3-2 起最近任务卡片轨道与 Dock Home 位、M3-6 起 Files 长按委托根
+    同用此逃生口，见 M3 段）。
   - **共享应用组件窄容器适配契约（M2-5/M2-6）**：`src/apps/use-narrow-container.ts`
     ——ResizeObserver 观测应用根元素内容盒，`width <
     APP_NARROW_BREAKPOINT(560)` 即 narrow（`use-narrow-container.ts:34`）。
@@ -459,7 +474,7 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
     测试零改动；窄分支用例 stub 显式喂宽，真实几何归 E2E）。分支面：
     **Files**（M2-5）固定侧栏收起为顶部目录 chip 行 + 工具栏溢出改本行
     横滚（360px 视口操作簇 min-content ~454px 全在视口外）+ 主列表
-    **首击选中、再击打开**（触屏 dblclick 派发不可靠，`FileManager.tsx:534-545`）；
+    **首击选中、再击打开**（触屏 dblclick 派发不可靠，`FileManager.tsx:589-604`）；
     **Notes/Settings**（M2-6）「列表↔详情」单面切换而非上下堆叠（编辑器
     要整幅纵向空间；`NotesApp.tsx:247-260`、`SettingsApp.tsx:125`）——
     选中/新建/保存等底层流程宽窄同一条代码路径，窄分支只追加「切面」；
@@ -475,6 +490,121 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
     `SettingsApp` 窄容器组；E2E `e2e/mobile-launcher|mobile-notifications|
     mobile-control-center|mobile-edge-back|mobile-files|
     mobile-notes-settings.spec.ts`。
+- **M3 六片落地与多 App View 模型（2026-10-10/11）**：手势家族 + 最近任务
+  多窗 + PWA 安装提示 + 窄容器二批（Calculator/Store/Terminal/今日面板）
+  + Files 长按操作单。M2 顺延的 manifest `mobile` 块与 §35.4 竖屏壁纸
+  object-position 本轮**仍未消费/未动**。
+  - **最近任务的多 App View 切换模型（M3-2，窗口与视图解耦）**：
+    `mobile-nav-store` 形状升级为 `nav`（M1 二值位置不变）+ `apps:
+    MobileAppRecord[]`（`{appId, windowId, openedAt}` 打开序旧→新，
+    `src/store/mobile-nav-store.ts:41-52`）——`apps` 是窗口存活期的数据面，
+    也是最近任务卡片的唯一数据源（另开 `mobile-recents-store` 只放覆盖层
+    开合，store 间零 import 纪律不动，`src/store/mobile-recents-store.ts:14-18`）。
+    核心语义三条件：① **单实例**——`openApp` 命中活记录 = 切回已有
+    windowId（`mobile-nav-store.ts:76-79`，不重开），`setAppWindow` upsert
+    替换同 appId 旧记录（`:81-95`），M1「再进同一应用 = 新 windowId」退役；
+    ② **关窗动作 = 纯状态移除**——`closeApp/closeAllApps/backToHome` 只动
+    记录与 nav，真实 `useWindowStore.close` 由 AppHost 挂载一次的
+    记录 diff 订阅执行（removed windowId → close，`MobileAppHost.tsx:123-131`）
+    ——**app.stopped 派生保持**：仍由 `systemAppLifecycle` 从 window.created/
+    closed 的 0→1/1→0 跳变派生（`core/runtime/app-lifecycle.ts:28-41`），
+    store 不反向依赖 UI、零新事件；③ **僵尸哨兵扩展**——window-store 查无
+    此窗的记录随时修剪，宿主位被剪 → 回 home，后台记录被剪（外部关窗）→
+    卡片不显死窗（`MobileAppHost.tsx:136-147`）。启动链不变：windowId 为
+    null 才 launchApp（切回路径 effect 不触发）。**最近任务覆盖层**
+    （`src/mobile/recents/MobileRecentsSheet.tsx`）= M2 sheet 同构的第
+    四张 Bottom Sheet（三相位/退场滞后/玻璃档全同），卡片呈现序 = apps
+    反转（新→旧），点卡 `switchToApp` 切回 + 关层、卡片上滑或 44×44 删除
+    钮 `closeApp`、「全部关闭」`closeAllApps`；**空态整层不可达分两档**——
+    入口档在 Dock（apps 为空时长按/上滑不分发，`MobileDock.tsx:70-79`），
+    兜底档在 sheet（开着时记录清空立即退场，`MobileRecentsSheet.tsx:160-162`）。
+    **唯一入口 = Dock Home 位长按/上滑**（`src/mobile/dock/use-dock-home-gesture.ts`
+    ——短按仍是原生 click 回 Home 不拦截，长按 500ms/上滑 24px 且上滑
+    分量为主开最近任务，`dock-home-gesture.ts:35-39`；确认后一次性吞
+    click，50ms 没等到自拆）；Home 位按钮带 `data-no-edge-back` 让
+    M3-1 的 zone 级上滑在该起点让位（`MobileDock.tsx:97`）。
+    **popstate 双档层级**：进入应用压应用栈位，覆盖层打开再压覆盖层
+    栈位，返回键**先关覆盖层**（应用栈位不被花掉），UI 关层不调
+    history.back（`MobileAppHost.tsx:189-226`，popstate 消费者唯一）。
+  - **手势家族（判定纯函数 + 采集 hook 两段式，冲突防护同款纪律）**：
+    - `use-edge-back`（M2-4，见上）：左缘 24px 横向拖拽 → backToHome。
+    - `use-swipe-up`（M3-1，`src/mobile/gesture/swipe-up-decision.ts:32-38`
+      默认档）：**底缘 72px** 激活带（Dock 本体 + safe-area 预留带的
+      `mobile-dock-zone` 包裹层）纵向拖拽 → 打开启动器抽屉；距离确认
+      **视口高 × 0.15** 或甩动 **0.5px/ms**（同一 150ms pointermove 滑动
+      窗口），跟手上抬钳 80px。**挂载点刻意不挂全局**——内容区纵向原生
+      滚动与此手势同为垂直方向，冲突在挂载点的空间隔离上消解（Dock 与
+      预留带均不可滚动），`MobileShell.tsx:92-99` `enabled = home 且
+      Launcher 关`；`.mobile-dock-zone` 声明 `touch-action: none`（否则
+      Chromium 第一拍 touchmove 把底缘拖拽认领给原生滚动尝试、pointer
+      被 pointercancel 吃掉，`src/index.css:1200-1202`）。开合走
+      `mobile-launcher-store`（`src/store/mobile-launcher-store.ts`）——
+      与网格标题行搜索按钮同一出口，桌面 launcher-store 多入口共享面板
+      的同一模式。
+    - `use-long-press`（M3-6，`src/mobile/gesture/long-press-decision.ts:22-25`
+      默认档）：驻留 **500ms** 确认 / 位移容忍 **10px**（超限 = 滚动意图
+      取消，pointercancel 同样静默复位）；**容器委托**（监听挂 Files 应用
+      根，`FileManager.tsx:258-270`，命中解析靠窄容器行上的
+      `data-entry-id`）；与「首击选中、再击打开」共存——阈值内抬起 =
+      正常点击（click 抑制器从未挂上），确认且消费后才吞紧随 click；
+      touch/pen 驻留期间 `contextmenu` preventDefault（Android 长按
+      系统菜单让位），鼠标右键不拦。
+    - 家族共同纪律：判定全在纯函数（jsdom 喂坐标单测）、hook 全程零
+      React render（状态全在 ref，跟手型走 rAF 直写 transform）、只响应
+      touch/pen、激活前不 setPointerCapture/preventDefault（M2-4 坑）、
+      一次性 click 抑制器 50ms 自拆（死按钮禁令）、`data-no-edge-back`
+      = 「该面的指针交互归该面」的统一逃生口、motion-prefs 关档或
+      prefers-reduced-motion 直切（手势是功能、动画是增强）。
+  - **PWA 安装提示双分支（M3-3）**：`src/mobile/pwa/` 三段——判定纯函数
+    `install-prompt-decision.ts`、事件 hook `use-install-prompt.ts`、呈现
+    `MobileInstallBar.tsx`（Home 尾部非侵入位，`MobileHome.tsx:85`）。
+    **分支裁决**（`install-prompt-decision.ts:40-45`）：standalone/已安装/
+    已 dismiss → hidden；捕获到 `beforeinstallprompt`（deferred prompt
+    在册）→ **chromium 分支**（事件在场即能力在场，真实事件优先于平台
+    推断）；无事件且 `isIos`（device-store 能力位，M3-3 探针新增
+    `device-capabilities.ts:200`）→ **iOS 指引分支**（分享 → 添加到主
+    屏幕两步文案，无可点安装钮——iOS 无 web 安装 API，指引即能力的
+    全部）；其余（Firefox 等）→ hidden。hook 侧 `preventDefault` 抑制
+    Chromium 自带 mini-infobar 由安装条接管（`use-install-prompt.ts:83-104`），
+    prompt() 相位机 idle/pending/accepted/dismissed——浏览器对话框取消后
+    同事件不能再弹，安装钮退场换结果行（死按钮禁令），prompt() 抛错撤销
+    在册 prompt 整条退场（`:106-131`）；dismiss 写 localStorage 版本键
+    `agehaos.mobile.pwa.installDismissed.v1`（改版文案 bump 版本段自然
+    失效旧关闭记录，`install-prompt-decision.ts:52`）。平台判定零新增
+    ——只读 device-store 快照（UA/显示模式判断仍在 core 探针，架构铁律）。
+  - **窄容器二批与 Files 长按操作单（M3-4/M3-5/M3-6）**：M2-5/M2-6 契约
+    （560px 断点、禁视口 media query、宽容器等价、≥44px）原样铺开——
+    **Calculator/Store**（M3-4，`1317240`：按键网格触控化 / 卡片内部转
+    单列）+ **Terminal/今日面板**（M3-5，`72a2d0e`：Terminal 窄容器
+    16px 正文 + 输入 `min-h-[44px]` + **软键盘避让**——`keyboard-inset.ts`
+    纯函数 = 布局视口高 − visualViewport 可视段，窄容器 + 触屏才挂
+    resize/scroll 监听；DynamicPanel 卡片单列）+ **Files 长按操作单**
+    （M3-6，`5d180cb`：`src/apps/files/FileActionSheet.tsx` = 第五张同构
+    Bottom Sheet，动作子集纯函数 `file-actions.ts:32-37`——浏览视图
+    打开/重命名/删除、回收站还原/彻底删除、根级受保护条目不摆删除，
+    执行全走既有 selectedId 处理函数零新业务；仅窄容器启用，桌面宽容器
+    永不渲染、桌面右键菜单零接触——桌面 Files 本无逐行右键菜单）。
+    `src/components` 共享弹层（PermissionConsentDialog 等）不在
+    `src/apps/**` 豁免范围，由 `.mobile-shell [role='dialog']` 壳作用域
+    把可点目标命中区抬到 ≥44px（`src/index.css:1242-1256`，桌面无
+    `.mobile-shell` 祖先零接触）。
+  - M3 顺延：manifest `mobile` 块（orientation/presentation）**十二片
+    均未消费**；§35.4 竖屏壁纸 object-position 未动；iOS 真机「添加到
+    主屏」全流程与软键盘避让真机实测待办（E2E 只过 Chromium 模拟）。
+  - 测试与 E2E（M3 增补）：单测 `swipe-up-decision` / `use-swipe-up` /
+    `mobile-launcher-store` / `MobileRecentsSheet` /
+    `recents-card-decision` / `use-recents-card-dismiss` /
+    `mobile-recents-store` / `dock-home-gesture` /
+    `use-dock-home-gesture` / `mobile-nav-store`（多窗模型重写）/
+    `MobileAppHost`（记录 diff 关窗/哨兵/popstate 双档）/ `MobileDock` /
+    `MobileInstallBar` / `install-prompt-decision` / `use-install-prompt` /
+    `device-capabilities`（isIos）/ `CalculatorApp` / `StoreApp` /
+    `TerminalApp` / `keyboard-inset` / `DynamicPanelApp` /
+    `long-press-decision` / `use-long-press` / `file-actions` /
+    `FileManager`（长按操作单）；E2E `e2e/mobile-swipe-up-launcher|
+    mobile-recents|mobile-pwa-install|mobile-calculator-store|
+    mobile-terminal-panel.spec.ts` + `mobile-files`/`mobile-app-host`/
+    `mobile-edge-back` 增补（桌面 context 回归各带零影响断言）。
 
 ## 4. 后续模块技术要点
 
