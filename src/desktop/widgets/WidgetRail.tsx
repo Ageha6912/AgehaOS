@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import type { ReactNode } from 'react'
-
 import {
   ArrowDown,
   Bell,
@@ -23,7 +21,6 @@ import { utcDayKey } from '@/core/eclosion/world'
 import { requestLauncherCategory } from '@/desktop/taskbar/launcher-intent'
 import { useEclosionStore } from '@/store/eclosion-store'
 import { useLauncherStore } from '@/store/launcher-store'
-import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import {
   notificationBodyText,
   notificationTitleText,
@@ -47,9 +44,6 @@ import { WorldSignalsSection } from './WorldSignals'
  * Shell 3.1 F2 权重分级：Clock > System > Notification > Today World——
  * 前两者全档卡（p-4 + subtle 边 + shadow-panel），后两者 quiet 档（p-3 +
  * 无边框 + shadow-soft），标题统一 caption 化（见 CARD_CLASS_QUIET 注）。
- * 2026-10-11 环境抛光：quiet 两卡挂 .sp-ambient-float 环境慢浮动（装饰
- * 包装层错峰反相，空间动效关档直切静态；时钟/系统卡稳定不浮动——数值
- * 可读性优先，见 AmbientFloatLayer 注）。
  */
 export function WidgetRail() {
   const { t } = useTranslation()
@@ -79,38 +73,6 @@ const CARD_CLASS =
   'widget-card surface-glass pointer-events-auto shrink-0 rounded-2xl border border-border-subtle p-4 shadow-panel'
 const CARD_CLASS_QUIET =
   'widget-card surface-glass pointer-events-auto shrink-0 rounded-2xl p-3 shadow-soft'
-
-/**
- * 环境慢浮动装饰包装层（2026-10-11 环境抛光切片）：quiet 档两卡（最近
- * 通知/今日世界）的浮动载体——`.sp-ambient-float`（spatial.css，9s 周期
- * 上下 5px，只动 transform）挂在本层，卡片 section（E2E 测量面）不挂任何
- * 动画类，静止布局盒零变化（红线 10）。空间动效关档追加 `.sp-motion-static`
- * 直切（与浮动类共存、同特异性源序必胜，WindowFrame 同口径）。
- * `delay` 错峰用：负 animation-delay 反相（如半周期 -4.5s），两卡不同步
- * 晃动。包装层自身不画材质不吃指针（继承容器 pointer-events-none）；
- * `shrink-0` 接手卡片在 flex 列里的原防压缩职责（包装层现在是 flex 项）。
- */
-function AmbientFloatLayer({
-  delay,
-  testId,
-  children,
-}: {
-  delay: string
-  testId: string
-  children: ReactNode
-}) {
-  const spatialMotion = useMotionPrefsStore((s) => s.spatialMotion)
-
-  return (
-    <div
-      data-testid={testId}
-      className={`pointer-events-none shrink-0 sp-ambient-float ${spatialMotion ? '' : 'sp-motion-static'}`}
-      style={{ animationDelay: delay }}
-    >
-      {children}
-    </div>
-  )
-}
 
 function ClockCard() {
   const locale = useLocaleStore((s) => s.locale)
@@ -383,7 +345,7 @@ function NotificationsCard() {
   // 在本步授权修改的 recent 表达式上，同线修正（证据见新单测 cap 用例）。
   const recent = items.slice(0, 2)
 
-  const card = (
+  return (
     <section className={CARD_CLASS_QUIET} data-testid="widgets-notifications">
       <div className="flex items-center justify-between">
         <p className="text-[11px] font-medium text-text-muted">
@@ -477,14 +439,6 @@ function NotificationsCard() {
       )}
     </section>
   )
-
-  // 环境慢浮动（2026-10-11 环境抛光）：包装层为浮动载体，卡片测量面静止
-  // （契约见 AmbientFloatLayer 注）；delay 0s，与今日世界卡 -4.5s 反相错峰。
-  return (
-    <AmbientFloatLayer delay="0s" testId="widgets-notifications-float">
-      {card}
-    </AmbientFloatLayer>
-  )
 }
 
 /**
@@ -507,7 +461,7 @@ function WorldCard() {
   // 「今日已更新」以当日世界为准（会话跨 UTC 零点的陈旧摘要如实标注）。
   const fresh = world !== null && world.worldDate === utcDayKey()
 
-  const card = (
+  return (
     <section
       className={CARD_CLASS_QUIET}
       data-testid="widgets-world"
@@ -553,14 +507,5 @@ function WorldCard() {
         </>
       )}
     </section>
-  )
-
-  // 环境慢浮动（2026-10-11 环境抛光）：包装层在羽化关整卡不渲染的门控之后
-  // 返回——关档不产生幻影空包装层（flex gap 节奏不变）；delay -4.5s =
-  // 9s 周期的半程负延迟，与最近通知卡（0s）反相错峰不同步晃动。
-  return (
-    <AmbientFloatLayer delay="-4.5s" testId="widgets-world-float">
-      {card}
-    </AmbientFloatLayer>
   )
 }

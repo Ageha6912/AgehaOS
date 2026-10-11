@@ -39,10 +39,6 @@
   --sp-float-duration: 9s;
   --sp-float-distance: 5px;
 
-  /* Dock 弱倒影高度（.dock-reflection 消费；胶囊正下方渐隐条，任务书
-     约 24px 档）。 */
-  --sp-dock-reflection-height: 24px;
-
   /* 空间窗口阴影：比 --ag-shadow-window（0 16px 48px）更大更弥散的漂浮档；
      浅色同 align 既有冷墨 rgb(18 32 62 / x%) 家族。active = 聚焦窗口更深
      一档（flat < hover < active 递进，同 --ag-shadow-window 族语义）；
@@ -120,37 +116,6 @@
    源序必胜（animation: none 压过浮动动画；与 mobile 静态类同口径）。 */
 .sp-motion-static {
   animation: none;
-}
-
-/* ---- Dock 弱倒影（2026-10-11 环境抛光切片；Taskbar 消费）----
-   胶囊正下方 24px 高的渐变 mask 伪倒影：峰值白 12%（任务书上限）+ 纵向
-   mask 渐隐，深色成对降档 9%。非玻璃件：零 backdrop-filter，两处实色兜底
-   不适用；纯装饰不截胡交互（aria-hidden + pointer-events:none）。动效门控
-   双保险：空间动效关档由 Taskbar 条件渲染整层不挂载（关则整层消失），
-   prefers-reduced-motion 在此 display:none 兜底；波浪唯一浮起裁决
-   （2026-10-05）不动——无悬停浮起、无既有几何 token 改动。 */
-.dock-reflection {
-  position: absolute;
-  top: 100%;
-  inset-inline: 0;
-  height: var(--sp-dock-reflection-height);
-  border-radius: inherit;
-  background: rgb(255 255 255 / 12%);
-  mask-image: linear-gradient(to bottom, black, transparent 82%);
-  pointer-events: none;
-}
-
-/* 深色成对：白亮层在暗地板上相对更亮，峰值压一档（仍 ≤12% 上限）。 */
-.dark .dock-reflection {
-  background: rgb(255 255 255 / 9%);
-}
-
-/* 系统级减弱动效：整层消失（倒影是动效氛围件，系统声明 reduce 即不画；
-   组件侧空间动效关档路径已条件卸载，此处覆盖系统偏好路径）。 */
-@media (prefers-reduced-motion: reduce) {
-  .dock-reflection {
-    display: none;
-  }
 }
 
 /* ---- 窗口工作面作用域（WindowFrame 消费；2026-10-10 空间化窗口切片）----
