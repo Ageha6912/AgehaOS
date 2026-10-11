@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 /**
  * Shell 3.0 STEP 7 窗口视觉精修契约（计算样式探针实测，禁止心算 rem）：
- * - 窗体：radius 28px（2026-10-10 空间化裁决 2，--sp-window-radius 档）+
+ * - 窗体：radius 32px（2026-10-11 用户反馈振幅加大，--sp-window-radius 档）+
  *   半透明玻璃面 + 40px backdrop blur（.spatial-window 体系）。
  * - 头部：44px（ask 档 44-50）。
  * - 深度层级：active = 更高面实度（0.84）+ 中性强边 + 更深空间软影
@@ -64,9 +64,9 @@ test('window chrome: radius/blur/header + active-inactive depth hierarchy withou
   expect(active).not.toBeNull()
   expect(inactive).not.toBeNull()
 
-  // 窗体材质（两态同底）：radius 28px 空间档 + 40px 深玻璃 blur。
-  expect(active!.radius).toBe('28px')
-  expect(inactive!.radius).toBe('28px')
+  // 窗体材质（两态同底）：radius 32px 空间档 + 40px 深玻璃 blur。
+  expect(active!.radius).toBe('32px')
+  expect(inactive!.radius).toBe('32px')
   expect(active!.blur).toContain('blur(40px)')
   expect(inactive!.blur).toContain('blur(40px)')
 
@@ -79,8 +79,8 @@ test('window chrome: radius/blur/header + active-inactive depth hierarchy withou
   expect(inactive!.background).toBe('rgba(255, 255, 255, 0.72)')
   expect(active!.border).toBe('rgb(185, 203, 230)') // --ag-border-strong
   expect(inactive!.border).toBe('rgb(217, 227, 244)') // --ag-border
-  expect(active!.shadow).toContain('0px 40px 112px') // --sp-shadow-window-active
-  expect(inactive!.shadow).toContain('0px 32px 96px') // --sp-shadow-window
+  expect(active!.shadow).toContain('0px 52px 136px') // --sp-shadow-window-active
+  expect(inactive!.shadow).toContain('0px 24px 72px') // --sp-shadow-window
   expect(active!.titleColor).toBe('rgb(24, 32, 44)') // text-text
   expect(inactive!.titleColor).toBe('rgb(90, 107, 130)') // text-text-muted
   // active 禁止整体变蓝：聚焦描边不得是 primary（rgb(47, 95, 232)）系。

@@ -245,7 +245,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
         maximized ? 'inset-0 rounded-none sp-win-max' : ''
       } ${
         // 空间化窗口状态栈（2026-10-10）：材质结构走 .spatial-window 体系
-        // （28px 圆角档/40px 磨砂/斜向高光/空间阴影/两处实色兜底），面实度
+        // （32px 圆角档/40px 磨砂/斜向高光/空间阴影/两处实色兜底），面实度
         // 与细边仍走 --ag 窗口档（工作面承墨字；sp-win 段 unlayered 覆写）——
         // 聚焦 = 更高面实度 + border-strong + 更深空间阴影；失焦 = 基底档。
         // 聚焦档只提实度不加色相（active 禁止整体变蓝）。

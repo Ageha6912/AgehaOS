@@ -4,9 +4,10 @@ import { describe, expect, it } from 'vitest'
 
 /*
  * Dock 弱倒影 CSS 契约（2026-10-11 环境抛光切片；src/styles/spatial.css
- * .dock-reflection 段，同 index.css.test.ts 读源文本钉扎手法）：
+ * .dock-reflection 段，同 index.css.test.ts 读源文本钉扎手法；同日用户
+ * 反馈「效果太克制」振幅加大——40px/18%/14%/88%）：
  * - 渐变 mask 伪倒影挂在胶囊正下方（top:100% + 继承胶囊圆角）；
- * - 峰值透明度 ≤12% 双主题成对（浅 12% / 深 9%）；
+ * - 峰值透明度双主题成对（浅 18% / 深 14%）；
  * - prefers-reduced-motion 整层消失（display:none）；
  * - 非玻璃件：零 backdrop-filter、零 -webkit- 前缀（根因 A 同源）。
  */
@@ -22,16 +23,16 @@ describe('dock reflection css contract（2026-10-11 环境抛光）', () => {
     expect(rule).toContain('top: 100%')
     expect(rule).toContain('height: var(--sp-dock-reflection-height)')
     expect(rule).toContain('border-radius: inherit')
-    expect(rule).toContain('mask-image: linear-gradient(to bottom, black, transparent 82%)')
+    expect(rule).toContain('mask-image: linear-gradient(to bottom, black, transparent 88%)')
     expect(rule).toContain('pointer-events: none')
   })
 
-  it('keeps the peak opacity at or under 12% in both themes (dark paired lower)', () => {
-    expect(rule).toContain('background: rgb(255 255 255 / 12%)')
+  it('keeps the peak opacity paired across themes (light 18% / dark 14%, 2026-10-11 amplified)', () => {
+    expect(rule).toContain('background: rgb(255 255 255 / 18%)')
     const darkAt = spatial.indexOf('.dark .dock-reflection')
     expect(darkAt, 'dark pairing after the base rule').toBeGreaterThan(at)
     const darkRule = spatial.slice(darkAt, spatial.indexOf('}', darkAt))
-    expect(darkRule).toContain('background: rgb(255 255 255 / 9%)')
+    expect(darkRule).toContain('background: rgb(255 255 255 / 14%)')
   })
 
   it('hides the whole layer under prefers-reduced-motion', () => {
@@ -45,7 +46,7 @@ describe('dock reflection css contract（2026-10-11 环境抛光）', () => {
   it('registers the height token and stays free of glass/prefix machinery', () => {
     const rootAt = spatial.indexOf(':root {')
     const rootBlock = spatial.slice(rootAt, spatial.indexOf('\n}', rootAt))
-    expect(rootBlock).toMatch(/--sp-dock-reflection-height:\s*24px/)
+    expect(rootBlock).toMatch(/--sp-dock-reflection-height:\s*40px/)
     // 非玻璃件：不带 backdrop-filter；前缀禁令同样适用本文件（根因 A）。
     expect(rule).not.toContain('backdrop-filter')
     expect(spatial).not.toContain('-webkit-backdrop-filter')

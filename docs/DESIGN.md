@@ -1585,7 +1585,8 @@ M1 全部新文案照此办理。
 
 1. **悬停浮起只给失焦窗口**；Dock 域不加悬停浮起（高斯波浪仍是唯一浮起，
    §13 的 2026-10-05 终态裁决不动）。
-2. **窗口圆角 20px（rounded-xl）升到 28px**（`--sp-window-radius` 档）。
+2. **窗口圆角 20px（rounded-xl）升到 28px**（`--sp-window-radius` 档；
+   2026-10-11 用户反馈「效果太克制」再升 32px，见 §36.8）。
 3. **常驻环境浮动动画默认开启、可在设置关**（motion-prefs 新布尔
    `spatialMotion`，`src/store/motion-prefs-store.ts:26`，默认 true）。
 4. **空间玻璃走独立低透明档位（`--sp-*` 命名空间）**，不消费
@@ -1603,18 +1604,18 @@ M1 全部新文案照此办理。
 
 | 令牌 | 浅色 / 深色 `.dark` | 消费位 |
 |---|---|---|
-| `--sp-window-radius` | 28px（仅 :root） | `.spatial-window` 圆角档（裁决 2） |
+| `--sp-window-radius` | 32px（仅 :root；§36.8 自 28px 加大） | `.spatial-window` 圆角档（裁决 2） |
 | `--sp-widget-radius` | 20px（仅 :root） | 空间小组件面圆角（预留档） |
 | `--sp-glass-light` | 白 10% / 冷墨 `rgb(16 23 40)` 20% | 预留低档（无消费位） |
 | `--sp-glass-medium` | 白 16% / 冷墨 28% | `.spatial-window` 面底（唯一在用玻璃档） |
 | `--sp-glass-heavy` | 白 24% / 冷墨 40% | 预留高档（无消费位） |
 | `--sp-lift-near/middle/far` | 80 / 40 / 0px（仅 :root） | 深度三档 translateZ（§36.4） |
-| `--sp-perspective` | 1400px（仅 :root） | 消费方侧舞台建 3D 上下文（窗口 = `WindowLayer.tsx:44`） |
-| `--sp-float-duration/distance` | 9s / 5px（仅 :root） | `sp-float` 关键帧（§36.5/§36.6） |
-| `--sp-dock-reflection-height` | 24px（仅 :root） | `.dock-reflection`（§36.6） |
-| `--sp-shadow-window` | `0 32px 96px` 冷墨 22% + `0 8px 28px` 10% / 纯黑 55% + 32% | `.spatial-window` 基档（比 `--ag-shadow-window` 0 16px 48px 更大更弥散的漂浮档） |
-| `--sp-shadow-window-hover` | 36px/104px 冷墨 25% 递进 / 纯黑 58% 递进 | 失焦悬停浮起加深档（仍低于聚焦档） |
-| `--sp-shadow-window-active` | 40px/112px 冷墨 27% 递进 / 纯黑 62% 递进 | 聚焦窗口（flat < hover < active，同 `--ag-shadow-window` 族语义） |
+| `--sp-perspective` | 1100px（仅 :root；§36.8 自 1400px 加大） | 消费方侧舞台建 3D 上下文（窗口 = `WindowLayer.tsx:44`） |
+| `--sp-float-duration/distance` | 7s / 9px（仅 :root；§36.8 自 9s/5px 加大） | `sp-float` 关键帧（§36.5/§36.6） |
+| `--sp-dock-reflection-height` | 40px（仅 :root；§36.8 自 24px 加大） | `.dock-reflection`（§36.6） |
+| `--sp-shadow-window` | `0 24px 72px` 冷墨 14% + `0 6px 20px` 8% + rim / 纯黑 44% + 24%（§36.8 拉陡） | `.spatial-window` 基档（比 `--ag-shadow-window` 0 16px 48px 更大更弥散的漂浮档） |
+| `--sp-shadow-window-hover` | 44px/120px 冷墨 26% 递进 / 纯黑 60% 递进 | 失焦悬停浮起加深档（仍低于聚焦档） |
+| `--sp-shadow-window-active` | 52px/136px 冷墨 30% 递进 / 纯黑 66% 递进 | 聚焦窗口（flat < hover < active，同 `--ag-shadow-window` 族语义） |
 
 ### 36.3 `.spatial-window` 材质与两处降级兜底（`spatial.css:68-92`）
 
@@ -1622,8 +1623,8 @@ M1 全部新文案照此办理。
 blur(40px) saturate(150%)` + `border: 1px solid rgb(255 255 255 / 24%)`
 （深色增量降为白 10%，与 `--ag-glass-border` 深色档同口径）+
 `border-radius: var(--sp-window-radius)` + `box-shadow:
-var(--sp-shadow-window)`；`::before` 斜向高光装饰层（120deg 白 12% 渐隐至
-40%，`pointer-events: none` 不截胡交互）。**通用玻璃面壳**
+var(--sp-shadow-window)`；`::before` 斜向高光装饰层（120deg 白 22% 渐隐至
+48%，§36.8；`pointer-events: none` 不截胡交互）。**通用玻璃面壳**
 `src/components/spatial/GlassSurface.tsx`：纯展示壳、零 store，props 驱动
 depth/float/motionStatic，供后续空间面消费；窗口不走它（走 sp-win 作用域，
 §36.4）。
@@ -1647,9 +1648,10 @@ scale(1.02)、`sp-depth-middle` = translateZ(40px)、`sp-depth-far` = 0；
 
 **窗口工作面测量契约（红线 10 的消解，`spatial.css:156-207`）**：窗口
 section 是 responsive-quad boundingBox 与 window-resize ±2px 的 E2E
-测量面——translateZ 在本层 1400px perspective 下是**投影型变换**（z=80
-实测投影 ≈ +6.1% 放大且随离心位移，Chromium getBoundingClientRect 计入
-透视），直接挂会实时改变静止渲染盒。故窗口作用域把深度梯与失焦退后
+测量面——translateZ 在本层 perspective（现 1100px，§36.8）下是**投影型变换**
+（z=80 在 1400px 档实测投影 ≈ +6.1% 放大且随离心位移，Chromium
+getBoundingClientRect 计入透视），直接挂会实时改变静止渲染盒。故窗口作用域
+把深度梯与失焦退后
 （`is-tilt-dim`，§32.5 修订 10 windowTilt 域）一律解析为
 `transform: none`（特异性压过通用深度梯）——**类照挂（组件契约不变）、
 变换归零（测量面契约）**，深度语义改由状态类栈表达：面实度
@@ -1665,7 +1667,8 @@ active 档。`sp-win` 基档同时以 `position: absolute` 抵消基规则 relat
 **悬停浮起（裁决 1，`spatial.css:209-223`）**：仅「失焦 + 非最大化 +
 非最小化 + 非拖拽中 + 空间动效开档」时组件挂 `sp-win-hover`
 （`WindowFrame.tsx:122-125`；ghost 永不浮起），hover 态
-`translateY(-6px) scale(1.01)` + `--sp-shadow-window-hover` 加深。栈内
+`translateY(-12px) scale(1.03)`（§36.8 自 -6px/1.01 加大）+
+`--sp-shadow-window-hover` 加深。栈内
 唯一 transform 写入者即此 `:hover` 规则（静止态几何探针永不命中）；
 transition 挂在类上——拖拽开始即摘类，拖拽进行中天然无过渡（跟手零
 延迟）。Dock 域零悬停浮起（裁决 1 后半），高斯波浪（§13）仍是 Dock
@@ -1687,10 +1690,11 @@ transition 挂在类上——拖拽开始即摘类，拖拽进行中天然无过
 ### 36.6 环境抛光：Dock 弱倒影与右栏慢浮动（2026-10-11 切片 2f8d068）
 
 - **Dock 弱倒影**（`spatial.css:125-154`，Taskbar 消费
-  `Taskbar.tsx:188-190`）：胶囊正下方 24px 高（`--sp-dock-reflection-
-  height`）的渐变 mask 伪倒影——`top: 100%` 贴胶囊下缘、与胶囊同宽、
-  `border-radius: inherit` 随动，峰值白 12%（任务书上限；深色成对降档
-  9%）+ `mask-image` 纵向渐隐至 82%。**非玻璃件**：零 backdrop-filter，
+  `Taskbar.tsx:188-190`）：胶囊正下方 40px 高（`--sp-dock-reflection-
+  height`，§36.8 自 24px 加大）的渐变 mask 伪倒影——`top: 100%` 贴胶囊
+  下缘、与胶囊同宽、`border-radius: inherit` 随动，峰值白 18%（深色成对
+  降档 14%）+ `mask-image` 纵向渐隐至 88%（§36.8 自 12%/9%/82% 加大）。
+  **非玻璃件**：零 backdrop-filter，
   两处实色兜底不适用；纯装饰（aria-hidden + `pointer-events: none`），
   absolute 定位不占布局、静止盒零变化。**门控双保险**：空间动效关档 →
   Taskbar 条件渲染整层不挂载（关则整层消失）；`prefers-reduced-motion` →
@@ -1698,8 +1702,8 @@ transition 挂在类上——拖拽开始即摘类，拖拽进行中天然无过
   裁决（§13）与既有 Dock 几何 token 零改动。
 - **右栏 quiet 双卡慢浮动**（`WidgetRail.tsx:93-113`）：仅 quiet 档两卡
   （最近通知/今日世界，§34.4 权重分级）挂常驻环境浮动——**装饰包装层**
-  `AmbientFloatLayer` 承载 `.sp-ambient-float`（9s 周期上下 5px，只动
-  transform），卡片 section（E2E 测量面）不挂任何动画类，静止布局盒零
+  `AmbientFloatLayer` 承载 `.sp-ambient-float`（7s 周期上下 9px，§36.8
+  自 9s/5px 加大，只动 transform），卡片 section（E2E 测量面）不挂任何动画类，静止布局盒零
   变化（红线 10）；`0s / -4.5s` 负 animation-delay 错峰反相，两卡不同步
   晃动。包装层不画材质不吃指针，`shrink-0` 接手卡片原防压缩职责；关档
   追加 `sp-motion-static` 直切。**时钟/系统卡稳定不浮**（full 档卡是
@@ -1721,3 +1725,27 @@ transition 挂在类上——拖拽开始即摘类，拖拽进行中天然无过
   `motion-prefs-store.test.ts`、`SettingsApp.test.tsx`（开关接线）、
   `dock-reflection.test.ts` + `Taskbar.test.tsx`、`WidgetRail.test.tsx`
   （环境抛光）、`MobileControlCenterSheet.test.tsx`（反相开关）。
+
+### 36.8 振幅加大（2026-10-11 用户反馈「这些效果都太克制了，请再明显一些」）
+
+全部效果只在原架构内放大振幅，**不改任何结构契约**——深度梯窗口作用域
+消解（§36.4）、悬停唯一 transform 写入者、浮动只挂装饰包装层、倒影非
+玻璃件、双门控、两处实色兜底全部原样。before → after：
+
+| 项 | 原 | 现 |
+|---|---|---|
+| `--sp-window-radius` | 28px | **32px** |
+| `::before` 斜向高光 | 白 12% → 透明 40% | **白 22% → 透明 48%** |
+| 玻璃圈口 rim | 无 | **阴影三档尾部 `inset 0 1px 0` 白 25%（深色 12%）顶缘高光** |
+| 窗口阴影三档（浅色） | 22% / 25% / 27%（96/104/112px 弥散） | **14% / 26% / 30%**（72/120/136px 弥散——基档让位，档差拉陡） |
+| 深色三档 | 55% / 58% / 62% | **44% / 60% / 66%** |
+| 悬停浮起 | translateY(-6px) scale(1.01) | **translateY(-12px) scale(1.03)** |
+| `--sp-perspective` | 1400px | **1100px**（浮起投影更夸张） |
+| 右栏慢浮动 | 9s ±5px | **7s ±9px** |
+| Dock 倒影 | 24px 高、白 12%（深 9%）、渐隐 82% | **40px 高、白 18%（深 14%）、渐隐 88%** |
+
+钉扎同步：`index.css.test.ts`（令牌/基档/悬停 transform/阴影三档四组）、
+`dock-reflection.test.ts`（高度/峰值成对/mask）、
+`e2e/window-visual.spec.ts`（radius 32px、阴影 52px 136px / 24px 72px）、
+`e2e/multi-window-visual.spec.ts`（阴影双档）。窗口面实度 72%/84% 与
+blur 40px 不动（材质档未变，变的只是空间表达的振幅）。

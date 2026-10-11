@@ -101,9 +101,9 @@ test('5 窗：z 序随聚焦、阴影双档、Dock 不被盖、右栏可点、Pa
   //    窗口切片换档，聚焦恒比失焦更深更沉的层级语义不变。
   const shadowOf = (name: string) =>
     regions[name]!.evaluate((el) => getComputedStyle(el).boxShadow)
-  expect(await shadowOf('计算器')).toContain('0px 40px 112px')
+  expect(await shadowOf('计算器')).toContain('0px 52px 136px')
   for (const name of ['文件', '记事', '终端', '应用商店']) {
-    expect(await shadowOf(name)).toContain('0px 32px 96px')
+    expect(await shadowOf(name)).toContain('0px 24px 72px')
   }
 
   // ③ Dock 不被普通窗盖：Dock 中心 elementFromPoint 命中 Dock 子树。
@@ -164,5 +164,10 @@ test('5 窗：z 序随聚焦、阴影双档、Dock 不被盖、右栏可点、Pa
     return { label: section?.getAttribute('aria-label') ?? '', tag: el?.tagName ?? '' }
   })
   expect(exposed.label).not.toBe('计算器')
-  expect(['DIV', 'SECTION', 'MAIN', 'UL', 'P', 'SPAN', 'HEADER', 'BUTTON']).toContain(exposed.tag)
+  // LI：底层窗口内容即列表项（应用商店列表，M3-4 窄容器适配后卡片列表项
+  // 恰好落在该点位）——白名单语义是「露出的是底层 UI 本体而非残层」，
+  // 列表项与既有 UL 同属合法底层元素。
+  expect(['DIV', 'SECTION', 'MAIN', 'UL', 'LI', 'P', 'SPAN', 'HEADER', 'BUTTON']).toContain(
+    exposed.tag,
+  )
 })

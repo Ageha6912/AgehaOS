@@ -17,9 +17,9 @@
 
 /* ---- 空间令牌 ---- */
 :root {
-  /* 圆角档：窗口 28px（自 20px rounded-xl 升档，已批准裁决）、空间小组件
-     面 20px。 */
-  --sp-window-radius: 28px;
+  /* 圆角档：窗口 32px（2026-10-10 裁决 2 定 28px；2026-10-11 用户反馈
+     「效果太克制」升档）、空间小组件面 20px。 */
+  --sp-window-radius: 32px;
   --sp-widget-radius: 20px;
 
   /* 空间玻璃三档（浅色 = 低透白起步；档内递进 light < medium < heavy）。
@@ -33,23 +33,27 @@
   --sp-lift-near: 80px;
   --sp-lift-middle: 40px;
   --sp-lift-far: 0px;
-  --sp-perspective: 1400px;
+  --sp-perspective: 1100px;
 
-  /* 常驻环境浮动参数（浮动关键帧消费；默认开启、可在设置关）。 */
-  --sp-float-duration: 9s;
-  --sp-float-distance: 5px;
+  /* 常驻环境浮动参数（浮动关键帧消费；默认开启、可在设置关；2026-10-11
+     用户反馈加大：9s/5px → 7s/9px）。 */
+  --sp-float-duration: 7s;
+  --sp-float-distance: 9px;
 
-  /* Dock 弱倒影高度（.dock-reflection 消费；胶囊正下方渐隐条，任务书
-     约 24px 档）。 */
-  --sp-dock-reflection-height: 24px;
+  /* Dock 弱倒影高度（.dock-reflection 消费；2026-10-11 用户反馈加大：
+     24px → 40px）。 */
+  --sp-dock-reflection-height: 40px;
 
   /* 空间窗口阴影：比 --ag-shadow-window（0 16px 48px）更大更弥散的漂浮档；
-     浅色同 align 既有冷墨 rgb(18 32 62 / x%) 家族。active = 聚焦窗口更深
-     一档（flat < hover < active 递进，同 --ag-shadow-window 族语义）；
-     hover = 失焦窗口悬停浮起加深档（仍低于聚焦档——聚焦恒最实最沉）。 */
-  --sp-shadow-window: 0 32px 96px rgb(18 32 62 / 22%), 0 8px 28px rgb(18 32 62 / 10%);
-  --sp-shadow-window-hover: 0 36px 104px rgb(18 32 62 / 25%), 0 10px 30px rgb(18 32 62 / 12%);
-  --sp-shadow-window-active: 0 40px 112px rgb(18 32 62 / 27%), 0 12px 34px rgb(18 32 62 / 13%);
+     浅色同 align 既有冷墨 rgb(18 32 62 / x%) 家族。阶梯 2026-10-11 用户
+     反馈拉陡（flat 14% < hover 26% < active 30% 递进，聚焦恒最实最沉）；
+     三档尾部的 inset 白 25% 顶缘高光是玻璃圈口（rim），随状态档自动跟随。 */
+  --sp-shadow-window: 0 24px 72px rgb(18 32 62 / 14%), 0 6px 20px rgb(18 32 62 / 8%),
+    inset 0 1px 0 rgb(255 255 255 / 25%);
+  --sp-shadow-window-hover: 0 44px 120px rgb(18 32 62 / 26%), 0 14px 36px rgb(18 32 62 / 13%),
+    inset 0 1px 0 rgb(255 255 255 / 25%);
+  --sp-shadow-window-active: 0 52px 136px rgb(18 32 62 / 30%), 0 18px 44px rgb(18 32 62 / 15%),
+    inset 0 1px 0 rgb(255 255 255 / 25%);
 }
 
 .dark {
@@ -59,10 +63,14 @@
   --sp-glass-medium: rgb(16 23 40 / 28%);
   --sp-glass-heavy: rgb(16 23 40 / 40%);
 
-  /* 空间窗口阴影深色成对：纯黑家族。 */
-  --sp-shadow-window: 0 32px 96px rgb(0 0 0 / 55%), 0 8px 28px rgb(0 0 0 / 32%);
-  --sp-shadow-window-hover: 0 36px 104px rgb(0 0 0 / 58%), 0 10px 30px rgb(0 0 0 / 34%);
-  --sp-shadow-window-active: 0 40px 112px rgb(0 0 0 / 62%), 0 12px 34px rgb(0 0 0 / 38%);
+  /* 空间窗口阴影深色成对：纯黑家族（阶梯同步 2026-10-11 拉陡；rim 换白
+     12% 细高光）。 */
+  --sp-shadow-window: 0 24px 72px rgb(0 0 0 / 44%), 0 6px 20px rgb(0 0 0 / 24%),
+    inset 0 1px 0 rgb(255 255 255 / 12%);
+  --sp-shadow-window-hover: 0 44px 120px rgb(0 0 0 / 60%), 0 14px 36px rgb(0 0 0 / 34%),
+    inset 0 1px 0 rgb(255 255 255 / 12%);
+  --sp-shadow-window-active: 0 52px 136px rgb(0 0 0 / 66%), 0 18px 44px rgb(0 0 0 / 40%),
+    inset 0 1px 0 rgb(255 255 255 / 12%);
 }
 
 /* ---- 基规则：空间玻璃面 ---- */
@@ -75,13 +83,14 @@
   box-shadow: var(--sp-shadow-window);
 }
 
-/* 斜向高光：120deg 白 12% 渐隐至 40%，克制不刺眼；装饰层不截胡交互。 */
+/* 斜向高光：120deg 白 22% 渐隐至 48%（2026-10-11 用户反馈自 12%/40% 加大，
+   玻璃斜面反光可感但不刺眼）；装饰层不截胡交互。 */
 .spatial-window::before {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(120deg, rgb(255 255 255 / 12%), transparent 40%);
+  background: linear-gradient(120deg, rgb(255 255 255 / 22%), transparent 48%);
   pointer-events: none;
 }
 
@@ -103,7 +112,7 @@
   transform: translateZ(var(--sp-lift-far));
 }
 
-/* 常驻环境浮动：9s 周期上下 5px，只动 transform；关档直切类位于其后。 */
+/* 常驻环境浮动：7s 周期上下 9px，只动 transform；关档直切类位于其后。 */
 .sp-ambient-float {
   animation: sp-float var(--sp-float-duration) ease-in-out infinite;
 }
@@ -123,26 +132,27 @@
 }
 
 /* ---- Dock 弱倒影（2026-10-11 环境抛光切片；Taskbar 消费）----
-   胶囊正下方 24px 高的渐变 mask 伪倒影：峰值白 12%（任务书上限）+ 纵向
-   mask 渐隐，深色成对降档 9%。非玻璃件：零 backdrop-filter，两处实色兜底
-   不适用；纯装饰不截胡交互（aria-hidden + pointer-events:none）。动效门控
-   双保险：空间动效关档由 Taskbar 条件渲染整层不挂载（关则整层消失），
-   prefers-reduced-motion 在此 display:none 兜底；波浪唯一浮起裁决
-   （2026-10-05）不动——无悬停浮起、无既有几何 token 改动。 */
+   胶囊正下方 40px 高的渐变 mask 伪倒影：峰值白 18%（2026-10-11 用户反馈
+   自 12% 加大）+ 纵向 mask 渐隐，深色成对降档 14%。非玻璃件：零
+   backdrop-filter，两处实色兜底不适用；纯装饰不截胡交互（aria-hidden +
+   pointer-events:none）。动效门控双保险：空间动效关档由 Taskbar 条件渲染
+   整层不挂载（关则整层消失），prefers-reduced-motion 在此 display:none
+   兜底；波浪唯一浮起裁决（2026-10-05）不动——无悬停浮起、无既有几何
+   token 改动。 */
 .dock-reflection {
   position: absolute;
   top: 100%;
   inset-inline: 0;
   height: var(--sp-dock-reflection-height);
   border-radius: inherit;
-  background: rgb(255 255 255 / 12%);
-  mask-image: linear-gradient(to bottom, black, transparent 82%);
+  background: rgb(255 255 255 / 18%);
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
   pointer-events: none;
 }
 
-/* 深色成对：白亮层在暗地板上相对更亮，峰值压一档（仍 ≤12% 上限）。 */
+/* 深色成对：白亮层在暗地板上相对更亮，峰值压一档。 */
 .dark .dock-reflection {
-  background: rgb(255 255 255 / 9%);
+  background: rgb(255 255 255 / 14%);
 }
 
 /* 系统级减弱动效：整层消失（倒影是动效氛围件，系统声明 reduce 即不画；
@@ -157,11 +167,12 @@
    窗口 = 工作面（墨字 + 应用纸面），不是装饰玻璃件：面实度走 --ag 窗口档
    （72% 基底 / 84% 聚焦，.sp 16% 档承不了标题栏墨字），边框走 --ag 中性
    细边（聚焦 border-strong，active 只提实度不加色相）；.spatial-window 体系
-   提供结构（28px 圆角档 / 40px 磨砂 / 斜向高光 / 空间阴影 / 两处实色兜底）。
+   提供结构（32px 圆角档 / 40px 磨砂 / 斜向高光 / 空间阴影 / 两处实色兜底）。
    测量面契约（红线 10 与 E2E 钉扎的消解）：窗口 section 是 responsive-quad
    boundingBox 边界断言与 window-resize ±2px 补偿断言的测量面——深度档的
-   translateZ 在本层 perspective（1400px）下是投影型变换（z=80 实测投影
-   ≈ +6.1% 放大且随离心位移，Chromium getBoundingClientRect 计入透视），
+   translateZ 在本层 perspective（1100px，2026-10-11 自 1400px 加大）下是
+   投影型变换（z=80 在 1400px 档实测投影 ≈ +6.1% 放大且随离心位移，
+   Chromium getBoundingClientRect 计入透视），
    直接挂会实时改变静止渲染盒。故深度/退后在窗口作用域一律解析为
    transform: none（下方 win 覆盖，特异性压过通用深度梯），深度语义改由
    状态类栈（面实度/细边/阴影三档 + 悬停浮起）表达；唯一写 transform 的
@@ -208,7 +219,8 @@
 
 /* 悬停浮起（2026-10-10 已批准裁决 1：只给失焦窗口；Dock 域不涉）：仅
    「失焦 + 非最大化 + 非拖拽中 + 空间动效开档」时组件挂 sp-win-hover，
-   hover 态 translateY(-6px) scale(1.01) + 阴影加深。transition 挂在类上：
+   hover 态 translateY(-12px) scale(1.03) + 阴影加深（2026-10-11 用户反馈
+   自 -6px/1.01 加大，透视舞台同步 1100px）。transition 挂在类上：
    组件在拖拽开始即摘类 → 拖拽进行中天然无过渡（跟手零延迟）；
    prefers-reduced-motion 由 index.css 全局 0.01ms 塌缩接管。 */
 .spatial-window.sp-win.sp-win-hover {
@@ -218,7 +230,7 @@
     opacity 200ms var(--ag-motion-ease);
 }
 .spatial-window.sp-win.sp-win-hover:hover {
-  transform: translateY(-6px) scale(1.01);
+  transform: translateY(-12px) scale(1.03);
   box-shadow: var(--sp-shadow-window-hover);
 }
 

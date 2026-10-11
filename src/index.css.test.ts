@@ -491,15 +491,16 @@ describe('index.css token contract (Token 2.0)', () => {
 
   it('defines the spatial tokens (geometry constants + both-theme glass/shadow pairing)', () => {
     // 主题无关几何常量只入 :root（同红绿灯/--ag-tooltip-bg 先例）：圆角
-    // 升档（20px rounded-xl → 28px 空间档）、深度、透视与浮动参数。
-    expect(spRoot).toMatch(/--sp-window-radius:\s*28px/)
+    // 升档（20px rounded-xl → 28px 空间档 → 2026-10-11 用户反馈再升 32px）、
+    // 深度、透视与浮动参数（浮动 2026-10-11 加大 7s/9px、透视 1100px）。
+    expect(spRoot).toMatch(/--sp-window-radius:\s*32px/)
     expect(spRoot).toMatch(/--sp-widget-radius:\s*20px/)
     expect(spRoot).toMatch(/--sp-lift-near:\s*80px/)
     expect(spRoot).toMatch(/--sp-lift-middle:\s*40px/)
     expect(spRoot).toMatch(/--sp-lift-far:\s*0px/)
-    expect(spRoot).toMatch(/--sp-perspective:\s*1400px/)
-    expect(spRoot).toMatch(/--sp-float-duration:\s*9s/)
-    expect(spRoot).toMatch(/--sp-float-distance:\s*5px/)
+    expect(spRoot).toMatch(/--sp-perspective:\s*1100px/)
+    expect(spRoot).toMatch(/--sp-float-duration:\s*7s/)
+    expect(spRoot).toMatch(/--sp-float-distance:\s*9px/)
     // 随主题翻转的档位成对声明：浅色低透白 10/16/24；深色冷墨
     // rgb(16 23 40 / x%) 家族（--ag-glass-bg 深色配方同族，独立低透明档）。
     expect(spRoot).toMatch(/--sp-glass-light:\s*rgb\(255 255 255 \/ 10%\)/)
@@ -510,9 +511,10 @@ describe('index.css token contract (Token 2.0)', () => {
       expect(spDark).toMatch(new RegExp(`--${name}:\\s*rgb\\(16 23 40 \\/ \\d+%\\)`))
     }
     // 空间窗口阴影双主题成对：浅 = 冷墨家族、深 = 纯黑家族；比
-    // --ag-shadow-window（0 16px 48px）更大更弥散（96px 漂浮档）。
-    expect(spRoot).toMatch(/--sp-shadow-window:\s*0 32px 96px rgb\(18 32 62 \/ 22%\)/)
-    expect(spDark).toMatch(/--sp-shadow-window:\s*0 32px 96px rgb\(0 0 0 \/ 55%\)/)
+    // --ag-shadow-window（0 16px 48px）更大更弥散（72px 漂浮档，2026-10-11
+    // 拉陡：基档降 14%/44% 给聚焦档让对比）。
+    expect(spRoot).toMatch(/--sp-shadow-window:\s*0 24px 72px rgb\(18 32 62 \/ 14%\)/)
+    expect(spDark).toMatch(/--sp-shadow-window:\s*0 24px 72px rgb\(0 0 0 \/ 44%\)/)
   })
 
   it('builds the spatial glass face on the independent sp tiers (never ag glass)', () => {
@@ -523,10 +525,11 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(rule).toContain('border: 1px solid rgb(255 255 255 / 24%)')
     expect(rule).toContain('border-radius: var(--sp-window-radius)')
     expect(rule).toContain('box-shadow: var(--sp-shadow-window)')
-    // 斜向高光装饰层：120deg 白 12% 渐隐至 40%，克制不刺眼、不截胡交互。
+    // 斜向高光装饰层：120deg 白 22% 渐隐至 48%（2026-10-11 用户反馈自
+    // 12%/40% 加大），可感不刺眼、不截胡交互。
     const beforeAt = spatial.indexOf('.spatial-window::before')
     const before = spatial.slice(beforeAt, spatial.indexOf('}', beforeAt))
-    expect(before).toContain('linear-gradient(120deg, rgb(255 255 255 / 12%), transparent 40%)')
+    expect(before).toContain('linear-gradient(120deg, rgb(255 255 255 / 22%), transparent 48%)')
     expect(before).toContain('pointer-events: none')
   })
 
@@ -570,12 +573,13 @@ describe('index.css token contract (Token 2.0)', () => {
     )
     expect(spatial).toMatch(/\.spatial-window\.sp-win\.is-tilt-dim\s*\{\s*transform:\s*none;/)
     // 栈内唯一 transform 写入者是悬停浮起 :hover 规则（只给失焦窗口，
-    // translateY(-6px) scale(1.01) + 阴影加深；hover 态才发生，几何探针按
+    // translateY(-12px) scale(1.03) + 阴影加深，2026-10-11 用户反馈自
+    // -6px/1.01 加大；hover 态才发生，几何探针按
     // 静止态测量永不命中）——且位于深度/退后消解规则之后（同特异性源序）。
     const hoverAt = spatial.indexOf('.spatial-window.sp-win.sp-win-hover:hover')
     expect(hoverAt).toBeGreaterThan(spatial.indexOf('.spatial-window.sp-win.is-tilt-dim'))
     const hoverRule = spatial.slice(hoverAt, spatial.indexOf('}', hoverAt))
-    expect(hoverRule).toContain('transform: translateY(-6px) scale(1.01)')
+    expect(hoverRule).toContain('transform: translateY(-12px) scale(1.03)')
     expect(hoverRule).toContain('box-shadow: var(--sp-shadow-window-hover)')
     // 窗口工作面底档：position 抵消基规则 relative（几何仍由 inline
     // left/top 定位），面/边走 --ag 窗口档（工作面承墨字）。
@@ -601,10 +605,10 @@ describe('index.css token contract (Token 2.0)', () => {
   it('pairs the spatial window shadow tiers across themes and pins the window scope before fallbacks', () => {
     // 空间窗口阴影三档（flat < hover < active 递进）双主题成对：浅 = 冷墨
     // 家族、深 = 纯黑家族。
-    expect(spRoot).toMatch(/--sp-shadow-window-hover:\s*0 36px 104px rgb\(18 32 62 \/ 25%\)/)
-    expect(spRoot).toMatch(/--sp-shadow-window-active:\s*0 40px 112px rgb\(18 32 62 \/ 27%\)/)
-    expect(spDark).toMatch(/--sp-shadow-window-hover:\s*0 36px 104px rgb\(0 0 0 \/ 58%\)/)
-    expect(spDark).toMatch(/--sp-shadow-window-active:\s*0 40px 112px rgb\(0 0 0 \/ 62%\)/)
+    expect(spRoot).toMatch(/--sp-shadow-window-hover:\s*0 44px 120px rgb\(18 32 62 \/ 26%\)/)
+    expect(spRoot).toMatch(/--sp-shadow-window-active:\s*0 52px 136px rgb\(18 32 62 \/ 30%\)/)
+    expect(spDark).toMatch(/--sp-shadow-window-hover:\s*0 44px 120px rgb\(0 0 0 \/ 60%\)/)
+    expect(spDark).toMatch(/--sp-shadow-window-active:\s*0 52px 136px rgb\(0 0 0 \/ 66%\)/)
     // 源序（红线 3）：窗口作用域段位于浮动/静态对之后、两处实色兜底之前；
     // 聚焦面档特异性更高，两处兜底选择器组必须同等特异性并列覆盖
     // （降级环境必胜，对比从不依赖 blur）。
