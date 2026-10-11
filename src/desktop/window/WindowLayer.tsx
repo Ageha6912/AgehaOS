@@ -36,6 +36,12 @@ export function WindowLayer() {
     <main
       aria-label={t('desktop.windowsLabel')}
       className={`pointer-events-none absolute inset-0 ${maximizedActive ? 'z-[45]' : 'z-30'}`}
+      // 空间化舞台（2026-10-10）：perspective 供深度档/悬停浮起的 3D 上下文。
+      // 静止布局零影响：perspective 只建立投影上下文，自身不参与布局，常态
+      // 下子元素无 z≠0 变换（窗口深度在窗口作用域解析为非变换表达，见
+      // spatial.css sp-win 段），投影因子恒 1；2D 变换（开合飞行/失焦退后）
+      // 在 z=0 下投影因子同为 1。E2E 几何探针按静止态测量，读数不变。
+      style={{ perspective: 'var(--sp-perspective)' }}
     >
       {withGhosts.map((win: WindowInstance) => (
         <WindowFrame key={win.id} win={win} ghost={!windows.some((w) => w.id === win.id)} />

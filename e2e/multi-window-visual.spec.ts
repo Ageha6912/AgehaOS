@@ -96,12 +96,14 @@ test('5 窗：z 序随聚焦、阴影双档、Dock 不被盖、右栏可点、Pa
     expect(Number(z)).toBeLessThan(Number(calcZ))
   }
 
-  // ② 阴影双档在 5 窗下仍成立：active = window-active 档，其余 = flat 档。
+  // ② 阴影双档在 5 窗下仍成立：active = 空间聚焦档（--sp-shadow-window-
+  //    active），其余 = 空间基底档（--sp-shadow-window）——2026-10-10 空间化
+  //    窗口切片换档，聚焦恒比失焦更深更沉的层级语义不变。
   const shadowOf = (name: string) =>
     regions[name]!.evaluate((el) => getComputedStyle(el).boxShadow)
-  expect(await shadowOf('计算器')).toContain('0px 24px 64px')
+  expect(await shadowOf('计算器')).toContain('0px 40px 112px')
   for (const name of ['文件', '记事', '终端', '应用商店']) {
-    expect(await shadowOf(name)).toContain('0px 8px 24px')
+    expect(await shadowOf(name)).toContain('0px 32px 96px')
   }
 
   // ③ Dock 不被普通窗盖：Dock 中心 elementFromPoint 命中 Dock 子树。

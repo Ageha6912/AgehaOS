@@ -76,12 +76,15 @@ describe('WindowFrame (via WindowLayer)', () => {
     render(<WindowLayer />)
 
     const region = screen.getByRole('region', { name: '记事' })
-    // 头部 44px（Shell 3.0 STEP 7 档 44-50）+ 窗体 radius-xl（非最大化）。
+    // 头部 44px（Shell 3.0 STEP 7 档 44-50）+ 窗体圆角走 .spatial-window 体系
+    // 28px 档（--sp-window-radius，2026-10-10 空间化裁决 2；rounded-xl 20px
+    // 档退役），非最大化不挂 rounded-none。
     const header = region.querySelector('header') as HTMLElement
     expect(header.classList.contains('h-11')).toBe(true)
     // 2026-10-02 用户裁决：拖动区保持默认箭头（cursor-move 十字观感差）。
     expect(header.className).not.toContain('cursor-move')
-    expect(region.classList.contains('rounded-xl')).toBe(true)
+    expect(region.classList.contains('spatial-window')).toBe(true)
+    expect(region.classList.contains('rounded-none')).toBe(false)
 
     // 三灯左置且顺序固定：关闭 → 最小化 → 最大化；点色走 Token。
     const close = screen.getByRole('button', { name: '关闭窗口' })
@@ -177,37 +180,93 @@ describe('WindowFrame (via WindowLayer)', () => {
     expect(region.className).not.toContain('rail-left-width')
     expect(region.className).not.toContain('rail-right-width')
     expect(region.className).not.toContain('menubar-height')
+    // 空间化（2026-10-10）：最大化 = 真全屏工作面——无深度类、无悬停浮起，
+    // 挂 sp-win-max 直切零圆角（rounded-none 工具类在未分层规则前必败，
+    // sp-win-max 是实效载体）。
+    expect(region.className).not.toContain('sp-depth')
+    expect(region.className).not.toContain('sp-win-hover')
+    expect(region.classList.contains('sp-win-max')).toBe(true)
 
     // 层级：存在最大化窗口（含退场 ghost）时整层抬到 z-[45]，盖过全部
     // z-40 chrome（菜单栏/Dock/左右浮层栏）；还原走窗口标题栏。
     expect(layer.className).toContain('z-[45]')
   })
 
-  it('wears the shell 3.0 window skin: deep glass face with OS-level focus hierarchy', () => {
+  it('wears the spatial window skin: sp glass system with the depth class stack (2026-10-10)', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    const { container } = render(<WindowLayer />)
+
+    // 窗口层舞台透视（--sp-perspective）：只建立 3D 上下文，静止布局零影响
+    // （E2E 几何探针契约；深度档在窗口作用域解析为非变换表达）。
+    const layer = container.firstElementChild as HTMLElement
+    expect(layer.style.perspective).toBe('var(--sp-perspective)')
+
+    // 材质升级：.spatial-window 体系（28px 圆角档 / 40px 磨砂 / 斜向高光 /
+    // 空间阴影 / 两处实色兜底在 spatial.css 自持源序）；旧 surface-glass +
+    // glass-deep 组合与 rounded-xl 20px 档退役；非最大化无 rounded-none。
+    const focused = screen.getByRole('region', { name: '文件' })
+    expect(focused.classList.contains('spatial-window')).toBe(true)
+    expect(focused.classList.contains('sp-win')).toBe(true)
+    expect(focused.classList.contains('surface-glass')).toBe(false)
+    expect(focused.classList.contains('glass-deep')).toBe(false)
+    expect(focused.classList.contains('rounded-xl')).toBe(false)
+    expect(focused.classList.contains('rounded-none')).toBe(false)
+    expect(focused.classList.contains('inset-0')).toBe(false)
+    // 深度类栈：聚焦 near / 失焦可见 middle；最大化与 ghost 不挂（另测）。
+    expect(focused.classList.contains('sp-depth-near')).toBe(true)
+    expect(focused.classList.contains('sp-depth-middle')).toBe(false)
+    // 聚焦面档：更高面实度 + 中性细边 + 更深空间阴影（消费 --ag-window-face-
+    // active / --sp-shadow-window-active，只提实度不加色相——active 禁止
+    // 整体变蓝，不挂 primary 描边）。
+    expect(focused.classList.contains('sp-win-focused')).toBe(true)
+    expect(focused.classList.contains('sp-win-unfocused')).toBe(false)
+    expect(focused.className).not.toContain('border-primary')
+    // 悬停浮起只给失焦窗口（2026-10-10 已批准裁决 1）：聚焦窗口不挂。
+    expect(focused.classList.contains('sp-win-hover')).toBe(false)
+
+    const unfocused = screen.getByRole('region', { name: '记事' })
+    expect(unfocused.classList.contains('sp-depth-middle')).toBe(true)
+    expect(unfocused.classList.contains('sp-depth-near')).toBe(false)
+    expect(unfocused.classList.contains('sp-win-unfocused')).toBe(true)
+    expect(unfocused.classList.contains('sp-win-focused')).toBe(false)
+    // 失焦 + 非最大化 + 非拖拽 → 悬停浮起类在场（translateY(-6px) scale(1.01)
+    // 只发生在 :hover 态，静止布局盒不变——红线 10）。
+    expect(unfocused.classList.contains('sp-win-hover')).toBe(true)
+  })
+
+  it('gates depth classes and hover lift behind the spatialMotion switch (关档直切)', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
     render(<WindowLayer />)
 
-    // 材质表⑤：半透明面 + glass-deep（36px 深玻璃）；radius-xl(20px) 契约
-    // 不变（简报 16-20 区间）；最大化 inset-0 rounded-none 全屏契约不受影响。
-    const focused = screen.getByRole('region', { name: '文件' })
-    expect(focused.classList.contains('surface-glass')).toBe(true)
-    expect(focused.classList.contains('glass-deep')).toBe(true)
-    expect(focused.classList.contains('rounded-xl')).toBe(true)
-    expect(focused.classList.contains('inset-0')).toBe(false)
-    // 聚焦 = 更高面实度（window-glass-focus）+ 中性细边（border-strong）+
-    // 更强大气软影（shadow-window-active）；失焦 = 基底玻璃面 + 常规边框 +
-    // window-flat（active/inactive 层级：像 OS 窗口，不像网页卡片）。
-    expect(focused.classList.contains('window-glass-focus')).toBe(true)
-    expect(focused.classList.contains('border-border-strong')).toBe(true)
-    expect(focused.classList.contains('shadow-window-active')).toBe(true)
-    // active 禁止整体变蓝：聚焦档不得再挂 primary 描边（Shell 3.0 STEP 7）。
-    expect(focused.className).not.toContain('border-primary')
-    const unfocused = screen.getByRole('region', { name: '记事' })
-    expect(unfocused.classList.contains('border-border')).toBe(true)
-    expect(unfocused.classList.contains('shadow-window-flat')).toBe(true)
-    expect(unfocused.classList.contains('window-glass-focus')).toBe(false)
-    expect(unfocused.classList.contains('glass-deep')).toBe(true)
+    const notes = () => screen.getByRole('region', { name: '记事' })
+    const files = () => screen.getByRole('region', { name: '文件' })
+
+    // 开档（默认）：深度类与悬停浮起类在栈上。
+    expect(notes().classList.contains('sp-depth-middle')).toBe(true)
+    expect(notes().classList.contains('sp-win-hover')).toBe(true)
+    expect(notes().classList.contains('sp-motion-static')).toBe(false)
+
+    // 关档：深度类与悬停浮起全部退场、挂 sp-motion-static 直切类；聚焦面档
+    // 不受开关影响（材质恒在，动的只是变换与浮起）。
+    act(() => {
+      useMotionPrefsStore.setState({ spatialMotion: false })
+    })
+    expect(notes().classList.contains('sp-depth-middle')).toBe(false)
+    expect(notes().classList.contains('sp-win-hover')).toBe(false)
+    expect(notes().classList.contains('sp-motion-static')).toBe(true)
+    expect(files().classList.contains('sp-depth-near')).toBe(false)
+    expect(files().classList.contains('sp-motion-static')).toBe(true)
+    expect(files().classList.contains('sp-win-focused')).toBe(true)
+
+    // 重开：类栈随开关即时回位。
+    act(() => {
+      useMotionPrefsStore.setState({ spatialMotion: true })
+    })
+    expect(notes().classList.contains('sp-depth-middle')).toBe(true)
+    expect(notes().classList.contains('sp-win-hover')).toBe(true)
+    expect(notes().classList.contains('sp-motion-static')).toBe(false)
   })
 
   it('focuses the window on pointer down', () => {
@@ -395,6 +454,20 @@ describe('WindowFrame 窗口动效（WAAPI 就绪）', () => {
     expect(options.easing).toBe('cubic-bezier(0.32, 0.72, 0, 1)')
   })
 
+  it('releases the flight effect on settle so the class stack owns transform/opacity', async () => {
+    // fill: both 的已完结动画会把终帧压在级联之上（WAAPI 效果 > 作者样式），
+    // 悬停浮起/失焦退后的 CSS 变换会被锁死——落定即 cancel 摘除效果。
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+
+    expect(flights[0].cancel).not.toHaveBeenCalled() // 飞行期间效果必须在场
+    await act(async () => {
+      flights[0].resolve() // 打开飞行落定
+    })
+    expect(flights[0].cancel).toHaveBeenCalledTimes(1)
+    expect((getRegion('记事') as HTMLElement).style.transform).toBe('') // 内联位姿照常清空
+  })
+
   it('commits close immediately; the aria-hidden ghost finishes the exit flight', async () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     const { container } = render(<WindowLayer />)
@@ -410,6 +483,10 @@ describe('WindowFrame 窗口动效（WAAPI 就绪）', () => {
     expect(ghost).not.toBeNull()
     expect(ghost).toHaveAttribute('aria-hidden', 'true')
     expect(ghost?.className).toContain('pointer-events-none')
+    // 空间化（2026-10-10）：ghost 是关闭退场快照——无深度类、无悬停浮起
+    //（快照即使来自聚焦窗口也不挂 sp-depth-near）。
+    expect(ghost?.className).not.toContain('sp-depth')
+    expect(ghost?.className).not.toContain('sp-win-hover')
 
     await act(async () => {
       flights[1].resolve() // 退场飞行结束

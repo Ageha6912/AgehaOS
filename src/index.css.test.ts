@@ -560,6 +560,68 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(staticRule).toContain('animation: none')
   })
 
+  it('resolves the depth ladder inside the window workplane scope (static box == layout box)', () => {
+    // 窗口 = 工作面（2026-10-10 空间化窗口切片）：窗口 section 是
+    // responsive-quad boundingBox 与 window-resize ±2px 的测量面——深度梯
+    // 与失焦退后在窗口作用域必须解析为 transform: none（红线 10：静止渲染
+    // 盒恒等于布局盒）；类照挂（组件契约不变），变换归零（测量面契约）。
+    expect(spatial).toMatch(
+      /\.spatial-window\.sp-win\.sp-depth-near,\s*\.spatial-window\.sp-win\.sp-depth-middle,\s*\.spatial-window\.sp-win\.sp-depth-far\s*\{\s*transform:\s*none;/,
+    )
+    expect(spatial).toMatch(/\.spatial-window\.sp-win\.is-tilt-dim\s*\{\s*transform:\s*none;/)
+    // 栈内唯一 transform 写入者是悬停浮起 :hover 规则（只给失焦窗口，
+    // translateY(-6px) scale(1.01) + 阴影加深；hover 态才发生，几何探针按
+    // 静止态测量永不命中）——且位于深度/退后消解规则之后（同特异性源序）。
+    const hoverAt = spatial.indexOf('.spatial-window.sp-win.sp-win-hover:hover')
+    expect(hoverAt).toBeGreaterThan(spatial.indexOf('.spatial-window.sp-win.is-tilt-dim'))
+    const hoverRule = spatial.slice(hoverAt, spatial.indexOf('}', hoverAt))
+    expect(hoverRule).toContain('transform: translateY(-6px) scale(1.01)')
+    expect(hoverRule).toContain('box-shadow: var(--sp-shadow-window-hover)')
+    // 窗口工作面底档：position 抵消基规则 relative（几何仍由 inline
+    // left/top 定位），面/边走 --ag 窗口档（工作面承墨字）。
+    const winBaseAt = spatial.indexOf('.spatial-window.sp-win {')
+    const winBase = spatial.slice(winBaseAt, spatial.indexOf('}', winBaseAt))
+    expect(winBase).toContain('position: absolute')
+    expect(winBase).toContain('background: var(--ag-glass-bg)')
+    expect(winBase).toContain('border-color: var(--ag-border)')
+    // 聚焦档：更高面实度 + 中性细边 + 更深空间阴影——只提实度不加色相
+    // （active 禁止整体变蓝，不引入 primary）。
+    const focusedAt = spatial.indexOf('.spatial-window.sp-win.sp-win-focused')
+    const focusedRule = spatial.slice(focusedAt, spatial.indexOf('}', focusedAt))
+    expect(focusedRule).toContain('background: var(--ag-window-face-active)')
+    expect(focusedRule).toContain('border-color: var(--ag-border-strong)')
+    expect(focusedRule).toContain('box-shadow: var(--sp-shadow-window-active)')
+    // 最大化直切零圆角（rounded-none 工具类在未分层规则前必败，
+    // sp-win-max 是实效载体；组件侧两类同挂）。
+    const maxAt = spatial.indexOf('.spatial-window.sp-win.sp-win-max')
+    const maxRule = spatial.slice(maxAt, spatial.indexOf('}', maxAt))
+    expect(maxRule).toMatch(/border-radius:\s*0px/)
+  })
+
+  it('pairs the spatial window shadow tiers across themes and pins the window scope before fallbacks', () => {
+    // 空间窗口阴影三档（flat < hover < active 递进）双主题成对：浅 = 冷墨
+    // 家族、深 = 纯黑家族。
+    expect(spRoot).toMatch(/--sp-shadow-window-hover:\s*0 36px 104px rgb\(18 32 62 \/ 25%\)/)
+    expect(spRoot).toMatch(/--sp-shadow-window-active:\s*0 40px 112px rgb\(18 32 62 \/ 27%\)/)
+    expect(spDark).toMatch(/--sp-shadow-window-hover:\s*0 36px 104px rgb\(0 0 0 \/ 58%\)/)
+    expect(spDark).toMatch(/--sp-shadow-window-active:\s*0 40px 112px rgb\(0 0 0 \/ 62%\)/)
+    // 源序（红线 3）：窗口作用域段位于浮动/静态对之后、两处实色兜底之前；
+    // 聚焦面档特异性更高，两处兜底选择器组必须同等特异性并列覆盖
+    // （降级环境必胜，对比从不依赖 blur）。
+    const winScopeAt = spatial.indexOf('.spatial-window.sp-win {')
+    expect(winScopeAt).toBeGreaterThan(spatial.indexOf('.sp-motion-static'))
+    const rtiAt = spatial.indexOf('@media (prefers-reduced-transparency')
+    const nbfAt = spatial.indexOf('@supports not (backdrop-filter')
+    expect(rtiAt).toBeGreaterThan(winScopeAt)
+    expect(nbfAt).toBeGreaterThan(rtiAt)
+    for (const fbAt of [rtiAt, nbfAt]) {
+      const fbBlock = spatial.slice(fbAt, spatial.indexOf('\n}', fbAt))
+      expect(fbBlock).toContain('.spatial-window,')
+      expect(fbBlock).toContain('.spatial-window.sp-win,')
+      expect(fbBlock).toContain('.spatial-window.sp-win.sp-win-focused')
+    }
+  })
+
   it('falls back to solid surfaces inside spatial.css with self-contained source order', () => {
     // 空间玻璃对比度从不依赖 blur：spatial.css 内部自持源序——基规则 →
     // 增量 → 两处实色兜底（--ag-surface-popover 家族，与既有 .surface-glass

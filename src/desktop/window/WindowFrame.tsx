@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 
 import { AppIcon } from '@/apps/app-icon'
 import { componentFor } from '@/apps/builtin'
@@ -98,7 +98,31 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
   const app = componentFor(win.appId)
   // 窗口切换转场（§32.5 修订 10）：聚焦小起立（一次性 WAAPI）+ 失焦微退后。
   const tiltOn = useMotionPrefsStore((s) => s.windowTilt)
+  // 空间动效总开关（2026-10-10 空间化裁决 3）：关档时不挂深度类与悬停浮起
+  // （挂 sp-motion-static 直切等价类）；prefers-reduced-motion 由全局塌缩兜底。
+  const spatialMotion = useMotionPrefsStore((s) => s.spatialMotion)
+  // 拖拽进行中：悬停浮起的排除条件之一（拖拽窗口必然已聚焦，此为双保险，
+  // 并保证拖拽期间悬停过渡类不在场——跟手零延迟）。只在起拖/收拖各一次渲染。
+  const [dragging, setDragging] = useState(false)
   useFocusTilt(sectionRef, win.focused, minimized, tiltOn)
+
+  // 深度类栈（2026-10-10 空间化裁决）：聚焦 = sp-depth-near、失焦可见 =
+  // sp-depth-middle；最大化/最小化/ghost 不挂深度。窗口 section 是 E2E 几何
+  // 探针与拖拽 ±2px 钉扎的测量面——深度梯的投影型 translateZ 在窗口作用域
+  // 被 spatial.css 的 sp-win 覆盖解析为非变换表达（面实度/细边/阴影三档），
+  // 静止渲染盒恒等于布局盒（红线 10）。
+  const depthClass =
+    !ghost && !minimized && !maximized && spatialMotion
+      ? win.focused
+        ? 'sp-depth-near'
+        : 'sp-depth-middle'
+      : ''
+  // 悬停浮起：仅「失焦 + 非最大化 + 非最小化 + 非拖拽中 + 空间动效开档」；
+  // ghost 是关闭退场快照，永不浮起。
+  const hoverClass =
+    !ghost && spatialMotion && !win.focused && !maximized && !minimized && !dragging
+      ? 'sp-win-hover'
+      : ''
 
   // 最大化（2026-10-02 用户裁决，修订 12）：整视口真全屏——横向全幅贴左右
   // 屏幕边缘、上缘到屏幕顶（盖过菜单栏带）、下缘到屏幕底（盖过 Dock 带），
@@ -123,6 +147,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       x: win.x,
       y: win.y,
     }
+    setDragging(true)
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
@@ -140,6 +165,7 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
   const onTitlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
     if (!dragOrigin.current) return
     dragOrigin.current = null
+    setDragging(false)
     try {
       event.currentTarget.releasePointerCapture(event.pointerId)
     } catch {
@@ -215,19 +241,20 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       ref={sectionRef}
       aria-label={win.title}
       aria-hidden={ghost || undefined}
-      className={`surface-glass glass-deep absolute flex flex-col overflow-hidden border ${minimized ? 'hidden' : ''} ${
-        maximized ? 'inset-0 rounded-none' : 'rounded-xl'
+      className={`spatial-window sp-win absolute flex flex-col overflow-hidden ${minimized ? 'hidden' : ''} ${
+        maximized ? 'inset-0 rounded-none sp-win-max' : ''
       } ${
-        // Shell 3.0 STEP 7 深度层级：active = 中性细边（border-strong）+
-        // 更高面实度（window-glass-focus）+ 更强大气软影（shadow-window-
-        // active）；inactive = 常规细边 + flat 影。聚焦档只提实度不加色相
-        // （active 禁止整体变蓝）。
+        // 空间化窗口状态栈（2026-10-10）：材质结构走 .spatial-window 体系
+        // （28px 圆角档/40px 磨砂/斜向高光/空间阴影/两处实色兜底），面实度
+        // 与细边仍走 --ag 窗口档（工作面承墨字；sp-win 段 unlayered 覆写）——
+        // 聚焦 = 更高面实度 + border-strong + 更深空间阴影；失焦 = 基底档。
+        // 聚焦档只提实度不加色相（active 禁止整体变蓝）。
         win.focused
-          ? 'window-glass-focus border-border-strong shadow-window-active'
-          : 'border-border shadow-window-flat'
-      } ${tiltOn && !win.focused && !minimized ? 'is-tilt-dim' : ''} ${
-        ghost ? 'pointer-events-none' : 'pointer-events-auto'
-      }`}
+          ? 'sp-win-focused'
+          : 'sp-win-unfocused'
+      } ${depthClass} ${hoverClass} ${tiltOn && !win.focused && !minimized ? 'is-tilt-dim' : ''} ${
+        spatialMotion ? '' : 'sp-motion-static'
+      } ${ghost ? 'pointer-events-none' : 'pointer-events-auto'}`}
       style={style}
       onPointerDown={() => focus(win.id)}
     >

@@ -40,8 +40,12 @@
   --sp-float-distance: 5px;
 
   /* 空间窗口阴影：比 --ag-shadow-window（0 16px 48px）更大更弥散的漂浮档；
-     浅色同 align 既有冷墨 rgb(18 32 62 / x%) 家族。 */
+     浅色同 align 既有冷墨 rgb(18 32 62 / x%) 家族。active = 聚焦窗口更深
+     一档（flat < hover < active 递进，同 --ag-shadow-window 族语义）；
+     hover = 失焦窗口悬停浮起加深档（仍低于聚焦档——聚焦恒最实最沉）。 */
   --sp-shadow-window: 0 32px 96px rgb(18 32 62 / 22%), 0 8px 28px rgb(18 32 62 / 10%);
+  --sp-shadow-window-hover: 0 36px 104px rgb(18 32 62 / 25%), 0 10px 30px rgb(18 32 62 / 12%);
+  --sp-shadow-window-active: 0 40px 112px rgb(18 32 62 / 27%), 0 12px 34px rgb(18 32 62 / 13%);
 }
 
 .dark {
@@ -53,6 +57,8 @@
 
   /* 空间窗口阴影深色成对：纯黑家族。 */
   --sp-shadow-window: 0 32px 96px rgb(0 0 0 / 55%), 0 8px 28px rgb(0 0 0 / 32%);
+  --sp-shadow-window-hover: 0 36px 104px rgb(0 0 0 / 58%), 0 10px 30px rgb(0 0 0 / 34%);
+  --sp-shadow-window-active: 0 40px 112px rgb(0 0 0 / 62%), 0 12px 34px rgb(0 0 0 / 38%);
 }
 
 /* ---- 基规则：空间玻璃面 ---- */
@@ -112,16 +118,90 @@
   animation: none;
 }
 
+/* ---- 窗口工作面作用域（WindowFrame 消费；2026-10-10 空间化窗口切片）----
+   窗口 = 工作面（墨字 + 应用纸面），不是装饰玻璃件：面实度走 --ag 窗口档
+   （72% 基底 / 84% 聚焦，.sp 16% 档承不了标题栏墨字），边框走 --ag 中性
+   细边（聚焦 border-strong，active 只提实度不加色相）；.spatial-window 体系
+   提供结构（28px 圆角档 / 40px 磨砂 / 斜向高光 / 空间阴影 / 两处实色兜底）。
+   测量面契约（红线 10 与 E2E 钉扎的消解）：窗口 section 是 responsive-quad
+   boundingBox 边界断言与 window-resize ±2px 补偿断言的测量面——深度档的
+   translateZ 在本层 perspective（1400px）下是投影型变换（z=80 实测投影
+   ≈ +6.1% 放大且随离心位移，Chromium getBoundingClientRect 计入透视），
+   直接挂会实时改变静止渲染盒。故深度/退后在窗口作用域一律解析为
+   transform: none（下方 win 覆盖，特异性压过通用深度梯），深度语义改由
+   状态类栈（面实度/细边/阴影三档 + 悬停浮起）表达；唯一写 transform 的
+   窗口规则是悬停浮起（:hover 才发生，几何探针按静止态测量永不命中）。
+   组件侧契约不变：聚焦挂 sp-depth-near、失焦可见挂 sp-depth-middle、
+   最大化与 ghost 无深度类。 */
+
+/* 基础档（失焦可见窗口的面/边；聚焦由 focused 档覆写）：position 抵消
+   基规则的 relative——窗口几何仍由 left/top inline 定位（行为零变化）。 */
+.spatial-window.sp-win {
+  position: absolute;
+  background: var(--ag-glass-bg);
+  border-color: var(--ag-border);
+}
+
+/* 聚焦档：更高面实度（--ag-window-face-active，只提实度不加色相）+
+   中性细边（border-strong）+ 更深空间阴影。 */
+.spatial-window.sp-win.sp-win-focused {
+  background: var(--ag-window-face-active);
+  border-color: var(--ag-border-strong);
+  box-shadow: var(--sp-shadow-window-active);
+}
+
+/* 最大化：真全屏无圆角（rounded-none 工具类在未分层规则前必败，此处
+   unlayered 同字段覆写；组件侧两类同挂，契约与实效齐备）。 */
+.spatial-window.sp-win.sp-win-max {
+  border-radius: 0px;
+}
+
+/* 深度梯窗口作用域消解（见段首注释）：类照挂、变换归零，静止渲染盒恒等
+   于布局盒。 */
+.spatial-window.sp-win.sp-depth-near,
+.spatial-window.sp-win.sp-depth-middle,
+.spatial-window.sp-win.sp-depth-far {
+  transform: none;
+}
+
+/* 失焦微退后并入窗口状态栈：is-tilt-dim 只保留 opacity/transition 档
+   （index.css 通用规则的 scale(0.995) 在窗口作用域被本覆盖压掉），与
+   悬停浮起不再争 transform——栈内唯一 transform 写入者是下方 :hover 规则。 */
+.spatial-window.sp-win.is-tilt-dim {
+  transform: none;
+}
+
+/* 悬停浮起（2026-10-10 已批准裁决 1：只给失焦窗口；Dock 域不涉）：仅
+   「失焦 + 非最大化 + 非拖拽中 + 空间动效开档」时组件挂 sp-win-hover，
+   hover 态 translateY(-6px) scale(1.01) + 阴影加深。transition 挂在类上：
+   组件在拖拽开始即摘类 → 拖拽进行中天然无过渡（跟手零延迟）；
+   prefers-reduced-motion 由 index.css 全局 0.01ms 塌缩接管。 */
+.spatial-window.sp-win.sp-win-hover {
+  transition:
+    transform var(--ag-motion-base) var(--ag-motion-ease),
+    box-shadow var(--ag-motion-base) var(--ag-motion-ease),
+    opacity 200ms var(--ag-motion-ease);
+}
+.spatial-window.sp-win.sp-win-hover:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: var(--sp-shadow-window-hover);
+}
+
 /* ---- 降级兜底（源序即降级：兜底块在后，降级环境必胜；实色取
-   --ag-surface-popover 家族，与既有玻璃兜底同口径）---- */
+   --ag-surface-popover 家族，与既有 .surface-glass 兜底同口径。窗口状态档
+   特异性更高，兜底选择器组必须同等特异性并列、靠源序取胜）---- */
 @media (prefers-reduced-transparency: reduce) {
-  .spatial-window {
+  .spatial-window,
+  .spatial-window.sp-win,
+  .spatial-window.sp-win.sp-win-focused {
     background: var(--ag-surface-popover);
     backdrop-filter: none;
   }
 }
 @supports not (backdrop-filter: blur(1px)) {
-  .spatial-window {
+  .spatial-window,
+  .spatial-window.sp-win,
+  .spatial-window.sp-win.sp-win-focused {
     background: var(--ag-surface-popover);
   }
 }

@@ -48,9 +48,13 @@ export function useWindowMotion(
   // flightRef 都活在同一组件实例上，重跑会在中途 cancel 掉退场动画。
   const ghostRef = useRef(options.ghost ?? false)
 
-  /** 各目标的落定动作：open/restore 清内联位姿；minimize 交还 hidden 类；close 兜底提交 + 注销 ghost。 */
+  /** 各目标的落定动作：open/restore/minimize 摘除动画效果 + 清内联位姿；
+   * close 兜底提交 + 注销 ghost。fill: both 的已完结动画会把终帧
+   * （transform/opacity）永久压在级联之上（animation 源高于作者样式），
+   * 悬停浮起/失焦退后的 CSS 变换会被它锁死——落定即 cancel 摘除效果；
+   * 终帧 = 恒等位姿，与 CSS 静止态一致，取消与清位姿同任务同步执行，无缝。 */
   const finishFor = useCallback(
-    (goal: FlightGoal): (() => void) => {
+    (goal: FlightGoal, anim: Animation): (() => void) => {
       const el = sectionRef.current
       switch (goal) {
         case 'close':
@@ -62,6 +66,7 @@ export function useWindowMotion(
         case 'restore':
         case 'minimize':
           return () => {
+            anim.cancel()
             if (el) clearInlinePose(el)
           }
       }
@@ -71,7 +76,7 @@ export function useWindowMotion(
 
   const track = useCallback(
     (goal: FlightGoal, anim: Animation) => {
-      flightRef.current = { goal, anim, finish: finishFor(goal) }
+      flightRef.current = { goal, anim, finish: finishFor(goal, anim) }
       // finished 在自然结束与 reverse() 播完时都 resolve；cancel 时 reject（已被接管/卸载，忽略）
       anim.finished
         .then(() => {
@@ -90,7 +95,7 @@ export function useWindowMotion(
     const active = flightRef.current
     if (!active || REVERSE_GOAL[goal] !== active.goal) return false
     active.goal = goal
-    active.finish = finishFor(goal)
+    active.finish = finishFor(goal, active.anim)
     active.anim.reverse()
     return true
     // finishFor 仅在 goal 变化时换绑，闭包取当前即可
