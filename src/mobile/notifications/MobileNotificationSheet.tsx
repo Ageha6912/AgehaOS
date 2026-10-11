@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { Bell, X } from '@phosphor-icons/react'
+import { Bell, CaretRight, X } from '@phosphor-icons/react'
 
 import { useLocaleStore, useTranslation } from '@/core/i18n'
+import { getAppManifest } from '@/store/app-store'
+import { useMobileNavStore } from '@/store/mobile-nav-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import {
   notificationBodyText,
@@ -10,6 +12,8 @@ import {
   useNotificationStore,
 } from '@/store/notification-store'
 import type { NotificationItem } from '@/store/notification-store'
+
+import { notificationNavTarget } from './notification-nav'
 
 /**
  * 移动通知中心（M2-2，HANDOFF §4.0-2）：Bottom Sheet 通知列表——历史查看、
@@ -37,6 +41,15 @@ import type { NotificationItem } from '@/store/notification-store'
  * 玻璃层 = surface-glass 基底 + glass-raise（Dock/启动器抽屉同档）；
  * backdrop 遮罩纯色压暗（零 blur）。触控纪律（§35.3）：清除按钮与清空
  * 按钮命中区 ≥44×44。
+ *
+ * M4-2 通知点击跳转：桥从 app.crashed / eclosion.app.failed 载荷存入的
+ * targetAppId（notification-store.ts 字段注释）+ 目标在册（getAppManifest
+ * 解析面与 launchApp 同源）→ 行主体渲染为按钮：点按 = markRead（点按即
+ * 已过目，iOS 通知中心同款）→ mobile-nav-store openApp（最近任务模型：
+ * 活记录切回既有窗口 / 无记录新开，真实启动仍归 AppHost）→ onClose 关
+ * sheet（与 backdrop/Esc 同一出口，开关状态归状态栏铃铛）。载荷无 appId
+ * 或目标已注销 → 纯展示整条不可点（不伪造，判定在 notification-nav.ts
+ * 纯函数）。
  */
 /** 退场渲染滞后 = 进出场时长；与 index.css 的 --ag-motion-base（200ms）同值。 */
 const SHEET_TRANSITION_MS = 200
@@ -48,36 +61,72 @@ function timeOf(createdAt: number, locale: 'zh-CN' | 'en'): string {
   return new Date(createdAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 }
 
-/** 单条通知行：标题（未读点亮点）+ 正文（词典键渲染）+ 时间 + 44×44 清除钮。 */
-function NotificationRow({ item }: { item: NotificationItem }) {
+/** 单条通知行：标题（未读点亮点）+ 正文（词典键渲染）+ 时间 + 44×44 清除钮。
+ * 带 targetAppId 且目标在册 → 行主体为跳转按钮（M4-2，判定见 notification-nav）。 */
+function NotificationRow({ item, onClose }: { item: NotificationItem; onClose: () => void }) {
   const { t } = useTranslation()
   const locale = useLocaleStore((s) => s.locale)
   const remove = useNotificationStore((s) => s.remove)
+  const markRead = useNotificationStore((s) => s.markRead)
+  const openApp = useMobileNavStore((s) => s.openApp)
   const body = notificationBodyText(item, t) || null
+  const target = notificationNavTarget(item, (appId) => getAppManifest(appId) !== null)
+
+  const content = (
+    <>
+      <p className="text-sm font-medium text-text">
+        {!item.read && (
+          <span
+            aria-hidden="true"
+            className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle"
+          />
+        )}
+        {notificationTitleText(item, t)}
+      </p>
+      {body && <p className="mt-0.5 text-xs text-text-muted">{body}</p>}
+      <p className="mt-1 text-[11px] tabular-nums text-text-muted">
+        {timeOf(item.createdAt, locale)}
+      </p>
+    </>
+  )
 
   return (
     <li
       data-testid="mobile-notification-item"
       data-read={item.read ? 'true' : 'false'}
+      data-navigable={target !== null ? 'true' : 'false'}
       className={`flex items-start gap-1 rounded-xl border p-3 pr-1.5 ${
         item.read ? 'border-border bg-surface' : 'border-primary/40 bg-primary/5'
       }`}
     >
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-text">
-          {!item.read && (
-            <span
-              aria-hidden="true"
-              className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle"
-            />
-          )}
-          {notificationTitleText(item, t)}
-        </p>
-        {body && <p className="mt-0.5 text-xs text-text-muted">{body}</p>}
-        <p className="mt-1 text-[11px] tabular-nums text-text-muted">
-          {timeOf(item.createdAt, locale)}
-        </p>
-      </div>
+      {target !== null ? (
+        /* 跳转按钮：行主体整块命中（内容自然高 + min-h 44 兜底，§35.3）；
+           可访问名 = 通知文本 + sr-only「打开」（词典键，不做字符串拼接）。 */
+        <button
+          type="button"
+          data-testid="mobile-notification-open"
+          data-target-app-id={target}
+          onClick={() => {
+            markRead(item.id)
+            openApp(target)
+            onClose()
+          }}
+          className="flex min-h-[44px] min-w-0 flex-1 flex-col items-start rounded-xl text-left transition-opacity active:opacity-80"
+        >
+          {content}
+          <span className="sr-only">{t('notification.open')}</span>
+        </button>
+      ) : (
+        <div className="min-w-0 flex-1">{content}</div>
+      )}
+      {target !== null && (
+        <CaretRight
+          size={14}
+          weight="regular"
+          aria-hidden="true"
+          className="mt-0.5 shrink-0 text-text-tertiary"
+        />
+      )}
       <button
         type="button"
         data-testid="mobile-notification-remove"
@@ -208,7 +257,7 @@ export function MobileNotificationSheet({ open, onClose }: { open: boolean; onCl
             className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain px-2 pb-2"
           >
             {items.map((item) => (
-              <NotificationRow key={item.id} item={item} />
+              <NotificationRow key={item.id} item={item} onClose={onClose} />
             ))}
           </ul>
         )}

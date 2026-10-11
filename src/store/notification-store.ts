@@ -16,6 +16,13 @@ export type NotificationPriority = 'normal' | 'critical'
 
 export interface NotificationInput {
   appId: string
+  /**
+   * 跳转目标应用（M4-2 通知点击跳转）：推送源事件载荷携带 appId 时由桥
+   * 存入（app.crashed / eclosion.app.failed），移动通知中心据此渲染可点
+   * 击跳转样式；缺席 = 纯展示整条不可点（不伪造）。与 `appId`（通知的
+   * 「来源应用」，系统通知恒 'system'）语义刻意分开。
+   */
+  targetAppId?: string
   /** 系统通知走词典键（铁律 15）；SDK 应用通知（PRD §17）携带清洗后的字面文本。 */
   titleKey?: MessageKey
   title?: string

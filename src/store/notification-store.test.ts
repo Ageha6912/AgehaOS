@@ -30,6 +30,22 @@ describe('notification-store (PRD §16.2)', () => {
     expect(unreadCount(items)).toBe(2)
   })
 
+  it('stores the optional navigation target (M4-2) and defaults it to absent', () => {
+    useNotificationStore.getState().push({
+      appId: 'system',
+      targetAppId: 'com.ageha.notes',
+      titleKey: 'notification.title.appCrashed',
+      bodyKey: 'notification.body.appCrashed',
+      bodyParams: { app: 'Notes' },
+    })
+    pushOf('B')
+    const { items } = useNotificationStore.getState()
+    // 最新在前：items[0] = 无目标的 B，items[1] = 带 targetAppId 的 A。
+    expect(items[0]?.targetAppId).toBeUndefined()
+    // 无目标的推送（载荷无 appId）字段缺席——消费方据此判定纯展示。
+    expect(items[1]?.targetAppId).toBe('com.ageha.notes')
+  })
+
   it('keeps at most NOTIFICATION_LIMIT entries (newest first)', () => {
     for (let index = 0; index < NOTIFICATION_LIMIT + 5; index += 1) {
       pushOf(`n${index}`)

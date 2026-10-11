@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { resetAppStore } from '@/store/app-store'
+import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
 import { resetMotionPrefsStore, useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
 
@@ -18,6 +20,10 @@ import { MobileNotificationSheet } from './MobileNotificationSheet'
  *   播完退场帧（data-state='leaving' + aria-hidden）再卸载；
  * - 动效尊重 = motion-prefs 转场关档追加 .mobile-notification-static；
  * - 触控纪律 = 清除/清空命中区 ≥44×44（§35.3）。
+ * M4-2 通知点击跳转：带 targetAppId 且目标在册 → 行主体跳转按钮，点按 =
+ * markRead + mobile-nav-store openApp（最近任务模型：无记录新开过渡帧 /
+ * 有活记录切回既有窗口）+ onClose 关 sheet；无 targetAppId 或目标已注销 →
+ * 纯展示整条不可点（不伪造，判定在 notification-nav.ts 纯函数）。
  */
 
 /** 两条样例通知（bridge 真实键：应用崩溃 + 世界就绪；序 = push 序）。 */
@@ -48,6 +54,9 @@ beforeEach(() => {
   localStorage.clear()
   resetNotificationStore()
   resetMotionPrefsStore()
+  resetMobileNavStore()
+  // 跳转目标的在册门控走真实注册表（getAppManifest），注册内置清单。
+  resetAppStore()
 })
 
 describe('MobileNotificationSheet', () => {
@@ -169,5 +178,93 @@ describe('MobileNotificationSheet', () => {
     expect(screen.getByTestId('mobile-notification-center').className).toContain(
       'mobile-notification-static',
     )
+  })
+
+  it('M4-2 跳转：带 targetAppId 且在册 → 行主体为按钮，点按 = markRead + openApp + onClose', () => {
+    const onClose = vi.fn()
+    act(() => {
+      useNotificationStore.getState().push({
+        appId: 'system',
+        targetAppId: 'com.ageha.notes',
+        titleKey: 'notification.title.appCrashed',
+        bodyKey: 'notification.body.appCrashed',
+        bodyParams: { app: 'Notes' },
+        priority: 'critical',
+      })
+    })
+    render(<MobileNotificationSheet open onClose={onClose} />)
+
+    const item = screen.getByTestId('mobile-notification-item')
+    expect(item).toHaveAttribute('data-navigable', 'true')
+    const open = within(item).getByTestId('mobile-notification-open')
+    expect(open).toHaveAttribute('data-target-app-id', 'com.ageha.notes')
+    // 可访问名带词典键「打开」尾注（sr-only），不是字符串拼接。
+    expect(within(open).getByText('打开')).toBeInTheDocument()
+    expect(open.className).toContain('min-h-[44px]')
+
+    fireEvent.click(open)
+
+    expect(useNotificationStore.getState().items[0]?.read).toBe(true)
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.notes',
+      windowId: null,
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('M4-2 复用：目标已有活窗口 → openApp 切回既有 windowId（最近任务单实例）', () => {
+    act(() => {
+      useNotificationStore.getState().push({
+        appId: 'system',
+        targetAppId: 'com.ageha.notes',
+        titleKey: 'notification.title.appCrashed',
+        bodyKey: 'notification.body.appCrashed',
+        bodyParams: { app: 'Notes' },
+      })
+      useMobileNavStore.setState({
+        apps: [{ appId: 'com.ageha.notes', windowId: 'w-live', openedAt: 1 }],
+      })
+    })
+    const onClose = vi.fn()
+    render(<MobileNotificationSheet open onClose={onClose} />)
+
+    fireEvent.click(within(screen.getByTestId('mobile-notification-item')).getByTestId('mobile-notification-open'))
+
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.notes',
+      windowId: 'w-live',
+    })
+  })
+
+  it('M4-2 退化：targetAppId 已注销 → 纯展示无跳转按钮（不伪造），nav 不动', () => {
+    act(() => {
+      useNotificationStore.getState().push({
+        appId: 'system',
+        targetAppId: 'com.ageha.eclosion.gone',
+        titleKey: 'notification.title.eclosionAppFailed',
+        bodyKey: 'notification.body.eclosionAppFailedNoFallback',
+        bodyParams: { app: '已注销应用' },
+      })
+    })
+    const onClose = vi.fn()
+    render(<MobileNotificationSheet open onClose={onClose} />)
+
+    const item = screen.getByTestId('mobile-notification-item')
+    expect(item).toHaveAttribute('data-navigable', 'false')
+    expect(within(item).queryByTestId('mobile-notification-open')).toBeNull()
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('M4-2 纯展示：无 targetAppId 的通知（载荷无 appId）整条不可点', () => {
+    pushTwo()
+    render(<MobileNotificationSheet open onClose={vi.fn()} />)
+
+    for (const item of screen.getAllByTestId('mobile-notification-item')) {
+      expect(item).toHaveAttribute('data-navigable', 'false')
+      expect(within(item).queryByTestId('mobile-notification-open')).toBeNull()
+    }
   })
 })

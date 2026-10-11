@@ -13,6 +13,12 @@ import { useNotificationStore } from '@/store/notification-store'
  * 羽化（AI-GENERATED-APPS-DESIGN §3.2）：只桥接 eclosion.app.failed（重试后
  * 仍失败、已回落原生才发）与「今日世界已就绪」（每个 worldDate 至多一条，
  * 去重态在 eclosion-store；生成进度/首次失败不进通知）。
+ *
+ * M4-2 通知点击跳转：事件载荷携带 appId 的（app.crashed / eclosion.app.failed）
+ * 把它存为通知项的 targetAppId——移动通知中心据此渲染可点击跳转样式；
+ * desktop.generation.failed / eclosion.world.ready 载荷无 appId，通知保持
+ * 纯展示整条不可点（不伪造）。permission.denied 载荷虽带 appId，但本桥
+ * 不消费该事件（无对应通知），无可跳转项。
  */
 
 let started = false
@@ -26,6 +32,7 @@ export function startNotificationBridge(): void {
     const app = useAppStore.getState().apps.find((candidate) => candidate.id === appId)
     useNotificationStore.getState().push({
       appId: 'system',
+      targetAppId: appId,
       titleKey: 'notification.title.appCrashed',
       bodyKey: 'notification.body.appCrashed',
       bodyParams: { app: app?.name ?? appId },
@@ -51,6 +58,7 @@ export function startNotificationBridge(): void {
     const basic = eclosionAppKind(appId) === 'basic'
     useNotificationStore.getState().push({
       appId: 'system',
+      targetAppId: appId,
       titleKey: 'notification.title.eclosionAppFailed',
       bodyKey: basic
         ? 'notification.body.eclosionAppFailed'

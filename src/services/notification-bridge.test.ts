@@ -25,6 +25,8 @@ describe('notification bridge (PRD §16)', () => {
     expect(items[0]?.priority).toBe('critical')
     expect(items[0]?.titleKey).toBe('notification.title.appCrashed')
     expect(items[0]?.bodyParams?.app).toBe('Notes')
+    // M4-2：载荷携带 appId → 存为跳转目标（移动通知中心可点击跳转）。
+    expect(items[0]?.targetAppId).toBe('com.ageha.notes')
   })
 
   it('turns desktop.generation.failed into a notification', () => {
@@ -39,6 +41,8 @@ describe('notification bridge (PRD §16)', () => {
     const { items } = useNotificationStore.getState()
     expect(items).toHaveLength(1)
     expect(items[0]?.titleKey).toBe('notification.title.wallpaperFailed')
+    // M4-2：载荷无 appId → 不存跳转目标（通知保持纯展示，不伪造）。
+    expect(items[0]?.targetAppId).toBeUndefined()
   })
 
   it('does not duplicate listeners when started twice', () => {
@@ -64,6 +68,8 @@ describe('notification bridge (PRD §16)', () => {
     expect(items[0]?.bodyKey).toBe('notification.body.eclosionAppFailed')
     // 羽化应用未进 app-store：名字回落规格标题键。
     expect(items[0]?.bodyParams?.app).toBe('计算器')
+    // M4-2：载荷携带 appId → 存为跳转目标。
+    expect(items[0]?.targetAppId).toBe('com.ageha.eclosion.calculator')
   })
 
   it('uses the no-fallback wording for today-domain apps (L2 无原生真身)', () => {
@@ -106,6 +112,8 @@ describe('notification bridge (PRD §16)', () => {
     expect(items).toHaveLength(1)
     expect(items[0]?.titleKey).toBe('notification.title.worldReady')
     expect(items[0]?.bodyKey).toBe('notification.body.worldReady')
+    // M4-2：载荷只有 worldDate，无 appId → 不存跳转目标（纯展示）。
+    expect(items[0]?.targetAppId).toBeUndefined()
 
     // 同日重播（当日缓存命中/开关重开重跑接线）：不重复打扰。
     systemBus.emit('eclosion.world.ready', { worldDate: '2026-10-03' })
