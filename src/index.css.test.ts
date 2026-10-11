@@ -501,6 +501,10 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(spRoot).toMatch(/--sp-perspective:\s*1100px/)
     expect(spRoot).toMatch(/--sp-float-duration:\s*7s/)
     expect(spRoot).toMatch(/--sp-float-distance:\s*9px/)
+    // 悬停浮起专属丝滑档（2026-10-11 用户反馈二）：480ms 慢起缓落 + 长尾
+    // 软着陆贝塞尔，不再借用 --ag-motion-base 的 200ms 立即起浮。
+    expect(spRoot).toMatch(/--sp-hover-duration:\s*480ms/)
+    expect(spRoot).toMatch(/--sp-hover-ease:\s*cubic-bezier\(0\.33, 0, 0\.2, 1\)/)
     // 随主题翻转的档位成对声明：浅色低透白 10/16/24；深色冷墨
     // rgb(16 23 40 / x%) 家族（--ag-glass-bg 深色配方同族，独立低透明档）。
     expect(spRoot).toMatch(/--sp-glass-light:\s*rgb\(255 255 255 \/ 10%\)/)
@@ -580,6 +584,11 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(hoverAt).toBeGreaterThan(spatial.indexOf('.spatial-window.sp-win.is-tilt-dim'))
     const hoverRule = spatial.slice(hoverAt, spatial.indexOf('}', hoverAt))
     expect(hoverRule).toContain('transform: translateY(-12px) scale(1.03)')
+    // 过渡走专属丝滑档（挂类不挂 :hover——离开对称回落同速）。
+    const hoverClsAt = spatial.indexOf('.spatial-window.sp-win.sp-win-hover {')
+    const hoverCls = spatial.slice(hoverClsAt, spatial.indexOf('}', hoverClsAt))
+    expect(hoverCls).toContain('transform var(--sp-hover-duration) var(--sp-hover-ease)')
+    expect(hoverCls).toContain('box-shadow var(--sp-hover-duration) var(--sp-hover-ease)')
     expect(hoverRule).toContain('box-shadow: var(--sp-shadow-window-hover)')
     // 窗口工作面底档：position 抵消基规则 relative（几何仍由 inline
     // left/top 定位），面/边走 --ag 窗口档（工作面承墨字）。

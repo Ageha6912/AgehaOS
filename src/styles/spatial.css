@@ -40,6 +40,13 @@
   --sp-float-duration: 7s;
   --sp-float-distance: 9px;
 
+  /* 悬停浮起缓动（2026-10-11 用户反馈二「放缓更丝滑、不要立马浮起」）：
+     480ms 慢起缓出长尾软着陆，离开对称回落同速；不再借用 --ag-motion-base
+     的 200ms 立即起浮。主题无关常量只入 :root；reduced-motion 仍由全局
+     塌缩接管。 */
+  --sp-hover-duration: 480ms;
+  --sp-hover-ease: cubic-bezier(0.33, 0, 0.2, 1);
+
   /* Dock 弱倒影高度（.dock-reflection 消费；2026-10-11 用户反馈加大：
      24px → 40px）。 */
   --sp-dock-reflection-height: 40px;
@@ -220,13 +227,15 @@
 /* 悬停浮起（2026-10-10 已批准裁决 1：只给失焦窗口；Dock 域不涉）：仅
    「失焦 + 非最大化 + 非拖拽中 + 空间动效开档」时组件挂 sp-win-hover，
    hover 态 translateY(-12px) scale(1.03) + 阴影加深（2026-10-11 用户反馈
-   自 -6px/1.01 加大，透视舞台同步 1100px）。transition 挂在类上：
-   组件在拖拽开始即摘类 → 拖拽进行中天然无过渡（跟手零延迟）；
-   prefers-reduced-motion 由 index.css 全局 0.01ms 塌缩接管。 */
+   自 -6px/1.01 加大，透视舞台同步 1100px）。transition 挂在类上：transform
+   与 box-shadow 走 --sp-hover-duration/ease 专属丝滑档（480ms 慢起缓落，
+   同日用户反馈二；离开对称回落同速），opacity 维持 200ms——组件在拖拽开始
+   即摘类 → 拖拽进行中天然无过渡（跟手零延迟）；prefers-reduced-motion 由
+   index.css 全局 0.01ms 塌缩接管。 */
 .spatial-window.sp-win.sp-win-hover {
   transition:
-    transform var(--ag-motion-base) var(--ag-motion-ease),
-    box-shadow var(--ag-motion-base) var(--ag-motion-ease),
+    transform var(--sp-hover-duration) var(--sp-hover-ease),
+    box-shadow var(--sp-hover-duration) var(--sp-hover-ease),
     opacity 200ms var(--ag-motion-ease);
 }
 .spatial-window.sp-win.sp-win-hover:hover {
