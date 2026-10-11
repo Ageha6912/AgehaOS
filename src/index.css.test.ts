@@ -36,6 +36,21 @@ function has(scope: string, name: string): boolean {
 }
 
 describe('index.css token contract (Token 2.0)', () => {
+  it('keeps motion easing tokens valid four-argument cubic-beziers (pitfall 79)', () => {
+    // 坑 79（2026-10-11）：--ag-motion-ease 自 fa78e20 起误写三参数
+    // cubic-bezier(0.2, 0, 1)——自定义属性值惰性解析，替换进 transition/
+    // animation 缩写即整条声明 IACVT 作废（静默无动效）。钉死四参数形态。
+    for (const name of ['--ag-motion-ease', '--ag-motion-ease-in']) {
+      const declaration = css.split('\n').find((line) => line.includes(`${name}: cubic-bezier(`))
+      expect(declaration, `${name} must be defined as a cubic-bezier`).toBeDefined()
+      const args = declaration!.slice(declaration!.indexOf('(') + 1, declaration!.indexOf(')'))
+      expect(
+        args.split(',').length,
+        `${name} cubic-bezier must have exactly 4 arguments, got "${args}"`,
+      ).toBe(4)
+    }
+  })
+
   it('defines the v2 semantic surface/text/border tiers in both themes', () => {
     for (const name of [
       'ag-surface-soft',

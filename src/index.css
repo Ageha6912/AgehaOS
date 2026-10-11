@@ -186,7 +186,12 @@
   --ag-motion-boot: 400ms;
   /* 退场加速曲线（菜单/通知/窗口关闭共用；motion-lab --ml-ease-in 同值声明）。 */
   --ag-motion-ease-in: cubic-bezier(0.55, 0, 1, 0.45);
-  --ag-motion-ease: cubic-bezier(0.2, 0, 1);
+  /* 标准缓动 = motion-lab --ml-ease-standard 同值（swift-out）。⚠️ 2026-10-11
+     修复：自 fa78e20 起误写为三参数 cubic-bezier(0.2, 0, 1)（无效）——自定义
+     属性惰性解析，替换进任何 transition/animation 缩写即整条声明 IACVT 作废
+     （静默无过渡），单独消费 timing-function 的声明则退化成 ease。全仓此前
+     的入场动画/菜单过渡大多因此从未真正播过。坑 79。 */
+  --ag-motion-ease: cubic-bezier(0.2, 0, 0, 1);
 
   /* ---- Boot screen (theme-independent dark reveal canvas; does not flip on .dark). ---- */
   --ag-boot-canvas: radial-gradient(130% 100% at 50% 42%, #131e36 0%, #0a0f1c 52%, #000 100%);
