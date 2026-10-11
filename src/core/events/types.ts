@@ -6,6 +6,16 @@ export interface SystemEventMap {
   'window.maximized': { windowId: string }
   'window.restored': { windowId: string }
 
+  // Ageha Spaces（Window Management 2.0 W1，审计 .tmp/spaces-audit.md §2）。
+  // 发送处在 SpaceManager（src/core/window/space-manager.ts）；删除 active
+  // Space 时的 active 重定向会连带发 space.switched。契约测试见
+  // src/core/events/space-events.test.ts（ADR 4）。
+  'space.created': { spaceId: string }
+  'space.deleted': { spaceId: string }
+  'space.switched': { spaceId: string; fromSpaceId: string }
+  'space.renamed': { spaceId: string; name: string }
+  'space.reordered': { spaceId: string; fromIndex: number; toIndex: number }
+
   'app.installed': { appId: string }
   'app.started': { appId: string; windowId: string }
   'app.stopped': { appId: string; windowId: string }

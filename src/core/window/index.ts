@@ -14,3 +14,11 @@ export type {
   CreateWindowOptions,
   Viewport,
 } from './types'
+export {
+  DEFAULT_SPACE_ID,
+  MAX_SPACE_NAME_LENGTH,
+  type Space,
+  type PersistedSpaces,
+} from './space-types'
+export { SpaceManager } from './space-manager'
+export type { SpaceEventBus } from './space-manager'
