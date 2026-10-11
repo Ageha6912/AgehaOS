@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { systemBus } from '@/core/events'
@@ -311,5 +311,80 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
       expect(items[0]?.titleKey).toBe('cards.tip.uploadFailedTitle')
       expect(items[0]?.bodyKey).toBe('cards.tip.uploadFailedBody')
     })
+  })
+})
+
+/**
+ * 窄容器分支（M3-5）：jsdom 无 ResizeObserver 时 use-narrow-container 降级
+ * 恒 wide（桌面兜底——上方全部既有用例即在此路径运行，零改动通过）。本组
+ * stub 一个最小 ResizeObserver 显式喂容器宽度驱动窄分支；真实几何（单列
+ * 实测 / 刷新钮命中区 / 零横向溢出）归 e2e/mobile-terminal-panel.spec.ts
+ * （与 Calculator 窄容器组同一分工口径）。
+ */
+class FakeResizeObserver {
+  static instances: FakeResizeObserver[] = []
+  private readonly callback: ResizeObserverCallback
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    FakeResizeObserver.instances.push(this)
+  }
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+  /** 手动喂一次观测回调（内容盒宽度）。真实 RO 在 observe 时必发初始帧。 */
+  emit(width: number): void {
+    this.callback(
+      [{ contentRect: { width } } as ResizeObserverEntry],
+      this as unknown as ResizeObserver,
+    )
+  }
+}
+
+describe('DynamicPanelApp 窄容器（M3-5）', () => {
+  beforeEach(() => {
+    FakeResizeObserver.instances = []
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver as unknown as typeof ResizeObserver)
+  })
+
+  function renderWithWidth(width: number): void {
+    render(<DynamicPanelApp />)
+    act(() => {
+      FakeResizeObserver.instances.at(-1)?.emit(width)
+    })
+  }
+
+  it('窄容器：单列（双列档撤下）、刷新钮 44px 触控档、布局卡采纳/重置触控档可用', async () => {
+    useDynamicDesktopStore.setState({
+      prefs: { enabled: true, randomness: 40, hideBadge: false, pinned: null, blockedStyles: [], llmEnhance: false },
+    })
+    renderWithWidth(360)
+
+    await waitFor(() => expect(screen.getByTestId('dynamic-panel-cards').children.length).toBeGreaterThan(0))
+    const cards = screen.getByTestId('dynamic-panel-cards')
+    expect(cards.className).toContain('grid-cols-1')
+    expect(cards.className).not.toContain('min-[560px]:grid-cols-2')
+    expect(screen.getByTestId('dynamic-panel-refresh').className).toContain('h-11')
+
+    // 布局卡（动态桌面开 → 在场）：窄分支按钮触控档，采纳/重置流程照常。
+    await waitFor(() => expect(screen.getByTestId('panel-card-layout')).toBeInTheDocument())
+    expect(screen.getByTestId('layout-apply').className).toContain('min-h-[44px]')
+    fireEvent.click(screen.getByTestId('layout-apply'))
+    expect(useDynamicDesktopStore.getState().appliedLayout).not.toBeNull()
+    expect(screen.getByTestId('layout-applied-badge')).toBeInTheDocument()
+    expect(screen.getByTestId('layout-reset').className).toContain('min-h-[44px]')
+    fireEvent.click(screen.getByTestId('layout-reset'))
+    expect(useDynamicDesktopStore.getState().appliedLayout).toBeNull()
+  })
+
+  it('宽容器：卡片网格与刷新钮类名与改前字面等价（双列档保留）', async () => {
+    render(<DynamicPanelApp />)
+
+    await waitFor(() => expect(screen.getByTestId('dynamic-panel-cards').children.length).toBeGreaterThan(0))
+    expect(screen.getByTestId('dynamic-panel-cards').className).toBe(
+      'scroll-thin absolute inset-0 overflow-y-auto grid grid-cols-1 content-start gap-2 p-3 min-[560px]:grid-cols-2',
+    )
+    expect(screen.getByTestId('dynamic-panel-refresh').className).toBe(
+      'flex h-7 w-7 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-raised hover:text-text',
+    )
   })
 })

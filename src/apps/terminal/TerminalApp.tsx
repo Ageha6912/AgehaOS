@@ -1,15 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useNarrowContainer } from '@/apps/use-narrow-container'
 import { useTranslation } from '@/core/i18n'
 import { formatMessage } from '@/core/i18n'
 import { systemVfs } from '@/services/vfs'
+import { useDeviceStore } from '@/store/device-store'
 import { useSessionStore } from '@/store/session-store'
 import { TerminalShell } from '@/core/terminal/shell'
 import type { TerminalLine } from '@/core/terminal/shell'
 
+import { keyboardInsetPx } from './keyboard-inset'
+
 /**
  * 终端应用（PRD §26，v0.2）：伪 Shell over VFS。输出区 + 单行输入，↑↓ 召回
  * 本会话命令历史，终端语义的 clear 由 shell 返回 clear 标记驱动。
+ *
+ * 窄容器适配（M3-5）：根内容盒 <560px 时（移动全屏视图 / 桌面窄窗口）
+ * ①字号抬到 16px 档——长行照旧 break-all 折行不横向溢出，且输入行 ≥16px
+ * 后 iOS Safari 聚焦不再触发页面自动缩放；②输入行触控档 ≥44px（§35.3）；
+ * ③输出井 overscroll-contain 收滚动链（滚到头不传给宿主面板，滚动顺畅）；
+ * ④触屏设备（device-store 能力位）上做软键盘避让——visualViewport 被
+ * 键盘压缩时根高度让出遮挡部分、输入行保持可视（「可输入可滚动」；细致
+ * 键盘适配——光标定位、折叠工具条等——记 HANDOFF 留后续）。宽容器
+ * DOM 与改前字面等价；visualViewport 处理只在触屏生效，桌面 Ctrl+缩放
+ * 不改变形。判定与设备无关走 use-narrow-container 契约（禁视口 media
+ * query），触屏与否只读 device-store（设备判定铁律的既有豁免点）。
  */
 export function TerminalApp() {
   const { t } = useTranslation()
@@ -26,6 +41,13 @@ export function TerminalApp() {
   const inputRef = useRef<HTMLInputElement>(null)
   const aliveRef = useRef(true)
 
+  // 窄容器分支（M3-5）：观测应用根内容盒宽，与设备判定（device-store）
+  // 无关——桌面窄窗口同样进入窄分支，移动宽视口保持宽布局。
+  const { ref: rootRef, narrow } = useNarrowContainer()
+  // 软键盘避让的触屏门（见模块注释④）：桌面 visualViewport 只会因缩放
+  // 变化，窄窗口不应跟着变形。
+  const isTouch = useDeviceStore((s) => s.capabilities.isTouch)
+
   useEffect(() => {
     aliveRef.current = true
     return () => {
@@ -33,10 +55,61 @@ export function TerminalApp() {
     }
   }, [])
 
-  useEffect(() => {
+  const scrollWellToBottom = useCallback((): void => {
     const node = scrollRef.current
     if (node) node.scrollTop = node.scrollHeight
-  }, [entries])
+  }, [])
+
+  useEffect(() => {
+    scrollWellToBottom()
+  }, [entries, scrollWellToBottom])
+
+  // 软键盘避让（M3-5④，窄容器 + 触屏）：visualViewport resize/scroll 时把
+  // 根高度让出被键盘盖住的部分——输出井收短、输入行保持可视；inset 增大
+  // （键盘弹起）顺手把井滚到底让输入行立即可见，vv 用户滚动（inset 不变）
+  // 不抢滚动权。事件 rAF 合帧直写 style，全程零 React render（手势同款
+  // 纪律）；键盘收起恢复类名控高、卸载清理监听。visualViewport 缺席
+  // （老浏览器 / jsdom）整段不接，终端照常「可输入可滚动」。
+  useEffect(() => {
+    if (!narrow || !isTouch) return
+    const root = rootRef.current
+    const viewport = typeof visualViewport === 'undefined' ? null : visualViewport
+    if (!root || !viewport) return
+    let rafId: number | null = null
+    let lastInset = -1
+    const flush = (): void => {
+      rafId = null
+      const inset = keyboardInsetPx(window.innerHeight, viewport)
+      root.style.height = inset > 0 ? `calc(100% - ${inset}px)` : ''
+      if (inset > lastInset && lastInset >= 0 && inset > 0) scrollWellToBottom()
+      lastInset = inset
+    }
+    const schedule = (): void => {
+      if (rafId !== null) return
+      if (typeof requestAnimationFrame === 'function') {
+        rafId = requestAnimationFrame(flush)
+      } else {
+        flush()
+      }
+    }
+    viewport.addEventListener('resize', schedule)
+    viewport.addEventListener('scroll', schedule)
+    flush()
+    return () => {
+      if (rafId !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(rafId)
+      viewport.removeEventListener('resize', schedule)
+      viewport.removeEventListener('scroll', schedule)
+      root.style.height = ''
+    }
+  }, [narrow, isTouch, rootRef, scrollWellToBottom])
+
+  // 点击根聚焦输入（终端即焦点，index.css 对 terminal-input 关焦点环）；
+  // 窄容器下顺手滚到底——软键盘弹起前输入行先可见（键盘 inset 路径随后
+  // 接管）。桌面聚焦/点选行为与改前一致（不滚动）。
+  const focusInput = useCallback((): void => {
+    inputRef.current?.focus()
+    if (narrow) scrollWellToBottom()
+  }, [narrow, scrollWellToBottom])
 
   const submit = useCallback(async (): Promise<void> => {
     const command = input
@@ -77,14 +150,17 @@ export function TerminalApp() {
 
   return (
     <div
-      className="surface-panel flex h-full flex-col font-mono text-xs"
+      ref={rootRef}
+      className={`surface-panel flex h-full flex-col font-mono ${narrow ? 'text-base' : 'text-xs'}`}
       data-testid="terminal-root"
-      onClick={() => inputRef.current?.focus()}
+      onClick={focusInput}
     >
-      {/* 输出井：内嵌凹槽（DESIGN.md §2.1），终端内容都在井内滚动。 */}
+      {/* 输出井：内嵌凹槽（DESIGN.md §2.1），终端内容都在井内滚动。窄容器
+          追加 overscroll-contain——井滚到头不再把滚动链传给宿主面板
+          （.mobile-app-body 同口径），触屏滚动顺畅。 */}
       <div
         ref={scrollRef}
-        className="m-2 min-h-0 flex-1 overflow-y-auto rounded-md bg-surface-raised/60 p-3 leading-relaxed"
+        className={`m-2 min-h-0 flex-1 ${narrow ? 'overscroll-contain ' : ''}overflow-y-auto rounded-md bg-surface-raised/60 p-3 leading-relaxed`}
         data-testid="terminal-output"
       >
         {entries.map((line, index) => (
@@ -101,9 +177,19 @@ export function TerminalApp() {
             value={input}
             spellCheck={false}
             autoComplete="off"
+            {...(narrow
+              ? {
+                  // 软键盘修正：命令是全小写自由文本，关自动大写/自动更正，
+                  // Enter 用 send 键位；聚焦即滚到底（输入行保持可视）。
+                  autoCapitalize: 'off',
+                  autoCorrect: 'off',
+                  enterKeyHint: 'send',
+                  onFocus: scrollWellToBottom,
+                }
+              : {})}
             aria-label={t('terminal.input')}
             data-testid="terminal-input"
-            className="min-w-0 flex-1 bg-transparent text-text caret-primary focus-visible:outline-none"
+            className={`min-w-0 flex-1 ${narrow ? 'min-h-[44px] ' : ''}bg-transparent text-text caret-primary focus-visible:outline-none`}
             disabled={busy}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {

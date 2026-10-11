@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ArrowClockwise, Sparkle } from '@phosphor-icons/react'
 
+import { useNarrowContainer } from '@/apps/use-narrow-container'
 import { useTranslation } from '@/core/i18n'
 
 import { ScrollFadeList } from '@/components/scroll-fade-list'
@@ -31,6 +32,12 @@ import { useNotificationStore } from '@/store/notification-store'
  * com.ageha.dynamic.panel，零权限注册；本地规则引擎组装卡片，打开时装配一次 +
  * 手动刷新（无自动定时刷新 → 窗口内容绝不热替换），每张卡带「AI 生成」标识；
  * 装配发 ai.content.ready / ai.decision.performed 事件（§3.3）。
+ *
+ * 窄容器适配（M3-5，use-narrow-container 契约）：根内容盒 <560px 时（移动
+ * 全屏视图 / 桌面窄窗口）①单列化——容器宽档强制 grid-cols-1，min-[560px]
+ * 双列档只在宽容器保留；②卡片内可点目标触控档 ≥44px（§35.3：刷新钮、布局
+ * 采纳/重置、提示举报），文字同步抬档。宽容器 DOM 与改前字面等价；判定按
+ * 容器宽、禁视口 media query，与设备判定（device-store）无关。
  */
 
 const PANEL_ID = 'com.ageha.dynamic.panel'
@@ -50,6 +57,9 @@ function themeOf(): 'light' | 'dark' {
 
 export function DynamicPanelApp() {
   const { t } = useTranslation()
+  // 窄容器分支（M3-5）：观测应用根内容盒宽，与设备判定（device-store）
+  // 无关——桌面窄窗口同样进入窄分支，移动宽视口保持宽布局。
+  const { ref: rootRef, narrow } = useNarrowContainer()
   const [metas, setMetas] = useState<ContentCardMeta[]>([])
   const [layoutSuggestion, setLayoutSuggestionState] = useState<LayoutSuggestion | null>(null)
   const [assemblyNonce, setAssemblyNonce] = useState(0)
@@ -179,31 +189,35 @@ export function DynamicPanelApp() {
   }, [])
 
   return (
-    <div className="surface-panel flex h-full flex-col text-sm">
+    <div ref={rootRef} className="surface-panel flex h-full flex-col text-sm">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h2 className="flex items-center gap-2 text-base font-semibold text-text">
           <Sparkle size={16} weight="regular" />
           {t('cards.panel.title')}
         </h2>
+        {/* 窄容器（移动全屏视图 / 小窗口）：刷新钮 44×44 触控档（§35.3）。
+            宽容器（桌面）：类名与改前逐字一致。 */}
         <button
           type="button"
           aria-label={t('cards.panel.refresh')}
           title={t('cards.panel.refresh')}
           data-testid="dynamic-panel-refresh"
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-raised hover:text-text"
+          className={`flex ${narrow ? 'h-11 w-11' : 'h-7 w-7'} items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-raised hover:text-text`}
           onClick={() => setAssemblyNonce((nonce) => nonce + 1)}
         >
-          <ArrowClockwise size={13} weight="regular" />
+          <ArrowClockwise size={narrow ? 16 : 13} weight="regular" />
         </button>
       </div>
 
       {/* 坑 44：滚动列表一律 ScrollFadeList（常驻细滚动条 + 底部渐隐双通道，
           修 §17 遗留的第 4 卡折叠线生裁）。外层 flex 列提供确定高度。
-          §30 横版默认：窗口 ≥560px 宽时卡片双列（app 内媒体查询作用域是
-          iframe 视口 = 窗口内容区），拉窄回竖版自动回落单列。 */}
+          §30 横版默认：宽容器（内容盒 ≥560px）保留 min-[560px] 双列档；
+          窄容器（M3-5）容器宽档强制单列——媒体查询按视口算，窄分支按
+          容器算（use-narrow-container 契约），移动全屏视图 / 桌面窄窗口
+          恒单列。 */}
       <div className="flex min-h-0 flex-1 flex-col">
       <ScrollFadeList
-        className="grid grid-cols-1 content-start gap-2 p-3 min-[560px]:grid-cols-2"
+        className={`grid grid-cols-1 content-start gap-2 p-3${narrow ? '' : ' min-[560px]:grid-cols-2'}`}
         testId="dynamic-panel-cards"
       >
         {layoutSuggestion && (
@@ -231,7 +245,7 @@ export function DynamicPanelApp() {
                   <button
                     type="button"
                     data-testid="layout-reset"
-                    className="rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:bg-surface-raised hover:text-text"
+                    className={`rounded-md border border-border ${narrow ? 'min-h-[44px] px-3 py-1 text-xs' : 'px-2 py-1 text-[11px]'} text-text-muted hover:bg-surface-raised hover:text-text`}
                     onClick={() => resetAppliedLayout()}
                   >
                     {t('dynamic.layout.reset')}
@@ -241,7 +255,7 @@ export function DynamicPanelApp() {
                 <button
                   type="button"
                   data-testid="layout-apply"
-                  className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-contrast hover:opacity-90"
+                  className={`rounded-md bg-primary ${narrow ? 'min-h-[44px] px-3 py-1 text-xs' : 'px-2 py-1 text-[11px]'} font-medium text-primary-contrast hover:opacity-90`}
                   onClick={() => applyLayout(layoutSuggestion)}
                 >
                   {t('dynamic.layout.apply')}
@@ -309,7 +323,7 @@ export function DynamicPanelApp() {
                     <button
                       type="button"
                       data-testid="panel-tip-report"
-                      className="mt-1 text-[11px] text-text-muted underline hover:text-text"
+                      className={`${narrow ? 'mt-1 inline-flex min-h-[44px] items-center px-2 text-xs' : 'mt-1 text-[11px]'} text-text-muted underline hover:text-text`}
                       onClick={() => {
                         // §8.6：立即撤下 + 会话内封禁；上传仅在用户随后于
                         // 确认框中显式同意后发生（不经确认不上传）。
