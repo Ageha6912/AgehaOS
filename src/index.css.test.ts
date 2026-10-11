@@ -501,9 +501,9 @@ describe('index.css token contract (Token 2.0)', () => {
     expect(spRoot).toMatch(/--sp-perspective:\s*1100px/)
     expect(spRoot).toMatch(/--sp-float-duration:\s*7s/)
     expect(spRoot).toMatch(/--sp-float-distance:\s*9px/)
-    // 悬停浮起专属丝滑档（2026-10-11 用户反馈二）：480ms 慢起缓落 + 长尾
-    // 软着陆贝塞尔，不再借用 --ag-motion-base 的 200ms 立即起浮。
-    expect(spRoot).toMatch(/--sp-hover-duration:\s*480ms/)
+    // 悬停浮起专属丝滑档（2026-10-11 用户反馈二放缓、反馈三再慢）：680ms
+    // 慢起缓落 + 长尾软着陆贝塞尔，不再借用 --ag-motion-base 的 200ms。
+    expect(spRoot).toMatch(/--sp-hover-duration:\s*680ms/)
     expect(spRoot).toMatch(/--sp-hover-ease:\s*cubic-bezier\(0\.33, 0, 0\.2, 1\)/)
     // 随主题翻转的档位成对声明：浅色低透白 10/16/24；深色冷墨
     // rgb(16 23 40 / x%) 家族（--ag-glass-bg 深色配方同族，独立低透明档）。
