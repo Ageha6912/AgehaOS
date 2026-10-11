@@ -272,7 +272,9 @@ test.describe('widgets: Floating System Center (STEP 4)', () => {
     expect(railBox!.y + railBox!.height).toBeLessThanOrEqual(vp.height)
 
     // 点击世界卡 → 共享启动器直接落在「今日」分类（aria-pressed）。
-    await page.getByTestId('widgets-world-entry').click()
+    // 世界卡挂 .sp-ambient-float 环境慢浮动（9s 无限 transform）——卡内按钮
+    // 是常动目标，永不满足「稳定」可操作性检查；force 跳过稳定等待。
+    await page.getByTestId('widgets-world-entry').click({ force: true })
     await expect(page.getByTestId('launcher-category-today')).toHaveAttribute('aria-pressed', 'true')
     await expect(
       page.getByTestId('launcher-grid').getByRole('button', { name: '边缘神谕' }),

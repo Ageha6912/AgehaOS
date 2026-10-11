@@ -29,6 +29,16 @@ test('maximized window covers the entire screen above every chrome layer', async
   await expect(maximize).toBeVisible()
   await maximize.click()
   await page.waitForTimeout(450) // 开窗/层叠切换动画落定后再测量。
+  // 按测量面自身等动画归零再测量（不查全局：右栏环境慢浮动是 9s 常驻动画，
+  // 永远「running」）——聚焦小起立（useFocusTilt 一次性 WAAPI 250ms，带
+  // perspective 投影）在 worker 高载下可能比点击晚 >200ms 才起播，全视口
+  // 窗口带透视旋转时 boundingBox 会瞬时越界。（曾实测的常驻 y=-3 另有根因：
+  // 画布被装饰层撑出可滚动余量，已在 Desktop.tsx 改 overflow-clip 根治。）
+  await expect
+    .poll(() =>
+      region.evaluate((el) => [...el.getAnimations()].every((a) => a.playState !== 'running')),
+    )
+    .toBe(true)
   const frame = region
 
   // ① 几何：x=0、y=0、宽=视口宽、高=视口高——无任何系统栏带留边。

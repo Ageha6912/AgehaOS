@@ -70,7 +70,13 @@ export function Desktop() {
     <div
       ref={canvasRef}
       data-shell="desktop"
-      className="surface-canvas relative h-full overflow-hidden"
+      // 工作面画布禁滚（overflow-clip）：Dock 弱倒影（2026-10-11 环境抛光）
+      // 以 top:100% 悬出 Dock 胶囊下缘 24px，越出画布底 ~3px，把 scrollHeight
+      // 撑到 723>720——overflow-hidden 容器仍可被浏览器聚焦滚动/程序滚动位移
+      // 3px（最大化窗口 boundingBox.y 实测漂到 -3，E2E window-maximize 间歇
+      // 红，trace 实证）。clip 与 hidden 视觉同效（溢出照裁），但画布
+      // 从此不是滚动容器，任何装饰性溢出都无法再位移工作面几何。
+      className="surface-canvas relative h-full overflow-clip"
       onContextMenu={onCanvasContextMenu}
     >
       <WallpaperLayer />

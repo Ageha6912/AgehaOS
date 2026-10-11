@@ -341,7 +341,10 @@ test.describe('P2 今日世界（世界就绪 → 落位）', () => {
     const signals = page.getByTestId('widgets-world-signals')
     await expect(signals).toBeVisible()
     await expect(signals).toContainText('趋势信号来源')
-    await signals.click()
+    // 世界卡挂 .sp-ambient-float 环境慢浮动（9s 无限 transform，2026-10-11
+    // 环境抛光）——卡内按钮是常动目标，永不满足 Playwright「稳定」可操作性
+    // 检查（ boundingBox 连续两帧不变）；force 跳过稳定等待、仍走真实命中。
+    await signals.click({ force: true })
     const signalsPanel = page.getByTestId('widgets-world-signals-panel')
     await expect(signalsPanel).toBeVisible()
     await expect(page.getByTestId('widgets-world-signal')).toHaveCount(3)
