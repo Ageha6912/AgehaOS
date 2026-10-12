@@ -2,6 +2,7 @@ import { fireEvent, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { resetSearchStore, useSearchStore } from '@/store/search-store'
+import { resetSpaceStore, useSpaceStore } from '@/store/space-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
 import { cycleWindows, useGlobalShortcuts } from './use-global-shortcuts'
@@ -14,6 +15,7 @@ function Harness(): null {
 beforeEach(() => {
   resetSearchStore()
   resetWindowStore()
+  resetSpaceStore()
 })
 
 describe('global shortcuts (PRD §15/§26)', () => {
@@ -65,5 +67,27 @@ describe('cycleWindows', () => {
     const windows = useWindowStore.getState().windows
     expect(windows.find((win) => win.id === first)?.focused).toBe(true)
     expect(windows.find((win) => win.id === third)?.focused).toBe(false)
+  })
+
+  it('只在当前 Space 的可见窗口间轮转（W2，审计 .tmp/spaces-audit.md §5 决定 4）', () => {
+    const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const other = useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.files', title: '文件', spaceId: 'space-other' })
+    const third = useWindowStore.getState().open({ appId: 'com.ageha.settings', title: '设置' })
+    expect(useSpaceStore.getState().activeSpaceId).not.toBe('space-other')
+
+    cycleWindows()
+
+    let windows = useWindowStore.getState().windows
+    expect(windows.find((win) => win.id === first)?.focused).toBe(true)
+    // 其他 Space 的窗口既不参与轮转也不被聚焦。
+    expect(windows.find((win) => win.id === other)?.focused).toBe(false)
+
+    cycleWindows()
+
+    windows = useWindowStore.getState().windows
+    expect(windows.find((win) => win.id === third)?.focused).toBe(true)
+    expect(windows.find((win) => win.id === other)?.focused).toBe(false)
   })
 })

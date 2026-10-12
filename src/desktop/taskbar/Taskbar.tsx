@@ -7,6 +7,7 @@ import { componentFor } from '@/apps/builtin'
 import { requestFilesTrash } from '@/apps/app-deep-link'
 import { launchApp } from '@/apps/launch'
 import { useTranslation } from '@/core/i18n'
+import { useSpaceStore } from '@/store/space-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { AppLauncher } from './AppLauncher'
@@ -30,6 +31,10 @@ export function Taskbar() {
   const focus = useWindowStore((s) => s.focus)
   const minimize = useWindowStore((s) => s.minimize)
   const restore = useWindowStore((s) => s.restore)
+  // Space-aware（W2，审计 .tmp/spaces-audit.md §5 决定 4）：瓷贴计数/激活与
+  // 运行行只看当前 Space（跨 Space subtle 指示 W9 再做）。
+  const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
+  const spaceWindows = windows.filter((win) => win.spaceId === activeSpaceId)
 
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [anchorLeft, setAnchorLeft] = useState(0)
@@ -112,9 +117,9 @@ export function Taskbar() {
     return meta ? t(meta.titleKey) : appId
   }
 
-  /** 常驻瓷贴激活语义：无窗口启动；有窗口恢复/聚焦/再点最小化。 */
+  /** 常驻瓷贴激活语义：无窗口启动；有窗口恢复/聚焦/再点最小化（仅当前 Space）。 */
   const activatePinned = (appId: string): void => {
-    const appWindows = windows.filter((win) => win.appId === appId)
+    const appWindows = spaceWindows.filter((win) => win.appId === appId)
     if (appWindows.length === 0) {
       launchApp(appId)
       return
@@ -206,7 +211,7 @@ export function Taskbar() {
               走悬停预览与浮起，激活态只剩指示点。 */}
           <div className="flex shrink-0 items-center gap-2 self-stretch">
             {PINNED_APP_IDS.map((appId) => {
-              const appWindows = windows.filter((win) => win.appId === appId)
+              const appWindows = spaceWindows.filter((win) => win.appId === appId)
               const latest = appWindows[appWindows.length - 1]
               const active = latest?.focused && latest.state !== 'minimized'
               return (
@@ -274,14 +279,14 @@ export function Taskbar() {
           {/* 运行中窗口（非常驻瓷贴的应用）：预览/悬停浮起契约区。no-scrollbar：
               悬停浮起的 scale 变换边界会撑出滚动区域，滚动条不得随悬停闪现
               （修订 11），多窗口仍可滚轮横滚。 */}
-          {windows.some(
+          {spaceWindows.some(
             (win) => !PINNED_APP_IDS.includes(win.appId as (typeof PINNED_APP_IDS)[number]),
           ) && <div aria-hidden="true" className="mx-0.5 h-8 w-px shrink-0 bg-border" />}
           <div
             data-testid="dock-running-row"
             className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 self-stretch overflow-x-auto"
           >
-            {windows.map((win) => {
+            {spaceWindows.map((win) => {
               if (PINNED_APP_IDS.includes(win.appId as (typeof PINNED_APP_IDS)[number])) return null
               const active = win.focused && win.state !== 'minimized'
               return (

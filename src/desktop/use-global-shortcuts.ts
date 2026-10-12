@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 
 import { useSearchStore } from '@/store/search-store'
+import { useSpaceStore } from '@/store/space-store'
 import { useWindowStore } from '@/store/window-store'
 
 /**
@@ -14,8 +15,11 @@ import { useWindowStore } from '@/store/window-store'
 
 export function cycleWindows(): void {
   const { windows, focus } = useWindowStore.getState()
+  // Space-aware（W2，审计 .tmp/spaces-audit.md §5 决定 4）：只在当前 Space
+  // 的可见窗口间轮转，其他 Space 不参与也不被聚焦。
+  const { activeSpaceId } = useSpaceStore.getState()
   const visible = windows
-    .filter((win) => win.state !== 'minimized')
+    .filter((win) => win.spaceId === activeSpaceId && win.state !== 'minimized')
     .sort((a, b) => a.zIndex - b.zIndex)
   if (visible.length < 2) return
   const currentIndex = visible.findIndex((win) => win.focused)

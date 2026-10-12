@@ -7,6 +7,7 @@ import { resetEclosionStore, seedEclosionForTests, useEclosionStore } from '@/st
 import { resetLauncherStore, useLauncherStore } from '@/store/launcher-store'
 import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
+import { resetSpaceStore, useSpaceStore } from '@/store/space-store'
 import { resetUsageStore, useUsageStore } from '@/store/usage-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 import { resetWorkspaceStore, useWorkspaceStore } from '@/store/workspace-store'
@@ -44,6 +45,7 @@ beforeEach(() => {
   localStorage.clear()
   vi.useFakeTimers()
   resetWindowStore()
+  resetSpaceStore()
   resetAppStore()
   resetNotificationStore()
   resetLauncherStore()
@@ -495,6 +497,22 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
 
     const windows = useWindowStore.getState().windows
     expect(windows.every((win) => win.state === 'minimized')).toBe(true)
+  })
+
+  it('show-desktop 只最小化当前 Space（W2，审计 .tmp/spaces-audit.md §5 决定 4）', () => {
+    const current = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const other = useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.files', title: '文件', spaceId: 'space-other' })
+    expect(useSpaceStore.getState().activeSpaceId).not.toBe('space-other')
+    render(<SidebarHarness />)
+
+    fireEvent.click(screen.getByTestId('sidebar-desktop'))
+
+    const windows = useWindowStore.getState().windows
+    expect(windows.find((win) => win.id === current)?.state).toBe('minimized')
+    // 其他 Space 的窗口不受波及。
+    expect(windows.find((win) => win.id === other)?.state).toBe('normal')
   })
 
   it('launches apps from the rail', () => {

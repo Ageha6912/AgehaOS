@@ -4,6 +4,7 @@ import { useLauncherStore } from '@/store/launcher-store'
 import { useNotificationStore } from '@/store/notification-store'
 import { usePopoverStore } from '@/store/popover-store'
 import { useSearchStore } from '@/store/search-store'
+import { useSpaceStore } from '@/store/space-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { BRANDING_TIER_CLASS, brandingTier } from './branding-visibility'
@@ -27,10 +28,16 @@ import { BRANDING_TIER_CLASS, brandingTier } from './branding-visibility'
  */
 export function DesktopBranding() {
   const { t } = useTranslation()
-  // 可见窗口计数（非 minimized）。commit 新数组 → reduce 结果是同一个数 →
-  // 不重渲染；开/关/最小化改变计数才重渲染。
+  // 可见窗口计数（非 minimized，W2 起只算当前 Space——审计 .tmp/spaces-audit.md
+  // §5 决定 4）。commit 新数组 → reduce 结果是同一个数 → 不重渲染；
+  // 开/关/最小化/切 Space 改变计数才重渲染。选择器仍取原始值（性能契约）。
+  const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
   const visibleWindows = useWindowStore((s) =>
-    s.windows.reduce((count, win) => (win.state === 'minimized' ? count : count + 1), 0),
+    s.windows.reduce(
+      (count, win) =>
+        win.spaceId === activeSpaceId && win.state !== 'minimized' ? count + 1 : count,
+      0,
+    ),
   )
   const launcherOpen = useLauncherStore((s) => s.launcherOpen)
   const searchOpen = useSearchStore((s) => s.open)

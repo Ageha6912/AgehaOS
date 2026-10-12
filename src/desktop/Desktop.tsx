@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 
 import { useTranslation } from '@/core/i18n'
 import { AtmosphereLayer } from '@/desktop/atmosphere/AtmosphereLayer'
@@ -18,6 +18,8 @@ import { useAurora } from '@/desktop/motion/use-aurora'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useSettingsStore, type ThemePreference } from '@/store/settings-store'
+import { reloadSpaceStore } from '@/store/space-store'
+import { hydratePersistedWindows } from '@/store/window-store'
 
 function resolveDark(preference: ThemePreference): boolean {
   if (preference === 'dark') return true
@@ -61,6 +63,16 @@ export function Desktop() {
   // 焦点交还都锚在定位带上（两块岛都在边界内）。
   const panel = useWorkspacePanel(railsRef)
   useGlobalShortcuts()
+
+  // 窗口持久化恢复（W2 行为变更「刷新恢复现场」，审计 .tmp/spaces-audit.md
+  // §5 决定 2）：挂载 effect 内显式调用序——先 reloadSpaceStore()（Space 列表
+  // + active 选择就位）再 hydratePersistedWindows()（窗口归属校验依赖前者），
+  // 不靠模块副作用顺序。移动 Shell 不挂 Desktop → 不调用 → 移动「刷新即
+  // 清空」零变化（M1-6 红线）。hydrate 自带空 store 守卫（重挂不重复灌入）。
+  useEffect(() => {
+    reloadSpaceStore()
+    hydratePersistedWindows()
+  }, [])
 
   // 2026-10-02 用户裁决：进桌面不再自动打开任何窗口——动态面板与随机小游戏
   // 的自动开窗整体退役（原 ADR 裁决 A5/A6 取代），桌面回归纯壁纸 + 品牌层；

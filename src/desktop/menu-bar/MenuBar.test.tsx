@@ -7,6 +7,7 @@ import { resetEclosionStore, seedEclosionForTests, useEclosionStore } from '@/st
 import { resetSearchStore, useSearchStore } from '@/store/search-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 import { resetSettingsStore, useSettingsStore } from '@/store/settings-store'
+import { resetSpaceStore, useSpaceStore } from '@/store/space-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
 import { setSyncEnabled } from '@/services/settings-sync'
@@ -29,6 +30,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-09-21T10:30:00'))
   localStorage.clear()
   resetWindowStore()
+  resetSpaceStore()
   resetAppStore()
   resetSettingsStore()
   resetSessionStore()
@@ -138,6 +140,27 @@ describe('MenuBar', () => {
     expect(screen.getByRole('menuitem', { name: '最小化全部窗口' })).toBeDisabled()
     expect(screen.getByRole('menuitem', { name: '关闭全部窗口' })).toBeDisabled()
     expect(screen.queryByRole('menuitem', { name: '记事' })).not.toBeInTheDocument()
+  })
+
+  it('窗口菜单只列当前 Space，关闭全部只作用于当前 Space（W2，审计 §5 决定 4）', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const other = useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.files', title: '文件', spaceId: 'space-other' })
+    expect(useSpaceStore.getState().activeSpaceId).not.toBe('space-other')
+    render(<MenuBar />)
+
+    fireEvent.click(screen.getByRole('button', { name: '窗口' }))
+    expect(screen.getByRole('menuitem', { name: '记事' })).toBeInTheDocument()
+    // 其他 Space 的窗口不进菜单。
+    expect(screen.queryByRole('menuitem', { name: '文件' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: '关闭全部窗口' }))
+
+    const windows = useWindowStore.getState().windows
+    // 其他 Space 的窗口存活且不受波及。
+    expect(windows.map((win) => win.id)).toEqual([other])
+    expect(windows[0]?.state).toBe('normal')
   })
 
   it('keeps AI world signals out of the menu bar even when the world of today is in（Shell 3.1 F3）', () => {

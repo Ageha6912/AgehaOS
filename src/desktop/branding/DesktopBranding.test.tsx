@@ -7,12 +7,14 @@ import { resetLauncherStore, useLauncherStore } from '@/store/launcher-store'
 import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
 import { resetPopoverStore, usePopoverStore } from '@/store/popover-store'
 import { resetSearchStore, useSearchStore } from '@/store/search-store'
+import { resetSpaceStore, useSpaceStore } from '@/store/space-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
 import { DesktopBranding } from './DesktopBranding'
 
 beforeEach(() => {
   resetWindowStore()
+  resetSpaceStore()
   resetLauncherStore()
   resetSearchStore()
   resetNotificationStore()
@@ -89,6 +91,21 @@ describe('DesktopBranding（STEP 5 Desktop Environment Branding 状态化）', (
     )
     rerender(<DesktopBranding />)
     expect(screen.getByTestId('desktop-branding').className).toContain('opacity-100')
+  })
+
+  it('可见计数只算当前 Space：其他 Space 窗口不触发降档（W2，审计 §5 决定 4）', () => {
+    render(<DesktopBranding />)
+
+    actStore(() => useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' }))
+    actStore(() =>
+      useWindowStore
+        .getState()
+        .open({ appId: 'com.ageha.calculator', title: '计算器', spaceId: 'space-other' }),
+    )
+    expect(useSpaceStore.getState().activeSpaceId).not.toBe('space-other')
+
+    // 只有一扇当前 Space 可见窗 → 单窗档 40%（若误计其他 Space 会是 15%）。
+    expect(screen.getByTestId('desktop-branding').className).toContain('opacity-40')
   })
 
   it('hides while any chrome overlay is open and restores the window tier on close', () => {

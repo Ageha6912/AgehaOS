@@ -9,6 +9,7 @@ import {
   MIN_WINDOW_WIDTH,
   MIN_WINDOW_HEIGHT,
 } from './window-manager'
+import { DEFAULT_SPACE_ID } from './space-types'
 
 const VIEWPORT = { width: 1920, height: 1040 }
 
@@ -22,7 +23,7 @@ function createManager(events?: (keyof SystemEventMap)[]) {
   }
   let counter = 0
   const manager = new WindowManager(bus, () => `win-${++counter}`)
-  return { manager, seen, stateOf: (id: string) => manager.get(id)! }
+  return { manager, bus, seen, stateOf: (id: string) => manager.get(id)! }
 }
 
 describe('WindowManager.create', () => {
@@ -89,6 +90,22 @@ describe('WindowManager.create', () => {
     manager.create({ appId: 'a', title: 'A' })
 
     expect(seen).toEqual(['window.created', 'window.focused'])
+  })
+
+  it('assigns DEFAULT_SPACE_ID when no spaceId is given（W2 审计 §5：引擎纯兜底）', () => {
+    const { manager } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+
+    expect(win.spaceId).toBe(DEFAULT_SPACE_ID)
+  })
+
+  it('honors an explicit spaceId（store 层 provider 注入后的透传路径）', () => {
+    const { manager } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A', spaceId: 'space-work' })
+
+    expect(win.spaceId).toBe('space-work')
   })
 })
 
@@ -394,6 +411,90 @@ describe('WindowManager.resize', () => {
     const win = manager.create({ appId: 'b', title: 'B' })
     manager.minimize(win.id)
     expect(manager.resize(win.id, 800, 600)).toBe(false)
+  })
+})
+
+describe('WindowManager.moveWindowToSpace（W2，审计 §5 决定 3）', () => {
+  it('reassigns the window, keeps zIndex/focused untouched, and emits window.space-assigned', () => {
+    const { manager, seen, stateOf } = createManager(['window.space-assigned'])
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    manager.create({ appId: 'b', title: 'B' }) // 保证 A 非 focused，观察焦点是否被动
+    const zIndexBefore = stateOf(win.id).zIndex
+    seen.length = 0
+
+    expect(manager.moveWindowToSpace(win.id, 'space-work')).toBe(true)
+
+    const state = stateOf(win.id)
+    expect(state.spaceId).toBe('space-work')
+    expect(state.zIndex).toBe(zIndexBefore)
+    expect(state.focused).toBe(false)
+    expect(seen).toEqual(['window.space-assigned'])
+  })
+
+  it('carries { windowId, fromSpaceId, toSpaceId } in the payload', () => {
+    const { manager, bus } = createManager()
+    const payloads: unknown[] = []
+    bus.on('window.space-assigned', (payload) => payloads.push(payload))
+
+    const win = manager.create({ appId: 'a', title: 'A', spaceId: 'space-one' })
+    manager.moveWindowToSpace(win.id, 'space-two')
+
+    expect(payloads).toEqual([
+      { windowId: win.id, fromSpaceId: 'space-one', toSpaceId: 'space-two' },
+    ])
+  })
+
+  it('rejects an empty spaceId without emitting', () => {
+    const { manager, seen } = createManager(['window.space-assigned'])
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    seen.length = 0
+
+    expect(manager.moveWindowToSpace(win.id, '')).toBe(false)
+    expect(seen).toEqual([])
+  })
+
+  it('rejects unknown windows and same-space no-ops without emitting', () => {
+    const { manager, seen } = createManager(['window.space-assigned'])
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    seen.length = 0
+
+    expect(manager.moveWindowToSpace('missing', 'space-work')).toBe(false)
+    expect(manager.moveWindowToSpace(win.id, DEFAULT_SPACE_ID)).toBe(false)
+    expect(seen).toEqual([])
+  })
+
+  it('hydrateWindows ingests persisted windows, forces focused=false, and keeps topZ monotonic', () => {
+    const { manager, stateOf } = createManager()
+
+    manager.hydrateWindows([
+      {
+        id: 'win-1',
+        appId: 'a',
+        title: 'A',
+        x: 10,
+        y: 20,
+        width: 400,
+        height: 300,
+        zIndex: 41,
+        state: 'normal',
+        focused: true, // 恢复时一律落 false（焦点由 store 层对 active Space 栈顶补）
+        resizable: true,
+        closable: true,
+        minWidth: 320,
+        minHeight: 200,
+        restoreBounds: null,
+        spaceId: 'space-work',
+      },
+    ])
+    expect(stateOf('win-1').focused).toBe(false)
+    expect(stateOf('win-1').spaceId).toBe('space-work')
+
+    // 新开窗口 z 必须高于恢复的最大 z（topZ 重置为 max(zIndex)）。
+    const fresh = manager.create({ appId: 'b', title: 'B' })
+    expect(stateOf(fresh.id).zIndex).toBeGreaterThan(41)
   })
 })
 

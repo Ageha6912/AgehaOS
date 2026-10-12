@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_SPACE_ID } from '@/core/window'
 
+import { resetWindowStore, useWindowStore } from './window-store'
 import { reloadSpaceStore, resetSpaceStore, useSpaceStore } from './space-store'
 
 const STORAGE_KEY = 'agehaos.spaces.v1'
 
 beforeEach(() => {
   localStorage.clear()
+  resetWindowStore()
   resetSpaceStore()
 })
 
@@ -94,6 +96,52 @@ describe('useSpaceStore（Space 列表持久化，W1）', () => {
     expect(useSpaceStore.getState().spaces).toHaveLength(1)
     expect(useSpaceStore.getState().activeSpaceId).toBe(DEFAULT_SPACE_ID)
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+  })
+})
+
+describe('space-store × 窗口归属（W2，审计 .tmp/spaces-audit.md §5 决定 1）', () => {
+  it('isEmpty 真实计数：非空 Space 拒删，空 Space 可删', () => {
+    const workId = useSpaceStore.getState().createSpace('工作')
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事', spaceId: workId })
+
+    // 非空拒删：state 与磁盘都保持两个 Space。
+    useSpaceStore.getState().deleteSpace(workId)
+    expect(useSpaceStore.getState().spaces.map((s) => s.id)).toEqual([DEFAULT_SPACE_ID, workId])
+
+    // 窗口关闭后变空：可删。
+    const win = useWindowStore.getState().windows[0]!
+    useWindowStore.getState().close(win.id)
+    useSpaceStore.getState().deleteSpace(workId)
+    expect(useSpaceStore.getState().spaces.map((s) => s.id)).toEqual([DEFAULT_SPACE_ID])
+  })
+
+  it('provider 接线：open() 缺省落当前 active Space（新窗进当前 Space）', () => {
+    const workId = useSpaceStore.getState().createSpace('工作')
+    useSpaceStore.getState().switchSpace(workId)
+
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+
+    expect(useWindowStore.getState().windows[0]?.spaceId).toBe(workId)
+  })
+
+  it('resetSpaceStore 重建引擎后 provider 自动跟随（闭包读模块级 engine 绑定）', () => {
+    const workId = useSpaceStore.getState().createSpace('工作')
+    useSpaceStore.getState().switchSpace(workId)
+
+    resetSpaceStore()
+    expect(useSpaceStore.getState().activeSpaceId).toBe(DEFAULT_SPACE_ID)
+
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    expect(useWindowStore.getState().windows[0]?.spaceId).toBe(DEFAULT_SPACE_ID)
+  })
+
+  it('deleteSpace 拒删时 window-store 零感知：窗口照常存活', () => {
+    const workId = useSpaceStore.getState().createSpace('工作')
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事', spaceId: workId })
+
+    useSpaceStore.getState().deleteSpace(workId)
+
+    expect(useWindowStore.getState().windows).toHaveLength(1)
   })
 })
 

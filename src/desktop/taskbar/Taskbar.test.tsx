@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 import { resetUsageStore, useUsageStore } from '@/store/usage-store'
 import { resetAppStore } from '@/store/app-store'
+import { resetSpaceStore, useSpaceStore } from '@/store/space-store'
 import { resetDynamicDesktopStore, useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
 import { resetLauncherStore } from '@/store/launcher-store'
 import { resetMotionPrefsStore, useMotionPrefsStore } from '@/store/motion-prefs-store'
@@ -15,6 +16,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-09-21T10:30:00'))
   resetWindowStore()
+  resetSpaceStore()
   resetAppStore()
   resetDynamicDesktopStore()
   resetUsageStore()
@@ -74,6 +76,25 @@ describe('Taskbar', () => {
     expect(item.textContent).not.toContain('记事')
     // 聚焦窗口带指示条。
     expect(item.querySelector('.bg-primary')).not.toBeNull()
+  })
+
+  it('运行行与瓷贴激活只看当前 Space，其他 Space 窗口不可见（W2，审计 §5 决定 4）', () => {
+    const current = useWindowStore.getState().open({
+      appId: 'com.ageha.dynamic.panel',
+      title: '动态面板',
+    })
+    const other = useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.files', title: '文件', spaceId: 'space-other' })
+    expect(useSpaceStore.getState().activeSpaceId).not.toBe('space-other')
+    render(<Taskbar />)
+
+    // 当前 Space 窗口在运行行；其他 Space 窗口不出现。
+    expect(screen.getByTestId(`taskbar-item-${current}`)).toBeInTheDocument()
+    expect(screen.queryByTestId(`taskbar-item-${other}`)).toBeNull()
+
+    // files 瓷贴不被其他 Space 的 files 窗口点亮（active 指示条只在当前 Space）。
+    expect(screen.getByTestId('dock-pin-com.ageha.files').querySelector('.bg-primary')).toBeNull()
   })
 
   it('shows a hover preview with title, close and minimized state', async () => {

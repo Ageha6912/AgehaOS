@@ -16,6 +16,7 @@ import { NotificationCenter } from '@/desktop/taskbar/NotificationCenter'
 import { UserMenu } from '@/desktop/taskbar/UserMenu'
 import { useSearchStore } from '@/store/search-store'
 import { useSettingsStore } from '@/store/settings-store'
+import { useSpaceStore } from '@/store/space-store'
 import { useWindowStore } from '@/store/window-store'
 import { altShortcutLabel, redoShortcutLabel, shortcutLabel } from '@/core/platform'
 import { cycleWindows } from '@/desktop/use-global-shortcuts'
@@ -82,6 +83,10 @@ export function MenuBar() {
   const restore = useWindowStore((s) => s.restore)
   const minimize = useWindowStore((s) => s.minimize)
   const closeWindow = useWindowStore((s) => s.close)
+  // Space-aware（W2，审计 .tmp/spaces-audit.md §5 决定 4）：窗口菜单与
+  // minimizeAll/closeAll 只作用于当前 Space。
+  const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
+  const spaceWindows = windows.filter((win) => win.spaceId === activeSpaceId)
 
   // Cloud 要素（§1②）：同步状态指示（与左栏云同步项同数据源）+ 深链设置
   // 账户分区；开关切换事件驱动重渲染（与 Sidebar 同款 SYNC_TOGGLE_EVENT 模式）。
@@ -350,15 +355,15 @@ export function MenuBar() {
         <MenuItem
           label={t('menubar.window.next')}
           shortcut={altShortcutLabel('W')}
-          disabled={windows.filter((win) => win.state !== 'minimized').length < 2}
+          disabled={spaceWindows.filter((win) => win.state !== 'minimized').length < 2}
           onSelect={() => act(cycleWindows)}
         />
         <MenuItem
           label={t('menubar.window.minimizeAll')}
-          disabled={windows.length === 0}
+          disabled={spaceWindows.length === 0}
           onSelect={() =>
             act(() => {
-              for (const win of [...windows]) {
+              for (const win of [...spaceWindows]) {
                 if (win.state !== 'minimized') minimize(win.id)
               }
             })
@@ -366,15 +371,15 @@ export function MenuBar() {
         />
         <MenuItem
           label={t('menubar.window.closeAll')}
-          disabled={windows.length === 0}
+          disabled={spaceWindows.length === 0}
           onSelect={() =>
             act(() => {
-              for (const win of [...windows]) closeWindow(win.id)
+              for (const win of [...spaceWindows]) closeWindow(win.id)
             })
           }
         />
-        {windows.length > 0 && <MenuSeparator />}
-        {windows.map((win) => (
+        {spaceWindows.length > 0 && <MenuSeparator />}
+        {spaceWindows.map((win) => (
           <MenuItem
             key={win.id}
             label={win.title}

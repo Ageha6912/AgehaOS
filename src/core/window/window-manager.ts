@@ -1,6 +1,7 @@
 import type { EventBus, SystemEventMap } from '@/core/events'
 
 import type { CreateWindowOptions, Viewport, WindowInstance } from './types'
+import { DEFAULT_SPACE_ID } from './space-types'
 
 export const DEFAULT_WINDOW_WIDTH = 900
 export const DEFAULT_WINDOW_HEIGHT = 600
@@ -59,6 +60,9 @@ export class WindowManager {
       minWidth,
       minHeight,
       restoreBounds: null,
+      // W2 窗口归属（审计 §5 决定 1）：这里只落 DEFAULT_SPACE_ID 纯兜底；
+      // 真实缺省（当前 Space）由 store 层 provider 注入后经 options.spaceId 传入。
+      spaceId: options.spaceId ?? DEFAULT_SPACE_ID,
     }
     this.windows.set(id, instance)
     for (const win of this.windows.values()) {
@@ -162,6 +166,36 @@ export class WindowManager {
     target.width = clamp(width, target.minWidth, maxWidth)
     target.height = clamp(height, target.minHeight, maxHeight)
     return true
+  }
+
+  /**
+   * W2 窗口归属（审计 .tmp/spaces-audit.md §5 决定 3）：把窗口改派到另一
+   * Space。引擎只弱校验 spaceId 非空字符串（目标 Space 的存在性由 store
+   * 层校验后调用）；zIndex 与焦点不动（跨 Space 不抢焦点）。同 Space
+   * 重复指派视为 no-op 拒绝（对齐 switchSpace/minimize 的既有口径，不发
+   * 多余事件）；成功广播 window.space-assigned。
+   */
+  moveWindowToSpace(id: string, spaceId: string): boolean {
+    const target = this.windows.get(id)
+    if (!target) return false
+    if (typeof spaceId !== 'string' || spaceId === '') return false
+    if (target.spaceId === spaceId) return false
+    const fromSpaceId = target.spaceId
+    target.spaceId = spaceId
+    this.bus.emit('window.space-assigned', { windowId: id, fromSpaceId, toSpaceId: spaceId })
+    return true
+  }
+
+  /**
+   * W2 窗口持久化恢复（审计 §5 决定 2）：整批灌入已由 store 层校验过的
+   * 窗口（覆盖 id/zIndex/几何/归属），topZ 重置为 max(zIndex) 保单调；
+   * focused 一律落 false（焦点由 store 层对 active Space 栈顶补 focus）。
+   * 恢复是加载行为不是用户 mutation，不广播任何事件。
+   */
+  hydrateWindows(windows: WindowInstance[]): void {
+    this.windows = new Map(windows.map((win) => [win.id, cloneWindow({ ...win, focused: false })]))
+    this.topZ = windows.reduce((max, win) => Math.max(max, win.zIndex), 0)
+    this.createdCount = windows.length
   }
 
   /** SDK Window API：应用更新自己窗口的标题（空标题与超长标题被拒绝）。 */

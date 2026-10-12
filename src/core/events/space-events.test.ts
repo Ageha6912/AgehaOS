@@ -4,8 +4,9 @@ import { systemBus } from './system-bus'
 import type { SystemEventMap } from './types'
 
 /**
- * Ageha Spaces 事件契约（Window Management 2.0 W1，审计 .tmp/spaces-audit.md §2）：
- * 5 个事件全部登记进 SystemEventMap 后方可使用（ADR 4，范本 dynamic-events.test.ts）。
+ * Ageha Spaces 事件契约（Window Management 2.0 W1，审计 .tmp/spaces-audit.md §2；
+ * W2 追加 window.space-assigned，见 §5 决定 3）：全部登记进 SystemEventMap
+ * 后方可使用（ADR 4，范本 dynamic-events.test.ts）。
  */
 const SPACE_EVENTS: Array<keyof SystemEventMap & string> = [
   'space.created',
@@ -50,5 +51,25 @@ describe('space event contract', () => {
       { spaceId: 'space-1', name: '工作' },
       { spaceId: 'space-1', fromIndex: 0, toIndex: 2 },
     ])
+  })
+
+  it('registers window.space-assigned（W2 窗口归属，发送处 WindowManager.moveWindowToSpace）', () => {
+    expect(systemBus.listenerCount('window.space-assigned')).toBe(0)
+    const off = systemBus.on('window.space-assigned', () => undefined)
+    expect(systemBus.listenerCount('window.space-assigned')).toBe(1)
+    off()
+  })
+
+  it('carries the { windowId, fromSpaceId, toSpaceId } payload for window.space-assigned', () => {
+    const seen: unknown[] = []
+    systemBus.on('window.space-assigned', (payload) => seen.push(payload))
+
+    systemBus.emit('window.space-assigned', {
+      windowId: 'win-1',
+      fromSpaceId: 'space-default',
+      toSpaceId: 'space-1',
+    })
+
+    expect(seen).toEqual([{ windowId: 'win-1', fromSpaceId: 'space-default', toSpaceId: 'space-1' }])
   })
 })

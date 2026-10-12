@@ -34,6 +34,7 @@ import { useEclosionStore } from '@/store/eclosion-store'
 import { useLauncherStore } from '@/store/launcher-store'
 import { unreadCount, useNotificationStore } from '@/store/notification-store'
 import { useSessionStore } from '@/store/session-store'
+import { useSpaceStore } from '@/store/space-store'
 import { useUsageStore } from '@/store/usage-store'
 import { useWindowStore } from '@/store/window-store'
 import { useWorkspaceStore } from '@/store/workspace-store'
@@ -434,8 +435,12 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
     setPanelEverExpanded(true)
   }
 
+  // Space-aware（W2，审计 .tmp/spaces-audit.md §5 决定 4）：「显示桌面」只
+  // 最小化当前 Space 的可见窗口，其他 Space 不受波及。
+  const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
   const showDesktop = (): void => {
     for (const win of [...windows]) {
+      if (win.spaceId !== activeSpaceId) continue
       if (win.state !== 'minimized') minimize(win.id)
     }
   }
