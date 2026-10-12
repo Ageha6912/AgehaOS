@@ -26,10 +26,12 @@ if (!rootElement) throw new Error('Root element #root not found')
 if (import.meta.env.VITE_AUTH_BACKEND) {
   setAuthProvider(new RemoteAuthClient())
   void useSessionStore.getState().reconcile()
-  startSettingsSync()
-  // 云文件同步（PRD §35 Phase 3 文本切片）：与配置同步共用账户开关。
-  startFileSync()
 }
+// 同步服务（配置 + 云文件）装配不再绑定远程认证构建（M4-3）：两个 start 均
+// 幂等且按同步开关自门控（开关入口仅远程认证模式渲染，本地构建默认静默），
+// 行为与先前等价；解绑后同步状态面对任一构建都是同一条真实管线。
+startSettingsSync()
+startFileSync()
 
 systemAppLifecycle.start()
 registerBuiltinApps()

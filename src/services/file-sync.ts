@@ -1,10 +1,10 @@
-import { isRemoteAuthActive } from '@/core/auth'
 import { systemBus } from '@/core/events'
 import type { Vfs } from '@/core/filesystem'
 import { hashContent, mergeTrees } from '@/core/sync/file-merge'
 import type { SyncTreeV2 } from '@/core/sync/file-merge'
 import { useNotificationStore } from '@/store/notification-store'
 import { useSessionStore } from '@/store/session-store'
+import { useSyncStatusStore } from '@/store/sync-status-store'
 import { isSyncEnabled, SYNC_TOGGLE_EVENT } from './settings-sync'
 import { systemVfs } from './vfs'
 
@@ -16,9 +16,12 @@ import { systemVfs } from './vfs'
  * 每次同步 = GET 服务端树 → `mergeTrees(base, local, server)` → 应用下载/删除/
  * 冲突副本 → PUT 合并树 → 推进基线。一方改动另一方未动时改动方赢；双方都改且
  * 不同 → 本地保留原地 + 服务端版本存为 `<name>.conflict-<savedAt><ext>` 副本，
- * 不丢数据。`applying` 标志阻断回声循环；合并结果超 256KB 时跳过本轮并发一次
- * 性通知。v1 整快照 blob 兼容：首次/旧数据走「服务端赢整体应用」后即转 v2 基线。
- * 回收站与已删节点不参与同步；本地认证模式或同步开关关闭时服务静默自禁用。
+ * 不丢数据。`applying` 标志阻断回声循环；合并结果超 256KB 时跳过本轮并发一
+ * 次性通知。v1 整快照 blob 兼容：首次/旧数据走「服务端赢整体应用」后即转 v2 基线。
+ * 回收站与已删节点不参与同步；同步开关关闭时服务静默自禁用（开关入口在账户
+ * 分区仅远程认证模式渲染——AccountSection 准入，本地构建默认同样静默）。
+ * 每次真实同步的 outcome（begin/success/failure + 时刻）如实记入
+ * sync-status-store（M4-3 状态面），三方合并逻辑本身零改动。
  * 二进制文件与对象存储属 Phase 3 完整交付。
  */
 
@@ -95,7 +98,7 @@ function currentUserId(): string | null {
 }
 
 function syncActive(): boolean {
-  return isRemoteAuthActive() && isSyncEnabled() && currentUserId() !== null
+  return isSyncEnabled() && currentUserId() !== null
 }
 
 const joinPath = (dir: string, name: string): string => (dir === '/' ? `/${name}` : `${dir}/${name}`)
@@ -275,10 +278,13 @@ export async function syncNow(): Promise<void> {
     return
   }
 
+  const status = useSyncStatusStore.getState()
+  status.beginSyncCycle()
   let serverBlob: SyncBlob | null
   try {
     serverBlob = await fetchServerBlob()
   } catch {
+    status.failSyncCycle(Date.now())
     return
   }
 
@@ -291,6 +297,9 @@ export async function syncNow(): Promise<void> {
       const base: Record<string, string> = {}
       for (const [path, entry] of Object.entries(localTree.files)) base[path] = entry.hash
       saveMarkerV2(userId, base, savedAt)
+      status.completeSyncCycle(Date.now())
+    } else {
+      status.failSyncCycle(Date.now())
     }
     return
   }
@@ -311,11 +320,16 @@ export async function syncNow(): Promise<void> {
   const mergedJson = JSON.stringify(result.merged)
   if (mergedJson === lastPushedJson) {
     saveMarkerV2(userId, baseOf(result.merged), savedAt)
+    status.completeSyncCycle(Date.now())
     return
   }
-  if (!(await putServerTree(result.merged, savedAt))) return
+  if (!(await putServerTree(result.merged, savedAt))) {
+    status.failSyncCycle(Date.now())
+    return
+  }
   lastPushedJson = mergedJson
   saveMarkerV2(userId, baseOf(result.merged), savedAt)
+  status.completeSyncCycle(Date.now())
 }
 
 function baseOf(tree: SyncTreeV2): Record<string, string> {
@@ -340,15 +354,22 @@ export async function pullFilesOnce(): Promise<void> {
   }
 
   // 旧标记/首次：沿用 v1 语义——服务端较新则整体应用（服务端赢），为空则首推。
+  const status = useSyncStatusStore.getState()
+  status.beginSyncCycle()
   let body: { data: string | null }
   try {
     const response = await fetch('/api/sync/data/files', { credentials: 'same-origin' })
-    if (!response.ok) return
+    if (!response.ok) {
+      status.failSyncCycle(Date.now())
+      return
+    }
     body = (await response.json()) as { data: string | null }
   } catch {
+    status.failSyncCycle(Date.now())
     return
   }
   if (!body.data) {
+    // 服务端为空：本机树待首推（防抖后的 syncNow 自会汇报 outcome）。
     schedulePush()
     return
   }
@@ -356,11 +377,19 @@ export async function pullFilesOnce(): Promise<void> {
   try {
     blob = JSON.parse(body.data) as SyncBlob
   } catch {
+    status.failSyncCycle(Date.now())
     return
   }
-  if ((blob.version !== 1 && blob.version !== 2) || typeof blob.savedAt !== 'number') return
+  if ((blob.version !== 1 && blob.version !== 2) || typeof blob.savedAt !== 'number') {
+    status.failSyncCycle(Date.now())
+    return
+  }
   // v1 语义：服务端不比本机标记新 → 什么都不做（本地保留，改动随后上推）。
-  if (blob.savedAt <= loadMarker(userId).lastSyncedAt) return
+  if (blob.savedAt <= loadMarker(userId).lastSyncedAt) {
+    // 与服务端接触成功且基线仍最新：视为一次完成的核对。
+    status.completeSyncCycle(Date.now())
+    return
+  }
   applying = true
   try {
     if (blob.version === 1) {
@@ -376,8 +405,10 @@ export async function pullFilesOnce(): Promise<void> {
     lastPushedJson = body.data
     const tree = toTreeV2(blob)
     saveMarkerV2(userId, baseOf(tree), blob.savedAt)
+    status.completeSyncCycle(Date.now())
   } catch (error) {
     console.error('[AgehaOS:FileSync] failed to apply server snapshot', error)
+    status.failSyncCycle(Date.now())
   } finally {
     applying = false
   }

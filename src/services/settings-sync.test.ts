@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { isRemoteAuthActive, setAuthProvider } from '@/core/auth'
 import { getLocale } from '@/core/i18n'
 import { resetSettingsStore, useSettingsStore } from '@/store/settings-store'
+import { resetSyncStatusForTests, useSyncStatusStore } from '@/store/sync-status-store'
 
 import { pullOnce, resetSyncStateForTests, setSyncEnabled, startSettingsSync } from './settings-sync'
 
@@ -23,6 +24,7 @@ beforeEach(async () => {
   // reset 不覆盖 locale，显式归位。
   useSettingsStore.getState().setLocale('zh-CN')
   resetSyncStateForTests()
+  resetSyncStatusForTests()
   setSyncEnabled(false)
   vi.mocked(isRemoteAuthActive).mockReturnValue(true)
   fetchMock.mockReset()
@@ -112,5 +114,68 @@ describe('settings-sync service (PRD §35 用户配置同步)', () => {
     await expect(pullOnce()).resolves.toBeUndefined()
     // 拉取失败不动本地偏好（§32 起出厂默认浅色）。
     expect(useSettingsStore.getState().theme).toBe('light')
+  })
+})
+
+/**
+ * M4-3 状态面埋点：pullOnce / pushNow 的 outcome（begin/success/failure）
+ * 如实记入 sync-status-store；开关关闭（准入外）不产生任何流转。
+ */
+describe('settings-sync status reporting (M4-3 sync-status-store)', () => {
+  it('reports success after a completed pull', async () => {
+    setSyncEnabled(true)
+    fetchMock.mockResolvedValue(jsonResponse({ data: null }))
+
+    await pullOnce()
+
+    expect(useSyncStatusStore.getState()).toMatchObject({
+      phase: 'idle',
+      lastSuccessAt: expect.any(Number),
+      lastErrorAt: null,
+    })
+  })
+
+  it('reports failure on HTTP error and on network rejection', async () => {
+    setSyncEnabled(true)
+    fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) } as Response)
+    await pullOnce()
+    expect(useSyncStatusStore.getState().phase).toBe('error')
+
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
+    await pullOnce()
+    expect(useSyncStatusStore.getState().phase).toBe('error')
+    expect(useSyncStatusStore.getState().lastSuccessAt).toBeNull()
+  })
+
+  it('reports nothing while the toggle keeps the service dormant', async () => {
+    await pullOnce()
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    // getState() 含 action 函数，状态字段用 toMatchObject 钉值。
+    expect(useSyncStatusStore.getState()).toMatchObject({ phase: 'idle', lastSuccessAt: null, lastErrorAt: null })
+  })
+
+  it('reports the outcome of the debounced push', async () => {
+    vi.useFakeTimers()
+    try {
+      setSyncEnabled(true)
+
+      // 推送成功：PUT ok → success。
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
+      useSettingsStore.getState().setTheme('dark')
+      await vi.advanceTimersByTimeAsync(1600)
+      expect(useSyncStatusStore.getState().phase).toBe('idle')
+      expect(useSyncStatusStore.getState().lastSuccessAt).not.toBeNull()
+
+      // 推送失败：PUT 500 → error，成功时刻保留。
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) } as Response)
+      useSettingsStore.getState().setTheme('light')
+      await vi.advanceTimersByTimeAsync(1600)
+      expect(useSyncStatusStore.getState().phase).toBe('error')
+      expect(useSyncStatusStore.getState().lastSuccessAt).not.toBeNull()
+      expect(useSyncStatusStore.getState().lastErrorAt).not.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

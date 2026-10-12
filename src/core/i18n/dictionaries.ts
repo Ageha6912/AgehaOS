@@ -551,6 +551,18 @@ export const dictionaries = {
     'settings.account.syncHint':
       '把主题、字体大小、语言与文本文件同步到后端账户，登录时自动恢复；默认关闭。',
     'settings.account.syncToggle': '开启同步',
+    /* M4-3 云同步状态面：Settings「同步」分区。状态库只记真实和解结果；
+       本地模式/未登录/开关关闭等降级行如实派生展示。 */
+    'settings.sync.section': '同步',
+    'settings.sync.modeLocal': '本地账户模式：此安装未连接云同步服务。',
+    'settings.sync.signedOut': '未登录——云同步按账户进行。',
+    'settings.sync.disabled': '云同步已关闭。',
+    'settings.sync.disabledHint': '在「账户」分区的「云同步」开关可以开启。',
+    'settings.sync.phaseSyncing': '正在同步…',
+    'settings.sync.lastSuccessLine': '上次同步成功：{time}',
+    'settings.sync.lastFailedLine': '上次同步失败：{time}',
+    'settings.sync.neverSynced': '尚未同步。',
+    'settings.sync.offlineHint': '设备当前离线——恢复联网后，将在下次文件或设置变更时继续同步。',
     'notification.title.fileSyncOversized': '文件同步暂停',
     'notification.body.fileSyncOversized': '文件快照超过 256KB 上限，本轮改动未上传；请清理大文件后重试。',
 
@@ -1220,6 +1232,17 @@ export const dictionaries = {
     'settings.account.syncHint':
       'Syncs theme, font size, language and text files to your backend account and restores them on sign-in. Off by default.',
     'settings.account.syncToggle': 'Enable sync',
+    'settings.sync.section': 'Sync',
+    'settings.sync.modeLocal': 'Local account mode: this installation is not connected to the cloud sync service.',
+    'settings.sync.signedOut': 'Signed out — cloud sync works per account.',
+    'settings.sync.disabled': 'Cloud sync is off.',
+    'settings.sync.disabledHint': 'Turn it on with the "Cloud sync" switch in the Account section.',
+    'settings.sync.phaseSyncing': 'Syncing…',
+    'settings.sync.lastSuccessLine': 'Last sync succeeded: {time}',
+    'settings.sync.lastFailedLine': 'Last sync failed: {time}',
+    'settings.sync.neverSynced': 'Not synced yet.',
+    'settings.sync.offlineHint':
+      'This device is offline — syncing resumes with the next file or settings change after reconnecting.',
     'notification.title.fileSyncOversized': 'File sync paused',
     'notification.body.fileSyncOversized':
       'The file snapshot exceeds the 256KB limit; this round of changes was not uploaded. Clean up large files and retry.',

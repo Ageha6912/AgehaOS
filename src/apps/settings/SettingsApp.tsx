@@ -9,7 +9,7 @@ import { useNarrowContainer } from '@/apps/use-narrow-container'
 import { BrandLogo } from '@/components/brand-logo'
 import { ToggleSwitch } from '@/components/toggle-switch'
 import { useMotionPrefsStore, type MotionPrefKey } from '@/store/motion-prefs-store'
-import { CaretLeft, GlobeHemisphereWest, Butterfly, ListChecks, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
+import { ArrowsClockwise, CaretLeft, GlobeHemisphereWest, Butterfly, ListChecks, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
 
 import { useTranslation, useLocaleStore } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
@@ -23,9 +23,11 @@ import { EclosionSection } from './EclosionSection'
 import { AccountSection } from './AccountSection'
 import { CatalogSection } from './CatalogSection'
 import { SampleReviewSection } from './SampleReviewSection'
+import { SyncSection } from './SyncSection'
 
 type SectionId =
   | 'account'
+  | 'sync'
   | 'appearance'
   | 'dynamic'
   | 'eclosion'
@@ -87,6 +89,7 @@ export function SettingsApp() {
 
   const sections: Array<{ id: SectionId; labelKey: MessageKey; icon: ReactNode }> = [
     { id: 'account', labelKey: 'settings.account', icon: <UserCircle size={14} weight="regular" /> },
+    { id: 'sync', labelKey: 'settings.sync.section', icon: <ArrowsClockwise size={14} weight="regular" /> },
     { id: 'appearance', labelKey: 'settings.appearance', icon: <Palette size={14} weight="regular" /> },
     { id: 'dynamic', labelKey: 'dynamicDesktop.section', icon: <Sparkle size={14} weight="regular" /> },
     { id: 'eclosion', labelKey: 'settings.eclosion.section', icon: <Butterfly size={14} weight="regular" /> },
@@ -106,6 +109,7 @@ export function SettingsApp() {
   const sectionContent = (
     <>
       {section === 'account' && <AccountSection />}
+      {section === 'sync' && <SyncSection />}
       {section === 'appearance' && <AppearanceSection narrow={narrow} />}
       {section === 'dynamic' && <DynamicDesktopSection />}
       {section === 'eclosion' && <EclosionSection />}

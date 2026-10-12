@@ -1,5 +1,5 @@
-import { isRemoteAuthActive } from '@/core/auth'
 import { getLocale } from '@/core/i18n'
+import { useSyncStatusStore } from '@/store/sync-status-store'
 import { useSettingsStore } from '@/store/settings-store'
 import type { FontSize, ThemePreference } from '@/store/settings-store'
 
@@ -8,8 +8,11 @@ import type { FontSize, ThemePreference } from '@/store/settings-store'
  * 主题/字体大小/语言作为整块 JSON 与后端 `/api/sync/data` 同步。
  *
  * 语义（v0.5 前置切片）：boot 时拉取并应用（服务端赢），之后本地改动防抖
- * 上推（本地赢）；`applying` 标志阻断回声循环。本地认证模式无 /api 路由，
- * 服务静默自禁用。云同步的冲突合并/多设备仲裁属 Phase 3 完整交付。
+ * 上推（本地赢）；`applying` 标志阻断回声循环。激活以同步开关为准（开关
+ * 即准入）；开关入口在账户分区仅远程认证模式渲染（AccountSection 准入），
+ * 本地认证构建默认保持静默。每次真实拉取/上推的 outcome（begin/success/
+ * failure + 时刻）如实记入 sync-status-store（M4-3 状态面）；服务端不可达
+ * 不重试，等下次变更再试。云同步的冲突合并/多设备仲裁属 Phase 3 完整交付。
  */
 
 const TOGGLE_KEY = 'agehaos.sync.enabled.v1'
@@ -54,7 +57,7 @@ export function setSyncEnabled(enabled: boolean): void {
   if (enabled) schedulePush()
 }
 
-/** 幂等启动：订阅设置变化 + boot 拉取。本地模式自动自禁用。 */
+/** 幂等启动：订阅设置变化 + boot 拉取。同步开关关闭时静默自禁用。 */
 export function startSettingsSync(): void {
   if (started) return
   started = true
@@ -74,20 +77,27 @@ export function resetSyncStateForTests(): void {
 }
 
 export async function pullOnce(): Promise<void> {
-  if (!isRemoteAuthActive() || !isSyncEnabled()) return
+  if (!isSyncEnabled()) return
+  const status = useSyncStatusStore.getState()
+  status.beginSyncCycle()
   try {
     const response = await fetch('/api/sync/data', { credentials: 'same-origin' })
-    if (!response.ok) return
+    if (!response.ok) {
+      status.failSyncCycle(Date.now())
+      return
+    }
     const body = (await response.json()) as { data: string | null }
-    if (!body.data) return
-    applyBlob(body.data)
+    if (body.data) applyBlob(body.data)
   } catch {
-    /* offline or local mode: keep local values */
+    // 离线/服务不可达：保留本地值， outcome 记为失败（M4-3 状态面如实呈现）。
+    status.failSyncCycle(Date.now())
+    return
   }
+  status.completeSyncCycle(Date.now())
 }
 
 function schedulePush(): void {
-  if (started && isRemoteAuthActive() && isSyncEnabled() && !applying) {
+  if (started && isSyncEnabled() && !applying) {
     if (pushTimer !== null) window.clearTimeout(pushTimer)
     pushTimer = window.setTimeout(() => {
       pushTimer = null
@@ -99,6 +109,8 @@ function schedulePush(): void {
 async function pushNow(): Promise<void> {
   const data = JSON.stringify({ settings: currentSettings() })
   if (data === lastPushedJson || data.length > SYNC_BUDGET) return
+  const status = useSyncStatusStore.getState()
+  status.beginSyncCycle()
   try {
     const response = await fetch('/api/sync/data', {
       method: 'PUT',
@@ -106,9 +118,15 @@ async function pushNow(): Promise<void> {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ data }),
     })
-    if (response.ok) lastPushedJson = data
+    if (response.ok) {
+      lastPushedJson = data
+      status.completeSyncCycle(Date.now())
+    } else {
+      status.failSyncCycle(Date.now())
+    }
   } catch {
     /* offline: next change retries */
+    status.failSyncCycle(Date.now())
   }
 }
 

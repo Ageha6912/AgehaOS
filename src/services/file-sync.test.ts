@@ -6,6 +6,7 @@ import type { Vfs } from '@/core/filesystem'
 import { hashContent as hashContentOf } from '@/core/sync/file-merge'
 import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
+import { resetSyncStatusForTests, useSyncStatusStore } from '@/store/sync-status-store'
 
 import {
   applySnapshot,
@@ -52,6 +53,7 @@ beforeEach(async () => {
   resetFileSyncStateForTests()
   resetSessionStore()
   resetNotificationStore()
+  resetSyncStatusForTests()
   setSyncEnabled(false)
   vi.mocked(isRemoteAuthActive).mockReturnValue(true)
   fetchMock.mockReset()
@@ -116,22 +118,22 @@ describe('file-sync snapshot helpers (PRD §35 Phase 3 文本切片)', () => {
 })
 
 describe('file-sync service (PRD §35 Phase 3 文本切片)', () => {
-  it('does nothing when sync is disabled or auth is local', async () => {
+  it('does nothing when sync is disabled (M4-3 起激活以开关为准)', async () => {
     const vfs = await makeVfs()
     startFileSync({ vfs })
 
-    // 本地认证：即使开关开着（含开关事件触发的立即拉取）也不产生请求。
-    vi.mocked(isRemoteAuthActive).mockReturnValue(false)
-    setSyncEnabled(true)
-    await vi.advanceTimersByTimeAsync(50)
-    await pullFilesOnce()
-    expect(fetchMock).not.toHaveBeenCalled()
-
-    // 远程认证但开关关闭：同样不产生请求。
+    // 远程认证但开关关闭：不产生请求。
     vi.mocked(isRemoteAuthActive).mockReturnValue(true)
     setSyncEnabled(false)
     await pullFilesOnce()
     expect(fetchMock).not.toHaveBeenCalled()
+
+    // 开关即准入（M4-3）：开关开着即使认证实现是本地 provider 也照常同步——
+    // 开关入口在本地构建不可达（AccountSection 准入），默认仍静默。
+    setSyncEnabled(true)
+    fetchMock.mockResolvedValue(jsonResponse({ data: null }))
+    await pullFilesOnce()
+    expect(fetchMock).toHaveBeenCalled()
   })
 
   it('applies a newer server snapshot on pull without echoing a push (LWW 服务端赢)', async () => {
@@ -342,5 +344,96 @@ describe('file-sync three-way merge (PRD §35 Phase 3，ADR 17)', () => {
     await expect(vfs.get('/Documents/b.txt')).resolves.toBeNull()
     const merged = JSON.parse(lastPut().data) as { files: Record<string, unknown> }
     expect(merged.files['/Documents/b.txt']).toBeUndefined()
+  })
+})
+
+/**
+ * M4-3 状态面埋点：syncNow / pullFilesOnce 的 outcome（begin/success/failure）
+ * 如实记入 sync-status-store。本组刻意不经 startFileSync（不装订阅、无 boot
+ * 拉取），开关直接种 localStorage（setSyncEnabled 会广播开关事件触发立即拉取，
+ * 与 Once 序列的 fetch mock 抢调用），保证 mock 消费次序确定。
+ */
+describe('file-sync status reporting (M4-3 sync-status-store)', () => {
+  function enableSyncFlag(): void {
+    localStorage.setItem('agehaos.sync.enabled.v1', '1')
+  }
+
+  it('reports success when a cycle completes (empty server → initial push)', async () => {
+    const vfs = await makeVfs()
+    await vfs.writeFile('/Documents/a.txt', 'a')
+    enableSyncFlag()
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: null }))
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
+
+    await syncNow()
+
+    expect(useSyncStatusStore.getState()).toMatchObject({
+      phase: 'idle',
+      lastSuccessAt: expect.any(Number),
+      lastErrorAt: null,
+    })
+  })
+
+  it('reports failure when the GET fails and keeps the previous success time', async () => {
+    enableSyncFlag()
+    useSyncStatusStore.getState().completeSyncCycle(500)
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
+
+    await syncNow()
+
+    expect(useSyncStatusStore.getState().phase).toBe('error')
+    expect(useSyncStatusStore.getState().lastSuccessAt).toBe(500)
+    expect(useSyncStatusStore.getState().lastErrorAt).not.toBeNull()
+  })
+
+  it('reports failure when the PUT is rejected', async () => {
+    enableSyncFlag()
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: null }))
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) } as Response)
+
+    await syncNow()
+
+    expect(useSyncStatusStore.getState().phase).toBe('error')
+    expect(useSyncStatusStore.getState().lastSuccessAt).toBeNull()
+  })
+
+  it('reports nothing while the gate keeps the service dormant', async () => {
+    await syncNow()
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    // getState() 含 action 函数，状态字段用 toMatchObject 钉值。
+    expect(useSyncStatusStore.getState()).toMatchObject({ phase: 'idle', lastSuccessAt: null, lastErrorAt: null })
+  })
+
+  it('reports success after a full three-way merge cycle', async () => {
+    const vfs = await makeVfs()
+    await vfs.writeFile('/Documents/a.txt', 'a-base')
+    // 注入 activeVfs；此刻开关未开 → startFileSync 的 boot 拉取早退，不抢 mock。
+    startFileSync({ vfs })
+    enableSyncFlag()
+    // 首轮：空服务端 → 初推，落 v2 基线。
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: null }))
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
+    await syncNow()
+
+    // 二轮：服务端 v2 树与基线一致；lastPushedJson 首轮（空服务端路径）未记，
+    // 故仍会幂等 PUT 一次后报成功。
+    const marker = JSON.parse(localStorage.getItem('agehaos.file-sync.v1.u1') ?? '') as { base: Record<string, string> }
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: JSON.stringify({
+          version: 2,
+          savedAt: 4000,
+          dirs: ['/Documents'],
+          files: { '/Documents/a.txt': { hash: marker.base['/Documents/a.txt'], content: 'a-base' } },
+        }),
+      }),
+    )
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
+
+    await syncNow()
+
+    expect(useSyncStatusStore.getState().phase).toBe('idle')
+    expect(useSyncStatusStore.getState().lastSuccessAt).not.toBeNull()
   })
 })
