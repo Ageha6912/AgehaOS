@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -207,7 +207,7 @@ describe('TerminalApp 窄容器（M3-5）', () => {
     )
   })
 
-  it('宽容器：根/井/输入行类名与改前字面等价，无软键盘修正属性', () => {
+  it('宽容器：根/井/输入行类名与改前字面等价，无软键盘修正属性、无快捷键行', () => {
     render(<TerminalApp />)
 
     expect(screen.getByTestId('terminal-root').className).toBe(
@@ -223,6 +223,8 @@ describe('TerminalApp 窄容器（M3-5）', () => {
     expect(input).not.toHaveAttribute('autocapitalize')
     expect(input).not.toHaveAttribute('autocorrect')
     expect(input).not.toHaveAttribute('enterkeyhint')
+    // 快捷键行（M4-4）只属窄容器：宽容器不渲染，DOM 与改前字面等价。
+    expect(screen.queryByTestId('terminal-key-row')).toBeNull()
   })
 
   it('软键盘避让：触屏下键盘弹起根让出遮挡高度、收起恢复、卸载清理监听', async () => {
@@ -277,5 +279,129 @@ describe('TerminalApp 窄容器（M3-5）', () => {
 
     unmount()
     expect(fakeVV.listeners.size).toBe(0)
+  })
+})
+
+/**
+ * 快捷键行（M4-4，仅窄容器）：结构契约（排列序/键帽/aria/≥44px 类/流内
+ * 末位）与五键的会话响应在此钉扎；序列映射与补全纯函数归
+ * terminal-keys.test.ts，真实视口几何与 Tab/Ctrl+C 的用户可见响应归
+ * e2e/mobile-terminal-panel.spec.ts（与 M3-5 同一分工口径）。
+ */
+describe('TerminalApp 快捷键行（M4-4，窄容器）', () => {
+  beforeEach(() => {
+    seedSessionForTests({ id: 'u-t', username: 'alice', createdAt: '', updatedAt: '' })
+    FakeResizeObserver.instances = []
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver as unknown as typeof ResizeObserver)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    useDeviceStore.setState({
+      capabilities: detectDeviceCapabilities(),
+      shell: 'desktop',
+    })
+  })
+
+  function renderWithWidth(width: number): void {
+    render(<TerminalApp />)
+    act(() => {
+      FakeResizeObserver.instances.at(-1)?.emit(width)
+    })
+  }
+
+  it('结构契约：五键在场（排列序/键帽/aria/≥44px 类/busy 前可用）、行带边缘返回豁免、且为根最后一个流内子元素', () => {
+    renderWithWidth(360)
+
+    const root = screen.getByTestId('terminal-root')
+    const row = screen.getByTestId('terminal-key-row')
+    // 流内末位 = 软键盘弹起（根由 keyboard-inset 让高）时行贴键盘上沿、
+    // 在输入行之下不遮挡的结构前提。
+    expect(root.lastElementChild).toBe(row)
+    expect(row).toHaveAttribute('data-no-edge-back')
+    expect(row).toHaveAttribute('aria-label', '终端快捷键')
+
+    const keys = within(row).getAllByRole('button')
+    expect(keys.map((key) => key.textContent)).toEqual(['Esc', 'Tab', 'Ctrl+C', '↑', '↓'])
+    expect(keys.map((key) => key.getAttribute('data-testid'))).toEqual([
+      'terminal-key-esc',
+      'terminal-key-tab',
+      'terminal-key-ctrl-c',
+      'terminal-key-arrow-up',
+      'terminal-key-arrow-down',
+    ])
+    // aria 动作说明走 i18n（zh-CN 词典）；键帽是通用键名不进词典。
+    expect(within(row).getByRole('button', { name: '取消当前输入（Esc）' })).toBe(keys[0])
+    expect(within(row).getByRole('button', { name: '补全命令（Tab）' })).toBe(keys[1])
+    expect(within(row).getByRole('button', { name: '中断当前行（Ctrl+C）' })).toBe(keys[2])
+    expect(within(row).getByRole('button', { name: '上一条命令（↑）' })).toBe(keys[3])
+    expect(within(row).getByRole('button', { name: '下一条命令（↓）' })).toBe(keys[4])
+    for (const key of keys) {
+      expect(key.className).toContain('min-h-[44px]')
+      expect(key).toBeEnabled()
+    }
+  })
+
+  it('Tab：唯一前缀补全命令名 + 尾随空格；带参数（路径不猜）不动作', async () => {
+    renderWithWidth(360)
+
+    const input = screen.getByTestId('terminal-input')
+    await userEvent.type(input, 'ec')
+    fireEvent.click(screen.getByTestId('terminal-key-tab'))
+    expect(input).toHaveValue('echo ')
+
+    // 参数是文件路径——VFS 补全不在本期，带空白不动作（不猜路径）。
+    await userEvent.type(input, 'foo')
+    fireEvent.click(screen.getByTestId('terminal-key-tab'))
+    expect(input).toHaveValue('echo foo')
+  })
+
+  it('Ctrl+C：中断当前行——回显「提示符 / 草稿^C」并清空输入、历史游标复位', async () => {
+    renderWithWidth(360)
+
+    const input = screen.getByTestId('terminal-input')
+    const well = screen.getByTestId('terminal-output')
+    await runCommand('pwd')
+    // 等首条命令出结果再发下一条：busy 期输入行 disabled（runCommand 不等
+    // 提交完成），紧跟着打字会落进禁用窗口。
+    await waitFor(() => expect(well.textContent).toContain('/'))
+    await runCommand('whoami')
+    await waitFor(() => expect(well.textContent).toContain('whoami'))
+
+    // 召回两条到最旧，再中断——复位后 ↑ 应回到历史末尾（whoami）而非续走 pwd。
+    fireEvent.click(screen.getByTestId('terminal-key-arrow-up'))
+    fireEvent.click(screen.getByTestId('terminal-key-arrow-up'))
+    expect(input).toHaveValue('pwd')
+    fireEvent.click(screen.getByTestId('terminal-key-ctrl-c'))
+    await waitFor(() =>
+      expect(screen.getByTestId('terminal-output').textContent).toContain('pwd^C'),
+    )
+    expect(screen.getByTestId('terminal-output').textContent).toContain('alice@agehaos')
+    expect(input).toHaveValue('')
+    fireEvent.click(screen.getByTestId('terminal-key-arrow-up'))
+    expect(input).toHaveValue('whoami')
+  })
+
+  it('↑/↓ 触控键召回历史（与物理方向键同一 recall 通道）；Esc 取消当前行草稿', async () => {
+    renderWithWidth(360)
+
+    const input = screen.getByTestId('terminal-input')
+    const well = screen.getByTestId('terminal-output')
+    await runCommand('pwd')
+    // 等首条命令出结果再发下一条：busy 期输入行 disabled（runCommand 不等
+    // 提交完成），紧跟着打字会落进禁用窗口。
+    await waitFor(() => expect(well.textContent).toContain('/'))
+    await runCommand('whoami')
+    await waitFor(() => expect(well.textContent).toContain('whoami'))
+
+    fireEvent.click(screen.getByTestId('terminal-key-arrow-up'))
+    expect(input).toHaveValue('whoami')
+    fireEvent.click(screen.getByTestId('terminal-key-arrow-up'))
+    expect(input).toHaveValue('pwd')
+    fireEvent.click(screen.getByTestId('terminal-key-arrow-down'))
+    expect(input).toHaveValue('whoami')
+
+    fireEvent.click(screen.getByTestId('terminal-key-esc'))
+    expect(input).toHaveValue('')
   })
 })

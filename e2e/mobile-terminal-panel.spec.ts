@@ -9,6 +9,10 @@ import { expect, test, type Page } from '@playwright/test'
  *   （井与宿主零横向溢出）、执行一条命令有输出；应用网格 → 今日世界面板
  *   （com.ageha.dynamic.panel）——卡片单列（同列 x 对齐）、刷新钮 44×44、
  *   刷新后卡片照常、宿主零横向溢出；
+ * - M4-4 终端快捷键行（窄容器）：五个触控键在场且 ≥44px、行贴终端根底缘
+ *   （软键盘弹起时根由 keyboard-inset 让高、行贴键盘上沿——流内几何在此
+ *   钉扎，键盘本身归真机冒烟）、点 Tab 补全命令名、点 Ctrl+C 回显 ^C 且
+ *   终端仍可用；
  * - 软键盘避让（visualViewport）的样式直写/清理钉在 TerminalApp.test.tsx
  *   （stub visualViewport）；Chromium 模拟无法弹起真软键盘，真机键盘行为
  *   归真机冒烟（HANDOFF 记 notes）；
@@ -141,6 +145,52 @@ test.describe('mobile context（360×800 iPhone UA）：Terminal / 今日世界�
     expect(parseFloat(refreshSize.width)).toBe(44)
     await refresh.click()
     await expect(cards.getByTestId('panel-card-greeting')).toBeVisible()
+
+    await expectNoHorizontalOverflow(page)
+    await backToHomeFromApp(page)
+  })
+
+  test('终端快捷键行：五键触控档、行贴终端根底缘、Tab 补全命令、Ctrl+C 中断回显且终端仍可用', async ({
+    page,
+  }) => {
+    await registerAndReachShell(page, 'e2emobiletermkeys')
+    await openAppFromGrid(page, 'com.ageha.terminal')
+
+    // 五键在场（Esc/Tab/Ctrl+C/↑/↓）且触控档 ≥44px（§35.3，计算样式口径
+    // 同上——isMobile 模拟的视觉缩放取计算样式）。
+    const row = page.getByTestId('terminal-key-row')
+    await expect(row).toBeVisible()
+    for (const id of ['esc', 'tab', 'ctrl-c', 'arrow-up', 'arrow-down']) {
+      const key = page.getByTestId(`terminal-key-${id}`)
+      await expect(key).toBeVisible()
+      expect(await key.evaluate((el) => getComputedStyle(el).minHeight)).toBe('44px')
+    }
+
+    // 流内几何：快捷键行在输入行之下不遮挡（行顶 ≥ 输入行底），且贴终端
+    // 根底缘——软键盘弹起时根由 keyboard-inset 让高，行即贴键盘上沿
+    // （键盘本身归真机冒烟，这里钉不遮挡 + 底缘对齐的结构前提）。
+    const rootBox = (await page.getByTestId('terminal-root').boundingBox())!
+    const inputBox = (await page.getByTestId('terminal-input').boundingBox())!
+    const rowBox = (await row.boundingBox())!
+    expect(rowBox.y).toBeGreaterThanOrEqual(inputBox.y + inputBox.height - 1)
+    expect(Math.abs(rowBox.y + rowBox.height - (rootBox.y + rootBox.height))).toBeLessThan(2)
+
+    // Tab：唯一前缀补全命令名 + 尾随空格（readline/bash 同款）。
+    const input = page.getByTestId('terminal-input')
+    await input.fill('ec')
+    await page.getByTestId('terminal-key-tab').click()
+    await expect(input).toHaveValue('echo ')
+
+    // Ctrl+C：中断当前行——回显「提示符 / 草稿^C」并清空输入。
+    await input.fill('pwd')
+    await page.getByTestId('terminal-key-ctrl-c').click()
+    await expect(page.getByTestId('terminal-output')).toContainText('pwd^C')
+    await expect(input).toHaveValue('')
+
+    // 中断后终端仍可用：命令照常执行（username 即 whoami 输出）。
+    await input.fill('whoami')
+    await input.press('Enter')
+    await expect(page.getByTestId('terminal-output')).toContainText('e2emobiletermkeys')
 
     await expectNoHorizontalOverflow(page)
     await backToHomeFromApp(page)
