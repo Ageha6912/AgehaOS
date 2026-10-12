@@ -13,7 +13,10 @@ export const MIN_VISIBLE_EDGE = 80
 /** Upper bound for window titles (SDK setTitle 与系统启动路径共用)。 */
 export const MAX_TITLE_LENGTH = 120
 
-const CASCADE_BASE = 80
+// 176 = 左侧 system-rails 液态玻璃组的右缘（16+150）+10px：单栏拉长后
+// 级联起点若留在 80，新窗口左缘整条压在 z-40 玻璃轨下，应用内左侧控件
+// 全部无法点击（2026-10-03 用户裁决「单栏拉长」的连带位移）。
+const CASCADE_BASE = 176
 const CASCADE_STEP = 32
 const CASCADE_CYCLE = 8
 
