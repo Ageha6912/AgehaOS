@@ -1,10 +1,12 @@
 import { fireEvent, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { DEFAULT_SPACE_ID } from '@/core/window'
 import { resetSearchStore, useSearchStore } from '@/store/search-store'
 import { resetSpaceStore, useSpaceStore } from '@/store/space-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
+import { resetShortcutRegistry } from './shortcuts/registry'
 import { cycleWindows, useGlobalShortcuts } from './use-global-shortcuts'
 
 function Harness(): null {
@@ -13,6 +15,7 @@ function Harness(): null {
 }
 
 beforeEach(() => {
+  resetShortcutRegistry()
   resetSearchStore()
   resetWindowStore()
   resetSpaceStore()
@@ -52,6 +55,42 @@ describe('global shortcuts (PRD §15/§26)', () => {
 
     fireEvent.keyDown(window, { key: 'w', altKey: true })
     expect(useWindowStore.getState().windows[0]?.focused).toBe(true)
+  })
+})
+
+describe('space 切换快捷键（W3，审计 .tmp/spaces-audit.md §6）', () => {
+  it('Ctrl+Alt+→ 切到下一个 Space、Ctrl+Alt+← 切回（按 index 轮转）', () => {
+    const second = useSpaceStore.getState().createSpace('工作')
+    render(<Harness />)
+
+    fireEvent.keyDown(window, { key: 'ArrowRight', ctrlKey: true, altKey: true })
+    expect(useSpaceStore.getState().activeSpaceId).toBe(second)
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft', ctrlKey: true, altKey: true })
+    expect(useSpaceStore.getState().activeSpaceId).toBe(DEFAULT_SPACE_ID)
+  })
+
+  it('末位按 → 回绕到首位', () => {
+    const second = useSpaceStore.getState().createSpace('工作')
+    useSpaceStore.getState().switchSpace(second)
+    render(<Harness />)
+
+    fireEvent.keyDown(window, { key: 'ArrowRight', ctrlKey: true, altKey: true })
+    expect(useSpaceStore.getState().activeSpaceId).toBe(DEFAULT_SPACE_ID)
+  })
+
+  it('单 Space 时切换快捷键 no-op；普通方向键（无 Ctrl+Alt）不触发切换', () => {
+    render(<Harness />)
+
+    fireEvent.keyDown(window, { key: 'ArrowRight', ctrlKey: true, altKey: true })
+    expect(useSpaceStore.getState().activeSpaceId).toBe(DEFAULT_SPACE_ID)
+    expect(useSpaceStore.getState().spaces).toHaveLength(1)
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    fireEvent.keyDown(window, { key: 'ArrowLeft', ctrlKey: true })
+    fireEvent.keyDown(window, { key: 'ArrowLeft', altKey: true, shiftKey: true })
+    expect(useSpaceStore.getState().activeSpaceId).toBe(DEFAULT_SPACE_ID)
+    expect(useSpaceStore.getState().spaces).toHaveLength(1)
   })
 })
 

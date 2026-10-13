@@ -16,6 +16,10 @@
 export const WINDOW_OPEN_MS = 200
 export const WINDOW_CLOSE_MS = 120
 export const WINDOW_FLIGHT_MS = 300
+/** Space 切换过渡时长（W3，审计 .tmp/spaces-audit.md §6）：180-400ms 档中值。 */
+export const SPACE_SWITCH_MS = 240
+/** Space 切换进场横移幅度：容器级 ±24px 方向感淡入（离场即时 hidden，不播退场动画）。 */
+export const SPACE_SWITCH_ENTER_OFFSET_PX = 24
 
 /** 弹簧近似（无真过冲的冲劲）= motion-lab --ml-ease-spring 同值。 */
 export const EASE_OPEN = [0.32, 0.72, 0, 1] as const

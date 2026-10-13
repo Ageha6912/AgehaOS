@@ -12,6 +12,13 @@ export interface Space {
   index: number
   createdAt: number
   updatedAt: number
+  /**
+   * 该 Space 记住的 active 窗口（W3，审计 .tmp/spaces-audit.md §6）：切走再
+   * 切回时恢复焦点用。可选 + 可空双向兼容——W1 持久化数据无此字段，hydrate
+   * 对缺省回落 null（schema version 仍为 1，不 bump）。记忆由
+   * src/desktop/window/space-focus.ts 事件驱动维护，引擎只存取。
+   */
+  activeWindowId?: string | null
 }
 
 /**

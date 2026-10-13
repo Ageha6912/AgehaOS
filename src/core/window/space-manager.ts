@@ -47,6 +47,7 @@ export class SpaceManager {
       index: this.spaces.size,
       createdAt: now,
       updatedAt: now,
+      activeWindowId: null,
     }
     this.spaces.set(space.id, space)
     this.bus.emit('space.created', { spaceId: space.id })
@@ -126,6 +127,19 @@ export class SpaceManager {
     return true
   }
 
+  /**
+   * W3 active window 按 Space 记忆（审计 .tmp/spaces-audit.md §6）：Space 不
+   * 存在拒；成功**不广播新事件**——焦点真相已有 window.focused，此处只落
+   * 记忆，避免双重真相。updatedAt 不动（非用户可见的 Space 元数据变更，
+   * rename/reorder 才算）。windowId 是否悬空由 store 层判定（引擎不知道窗口）。
+   */
+  setActiveWindow(spaceId: string, windowId: string | null): boolean {
+    const target = this.spaces.get(spaceId)
+    if (!target) return false
+    target.activeWindowId = windowId
+    return true
+  }
+
   getActiveSpace(): Space {
     return cloneSpace(this.spaces.get(this.activeId)!)
   }
@@ -171,7 +185,14 @@ export class SpaceManager {
     this.spaces = new Map([
       [
         DEFAULT_SPACE_ID,
-        { id: DEFAULT_SPACE_ID, name: 'Desktop 1', index: 0, createdAt: now, updatedAt: now },
+        {
+          id: DEFAULT_SPACE_ID,
+          name: 'Desktop 1',
+          index: 0,
+          createdAt: now,
+          updatedAt: now,
+          activeWindowId: null,
+        },
       ],
     ])
     this.activeId = DEFAULT_SPACE_ID
@@ -239,5 +260,18 @@ function parseSpace(value: unknown): Space | null {
   if (typeof index !== 'number' || !Number.isFinite(index) || index < 0) return null
   if (typeof createdAt !== 'number' || !Number.isFinite(createdAt)) return null
   if (typeof updatedAt !== 'number' || !Number.isFinite(updatedAt)) return null
-  return { id, name, index, createdAt, updatedAt }
+  // W3 activeWindowId（审计 §6）：缺省字段回落 null（W1 数据双向兼容，
+  // version 仍为 1）；显式 null 合法；非 string/null 结构损坏 → 拒绝条目。
+  const activeWindowId = value.activeWindowId
+  if (activeWindowId !== undefined && activeWindowId !== null && typeof activeWindowId !== 'string') {
+    return null
+  }
+  return {
+    id,
+    name,
+    index,
+    createdAt,
+    updatedAt,
+    activeWindowId: typeof activeWindowId === 'string' ? activeWindowId : null,
+  }
 }

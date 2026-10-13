@@ -99,6 +99,47 @@ describe('useSpaceStore（Space 列表持久化，W1）', () => {
   })
 })
 
+describe('useSpaceStore.setActiveWindow（W3，审计 .tmp/spaces-audit.md §6）', () => {
+  it('记忆随 mutation 进 state 并落盘（agehaos.spaces.v1 携带 activeWindowId）', () => {
+    const workId = useSpaceStore.getState().createSpace('工作')
+    const winId = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+
+    useSpaceStore.getState().setActiveWindow(workId, winId)
+
+    expect(useSpaceStore.getState().spaces.find((space) => space.id === workId)?.activeWindowId).toBe(winId)
+    const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY)!)
+    expect(persisted.spaces.find((space: { id: string }) => space.id === workId).activeWindowId).toBe(winId)
+  })
+
+  it('悬空 windowId 置 null（窗口已关/不存在时不落悬空引用）', () => {
+    useSpaceStore.getState().setActiveWindow(DEFAULT_SPACE_ID, 'ghost-window')
+
+    expect(useSpaceStore.getState().spaces[0]?.activeWindowId).toBeNull()
+    const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY)!)
+    expect(persisted.spaces[0].activeWindowId).toBeNull()
+  })
+
+  it('Space 不存在拒：不崩、state 与磁盘不变', () => {
+    const before = useSpaceStore.getState().spaces
+
+    useSpaceStore.getState().setActiveWindow('missing', null)
+
+    expect(useSpaceStore.getState().spaces).toEqual(before)
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).spaces).toHaveLength(1)
+  })
+
+  it('reloadSpaceStore round-trip 保留 activeWindowId（刷新恢复记忆）', () => {
+    const workId = useSpaceStore.getState().createSpace('工作')
+    const winId = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useSpaceStore.getState().setActiveWindow(workId, winId)
+
+    useSpaceStore.setState({ spaces: [], activeSpaceId: DEFAULT_SPACE_ID })
+    reloadSpaceStore()
+
+    expect(useSpaceStore.getState().spaces.find((space) => space.id === workId)?.activeWindowId).toBe(winId)
+  })
+})
+
 describe('space-store × 窗口归属（W2，审计 .tmp/spaces-audit.md §5 决定 1）', () => {
   it('isEmpty 真实计数：非空 Space 拒删，空 Space 可删', () => {
     const workId = useSpaceStore.getState().createSpace('工作')

@@ -76,7 +76,16 @@ function TypeBOrMissing({
   }
   return <MissingApp windowId={windowId} />
 }
-export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost?: boolean }) {
+export function WindowFrame({
+  win,
+  ghost = false,
+  spaceHidden = false,
+}: {
+  win: WindowInstance
+  ghost?: boolean
+  /** W3 Space 渲染过滤（审计 .tmp/spaces-audit.md §6）：非活跃 Space 的窗口传 true。 */
+  spaceHidden?: boolean
+}) {
   const { t } = useTranslation()
   const focus = useWindowStore((s) => s.focus)
   const minimize = useWindowStore((s) => s.minimize)
@@ -241,7 +250,11 @@ export function WindowFrame({ win, ghost = false }: { win: WindowInstance; ghost
       ref={sectionRef}
       aria-label={win.title}
       aria-hidden={ghost || undefined}
-      className={`spatial-window sp-win absolute flex flex-col overflow-hidden ${minimized ? 'hidden' : ''} ${
+      className={`spatial-window sp-win absolute flex flex-col overflow-hidden ${
+        // W3 Space 渲染过滤（审计 §6）：非活跃 Space 的窗口与 minimized 走同一
+        // hidden 类机制——可见性非卸载，iframe/应用状态存活，切换不销毁窗口。
+        minimized || spaceHidden ? 'hidden' : ''
+      } ${
         maximized ? 'inset-0 rounded-none sp-win-max' : ''
       } ${
         // 空间化窗口状态栈（2026-10-10）：材质结构走 .spatial-window 体系

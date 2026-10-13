@@ -12,10 +12,13 @@
 import {
   CLOSE_SCALE_TO,
   OPEN_SCALE_FROM,
+  SPACE_SWITCH_ENTER_OFFSET_PX,
+  SPACE_SWITCH_MS,
   WINDOW_CLOSE_MS,
   WINDOW_FLIGHT_MS,
   WINDOW_OPEN_MS,
   EASE_CLOSE,
+  EASE_FLIGHT_LEG2,
   EASE_OPEN,
   bezier,
   dockPoseTransform,
@@ -135,6 +138,32 @@ export function startRestoreFlight(el: HTMLElement, anchor: MotionPoint): Animat
   })
   anim.reverse() // 从任务栏位姿反向播放回恒等位姿
   return anim
+}
+
+export type SpaceTransitionDirection = 'forward' | 'backward'
+
+/**
+ * Space 切换进场（W3，审计 .tmp/spaces-audit.md §6）：**容器级** transform+
+ * opacity 方向感淡入（±24px，240ms ∈ 180-400ms 档）。只做进场——离场窗由
+ * 渲染过滤即时 hidden（store 如实先行提交、动效纯表现层）；容器级不与单窗
+ * open/close/genie 飞行共享元素，规避 ActiveFlight 单槽互踩。调用方需在动画
+ * 落定后 cancel（fill:both 的终帧会压住级联，同 use-window-motion 落定纪律）。
+ * prefers-reduced-motion 或 WAAPI 不可用返回 null（调用方直切落定）。
+ */
+export function startSpaceTransition(
+  el: HTMLElement,
+  direction: SpaceTransitionDirection,
+): Animation | null {
+  if (!supportsWAAPI(el) || prefersReducedMotion()) return null
+  const dx =
+    direction === 'forward' ? SPACE_SWITCH_ENTER_OFFSET_PX : -SPACE_SWITCH_ENTER_OFFSET_PX
+  return el.animate(
+    [
+      { transform: `translateX(${dx}px)`, opacity: 0 },
+      { transform: 'translateX(0px)', opacity: 1 },
+    ],
+    { duration: SPACE_SWITCH_MS, easing: bezier(EASE_FLIGHT_LEG2), fill: 'both' },
+  )
 }
 
 export type { MotionKeyframe }

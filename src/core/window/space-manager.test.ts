@@ -12,6 +12,7 @@ const BOOT: Space = {
   index: 0,
   createdAt: 1000,
   updatedAt: 1000,
+  activeWindowId: null,
 }
 
 function createManager(events?: (keyof SystemEventMap)[], isEmpty?: (spaceId: string) => boolean) {
@@ -286,6 +287,123 @@ describe('SpaceManager 深拷贝边界', () => {
 
     expect(manager.getSpaces()).toEqual([BOOT])
     expect(manager.activeSpaceId).toBe(DEFAULT_SPACE_ID)
+  })
+})
+
+describe('SpaceManager.setActiveWindow（W3，审计 .tmp/spaces-audit.md §6）', () => {
+  it('成功记忆 activeWindowId：getSpaces/snapshot 可见；成功不广播任何事件（焦点真相已有 window.focused）', () => {
+    const { manager, seen } = createManager([
+      'space.created',
+      'space.deleted',
+      'space.switched',
+      'space.renamed',
+      'space.reordered',
+    ])
+
+    const second = manager.createSpace('工作')
+    seen.length = 0
+
+    expect(manager.setActiveWindow(second.id, 'win-7')).toBe(true)
+
+    expect(manager.getSpaces().find((space) => space.id === second.id)?.activeWindowId).toBe(
+      'win-7',
+    )
+    expect(manager.snapshot().spaces.find((space) => space.id === second.id)?.activeWindowId).toBe(
+      'win-7',
+    )
+    expect(seen).toEqual([])
+  })
+
+  it('置 null 清除记忆；updatedAt 不动（非用户可见元数据变更）', () => {
+    const { manager } = createManager()
+
+    manager.setActiveWindow(DEFAULT_SPACE_ID, 'win-1')
+    const updatedAt = manager.getSpaces()[0]!.updatedAt
+    expect(manager.setActiveWindow(DEFAULT_SPACE_ID, null)).toBe(true)
+
+    expect(manager.getSpaces()[0]?.activeWindowId).toBeNull()
+    expect(manager.getSpaces()[0]?.updatedAt).toBe(updatedAt)
+  })
+
+  it('Space 不存在拒：返回 false、状态不变、不发事件', () => {
+    const { manager, seen } = createManager(['space.created', 'space.switched'])
+
+    expect(manager.setActiveWindow('missing', 'win-1')).toBe(false)
+    expect(manager.getSpaces()[0]?.activeWindowId).toBeNull()
+    expect(seen).toEqual([])
+  })
+
+  it('snapshot → 新 manager hydrate round-trip 保留 activeWindowId', () => {
+    const source = createManager().manager
+    source.setActiveWindow(DEFAULT_SPACE_ID, 'win-42')
+    const snap = source.snapshot()
+
+    const restored = new SpaceManager(new EventBus<SystemEventMap>(), () => 'irrelevant')
+    expect(restored.hydrate(snap)).toBe(true)
+    expect(restored.getSpaces()[0]?.activeWindowId).toBe('win-42')
+  })
+
+  it('hydrate 缺省 activeWindowId 回落 null（W1 持久化数据双向兼容，version 仍为 1）', () => {
+    const { manager } = createManager()
+
+    expect(
+      manager.hydrate({
+        version: 1,
+        spaces: [{ id: DEFAULT_SPACE_ID, name: 'Desktop 1', index: 0, createdAt: 1, updatedAt: 1 }],
+        activeSpaceId: DEFAULT_SPACE_ID,
+      }),
+    ).toBe(true)
+    expect(manager.getSpaces()[0]?.activeWindowId).toBeNull()
+  })
+
+  it.each([
+    ['显式 null', null, true, null],
+    ['显式字符串', 'win-9', true, 'win-9'],
+  ])('hydrate activeWindowId 为 %s 时照常恢复', (_label, fieldValue, returnsTrue, expected) => {
+    const { manager } = createManager()
+
+    expect(
+      manager.hydrate({
+        version: 1,
+        spaces: [
+          {
+            id: DEFAULT_SPACE_ID,
+            name: 'Desktop 1',
+            index: 0,
+            createdAt: 1,
+            updatedAt: 1,
+            activeWindowId: fieldValue,
+          },
+        ],
+        activeSpaceId: DEFAULT_SPACE_ID,
+      }),
+    ).toBe(returnsTrue)
+    expect(manager.getSpaces()[0]?.activeWindowId).toBe(expected)
+  })
+
+  it('hydrate activeWindowId 非法类型（非 string/null/缺省）→ 结构损坏整体回落引导态', () => {
+    const { manager, seen } = createManager(['space.created'])
+    manager.createSpace('工作')
+    seen.length = 0
+
+    expect(
+      manager.hydrate({
+        version: 1,
+        spaces: [
+          {
+            id: DEFAULT_SPACE_ID,
+            name: 'Desktop 1',
+            index: 0,
+            createdAt: 1,
+            updatedAt: 1,
+            activeWindowId: 42,
+          },
+        ],
+        activeSpaceId: DEFAULT_SPACE_ID,
+      }),
+    ).toBe(false)
+    expect(manager.getSpaces()).toEqual([BOOT])
+    expect(seen).toEqual([])
   })
 })
 

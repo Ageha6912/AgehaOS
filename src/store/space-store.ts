@@ -30,6 +30,7 @@ interface SpaceStoreState {
   renameSpace: (id: string, name: string) => void
   switchSpace: (id: string) => void
   reorderSpaces: (id: string, toIndex: number) => void
+  setActiveWindow: (spaceId: string, windowId: string | null) => void
 }
 
 function readPersisted(): unknown {
@@ -109,6 +110,18 @@ export const useSpaceStore = create<SpaceStoreState>()(() => ({
 
   reorderSpaces: (id, toIndex) => {
     engine.reorderSpaces(id, toIndex)
+    commit()
+  },
+
+  // W3（审计 .tmp/spaces-audit.md §6）：active window 按 Space 记忆。悬空
+  // windowId 置 null——引擎不知道窗口，存在性判定在 store 层（读
+  // useWindowStore，单向依赖）；成功不广播新事件（焦点真相已有
+  // window.focused）。每次 mutation 照旧 persist（activeWindowId 随快照落盘）。
+  setActiveWindow: (spaceId, windowId) => {
+    const live =
+      windowId !== null &&
+      useWindowStore.getState().windows.some((win) => win.id === windowId)
+    engine.setActiveWindow(spaceId, live ? windowId : null)
     commit()
   },
 }))

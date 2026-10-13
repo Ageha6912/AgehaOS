@@ -16,6 +16,7 @@ import { useWorkspacePanel } from '@/desktop/workspace/use-workspace-panel'
 import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
 import { useAurora } from '@/desktop/motion/use-aurora'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
+import { startSpaceFocusTracking } from '@/desktop/window/space-focus'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useSettingsStore, type ThemePreference } from '@/store/settings-store'
 import { reloadSpaceStore } from '@/store/space-store'
@@ -71,6 +72,10 @@ export function Desktop() {
   // 清空」零变化（M1-6 红线）。hydrate 自带空 store 守卫（重挂不重复灌入）。
   useEffect(() => {
     reloadSpaceStore()
+    // W3（审计 .tmp/spaces-audit.md §6）：activeWindowId 按 Space 记忆的事件
+    // 追踪，先于窗口 hydrate——「恢复现场」对 active Space 栈顶的 focus() 也
+    // 被记住。幂等；移动 Shell 不挂 Desktop → 不订阅（M1-6 红线不受影响）。
+    startSpaceFocusTracking()
     hydratePersistedWindows()
   }, [])
 
