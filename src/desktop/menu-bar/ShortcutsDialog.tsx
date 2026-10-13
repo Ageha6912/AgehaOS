@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 
 import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
-import { altShortcutLabel, shortcutLabel } from '@/core/platform'
+import { altShortcutLabel, ctrlAltShortcutLabel, shortcutLabel } from '@/core/platform'
 
 interface ShortcutRow {
   keys: string
@@ -31,6 +31,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   const rows: ShortcutRow[] = [
     { keys: shortcutLabel('K'), labelKey: 'shortcuts.search' },
     { keys: altShortcutLabel('W'), labelKey: 'shortcuts.cycleWindows' },
+    { keys: ctrlAltShortcutLabel('←/→'), labelKey: 'shortcuts.switchSpace' },
     { keys: 'Esc', labelKey: 'shortcuts.dismiss' },
     { keys: '← → ↑ ↓', labelKey: 'shortcuts.menuNav' },
     { keys: t('shortcuts.doubleClickKey'), labelKey: 'shortcuts.maximize' },

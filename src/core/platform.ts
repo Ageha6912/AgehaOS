@@ -19,6 +19,11 @@ export function altShortcutLabel(key: string, apple: boolean = isApplePlatform()
   return apple ? `⌥${key}` : `Alt+${key}`
 }
 
+/** Ctrl+Alt 修饰键提示（Space 切换，Ageha Spaces W3）：Apple `⌃⌥←`，其余 `Ctrl+Alt+←`。 */
+export function ctrlAltShortcutLabel(key: string, apple: boolean = isApplePlatform()): string {
+  return apple ? `⌃⌥${key}` : `Ctrl+Alt+${key}`
+}
+
 /** 重做的平台惯例：Apple `⇧⌘Z`，其余 `Ctrl+Y`。 */
 export function redoShortcutLabel(apple: boolean = isApplePlatform()): string {
   return apple ? '⇧⌘Z' : 'Ctrl+Y'

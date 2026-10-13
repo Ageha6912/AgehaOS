@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { altShortcutLabel, redoShortcutLabel, shortcutLabel } from './platform'
+import { altShortcutLabel, ctrlAltShortcutLabel, redoShortcutLabel, shortcutLabel } from './platform'
 
 describe('shortcutLabel', () => {
   it('uses the command glyph on Apple platforms', () => {
@@ -22,5 +22,12 @@ describe('altShortcutLabel / redoShortcutLabel', () => {
     expect(altShortcutLabel('W', false)).toBe('Alt+W')
     expect(redoShortcutLabel(true)).toBe('⇧⌘Z')
     expect(redoShortcutLabel(false)).toBe('Ctrl+Y')
+  })
+})
+
+describe('ctrlAltShortcutLabel', () => {
+  it('follows each platform convention', () => {
+    expect(ctrlAltShortcutLabel('←', true)).toBe('⌃⌥←')
+    expect(ctrlAltShortcutLabel('←', false)).toBe('Ctrl+Alt+←')
   })
 })
