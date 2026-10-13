@@ -1404,7 +1404,9 @@ CSS 互指钉扎纪律不变）。
 > 2026-10-08/10 落地（4a53934→0c6119e），Bottom Sheet 形态语言、控制
 > 中心与边缘返回手势规格见 §35.8。M3 六片已于 2026-10-10/11 落地
 > （e6a5b29→5d180cb），最近任务覆盖层 / PWA 安装条 / Files 长按操作单
-> 规格见 §35.9。
+> 规格见 §35.9。M4 五片已于 2026-10-11/13 落地（5e3b1ab→36cc83b），
+> 全域搜索分组 / 通知跳转 / 云同步状态 / Terminal 快捷键行规格见
+> §35.10。
 
 ### 35.1 玻璃克制清单（白名单制）
 
@@ -1650,6 +1652,78 @@ motion-prefs「窗口切换转场」关档 `*-static` 直切、关闭回焦触�
   任务卡片（M3-2）上滑 64px 或甩动 0.5px/ms / 跟手钳 120px；长按操作单
   （M3-6）驻留 500ms / 容忍 10px。共同纪律见 ARCHITECTURE.md §3.25
   M3 手势家族段。
+
+### 35.10 全域搜索分组、通知跳转、云同步状态与 Terminal 快捷键行规格（M4 五片落地，2026-10-11/13）
+
+M4 四个功能面全部嵌在既有形态语言里：启动器抽屉 / 通知中心仍是 §35.8
+的白名席位 Bottom Sheet（玻璃口径零新增 blur），Settings「同步」分区与
+Terminal 快捷键行在 §35.1 清单外**零 blur**；架构映射（Files 定位通道 /
+同步状态服务面 / 性能预算钉扎）见 ARCHITECTURE.md §3.25 M4 段，此处只
+钉视觉与交互规格。
+
+- **全域搜索分组结果（M4-1，`src/mobile/launcher/MobileLauncher.tsx`）**：
+  抽屉搜索框升为「应用 + 文件」双域——应用域即时过滤（M2-1 的
+  launcher-filter 现状不变），文件域 = `systemVfs.search('/')` 名称子串，
+  输入防抖 **200ms** 才发起（`LAUNCHER_FILE_SEARCH_DEBOUNCE_MS`，
+  `launcher-file-search.ts:12`）；**空查询 = 仅应用单列表，零 VFS 调用**。
+  搜索态按组渲染（`groupLauncherResults`，`launcher-file-search.ts:53-61`）：
+  **应用组在前、文件组在后**，组标题 `text-xs` muted + `section`
+  aria-label（`MobileLauncher.tsx:277-298`）；每组截断到 **8 条**
+  （`LAUNCHER_GROUP_LIMIT`，`launcher-file-search.ts:15`），超限组尾随
+  **静态截断提示**「共 {count} 条，仅显示前 {limit} 条」（状态文案带全量
+  计数与上限两个真实参数，**不是可点元素、不设「展开更多」**——§0.5
+  无假按钮，`MobileLauncher.tsx:373-387`）。文件行 = 类型图标 28 装饰位
+  （目录 FolderOpen / 文件 FileText，aria-hidden）+ 名称 `text-sm` +
+  **完整路径** `font-mono text-[11px]`（`MobileLauncher.tsx:327-339`）；
+  点击文件行 = 写所在目录定位意图 + `openApp('files')`（架构 §3.25 M4
+  定位通道）。**触控 ≥44px（§35.3）**：应用行 `min-h-[44px]` + AppIcon
+  44（`:197/201`）、文件行 `min-h-[44px]`（`:308`）。搜索无命中 =
+  状态文案整行（缺席的是结果、抽屉本身在场，§35.7 空态铁律的搜索口径）。
+  玻璃口径（§35.1）不变：Bottom Sheet 白名席位 `surface-glass +
+  glass-raise` 一层，backdrop 纯色压暗零 blur。
+- **通知跳转 affordance（M4-2，`src/mobile/notifications/
+  MobileNotificationSheet.tsx`）**：可跳转判定在纯函数
+  `notificationNavTarget`（`notification-nav.ts:16-24`）——通知项带
+  `targetAppId`（桥从 app.crashed / eclosion.app.failed 载荷存入，
+  `notification-bridge.ts:35/61`）**且**目标应用在册可启动才算数；载荷无
+  appId 或目标已注销（L2 今日应用跨日 unregister）→ 行保持纯展示整条
+  不可点（没有的能力不做按钮，点按不产生死跳）。可跳转行的 affordance
+  三件：**行主体整块变按钮**（内容自然高 + `min-h-[44px]` 兜底 §35.3，
+  `MobileNotificationSheet.tsx:105-118`）、行尾 **CaretRight 14**
+  chevron（`:122-129`，tertiary 色 aria-hidden 纯指示）、sr-only「打开」
+  可访问名（词典键 `notification.open`，不做字符串拼接）。点按序 =
+  `markRead`（点按即已过目，与打开即 markAllRead 同一徽标语义）→
+  `openApp`（最近任务模型：活记录切回既有窗口 / 无记录新开）→ 关 sheet
+  （与 backdrop/Esc 同一出口）。`data-navigable` 标记供 E2E
+  （`e2e/mobile-notification-nav.spec.ts`）。玻璃与触控口径全部沿用
+  §35.8 通知中心段，M4-2 零新增。
+- **云同步状态面（M4-3，`src/apps/settings/SyncSection.tsx`）**：
+  Settings 新「同步」分区，**桌面与移动窄容器共用同一组件**（M2-6 契约
+  自动生效——分区内容零交互控件，无命中区诉求）。真实性铁律（§0.5）：
+  同步没有手动触发能力，**不摆「立即同步」按钮**——分区只呈现状态库里的
+  真实和解结果：进行中 / 失败（上次失败时刻 + 「上次成功」副行）/
+  上次成功 / 尚未同步（`SyncSection.tsx:82-113`）；未登录 / 本地认证
+  模式 / 开关关闭等降级行**如实派生展示**（开关关闭行指向「账户」分区的
+  既有开关，`:65-80`）；离线读数 = navigator.onLine + online/offline
+  事件，读不到按在线算（探测失败不谎报离线，`:13-15`）。视觉 = 纯文本
+  分区（`text-xs`/`text-sm` muted 层级 + 状态盒 `rounded-md border`），
+  **§35.1 清单外零 blur、无卡面玻璃**。
+- **Terminal 快捷键行（M4-4，`src/apps/terminal/terminal-keys.ts` +
+  `TerminalApp.tsx:266-290`）**：软键盘缺失的行编辑键——**Esc / Tab /
+  Ctrl+C / ↑ / ↓ 五键**（`TERMINAL_KEY_ROW`，`terminal-keys.ts:33-39`），
+  仅窄容器渲染（<560 断点，宽容器 DOM 与改前字面等价）；行在输出井下方、
+  根的**最后一个流内子元素**——软键盘弹起时根由 M3-5④软键盘避让让高，
+  行贴键盘上沿、在输入行之下不遮挡。键帽是通用键名字面（Esc/Tab/Ctrl+C/
+  ↑/↓，与 locale 无关），**动作说明走 i18n aria 标签**（词典
+  `terminal.keys.*`，zh/en 双典）。**触控 ≥44px（§35.3）**：键
+  `min-h-[44px]` + 行内 `flex-1` 五等分（`TerminalApp.tsx:281`）；行带
+  `data-no-edge-back`——行首按键起手的拖拽不让边缘返回手势吞掉。busy 期
+  整行随输入行一并 disabled（伪 Shell 无进程模型，**不做假中断**；Ctrl+C
+  只在提示符处回显 `^C` 清行）。发送通道与物理键盘同一条会话语义：键先按
+  wire 契约编码成控制序列（ESC 0x1B / HT 0x09 / ETX 0x03 / CSI A/B），
+  会话侧解码复用召回/补全/清行。**玻璃口径（§35.1）**：行在清单外——
+  实色轻透明白纱 `bg-surface-raised/60` + `rounded-md`，**零 blur**，
+  不进白名单。
 
 ## 36. 空间窗口层（Spatial Window System，2026-10-10 五项用户裁决落地）
 

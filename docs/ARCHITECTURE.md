@@ -265,7 +265,7 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
   `app-deep-link.ts` 的模块级一次性意图范式（launch 前写入、打开时取走即清），
   不为深链扩 store 数据结构。
 
-### 3.25 双 Shell 架构（`src/mobile`，Milestone 0 五片 + M1 六片 + M2 六片 + M3 六片，2026-10-07/11）
+### 3.25 双 Shell 架构（`src/mobile`，Milestone 0 五片 + M1 六片 + M2 六片 + M3 六片 + M4 五片，2026-10-07/13）
 
 > M0 切片与提交：M0-1 设备能力探针 `1f7a2e4` → M0-2 Shell Selection
 > `a1ff3c3` → M0-3 Mobile Shell Root `d789ece` → M0-4 Safe Area `0896122`
@@ -288,6 +288,11 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
 > `72a2d0e` → M3-6 Files 长按操作单 `5d180cb`。最近任务多 App View
 > 模型、手势家族与 PWA 双分支见本节末 M3 段；安装条/长按操作单视觉
 > 规格见 DESIGN.md §35.9。
+> M4 切片与提交（信息面与预算五片）：M4-1 启动器全域搜索 `5e3b1ab` →
+> M4-2 通知深链 `c601891` → M4-3 云同步状态面 `2d66559` → M4-4
+> Terminal 快捷键行 `1f5ee67` → M4-5 移动性能预算 `36cc83b`。Files
+> 定位通道、同步状态服务面与性能预算见本节末 M4 段；视觉与交互规格见
+> DESIGN.md §35.10。
 
 - **单点切换**：Shell 的选择全仓库只有一处——`App.tsx` 的 ready 分支
   （`shell === 'mobile' ? <MobileShell /> : <Desktop />`，`src/App.tsx:30`）。
@@ -605,6 +610,120 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
     mobile-recents|mobile-pwa-install|mobile-calculator-store|
     mobile-terminal-panel.spec.ts` + `mobile-files`/`mobile-app-host`/
     `mobile-edge-back` 增补（桌面 context 回归各带零影响断言）。
+- **M4 五片落地与信息面/预算（2026-10-11/13）**：M3 骨架上补三块信息
+  面（全域搜索 / 通知跳转 / 同步状态）+ 一块终端输入面（快捷键行）+
+  一条性能门禁（玻璃白名单钉扎 + 冷加载探针）。M3 顺延的 manifest
+  `mobile` 块与 §35.4 竖屏壁纸 object-position 本轮**仍未消费/未动**。
+  - **搜索定位通道（M4-1）**：启动器抽屉搜索升「应用 + 文件」双域
+    （视觉规格 DESIGN.md §35.10）。应用域沿用 launcher-filter 即时过滤；
+    文件域管线 = `use-debounced-value`（`src/mobile/launcher/
+    use-debounced-value.ts:11-18`，停满 200ms 才落地）→ 门控用**即时
+    查询**而非防抖镜像（重开抽屉时防抖值滞后一拍，拿它判空会拿 stale
+    词多搜一拍）→ `systemVfs.search('/', needle)` 异步结果落地才
+    setState，`cancelled` 标志吃掉过期响应，失败安全回退空文件域
+    （`MobileLauncher.tsx:125-149`）；分组/截断纯函数
+    `launcher-file-search.ts`（每组上限 8 条 + truncated 标记，空组 =
+    null 整组缺席）。
+    **定位通道 = 响应式 store，不是模块级一次性意图**：
+    `src/store/files-target-store.ts`——文件结果点击语义是「打开 Files
+    并定位到所在目录」，但 launchApp 的窗口选项不含应用参数（桌面
+    `app-deep-link.ts` 模块级一次性意图的同一困境），且 M3-2 起**窗口
+    常驻**——Files 已开时 `openApp('files')` 是「切回已有窗口」、组件
+    **不重挂**，纯挂载期消费的模块级变量会无人认领。因此
+    `requestFilesTarget` 写 pending（最新覆盖旧），FileManager 订阅
+    pending——在场实例的 effect 即时消费（`consumeFilesTarget` 读走即清
+    + navigate，`FileManager.tsx:259-264`），未挂载则留给下一次 Files
+    挂载时消费（app-deep-link「请求下一次启动」同语义）；读改两步单线程
+    内不可分割，多实例并存（桌面双 Files 窗口）恰有一个消费到非空值。
+    **桌面零影响**：桌面无人 request，pending 恒 null、effect 恒 no-op
+    （`files-target-store.ts:3-17` 模块注释）。发起方 =
+    `MobileLauncher.openFileLocation`（`MobileLauncher.tsx:176-186`：
+    先 `requestFilesTarget(dirname(path))` 再 openApp）。
+  - **通知深链数据面（M4-2）**：`notification-store` 的
+    `NotificationInput` 增可选 `targetAppId`（跳转目标，与「来源应用」
+    `appId` 语义刻意分开，`notification-store.ts:19-25`）；桥只从载荷
+    带 appId 的 `app.crashed` / `eclosion.app.failed` 存入
+    （`notification-bridge.ts:35/61`），desktop.generation.failed /
+    eclosion.world.ready 无 appId 保持纯展示。可跳转判定纯函数
+    `notification-nav.ts:16-24`（targetAppId 在场 **且**
+    `getAppManifest` 非 null——注册表门控兜住 L2 跨日 unregister 后的
+    历史通知）；消费序 = markRead → `mobile-nav-store.openApp`（最近
+    任务模型切回/新开）→ 关 sheet。视觉 affordance 见 DESIGN.md
+    §35.10。
+  - **同步状态服务面（M4-3）**：`src/store/sync-status-store.ts` =
+    settings-sync / file-sync 对外汇报的最小信号单一来源——一次与云端
+    和解（cycle）的 `begin/success/failure` 三相 + `lastSuccessAt/
+    lastErrorAt` 两时间戳；流转映射纯函数 `reduceSyncCycle`
+    （`sync-status-store.ts:33-42`，单测逐跳钉死：success 保留
+    lastErrorAt、failure 保留 lastSuccessAt，历史由 UI 按相决定展示）。
+    store 只记结果、**不参与重试/防抖/合并决策**（ADR 17 三方合并与
+    各服务推送策略原样不动）；「未登录 / 开关关闭 / 本地认证模式」等
+    准入状态刻意**不入库**——由 Settings「同步」分区（
+    `src/apps/settings/SyncSection.tsx`，桌面与移动窄容器共用同一
+    组件）从 session-store 与 `isSyncEnabled` 实时派生，避免第二事实源。
+    两个服务的真实 outcome 全部如实记入：settings-sync `pullOnce/
+    pushNow`（`settings-sync.ts:82/96/113-130`）、file-sync
+    `syncNow/pullFilesOnce` 全部成功与失败路径
+    （`file-sync.ts:281-332/357-411`）。装配解绑：`main.tsx:33-34` 起
+    `startSettingsSync()/startFileSync()` **不再绑定远程认证构建**——
+    两个 start 均幂等且按同步开关自门控（开关入口仅远程认证模式渲染，
+    本地构建默认静默），行为与先前等价，同步状态面对任一构建都是同一
+    条真实管线。E2E `e2e/sync-status.spec.ts`（降级态 / 状态行 /
+    桌面回归）。
+  - **性能预算（M4-5，两条钉扎互不隶属）**：
+    - **blur 白名单钉扎**（`src/mobile/glass-audit.test.ts`，仿
+      index.css.test.ts 的源文本契约测试）：盘点移动 Shell 及其可达
+      共享面（src/apps、src/components）全部 blur 载体——①移动产品源
+      零 `backdrop-filter / backdrop-blur-*` 字串（玻璃只走白名单类，
+      不写内联声明）；②`ALLOWED_SURFACE_GLASS` 9 文件 / 
+      `ALLOWED_GLASS_RAISE` 6 文件清单钉扎（Dock + 五张 Bottom Sheet +
+      三张共享 Dialog 面板，`glass-audit.test.ts:102-121`）+
+      `ALLOWED_BACKDROP_BLUR` 三张 Dialog 遮罩各恰一处
+      （`:124-128`）；③index.css 移动段零 blur 声明（`:190-201`）；
+      ④供给端钉扎——`.surface-glass` 携带
+      `backdrop-filter: blur(var(--ag-glass-blur))`、`.glass-raise`
+      携带 `blur(var(--ag-blur-md)) saturate(150%)`、`--ag-blur-md:
+      20px`（`:203-218`，DESIGN.md §35.7/§35.8「blur 20px 档」的
+      实值锚）。职责边界 = 桌面零接触（七面材质表 §0.2/§33.1、
+      spatial.css §36、羽化运行时页 ax-* 各有权威契约不在断言范围）。
+      更新纪律：白名席位内合法新增 → 同步更新 ALLOWED_* 清单并在
+      DESIGN.md §35.1 留注记；清单外新增改实色/轻透明白纱。
+    - **冷加载性能探针**（`e2e/mobile-perf.spec.ts`，零新依赖）：
+      移动 context（360×800 iPhone 档）经**前置 context** 注册进 Home
+      后把会话以 storageState 带进**全新被测 context**（HTTP 缓存空、
+      无 SW）——`goto('/')` 直落 boot 覆盖层 → Home，即真机「装好后
+      首开」路径；同 context reload 命中 HTTP 缓存是复访口径不是冷加载
+      （实测 DCL 76ms）。Performance API 断言三件事：DCL <
+      **200ms**、FCP < **300ms**、longtask 计数 ≤ **3**
+      （`mobile-perf.spec.ts:44-46`）。阈值定档纪律（不拍脑袋）：同机
+      同构建连跑 3 次取**中位数 × 1.5**，实测样本记在阈值上方注释
+      （`:34-43`）：门禁态（2 worker 并行）dcl 126/115/185（中位
+      126）→ 189 → 网格取整 **200**；fcp 196/188/268（中位 196）→
+      294 → **300**；longtask 2/1/2（单条最长 63ms）→ 3 无余量可让，
+      抖动兜底由 describe 级 retries=2 承担。空载对照（单 worker）dcl
+      中位 100 / fcp 中位 160 / longtask 0。
+  - **Terminal 快捷键行（M4-4）**：wire 契约纯函数
+    `src/apps/terminal/terminal-keys.ts`（键 → 控制序列
+    `TERMINAL_KEY_SEQUENCES:18-24`——ESC 0x1B / HT 0x09 / ETX 0x03 /
+    CSI A/B；序列 → 动作解码 `sequenceAction:42-47`；Tab 命令名补全
+    `completeCommandLine:55-67`——仅补首个词、带空白不动作、公共前缀
+    无进展回 null）；`TerminalApp.tsx:171-198` 消费：↑↓ 与物理方向键
+    同一 recall 通道、Esc 清草稿、Ctrl+C 提示符处回显 `^C` 清行
+    （busy 期整行禁用，伪 Shell 无进程模型不做假中断）；行渲染
+    `TerminalApp.tsx:268-290`（仅窄容器、`data-no-edge-back`、五键
+    `min-h-[44px]` flex-1 等分）。视觉规格见 DESIGN.md §35.10。
+  - 测试与 E2E（M4 增补）：单测 `launcher-file-search` /
+    `use-debounced-value` / `MobileLauncher`（分组与截断渲染）/
+    `files-target-store` / `FileManager`（定位消费）/
+    `notification-nav` / `MobileNotificationSheet`（跳转行渲染）/
+    `notification-store`（targetAppId）/ `notification-bridge`（载荷
+    存目标）/ `sync-status-store` / `settings-sync` / `file-sync`
+    （outcome 汇报）/ `SyncSection` / `terminal-keys` /
+    `TerminalApp`（快捷键行）/ `glass-audit`；E2E
+    `e2e/mobile-launcher-files.spec.ts`（搜索分组与定位全链路）/
+    `e2e/mobile-notification-nav.spec.ts`（跳转与纯展示两分支）/
+    `e2e/sync-status.spec.ts` / `e2e/mobile-terminal-panel.spec.ts`
+    增补（快捷键行）/ `e2e/mobile-perf.spec.ts`（冷加载探针）。
 
 ## 4. 后续模块技术要点
 
