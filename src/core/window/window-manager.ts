@@ -2,6 +2,8 @@ import type { EventBus, SystemEventMap } from '@/core/events'
 
 import type { CreateWindowOptions, Viewport, WindowInstance } from './types'
 import { DEFAULT_SPACE_ID } from './space-types'
+import { calculateSnapGeometry } from './snap'
+import type { SnapBand, SnapDirection } from './snap'
 
 export const DEFAULT_WINDOW_WIDTH = 900
 export const DEFAULT_WINDOW_HEIGHT = 600
@@ -60,6 +62,9 @@ export class WindowManager {
       minWidth,
       minHeight,
       restoreBounds: null,
+      // W4 Window Snap（审计 §7）：出厂即非吸附、落点记忆 normal。
+      snapMode: null,
+      restoreState: 'normal',
       // W2 窗口归属（审计 §5 决定 1）：这里只落 DEFAULT_SPACE_ID 纯兜底；
       // 真实缺省（当前 Space）由 store 层 provider 注入后经 options.spaceId 传入。
       spaceId: options.spaceId ?? DEFAULT_SPACE_ID,
@@ -96,6 +101,9 @@ export class WindowManager {
     const target = this.windows.get(id)
     if (!target || target.state === 'minimized') return false
     const wasFocused = target.focused
+    // W4 restore 矩阵（审计 §7）：minimize 时按当时状态记忆还原落点——
+    // 'maximized'/'snapped'/'normal' 三者原样记录，restore() 据此分派。
+    target.restoreState = target.state
     target.state = 'minimized'
     target.focused = false
     this.bus.emit('window.minimized', { windowId: id })
@@ -113,6 +121,13 @@ export class WindowManager {
         width: target.width,
         height: target.height,
       }
+      target.restoreState = 'normal'
+    } else if (target.state === 'snapped') {
+      // W4（审计 §7）：snapped maximize 时几何原地保留——maximized 渲染走
+      // inset-0 不读 x/y；restoreBounds 保持 snap 时记录的原 normal 几何
+      // （供之后 restore 落回 snapped 再 unsnap 回最初几何），restoreState
+      // 记 'snapped' 使 restore() 分派回 snapped 原几何。
+      target.restoreState = 'snapped'
     }
     target.state = 'maximized'
     this.bus.emit('window.maximized', { windowId: id })
@@ -125,26 +140,101 @@ export class WindowManager {
     if (!target) return false
 
     if (target.state === 'minimized') {
-      target.state = target.restoreBounds ? 'maximized' : 'normal'
+      // W4 restore 矩阵（审计 §7）：按 minimize 时记忆的 restoreState 分派。
+      if (target.restoreState === 'maximized') {
+        target.state = 'maximized'
+      } else if (target.restoreState === 'snapped') {
+        target.state = 'snapped'
+        target.restoreState = 'normal'
+      } else {
+        target.state = 'normal'
+        target.restoreState = 'normal'
+      }
       this.bus.emit('window.restored', { windowId: id })
       this.focus(id)
       return true
     }
 
-    if (target.state === 'maximized' && target.restoreBounds) {
+    if (target.state === 'maximized') {
+      // W4（审计 §7）：restoreState='snapped' → 落回 snapped（几何即保留值，
+      // restoreBounds 保留供 unsnap）；否则走既有 restoreBounds normal 回落。
+      if (target.restoreState === 'snapped') {
+        target.state = 'snapped'
+        target.restoreState = 'normal'
+        this.bus.emit('window.restored', { windowId: id })
+        this.focus(id)
+        return true
+      }
+      if (target.restoreBounds) {
+        const bounds = target.restoreBounds
+        target.x = bounds.x
+        target.y = bounds.y
+        target.width = bounds.width
+        target.height = bounds.height
+        target.restoreBounds = null
+        target.state = 'normal'
+        target.restoreState = 'normal'
+        this.bus.emit('window.restored', { windowId: id })
+        this.focus(id)
+        return true
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * W4 Window Snap（审计 .tmp/spaces-audit.md §7）：吸附到工作区带左/右半屏。
+   * band 由调用方传入（引擎零 DOM，见 snap.ts 注释）；仅 normal 态放行，
+   * maximized/snapped 拒绝（snapped 重吸附须先 unsnap）。记 restoreState=
+   * 'normal'、restoreBounds=当前几何、几何=calculateSnapGeometry、state=
+   * 'snapped'、snapMode=dir；成功广播 window.snapped。
+   */
+  snap(id: string, dir: SnapDirection, band: SnapBand): boolean {
+    const target = this.windows.get(id)
+    if (!target || target.state !== 'normal') return false
+    target.restoreState = 'normal'
+    target.restoreBounds = {
+      x: target.x,
+      y: target.y,
+      width: target.width,
+      height: target.height,
+    }
+    const bounds = calculateSnapGeometry(dir, band)
+    target.x = bounds.x
+    target.y = bounds.y
+    target.width = bounds.width
+    target.height = bounds.height
+    target.state = 'snapped'
+    target.snapMode = dir
+    this.bus.emit('window.snapped', { windowId: id, snapMode: dir })
+    return true
+  }
+
+  /**
+   * W4（审计 §7）：仅 snapped 态放行；几何回 restoreBounds、清三字段
+   * （restoreBounds/snapMode/restoreState）；广播 window.unsnapped。拖出
+   * 脱 snap 的「组合层转换点」在 WindowFrame（onTitlePointerDown 先 unsnap），
+   * 引擎 move/resize 对 snapped 保持拒绝（守卫语义不变，矩阵钉扎）。
+   */
+  unsnap(id: string): boolean {
+    const target = this.windows.get(id)
+    if (!target || target.state !== 'snapped') return false
+    // 正常流转下 snapped 驻留态 restoreBounds 恒有值（snap() 记录）；null
+    // 只可能来自脏持久化数据——就地脱 snap（几何保留）而非永久卡死。
+    if (target.restoreBounds) {
       const bounds = target.restoreBounds
       target.x = bounds.x
       target.y = bounds.y
       target.width = bounds.width
       target.height = bounds.height
-      target.restoreBounds = null
-      target.state = 'normal'
-      this.bus.emit('window.restored', { windowId: id })
-      this.focus(id)
-      return true
     }
-
-    return false
+    target.restoreBounds = null
+    target.snapMode = null
+    target.restoreState = 'normal'
+    target.state = 'normal'
+    this.bus.emit('window.unsnapped', { windowId: id })
+    return true
   }
 
   move(id: string, x: number, y: number, viewport?: Viewport): boolean {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
 import {
+  getWorkspaceBand,
   getWorkspaceViewport,
   MENUBAR_HEIGHT_PX,
   RAIL_LEFT_WIDTH_PX,
@@ -45,5 +46,48 @@ describe('getWorkspaceViewport', () => {
     expect(MENUBAR_HEIGHT_PX).toBe(32)
     expect(RAIL_LEFT_WIDTH_PX).toBe(80)
     expect(RAIL_RIGHT_WIDTH_PX).toBe(296)
+  })
+})
+
+describe('getWorkspaceBand（W4 Window Snap 工作区带，审计 .tmp/spaces-audit.md §7）', () => {
+  const originalWidth = window.innerWidth
+  const originalHeight = window.innerHeight
+
+  afterEach(() => {
+    Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: originalHeight, configurable: true })
+  })
+
+  it('<640px 无左轨：left=0，宽高与 getWorkspaceViewport() 同数学', () => {
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 700, configurable: true })
+
+    expect(getWorkspaceBand()).toEqual({
+      left: 0,
+      top: MENUBAR_HEIGHT_PX,
+      width: 375,
+      height: 700 - MENUBAR_HEIGHT_PX,
+    })
+  })
+
+  it('≥640px 扣左轨（left=RAIL_LEFT_WIDTH_PX），≥1280px 再扣右栏', () => {
+    Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true })
+    expect(getWorkspaceBand()).toEqual({
+      left: RAIL_LEFT_WIDTH_PX,
+      top: MENUBAR_HEIGHT_PX,
+      width: 800 - RAIL_LEFT_WIDTH_PX,
+      height: 800 - MENUBAR_HEIGHT_PX,
+    })
+
+    Object.defineProperty(window, 'innerWidth', { value: 1440, configurable: true })
+    expect(getWorkspaceBand().width).toBe(1440 - RAIL_LEFT_WIDTH_PX - RAIL_RIGHT_WIDTH_PX)
+    expect(getWorkspaceBand().left).toBe(RAIL_LEFT_WIDTH_PX)
+  })
+
+  it('band 高=带高到屏幕底（Dock z-40 浮于窗口 z-30 之上，审计 §7 snap 坐标系裁决）', () => {
+    Object.defineProperty(window, 'innerWidth', { value: 1000, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 900, configurable: true })
+    expect(getWorkspaceBand().height).toBe(900 - MENUBAR_HEIGHT_PX)
   })
 })

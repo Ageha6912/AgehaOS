@@ -61,4 +61,45 @@ describe('window-persist（W2 窗口持久化 schema，审计 §5 决定 2）', 
     expect(parsePersistedWindowsText('[]')).toBeNull()
     expect(parsePersistedWindowsText('{"version":1,"windows":[]}')).toEqual([])
   })
+
+  it('W4 可选字段：snapMode/restoreState round-trip（version 仍为 1）', () => {
+    const windows = [
+      entry({ state: 'snapped', snapMode: 'right', restoreState: 'normal' }),
+      entry({
+        id: 'win-max',
+        state: 'maximized',
+        restoreState: 'snapped',
+        restoreBounds: { x: 10, y: 20, width: 500, height: 400 },
+      }),
+    ]
+
+    const parsed = parsePersistedWindows(JSON.parse(serializeWindows(windows)) as unknown)
+
+    expect(parsed).toEqual(windows)
+  })
+
+  it('W4 旧载荷缺字段：合法且不落键（前向兼容，缺省补齐在 toWindowInstance）', () => {
+    const raw = entry()
+    const parsed = parsePersistedWindows({ version: 1, windows: [raw] })
+
+    expect(parsed).toEqual([raw])
+    expect('snapMode' in parsed![0]!).toBe(false)
+    expect('restoreState' in parsed![0]!).toBe(false)
+    // 显式 null 与缺失等价（读端回落缺省，不清桌面）。
+    expect(parsePersistedWindows({ version: 1, windows: [entry({ snapMode: null })] })).toEqual([
+      raw,
+    ])
+  })
+
+  it('W4 非法字段值 → 整体丢弃（与 restoreBounds 同口径）', () => {
+    expect(
+      parsePersistedWindows({ version: 1, windows: [entry({ snapMode: 'top' as never })] }),
+    ).toBeNull()
+    expect(
+      parsePersistedWindows({ version: 1, windows: [entry({ restoreState: 'minimized' as never })] }),
+    ).toBeNull()
+    expect(
+      parsePersistedWindows({ version: 1, windows: [entry({ snapMode: 3 as never })] }),
+    ).toBeNull()
+  })
 })

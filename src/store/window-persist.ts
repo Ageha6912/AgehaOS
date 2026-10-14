@@ -22,6 +22,13 @@ export interface PersistedWindow {
   spaceId: string
   restoreBounds: WindowBounds | null
   zIndex: number
+  /**
+   * W4 Window Snap（审计 .tmp/spaces-audit.md §7）：可选字段——version 仍为
+   * 1 不 bump，旧载荷缺字段 → snapMode=null、restoreState='normal'（前向
+   * 兼容不清桌面；缺省补齐发生在 window-store.toWindowInstance）。
+   */
+  snapMode?: 'left' | 'right' | null
+  restoreState?: 'normal' | 'snapped' | 'maximized'
 }
 
 export interface PersistedWindows {
@@ -68,7 +75,26 @@ export function parsePersistedWindowsText(text: string | null): PersistedWindow[
   }
 }
 
-const WINDOW_STATES: readonly WindowState[] = ['normal', 'minimized', 'maximized']
+const WINDOW_STATES: readonly WindowState[] = ['normal', 'minimized', 'maximized', 'snapped']
+const SNAP_MODES = ['left', 'right'] as const
+const RESTORE_STATES = ['normal', 'snapped', 'maximized'] as const
+
+/**
+ * W4 可选枚举字段（审计 §7）三态：缺失/显式 null = 旧载荷合法形态（返回
+ * null → 不落键，保持旧载荷逐字节 round-trip；缺省补齐发生在
+ * window-store.toWindowInstance）；命中枚举 → 原值；其他 = 结构损坏（返回
+ * undefined → 与 restoreBounds 同口径整条目拒绝）。
+ */
+function parseOptionalEnum<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+): T | null | undefined {
+  if (value === undefined || value === null) return null
+  if (typeof value === 'string' && (allowed as readonly string[]).includes(value)) {
+    return value as T
+  }
+  return undefined
+}
 
 function parseWindow(value: unknown): PersistedWindow | null {
   if (typeof value !== 'object' || value === null) return null
@@ -82,6 +108,10 @@ function parseWindow(value: unknown): PersistedWindow | null {
   if (!WINDOW_STATES.includes(win.state as WindowState)) return null
   const restoreBounds = parseRestoreBounds(win.restoreBounds)
   if (restoreBounds === undefined) return null
+  const snapMode = parseOptionalEnum(win.snapMode, SNAP_MODES)
+  if (snapMode === undefined) return null
+  const restoreState = parseOptionalEnum(win.restoreState, RESTORE_STATES)
+  if (restoreState === undefined) return null
   return {
     id: win.id as string,
     appId: win.appId as string,
@@ -94,6 +124,8 @@ function parseWindow(value: unknown): PersistedWindow | null {
     spaceId: win.spaceId as string,
     restoreBounds,
     zIndex: win.zIndex as number,
+    ...(snapMode === null ? {} : { snapMode }),
+    ...(restoreState === null ? {} : { restoreState }),
   }
 }
 

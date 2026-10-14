@@ -1,4 +1,4 @@
-import type { Viewport } from '@/core/window'
+import type { SnapBand, Viewport } from '@/core/window'
 
 /**
  * 顶部菜单栏常驻（docs/DESIGN.md §19，2026-09-30）：工作区高度扣减菜单栏
@@ -33,5 +33,21 @@ export function getWorkspaceViewport(): Viewport {
       (railLeftActive() ? RAIL_LEFT_WIDTH_PX : 0) -
       (railRightActive() ? RAIL_RIGHT_WIDTH_PX : 0),
     height: window.innerHeight - MENUBAR_HEIGHT_PX,
+  }
+}
+
+/**
+ * W4 Window Snap（审计 .tmp/spaces-audit.md §7）：工作区带 = snap 目标矩形的
+ * 坐标系——left=左轨激活时扣 RAIL_LEFT_WIDTH_PX（轨道下不可点坑，见审计 §1
+ * 「snap 坐标系裁决」）、top=菜单栏带、宽高与 getWorkspaceViewport() 同数学
+ * （结构性复用防漂移）。与 src/core/window/snap.ts 注释互指；几何换算见
+ * calculateSnapGeometry（apps 层禁 import desktop 层，launch.ts 同数学并存）。
+ */
+export function getWorkspaceBand(): SnapBand {
+  return {
+    left: railLeftActive() ? RAIL_LEFT_WIDTH_PX : 0,
+    top: MENUBAR_HEIGHT_PX,
+    width: getWorkspaceViewport().width,
+    height: getWorkspaceViewport().height,
   }
 }

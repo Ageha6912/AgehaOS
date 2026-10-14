@@ -307,6 +307,357 @@ describe('WindowManager.restore', () => {
   })
 })
 
+describe('WindowManager.snap / unsnap / 转换矩阵（W4，审计 .tmp/spaces-audit.md §7）', () => {
+  const BAND = { left: 80, top: 32, width: 1000, height: 768 }
+  const HALF = 500
+
+  /** 每格断言终态五元组（state/geometry/restoreBounds/restoreState/snapMode，子集匹配）。 */
+  function expectState(
+    win: ReturnType<WindowManager['get']>,
+    expected: {
+      state?: string
+      x?: number
+      y?: number
+      width?: number
+      height?: number
+      restoreBounds?: unknown
+      restoreState?: string
+      snapMode?: string | null
+    },
+  ) {
+    expect(win).toMatchObject(expected)
+  }
+
+  it('normal→snapped：snap() 记 restoreBounds/restoreState、几何=半屏、广播 window.snapped', () => {
+    const { manager, seen, stateOf } = createManager(['window.snapped'])
+
+    const win = manager.create({ appId: 'a', title: 'A', x: 100, y: 100, width: 600, height: 400 })
+    seen.length = 0
+
+    expect(manager.snap(win.id, 'left', BAND)).toBe(true)
+
+    expectState(stateOf(win.id), {
+      state: 'snapped',
+      x: BAND.left,
+      y: BAND.top,
+      width: HALF,
+      height: BAND.height,
+      restoreBounds: { x: 100, y: 100, width: 600, height: 400 },
+      restoreState: 'normal',
+      snapMode: 'left',
+    })
+    expect(seen).toEqual(['window.snapped'])
+
+    // 右半对称：右缘贴齐 band 右缘。
+    const second = manager.create({ appId: 'b', title: 'B' })
+    manager.snap(second.id, 'right', BAND)
+    const right = stateOf(second.id)
+    expect(right.snapMode).toBe('right')
+    expect(right.x).toBe(BAND.left + BAND.width - HALF)
+    expect(right.x + right.width).toBe(BAND.left + BAND.width)
+  })
+
+  it('normal→maximized（既有回归格）：restoreState 记 normal', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A', x: 10, y: 20 })
+    manager.maximize(win.id)
+
+    expectState(stateOf(win.id), {
+      state: 'maximized',
+      restoreBounds: { x: 10, y: 20, width: DEFAULT_WINDOW_WIDTH, height: DEFAULT_WINDOW_HEIGHT },
+      restoreState: 'normal',
+      snapMode: null,
+    })
+  })
+
+  it('normal→minimized（既有回归格）：restoreState 记 normal', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    manager.minimize(win.id)
+
+    expectState(stateOf(win.id), {
+      state: 'minimized',
+      restoreBounds: null,
+      restoreState: 'normal',
+      snapMode: null,
+    })
+  })
+
+  it('snapped→normal：unsnap() 几何回 restoreBounds、清三字段、广播 window.unsnapped', () => {
+    const { manager, seen, stateOf } = createManager(['window.unsnapped'])
+
+    const win = manager.create({ appId: 'a', title: 'A', x: 100, y: 100, width: 600, height: 400 })
+    manager.snap(win.id, 'right', BAND)
+    seen.length = 0
+
+    expect(manager.unsnap(win.id)).toBe(true)
+
+    expectState(stateOf(win.id), {
+      state: 'normal',
+      x: 100,
+      y: 100,
+      width: 600,
+      height: 400,
+      restoreBounds: null,
+      restoreState: 'normal',
+      snapMode: null,
+    })
+    expect(seen).toEqual(['window.unsnapped'])
+  })
+
+  it('snapped→maximized：restoreState 记 snapped、snapped 几何原地保留、restoreBounds 保持原 normal 几何', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A', x: 100, y: 100, width: 600, height: 400 })
+    manager.snap(win.id, 'left', BAND)
+    manager.maximize(win.id)
+
+    const state = stateOf(win.id)
+    expectState(state, {
+      state: 'maximized',
+      x: BAND.left, // snapped 几何原地保留（maximized 渲染走 inset-0 不读 x/y）
+      y: BAND.top,
+      width: HALF,
+      height: BAND.height,
+      restoreBounds: { x: 100, y: 100, width: 600, height: 400 },
+      restoreState: 'snapped',
+      snapMode: 'left',
+    })
+
+    // restore() 按 restoreState='snapped' 分派：落回 snapped 原几何。
+    manager.restore(win.id)
+    expectState(stateOf(win.id), {
+      state: 'snapped',
+      x: BAND.left,
+      y: BAND.top,
+      width: HALF,
+      height: BAND.height,
+      restoreBounds: { x: 100, y: 100, width: 600, height: 400 },
+      restoreState: 'normal',
+      snapMode: 'left',
+    })
+  })
+
+  it('snapped→minimized：restoreState 记 snapped；restore() 分派回 snapped 原几何', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A', x: 100, y: 100, width: 600, height: 400 })
+    manager.snap(win.id, 'left', BAND)
+    manager.minimize(win.id)
+
+    expectState(stateOf(win.id), {
+      state: 'minimized',
+      restoreState: 'snapped',
+      snapMode: 'left',
+      restoreBounds: { x: 100, y: 100, width: 600, height: 400 },
+    })
+
+    manager.restore(win.id)
+    expectState(stateOf(win.id), {
+      state: 'snapped',
+      x: BAND.left,
+      y: BAND.top,
+      width: HALF,
+      height: BAND.height,
+      restoreState: 'normal',
+      snapMode: 'left',
+    })
+  })
+
+  it('snapped→resize：引擎层 resize(snapped)=false 钉扎（转换在组合层 onResizePointerDown）', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A', x: 100, y: 100, width: 600, height: 400 })
+    manager.snap(win.id, 'left', BAND)
+
+    expect(manager.resize(win.id, 700, 500)).toBe(false)
+    expectState(stateOf(win.id), {
+      state: 'snapped',
+      width: HALF,
+      height: BAND.height,
+      snapMode: 'left',
+    })
+  })
+
+  it('snapped→move：引擎层 move(snapped)=false 钉扎（拖出由组合层先 unsnap）', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    manager.snap(win.id, 'left', BAND)
+
+    expect(manager.move(win.id, 200, 200, { width: 1920, height: 1040 })).toBe(false)
+    expect(stateOf(win.id).x).toBe(BAND.left)
+  })
+
+  it('maximized→normal（既有回归格）：restoreBounds 回落、restoreState 归位', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A', x: 10, y: 20, width: 500, height: 400 })
+    manager.maximize(win.id)
+    manager.restore(win.id)
+
+    expectState(stateOf(win.id), {
+      state: 'normal',
+      x: 10,
+      y: 20,
+      width: 500,
+      height: 400,
+      restoreBounds: null,
+      restoreState: 'normal',
+      snapMode: null,
+    })
+  })
+
+  it('maximized→snapped：禁——snap() 拒绝（先还原），状态与事件零变化', () => {
+    const { manager, seen, stateOf } = createManager(['window.snapped'])
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    manager.maximize(win.id)
+    seen.length = 0
+
+    expect(manager.snap(win.id, 'left', BAND)).toBe(false)
+    expect(stateOf(win.id).state).toBe('maximized')
+    expect(seen).toEqual([])
+  })
+
+  it('maximized→minimized：restoreState 记 maximized；restore() 分派回 maximized（既有行为等价）', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    manager.maximize(win.id)
+    manager.minimize(win.id)
+
+    expect(stateOf(win.id).restoreState).toBe('maximized')
+
+    manager.restore(win.id)
+    expect(stateOf(win.id).state).toBe('maximized')
+    // 再次 restore 走 maximized 分支：restoreBounds 回落 normal。
+    manager.restore(win.id)
+    expectState(stateOf(win.id), {
+      state: 'normal',
+      restoreBounds: null,
+      restoreState: 'normal',
+    })
+  })
+
+  it('minimized→normal：restoreState=normal 分派（既有行为：restoreBounds 为 null 的最小化窗）', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    manager.minimize(win.id)
+    manager.restore(win.id)
+
+    expectState(stateOf(win.id), {
+      state: 'normal',
+      restoreBounds: null,
+      restoreState: 'normal',
+      snapMode: null,
+    })
+  })
+
+  it('minimized→snapped：restoreState=snapped 分派（restore 落回吸附原几何）', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A', x: 100, y: 100, width: 600, height: 400 })
+    manager.snap(win.id, 'right', BAND)
+    manager.minimize(win.id)
+    manager.restore(win.id)
+
+    expectState(stateOf(win.id), {
+      state: 'snapped',
+      x: BAND.left + BAND.width - HALF,
+      y: BAND.top,
+      width: HALF,
+      height: BAND.height,
+      restoreState: 'normal',
+      snapMode: 'right',
+    })
+  })
+
+  it('minimized→maximized：restoreState=maximized 分派（既有回归格等价）', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    manager.maximize(win.id)
+    manager.minimize(win.id)
+    manager.restore(win.id)
+
+    expect(stateOf(win.id).state).toBe('maximized')
+  })
+
+  it('snapped 重吸附须先 unsnap：snap(snapped)=false', () => {
+    const { manager, seen, stateOf } = createManager(['window.snapped'])
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    manager.snap(win.id, 'left', BAND)
+    seen.length = 0
+
+    expect(manager.snap(win.id, 'right', BAND)).toBe(false)
+    expect(stateOf(win.id).snapMode).toBe('left')
+    expect(seen).toEqual([])
+  })
+
+  it('unsnap 对 normal/maximized/minimized 均拒绝且不广播', () => {
+    const { manager, seen, stateOf } = createManager(['window.unsnapped'])
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    expect(manager.unsnap(win.id)).toBe(false)
+    manager.maximize(win.id)
+    expect(manager.unsnap(win.id)).toBe(false)
+    manager.restore(win.id)
+    manager.minimize(win.id)
+    expect(manager.unsnap(win.id)).toBe(false)
+    expect(stateOf(win.id).state).toBe('minimized')
+    expect(seen).toEqual([])
+  })
+
+  it('快速序列 snap→unsnap→snap→maximize→restore→minimize→restore 无状态卡死', () => {
+    const { manager, stateOf } = createManager()
+
+    const win = manager.create({ appId: 'a', title: 'A', x: 100, y: 100, width: 600, height: 400 })
+    manager.snap(win.id, 'left', BAND)
+    manager.unsnap(win.id)
+    manager.snap(win.id, 'right', BAND)
+    manager.maximize(win.id)
+    manager.restore(win.id)
+    manager.minimize(win.id)
+    manager.restore(win.id)
+
+    const state = stateOf(win.id)
+    expect(state.state).toBe('snapped')
+    expect(state.snapMode).toBe('right')
+    expect(state.restoreState).toBe('normal')
+    expect(state.restoreBounds).toEqual({ x: 100, y: 100, width: 600, height: 400 })
+
+    // 终态后仍可正常脱 snap 回最初几何。
+    manager.unsnap(win.id)
+    expectState(stateOf(win.id), {
+      state: 'normal',
+      x: 100,
+      y: 100,
+      width: 600,
+      height: 400,
+      snapMode: null,
+      restoreBounds: null,
+    })
+  })
+
+  it('snap 对 minimized / 未知窗口拒绝且不广播', () => {
+    const { manager, seen, stateOf } = createManager(['window.snapped'])
+
+    const win = manager.create({ appId: 'a', title: 'A' })
+    manager.minimize(win.id)
+    seen.length = 0
+
+    expect(manager.snap(win.id, 'left', BAND)).toBe(false)
+    expect(manager.snap('missing', 'left', BAND)).toBe(false)
+    expect(stateOf(win.id).state).toBe('minimized')
+    expect(seen).toEqual([])
+  })
+})
+
 describe('WindowManager.close', () => {
   it('removes the window and focuses the next topmost visible one', () => {
     const { manager, seen } = createManager(['window.closed', 'window.focused'])
@@ -486,6 +837,8 @@ describe('WindowManager.moveWindowToSpace（W2，审计 §5 决定 3）', () => 
         minWidth: 320,
         minHeight: 200,
         restoreBounds: null,
+        snapMode: null,
+        restoreState: 'normal',
         spaceId: 'space-work',
       },
     ])

@@ -22,3 +22,11 @@ export {
 } from './space-types'
 export { SpaceManager } from './space-manager'
 export type { SpaceEventBus } from './space-manager'
+export {
+  calculateSnapGeometry,
+  snapEdgeWidth,
+  snapIntentFromPointer,
+  SNAP_EDGE_MIN_PX,
+} from './snap'
+export type { SnapBand, SnapDirection, SnapIntent } from './snap'
+export type { WindowRestoreState } from './types'

@@ -72,4 +72,29 @@ describe('space event contract', () => {
 
     expect(seen).toEqual([{ windowId: 'win-1', fromSpaceId: 'space-default', toSpaceId: 'space-1' }])
   })
+
+  it('registers window.snapped / window.unsnapped（W4 窗口吸附，发送处 WindowManager.snap/unsnap）', () => {
+    expect(systemBus.listenerCount('window.snapped')).toBe(0)
+    const offSnapped = systemBus.on('window.snapped', () => undefined)
+    expect(systemBus.listenerCount('window.snapped')).toBe(1)
+    offSnapped()
+
+    expect(systemBus.listenerCount('window.unsnapped')).toBe(0)
+    const offUnsnapped = systemBus.on('window.unsnapped', () => undefined)
+    expect(systemBus.listenerCount('window.unsnapped')).toBe(1)
+    offUnsnapped()
+  })
+
+  it('carries the { windowId, snapMode } / { windowId } payloads for snap events', () => {
+    const snapped: unknown[] = []
+    const unsnapped: unknown[] = []
+    systemBus.on('window.snapped', (payload) => snapped.push(payload))
+    systemBus.on('window.unsnapped', (payload) => unsnapped.push(payload))
+
+    systemBus.emit('window.snapped', { windowId: 'win-1', snapMode: 'left' })
+    systemBus.emit('window.unsnapped', { windowId: 'win-1' })
+
+    expect(snapped).toEqual([{ windowId: 'win-1', snapMode: 'left' }])
+    expect(unsnapped).toEqual([{ windowId: 'win-1' }])
+  })
 })

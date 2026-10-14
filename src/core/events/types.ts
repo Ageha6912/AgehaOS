@@ -9,6 +9,11 @@ export interface SystemEventMap {
   // WindowManager.moveWindowToSpace（src/core/window/window-manager.ts）；
   // 契约测试见 src/core/events/space-events.test.ts（ADR 4）。
   'window.space-assigned': { windowId: string; fromSpaceId: string; toSpaceId: string }
+  // Window Snap（W4，审计 .tmp/spaces-audit.md §7）。发送处在
+  // WindowManager.snap/unsnap（src/core/window/window-manager.ts）；契约测试
+  // 见 src/core/events/space-events.test.ts（ADR 4）。
+  'window.snapped': { windowId: string; snapMode: 'left' | 'right' }
+  'window.unsnapped': { windowId: string }
 
   // Ageha Spaces（Window Management 2.0 W1，审计 .tmp/spaces-audit.md §2）。
   // 发送处在 SpaceManager（src/core/window/space-manager.ts）；删除 active

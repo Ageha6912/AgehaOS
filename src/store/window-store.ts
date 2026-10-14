@@ -1,8 +1,13 @@
 import { create } from 'zustand'
 
 import { systemBus } from '@/core/events'
-import { DEFAULT_SPACE_ID, MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, WindowManager } from '@/core/window'
-import type { CreateWindowOptions, Viewport, WindowInstance } from '@/core/window'
+import {
+  DEFAULT_SPACE_ID,
+  MIN_WINDOW_HEIGHT,
+  MIN_WINDOW_WIDTH,
+  WindowManager,
+} from '@/core/window'
+import type { CreateWindowOptions, SnapBand, Viewport, WindowInstance } from '@/core/window'
 import { getAppManifest } from '@/store/app-store'
 
 import {
@@ -25,6 +30,9 @@ interface WindowStoreState {
   resize: (id: string, width: number, height: number, viewport?: Viewport) => void
   setTitle: (id: string, title: string) => void
   moveWindowToSpace: (id: string, spaceId: string) => void
+  /** W4 Window Snap（审计 .tmp/spaces-audit.md §7）：透传 + commit。 */
+  snap: (id: string, dir: 'left' | 'right', band: SnapBand) => void
+  unsnap: (id: string) => void
 }
 
 let engine = new WindowManager(systemBus)
@@ -66,6 +74,9 @@ function toPersistedWindow(win: WindowInstance): PersistedWindow {
     state: win.state,
     spaceId: win.spaceId,
     restoreBounds: win.restoreBounds ? { ...win.restoreBounds } : null,
+    // W4（审计 §7）：可选字段随写——旧版本读端缺字段回落 null/'normal'。
+    snapMode: win.snapMode,
+    restoreState: win.restoreState,
     zIndex: win.zIndex,
   }
 }
@@ -83,6 +94,10 @@ function persistWindows(windows: WindowInstance[]): void {
 function toWindowInstance(entry: PersistedWindow): WindowInstance {
   return {
     ...entry,
+    // W4（审计 §7）：旧载荷缺可选字段 → snapMode=null、restoreState='normal'
+    // （前向兼容，不清桌面）。
+    snapMode: entry.snapMode ?? null,
+    restoreState: entry.restoreState ?? 'normal',
     focused: false,
     resizable: true,
     closable: true,
@@ -151,6 +166,16 @@ export const useWindowStore = create<WindowStoreState>()(() => {
     moveWindowToSpace: (id, spaceId) => {
       if (!spaceExists(spaceId)) return
       if (engine.moveWindowToSpace(id, spaceId)) commit()
+    },
+
+    // W4 Window Snap（审计 §7）：action 透传 + commit+persist；band 由调用方
+    // （WindowFrame）传入，store 层零 DOM。
+    snap: (id, dir, band) => {
+      if (engine.snap(id, dir, band)) commit()
+    },
+
+    unsnap: (id) => {
+      if (engine.unsnap(id)) commit()
     },
   }
 })

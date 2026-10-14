@@ -272,3 +272,94 @@ describe('useWindowStore × 窗口持久化（W2，审计 §5 决定 2）', () =
     expect(localStorage.getItem(WINDOWS_STORAGE_KEY)).toBeNull()
   })
 })
+
+describe('useWindowStore × Window Snap（W4，审计 .tmp/spaces-audit.md §7）', () => {
+  const BAND = { left: 80, top: 32, width: 1000, height: 768 }
+
+  it('snap/unsnap 透传引擎并同步 state（commit）', () => {
+    const { open, snap, unsnap } = useWindowStore.getState()
+    const id = open({ appId: 'com.ageha.notes', title: '记事', x: 100, y: 100, width: 600, height: 400 })
+
+    snap(id, 'left', BAND)
+
+    let win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('snapped')
+    expect(win.snapMode).toBe('left')
+    expect(win).toMatchObject({ x: BAND.left, y: BAND.top, width: 500, height: BAND.height })
+    // 每次 commit 后静默 persist：snapped 态已落盘。
+    expect(JSON.parse(localStorage.getItem(WINDOWS_STORAGE_KEY)!).windows[0].state).toBe('snapped')
+
+    unsnap(id)
+
+    win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('normal')
+    expect(win.snapMode).toBeNull()
+    expect(win).toMatchObject({ x: 100, y: 100, width: 600, height: 400 })
+  })
+
+  it('非法调用（maximized snap / normal unsnap）no-op 不产生脏 commit', () => {
+    const { open, toggleMaximize, snap, unsnap } = useWindowStore.getState()
+    const id = open({ appId: 'com.ageha.notes', title: '记事' })
+
+    toggleMaximize(id)
+    snap(id, 'left', BAND)
+    expect(useWindowStore.getState().windows[0]?.state).toBe('maximized')
+
+    toggleMaximize(id)
+    unsnap(id)
+    expect(useWindowStore.getState().windows[0]?.state).toBe('normal')
+  })
+
+  it('snapped 窗 round-trip：state/snapMode/restoreBounds/restoreState 落盘并恢复', () => {
+    const { open, snap } = useWindowStore.getState()
+    const id = open({ appId: 'com.ageha.notes', title: '记事', x: 100, y: 100, width: 600, height: 400 })
+    snap(id, 'right', BAND)
+
+    resetWindowStore()
+    hydratePersistedWindows()
+
+    const restored = useWindowStore.getState().windows[0]!
+    expect(restored.id).toBe(id)
+    expect(restored.state).toBe('snapped')
+    expect(restored.snapMode).toBe('right')
+    expect(restored.restoreState).toBe('normal')
+    expect(restored.restoreBounds).toEqual({ x: 100, y: 100, width: 600, height: 400 })
+    // 手动还原行为正确（W4 验收：保留原几何，state/snapMode 还原）。
+    useWindowStore.getState().unsnap(id)
+    const unsnapped = useWindowStore.getState().windows[0]!
+    expect(unsnapped.state).toBe('normal')
+    expect(unsnapped).toMatchObject({ x: 100, y: 100, width: 600, height: 400 })
+  })
+
+  it('旧载荷缺 snap/restore 字段（W4 前向兼容）：snapMode=null、restoreState=normal，不清桌面', () => {
+    // 手写 W2 时代载荷（无 snapMode/restoreState 键）。
+    localStorage.setItem(
+      WINDOWS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        windows: [
+          {
+            id: 'win-legacy',
+            appId: 'com.ageha.notes',
+            title: '记事',
+            x: 10,
+            y: 20,
+            width: 400,
+            height: 300,
+            state: 'normal',
+            spaceId: DEFAULT_SPACE_ID,
+            restoreBounds: null,
+            zIndex: 1,
+          },
+        ],
+      }),
+    )
+
+    hydratePersistedWindows()
+
+    const win = useWindowStore.getState().windows[0]!
+    expect(win.id).toBe('win-legacy')
+    expect(win.snapMode).toBeNull()
+    expect(win.restoreState).toBe('normal')
+  })
+})

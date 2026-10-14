@@ -363,8 +363,7 @@ describe('WindowFrame (via WindowLayer)', () => {
     resetEclosionStore()
   })
 
-  it('title-bar drag never hijacks presses on portal dialogs (举报同意框, P4 §10)', () => {
-    // 复现口径（2026-10-03 E2E 实测）：羽化举报同意框 createPortal 到 body，其
+  it('title-bar drag never hijacks presses on portal dialogs (举报同意框, P4 §10)', () => {    // 复现口径（2026-10-03 E2E 实测）：羽化举报同意框 createPortal 到 body，其
     // pointerdown 经 React 树冒泡到达标题栏 onPointerDown；若照常
     // setPointerCapture，后续 pointerup/click 被重定到标题栏，同意框按钮的
     // onClick 收不到（真实浏览器里取消/确认双双失效）。守卫后：portal 按压
@@ -617,5 +616,187 @@ describe('WindowFrame 窗口动效（WAAPI 就绪）', () => {
     expect(useWindowStore.getState().windows).toHaveLength(0)
     expect(animateMock).not.toHaveBeenCalled()
     vi.unstubAllGlobals()
+  })
+})
+
+/**
+ * W4 Window Snap 组合层转换点（审计 .tmp/spaces-audit.md §7 钉死裁决）：
+ * resize 脱 snap 转换点=onResizePointerDown（先经 store unsnap、再从
+ * getState() 读还原几何作基线）；标题栏 pointerdown 同理；pointerup 才做
+ * 缘意图吸附（本次拖拽曾移动且命中判定带）。jsdom stub 1024×768：
+ * band={left:80,top:32,width:944,height:736}，edge=max(12,round(944*.02))=19
+ * → 左缘 x≤99 / 右缘 x≥1005 / 顶缘 y≤51；半屏宽 472。
+ */
+describe('WindowFrame × Window Snap（W4 组合层转换点）', () => {
+  const BAND = { left: 80, top: 32, width: 944, height: 736 }
+  const HALF = 472
+  const originalWidth = window.innerWidth
+  const originalHeight = window.innerHeight
+
+  beforeEach(() => {
+    Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true })
+    // jsdom 无 pointer capture API（既有 resize 手柄 handler 对此 try-catch
+    // 兜底；标题栏 handler 无兜底且既有测试从不触发）。照 portal 测试先例
+    // 补探针实现，聚焦本 describe 的 snap 转换逻辑而非 capture。
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(HTMLElement.prototype, 'releasePointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: originalHeight, configurable: true })
+    delete (HTMLElement.prototype as { setPointerCapture?: unknown }).setPointerCapture
+    delete (HTMLElement.prototype as { releasePointerCapture?: unknown }).releasePointerCapture
+  })
+
+  const openWindow = (overrides: Record<string, unknown> = {}) =>
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事', ...overrides })
+
+  const headerOf = (title: string) => {
+    const region = screen.getByRole('region', { name: title })
+    return region.querySelector('header') as HTMLElement
+  }
+
+  it('拖到右缘 pointerup → 吸附右半屏（band 坐标，右缘贴齐）', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 50 })
+    fireEvent.pointerMove(header, { clientX: 1010, clientY: 400 })
+    fireEvent.pointerUp(header, { clientX: 1010, clientY: 400 })
+
+    const win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('snapped')
+    expect(win.snapMode).toBe('right')
+    expect(win).toMatchObject({
+      x: BAND.left + BAND.width - HALF,
+      y: BAND.top,
+      width: HALF,
+      height: BAND.height,
+    })
+  })
+
+  it('拖到左缘 pointerup → 吸附左半屏', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
+    fireEvent.pointerMove(header, { clientX: 90, clientY: 400 })
+    fireEvent.pointerUp(header, { clientX: 90, clientY: 400 })
+
+    const win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('snapped')
+    expect(win.snapMode).toBe('left')
+    expect(win).toMatchObject({ x: BAND.left, y: BAND.top, width: HALF, height: BAND.height })
+  })
+
+  it('拖到顶缘判定带 pointerup → 最大化（复用整视口真全屏语义）', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
+    fireEvent.pointerMove(header, { clientX: 500, clientY: 40 })
+    fireEvent.pointerUp(header, { clientX: 500, clientY: 40 })
+
+    expect(useWindowStore.getState().windows[0]?.state).toBe('maximized')
+  })
+
+  it('带外放手（拖到中间）→ 保持 normal 拖拽后几何，不吸附', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
+    fireEvent.pointerMove(header, { clientX: 530, clientY: 420 })
+    fireEvent.pointerUp(header, { clientX: 530, clientY: 420 })
+
+    const win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('normal')
+    expect(win.snapMode).toBeNull()
+  })
+
+  it('点击标题栏未移动 → 不触发 snap/最大化（moved 前置条件）', () => {
+    openWindow({ x: 500, y: 400 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
+    fireEvent.pointerUp(header, { clientX: 500, clientY: 400 })
+
+    const win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('normal')
+    expect(win).toMatchObject({ x: 500, y: 400 })
+  })
+
+  it('snapped 窗标题栏按下即脱 snap，拖动以还原几何为基线（指针零跳变）', () => {
+    const id = openWindow({ x: 100, y: 100, width: 600, height: 400 })
+    useWindowStore.getState().snap(id, 'left', BAND)
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+    expect(useWindowStore.getState().windows[0]?.state).toBe('snapped')
+
+    // 按下瞬间：unsnap 完成、几何已还原。
+    fireEvent.pointerDown(header, { button: 0, clientX: 200, clientY: 50 })
+    let win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('normal')
+    expect(win).toMatchObject({ x: 100, y: 100, width: 600, height: 400 })
+
+    // 位移 +30/+20：以还原几何为基线 → x=130（若以 snapped 几何为基线会是 110）。
+    fireEvent.pointerMove(header, { clientX: 230, clientY: 70 })
+    win = useWindowStore.getState().windows[0]!
+    expect(win).toMatchObject({ x: 130, y: 120, width: 600, height: 400 })
+
+    // 带外放手：保持 normal。
+    fireEvent.pointerUp(header, { clientX: 230, clientY: 70 })
+    expect(useWindowStore.getState().windows[0]?.state).toBe('normal')
+  })
+
+  it('snapped 窗按住拖到缘 pointerup → 重新吸附（先脱 snap 后 snap 的完整链）', () => {
+    const id = openWindow({ x: 100, y: 100, width: 600, height: 400 })
+    useWindowStore.getState().snap(id, 'left', BAND)
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 200, clientY: 50 })
+    fireEvent.pointerMove(header, { clientX: 1010, clientY: 400 })
+    fireEvent.pointerUp(header, { clientX: 1010, clientY: 400 })
+
+    const win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('snapped')
+    expect(win.snapMode).toBe('right')
+    expect(win).toMatchObject({ x: BAND.left + BAND.width - HALF, width: HALF })
+  })
+
+  it('snapped 窗按下 resize 手柄 → 先经 store unsnap、以还原几何为 resizeOrigin 基线（评审遗留裁决）', () => {
+    const id = openWindow({ x: 100, y: 100, width: 600, height: 400 })
+    useWindowStore.getState().snap(id, 'left', BAND)
+    render(<WindowLayer />)
+    const se = screen.getByTestId('window-resize-se')
+
+    // snapped 窗的 resize 手柄在场（!maximized 分支），按下即脱 snap。
+    fireEvent.pointerDown(se, { button: 0, clientX: 552, clientY: 768 })
+    let win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('normal')
+    expect(win).toMatchObject({ x: 100, y: 100, width: 600, height: 400 })
+
+    // 位移 +40/+40：以还原几何为基线 → 640×440（若以 snapped 几何 472 为基线会是 512）。
+    fireEvent.pointerMove(se, { clientX: 592, clientY: 808 })
+    win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('normal')
+    expect(win.width).toBe(640)
+    expect(win.height).toBe(440)
+
+    fireEvent.pointerUp(se)
+    expect(useWindowStore.getState().windows[0]?.state).toBe('normal')
   })
 })

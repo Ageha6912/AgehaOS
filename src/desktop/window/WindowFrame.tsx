@@ -5,6 +5,7 @@ import { componentFor } from '@/apps/builtin'
 import { MissingApp } from '@/apps/placeholder-app'
 import { useTranslation } from '@/core/i18n'
 import type { WindowInstance } from '@/core/window'
+import { snapIntentFromPointer } from '@/core/window'
 import { isAllowedWebAppEntry } from '@/core/apps/web-app'
 import { isEclosionAppId } from '@/core/eclosion/spec'
 import { AppErrorBoundary } from '@/components/app-error-boundary'
@@ -14,7 +15,7 @@ import { getAppManifest } from '@/store/app-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useWindowStore } from '@/store/window-store'
 
-import { getWorkspaceViewport } from './viewport'
+import { getWorkspaceBand, getWorkspaceViewport } from './viewport'
 import { useWindowMotion } from './use-window-motion'
 import { useFocusTilt } from '@/desktop/motion/use-focus-tilt'
 
@@ -92,6 +93,8 @@ export function WindowFrame({
   const toggleMaximize = useWindowStore((s) => s.toggleMaximize)
   const move = useWindowStore((s) => s.move)
   const resize = useWindowStore((s) => s.resize)
+  const snap = useWindowStore((s) => s.snap)
+  const unsnap = useWindowStore((s) => s.unsnap)
 
   const sectionRef = useRef<HTMLElement | null>(null)
   // 窗口动效（DESIGN.md §12）：打开/关闭/genie 飞行 + 半途抓回；关闭走
@@ -100,6 +103,9 @@ export function WindowFrame({
   const { requestClose } = useWindowMotion(win, sectionRef, { ghost })
 
   const dragOrigin = useRef<DragOrigin | null>(null)
+  // W4（审计 §7）：本次拖拽是否发生过实际位移——pointerup 吸附判定的前置
+  // 条件（点击标题栏不动不触发 snap/最大化）。
+  const dragMoved = useRef(false)
   const resizeOrigin = useRef<ResizeOrigin | null>(null)
 
   const maximized = win.state === 'maximized'
@@ -150,12 +156,26 @@ export function WindowFrame({
     if (!event.currentTarget.contains(event.target as Node)) return
     focus(win.id)
     if (maximized || event.button !== 0) return
+    // W4 脱 snap 转换点（审计 §7 钉死）：snapped 窗按下标题栏先经 store
+    // unsnap()，再从 getState() 读还原后几何记 dragOrigin——move 数学以
+    // 还原基线起算，指针移动零跳变（Windows 惯例：拖出即还原）。
+    let originX = win.x
+    let originY = win.y
+    if (win.state === 'snapped') {
+      unsnap(win.id)
+      const restored = useWindowStore.getState().windows.find((w) => w.id === win.id)
+      if (restored) {
+        originX = restored.x
+        originY = restored.y
+      }
+    }
     dragOrigin.current = {
       pointerX: event.clientX,
       pointerY: event.clientY,
-      x: win.x,
-      y: win.y,
+      x: originX,
+      y: originY,
     }
+    dragMoved.current = false
     setDragging(true)
     event.currentTarget.setPointerCapture(event.pointerId)
   }
@@ -163,6 +183,9 @@ export function WindowFrame({
   const onTitlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     const origin = dragOrigin.current
     if (!origin) return
+    if (event.clientX !== origin.pointerX || event.clientY !== origin.pointerY) {
+      dragMoved.current = true
+    }
     move(
       win.id,
       origin.x + (event.clientX - origin.pointerX),
@@ -173,8 +196,22 @@ export function WindowFrame({
 
   const onTitlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
     if (!dragOrigin.current) return
+    const moved = dragMoved.current
     dragOrigin.current = null
+    dragMoved.current = false
     setDragging(false)
+    // W4 吸附判定（审计 §7）：本次拖拽曾移动且 pointer 意图命中才转换——
+    // 顶缘命中 → toggleMaximize（复用整视口真全屏，禁改）；左/右缘 →
+    // snap(dir, band)。带外放手 = 保持拖拽后几何（normal）。
+    if (moved) {
+      const band = getWorkspaceBand()
+      const intent = snapIntentFromPointer(event.clientX, event.clientY, band)
+      if (intent?.kind === 'maximize') {
+        toggleMaximize(win.id)
+      } else if (intent) {
+        snap(win.id, intent.kind, band)
+      }
+    }
     try {
       event.currentTarget.releasePointerCapture(event.pointerId)
     } catch {
@@ -186,13 +223,31 @@ export function WindowFrame({
     if (event.button !== 0) return
     event.stopPropagation()
     focus(win.id)
+    // W4 评审遗留裁决（审计 §7 钉死）：resize 脱 snap 转换点=onResizePointerDown
+    // ——snapped 窗按下 resize 手柄先经 store unsnap()、再从 getState() 读
+    // 还原后几何作为 resizeOrigin 基线（引擎 resize 分支不做转换；否则首次
+    // resize 以 snapped 几何为基线必跳变）。组合层转换后走既有 normal resize。
+    let baseWidth = win.width
+    let baseHeight = win.height
+    let baseX = win.x
+    let baseY = win.y
+    if (win.state === 'snapped') {
+      unsnap(win.id)
+      const restored = useWindowStore.getState().windows.find((w) => w.id === win.id)
+      if (restored) {
+        baseWidth = restored.width
+        baseHeight = restored.height
+        baseX = restored.x
+        baseY = restored.y
+      }
+    }
     resizeOrigin.current = {
       pointerX: event.clientX,
       pointerY: event.clientY,
-      width: win.width,
-      height: win.height,
-      x: win.x,
-      y: win.y,
+      width: baseWidth,
+      height: baseHeight,
+      x: baseX,
+      y: baseY,
       dir,
     }
     try {

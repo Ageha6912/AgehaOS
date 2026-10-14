@@ -168,11 +168,17 @@ for (const vp of RESOLUTIONS) {
       expect(initial.y + initial.height).toBeLessThanOrEqual(vp.height - 88 + 1) // Dock 带上方。
       await record('windowInitial', initial)
 
-      // ⑦ 向左拖出屏幕（指针拉到 x=2）：右缘仍 ≥ 80px（MIN_VISIBLE_EDGE——
+      // ⑦ 向左拖离起点（指针拉到 x=160）：右缘仍 ≥ 80px（MIN_VISIBLE_EDGE——
       //    窗口不会整体丢失），再从可见残带抓回工作区（可拖回 viewport）。
+      //    终点取 160 而非贴屏缘：W4 Window Snap（审计 .tmp/spaces-audit.md
+      //    §7）起左缘判定带 = band.left + max(12, round(带宽*0.02))（四档
+      //    视口上界 98~124），松手落在带内会吸附左半屏而非自由位移——本步
+      //    意图是「自由拖拽 + MIN_VISIBLE_EDGE 钳制」，故终点停在带外
+      //    （160 > 124 全断点安全）；吸附行为由 window-manager 12 格矩阵与
+      //    WindowFrame 组件测试覆盖（W2 desktop-stress 断言适配同一先例）。
       await page.mouse.move(initial.x + initial.width / 2, initial.y + 14)
       await page.mouse.down()
-      await page.mouse.move(2, initial.y + 14, { steps: 8 })
+      await page.mouse.move(160, initial.y + 14, { steps: 8 })
       await page.mouse.up()
       await page.waitForTimeout(400)
       const pushedLeft = (await region.boundingBox())!
