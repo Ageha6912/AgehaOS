@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetClosingGhosts } from './closing-ghosts'
+import { resetSnapPreview } from './snap-preview'
 import { resetMotionPrefsStore, useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 import { resetEclosionStore, seedEclosionForTests } from '@/store/eclosion-store'
@@ -798,5 +799,182 @@ describe('WindowFrame × Window Snap（W4 组合层转换点）', () => {
 
     fireEvent.pointerUp(se)
     expect(useWindowStore.getState().windows[0]?.state).toBe('normal')
+  })
+})
+
+/**
+ * W5 Snap Preview（审计 .tmp/spaces-audit.md §8）：拖拽中实时预览——预览
+ * rect=calculateSnapGeometry 产物（与 pointerup 吸附提交共享同一意图判定
+ * 来源 snapIntentFromPointer）；顶缘=最大化意图不显预览；pointerup/
+ * pointercancel/window blur 全路径清预览。jsdom stub 1024×768：band=
+ * {left:80,top:32,width:944,height:736}，edge=19 → 左缘 x≤99 / 右缘
+ * x≥1005 / 顶缘 y≤51；左半屏 rect={80,32,472,736}、右半屏 {532,32,472,736}。
+ */
+describe('WindowFrame × Snap Preview（W5 拖拽中实时预览）', () => {
+  const BAND = { left: 80, top: 32, width: 944, height: 736 }
+  const HALF = 472
+  const originalWidth = window.innerWidth
+  const originalHeight = window.innerHeight
+
+  beforeEach(() => {
+    resetWindowStore()
+    resetSnapPreview()
+    Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true })
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(HTMLElement.prototype, 'releasePointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: originalHeight, configurable: true })
+    delete (HTMLElement.prototype as { setPointerCapture?: unknown }).setPointerCapture
+    delete (HTMLElement.prototype as { releasePointerCapture?: unknown }).releasePointerCapture
+    resetSnapPreview()
+  })
+
+  const openWindow = (overrides: Record<string, unknown> = {}) =>
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事', ...overrides })
+
+  const headerOf = (title: string) => {
+    const region = screen.getByRole('region', { name: title })
+    return region.querySelector('header') as HTMLElement
+  }
+
+  const previewOf = () => screen.getByTestId('snap-preview') as HTMLElement
+
+  it('拖入左缘判定带 → 预览出现且 rect=calculateSnapGeometry 产物（W4 单一来源）', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
+    fireEvent.pointerMove(header, { clientX: 90, clientY: 400 })
+
+    const preview = previewOf()
+    expect(preview.style.left).toBe(`${BAND.left}px`)
+    expect(preview.style.top).toBe(`${BAND.top}px`)
+    expect(preview.style.width).toBe(`${HALF}px`)
+    expect(preview.style.height).toBe(`${BAND.height}px`)
+  })
+
+  it('同一次拖拽内换缘 → 预览 rect 跟随换成另一侧半屏', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
+    fireEvent.pointerMove(header, { clientX: 90, clientY: 400 })
+    expect(previewOf().style.left).toBe(`${BAND.left}px`)
+
+    fireEvent.pointerMove(header, { clientX: 1010, clientY: 400 })
+    expect(previewOf().style.left).toBe(`${BAND.left + BAND.width - HALF}px`)
+  })
+
+  it('拖出判定带（带外）→ 预览消失', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
+    fireEvent.pointerMove(header, { clientX: 90, clientY: 400 })
+    expect(screen.queryByTestId('snap-preview')).not.toBeNull()
+
+    fireEvent.pointerMove(header, { clientX: 530, clientY: 420 })
+    expect(screen.queryByTestId('snap-preview')).toBeNull()
+  })
+
+  it('顶缘（maximize 意图）不显预览（维持 W4 直吸）', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
+    fireEvent.pointerMove(header, { clientX: 500, clientY: 40 })
+
+    expect(screen.queryByTestId('snap-preview')).toBeNull()
+    // 松手照旧直吸最大化（预览缺席不改变 W4 提交路径）。
+    fireEvent.pointerUp(header, { clientX: 500, clientY: 40 })
+    expect(useWindowStore.getState().windows[0]?.state).toBe('maximized')
+  })
+
+  it('原地按压判定带内未位移 → 无预览（moved 前置与 pointerup 一致）', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    // pointerdown 落点本身在左缘带内：不动就无预览、松手也不吸附。
+    fireEvent.pointerDown(header, { button: 0, clientX: 90, clientY: 400 })
+    fireEvent.pointerMove(header, { clientX: 90, clientY: 400 })
+    expect(screen.queryByTestId('snap-preview')).toBeNull()
+
+    fireEvent.pointerUp(header, { clientX: 90, clientY: 400 })
+    expect(useWindowStore.getState().windows[0]?.state).toBe('normal')
+  })
+
+  it('pointerup 全路径清预览（含带外早退路径），命中时吸附提交成功', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
+    fireEvent.pointerMove(header, { clientX: 90, clientY: 400 })
+    expect(screen.queryByTestId('snap-preview')).not.toBeNull()
+    fireEvent.pointerUp(header, { clientX: 90, clientY: 400 })
+
+    expect(screen.queryByTestId('snap-preview')).toBeNull()
+    const win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('snapped')
+    expect(win).toMatchObject({ x: BAND.left, y: BAND.top, width: HALF, height: BAND.height })
+
+    // 带外放手的早退判定路径同样清预览（先 set 再带外 up）。
+    useWindowStore.getState().unsnap(win.id)
+    fireEvent.pointerDown(header, { button: 0, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(header, { clientX: 90, clientY: 400 })
+    expect(screen.queryByTestId('snap-preview')).not.toBeNull()
+    fireEvent.pointerMove(header, { clientX: 530, clientY: 420 })
+    fireEvent.pointerUp(header, { clientX: 530, clientY: 420 })
+    expect(screen.queryByTestId('snap-preview')).toBeNull()
+  })
+
+  it('pointercancel 清预览并复位拖拽态（后续 move 不再驱动窗口）', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
+    fireEvent.pointerMove(header, { clientX: 90, clientY: 400 })
+    expect(screen.queryByTestId('snap-preview')).not.toBeNull()
+    fireEvent.pointerCancel(header)
+
+    expect(screen.queryByTestId('snap-preview')).toBeNull()
+    const afterCancel = useWindowStore.getState().windows[0]!
+    fireEvent.pointerMove(header, { clientX: 1010, clientY: 400 })
+    const win = useWindowStore.getState().windows[0]!
+    expect(win).toMatchObject({ x: afterCancel.x, y: afterCancel.y })
+    expect(screen.queryByTestId('snap-preview')).toBeNull()
+    fireEvent.pointerUp(header, { clientX: 1010, clientY: 400 })
+    expect(win.state).toBe('normal') // cancel 后不误吸附
+  })
+
+  it('window blur 兜底清预览（防悬挂双保险之二）', () => {
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header = headerOf('记事')
+
+    fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
+    fireEvent.pointerMove(header, { clientX: 90, clientY: 400 })
+    expect(screen.queryByTestId('snap-preview')).not.toBeNull()
+
+    act(() => {
+      window.dispatchEvent(new Event('blur'))
+    })
+    expect(screen.queryByTestId('snap-preview')).toBeNull()
   })
 })

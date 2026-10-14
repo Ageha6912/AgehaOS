@@ -10,6 +10,7 @@ import {
   subscribeClosingGhosts,
 } from './closing-ghosts'
 import { startSpaceTransition, type SpaceTransitionDirection } from './window-motion'
+import { SnapPreviewOverlay } from './SnapPreviewOverlay'
 import { WindowFrame } from './WindowFrame'
 
 export function WindowLayer() {
@@ -93,6 +94,10 @@ export function WindowLayer() {
       // 在 z=0 下投影因子同为 1。E2E 几何探针按静止态测量，读数不变。
       style={{ perspective: 'var(--sp-perspective)' }}
     >
+      {/* W5 Snap Preview（审计 .tmp/spaces-audit.md §8）：层内首子元素 +
+          zIndex:0（引擎窗 zIndex 从 1 起）——预览永远层内最低 z；rect=null
+          时零 DOM。存在最大化窗整层抬 z-[45] 时预览仍在层内最低，无需特判。 */}
+      <SnapPreviewOverlay />
       {withGhosts.map(({ win, ghost }) => (
         <WindowFrame
           key={win.id}

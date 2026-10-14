@@ -54,6 +54,15 @@ test('core path: register, work with a note, restore session, sign out', async (
   await expect(saveButton).toBeDisabled()
 
   // Session restore: a reload lands directly on the desktop, still signed in.
+  // 适配（2026-10-14 主会话升级裁决，desktop-stress/responsive-quad 同先例）：
+  // W2「刷新恢复现场」落库（f158458）后，reload 会把窗口持久化键
+  // （agehaos.spaces.windows.v1，见 src/store/window-persist.ts）灌回桌面，
+  // 随后的 launch 恒新开（open 恒新开，禁改语义）必致两扇记事窗并存、本
+  // 用例的列表按钮被另一窗子树拦截（两轮全量 + W4 基线 216b3d4 worktree
+  // 对照同签名实锤，非 W5 回归）。本用例测的是核心路径而非窗口持久化，
+  // reload 前清窗口持久化键即恢复「reload 落回干净桌面」的原意图；下方
+  // 全部原有断言一字未弱化（引证 .tmp/spaces-audit.md §8 本轮裁决）。
+  await page.evaluate(() => localStorage.removeItem('agehaos.spaces.windows.v1'))
   await page.reload()
   await expect(startButton).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole('button', { name: /e2euser/ })).toBeVisible()

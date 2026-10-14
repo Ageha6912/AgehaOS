@@ -1,11 +1,11 @@
-import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 
 import { AppIcon } from '@/apps/app-icon'
 import { componentFor } from '@/apps/builtin'
 import { MissingApp } from '@/apps/placeholder-app'
 import { useTranslation } from '@/core/i18n'
 import type { WindowInstance } from '@/core/window'
-import { snapIntentFromPointer } from '@/core/window'
+import { calculateSnapGeometry, snapIntentFromPointer } from '@/core/window'
 import { isAllowedWebAppEntry } from '@/core/apps/web-app'
 import { isEclosionAppId } from '@/core/eclosion/spec'
 import { AppErrorBoundary } from '@/components/app-error-boundary'
@@ -16,6 +16,7 @@ import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { getWorkspaceBand, getWorkspaceViewport } from './viewport'
+import { clearSnapPreview, setSnapPreview } from './snap-preview'
 import { useWindowMotion } from './use-window-motion'
 import { useFocusTilt } from '@/desktop/motion/use-focus-tilt'
 
@@ -119,6 +120,15 @@ export function WindowFrame({
   // 拖拽进行中：悬停浮起的排除条件之一（拖拽窗口必然已聚焦，此为双保险，
   // 并保证拖拽期间悬停过渡类不在场——跟手零延迟）。只在起拖/收拖各一次渲染。
   const [dragging, setDragging] = useState(false)
+  // W5（审计 .tmp/spaces-audit.md §8）防悬挂双保险之一：拖拽期挂 window
+  // blur——切窗/系统夺焦时 pointerup 可能永远不来，blur 兜底清预览（只清
+  // 预览，不打断拖拽本身）。
+  useEffect(() => {
+    if (!dragging) return
+    const onWindowBlur = () => clearSnapPreview()
+    window.addEventListener('blur', onWindowBlur)
+    return () => window.removeEventListener('blur', onWindowBlur)
+  }, [dragging])
   useFocusTilt(sectionRef, win.focused, minimized, tiltOn)
 
   // 深度类栈（2026-10-10 空间化裁决）：聚焦 = sp-depth-near、失焦可见 =
@@ -192,9 +202,41 @@ export function WindowFrame({
       origin.y + (event.clientY - origin.pointerY),
       getWorkspaceViewport(),
     )
+    // W5 拖拽中实时预览（审计 §8）：move() 之后做 snapIntentFromPointer
+    // 判定（纯函数每帧一次，无 getBoundingClientRect），与 pointerup 吸附
+    // 提交共享同一意图判定来源（重算同函数同输入 → 语义一致）。左右缘命中
+    // → setSnapPreview(calculateSnapGeometry 产物，预览=终态几何零换算)；
+    // 顶缘=最大化意图不显预览（维持 W4 直吸，全屏预览留后续打磨）；带外或
+    // 未发生位移（与 pointerup 的 moved 前置一致）→ clear。
+    if (dragMoved.current) {
+      const band = getWorkspaceBand()
+      const intent = snapIntentFromPointer(event.clientX, event.clientY, band)
+      if (intent?.kind === 'left' || intent?.kind === 'right') {
+        setSnapPreview(calculateSnapGeometry(intent.kind, band))
+        return
+      }
+    }
+    clearSnapPreview()
+  }
+
+  const onTitlePointerCancel = (event: ReactPointerEvent<HTMLElement>) => {
+    // W5（审计 §8）pointercancel 全路径收尾：系统掠走 capture（滚轮手势/
+    // 通知打断）时 pointerup 不来——清预览 + 复位拖拽态防悬挂。
+    clearSnapPreview()
+    if (!dragOrigin.current) return
+    dragOrigin.current = null
+    dragMoved.current = false
+    setDragging(false)
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    } catch {
+      /* pointer capture was already released */
+    }
   }
 
   const onTitlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
+    // W5（审计 §8）pointerup 全路径清预览（防悬挂双保险之二）——早退路径也清。
+    clearSnapPreview()
     if (!dragOrigin.current) return
     const moved = dragMoved.current
     dragOrigin.current = null
@@ -334,6 +376,7 @@ export function WindowFrame({
         onPointerDown={onTitlePointerDown}
         onPointerMove={onTitlePointerMove}
         onPointerUp={onTitlePointerUp}
+        onPointerCancel={onTitlePointerCancel}
         onDoubleClick={() => {
           if (win.resizable) toggleMaximize(win.id)
         }}
