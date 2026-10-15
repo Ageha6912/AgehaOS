@@ -4,6 +4,7 @@ import { useTranslation } from '@/core/i18n'
 import { AtmosphereLayer } from '@/desktop/atmosphere/AtmosphereLayer'
 import { DesktopBranding } from '@/desktop/branding/DesktopBranding'
 import { MenuBar } from '@/desktop/menu-bar/MenuBar'
+import { MissionControl } from '@/desktop/mission-control/MissionControl'
 import { Sidebar } from '@/desktop/sidebar/Sidebar'
 import { Taskbar } from '@/desktop/taskbar/Taskbar'
 import { WindowLayer } from '@/desktop/window/WindowLayer'
@@ -158,6 +159,10 @@ export function Desktop() {
       {/* Window Switcher 面板（W6，审计 .tmp/spaces-audit.md §9）：Alt+W 按住
           呼出；z-50 档与搜索面板同层，popover 互斥保证不并存。 */}
       <WindowSwitcher />
+      {/* Mission Control（W7，审计 .tmp/spaces-audit.md §10）：F4/菜单入口呼出
+          的全屏调度层；z-[60] 档（搜索 z-50 之上、模态 z-[70] 之下），开启即
+          claim 单槽互斥，关闭复位 store+release。 */}
+      <MissionControl />
       <ContextMenu position={contextPos} onClose={() => setContextPos(null)} />
     </div>
   )

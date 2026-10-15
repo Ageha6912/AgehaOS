@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isRemoteAuthActive } from '@/core/auth'
 import { resetAppStore } from '@/store/app-store'
 import { resetEclosionStore, seedEclosionForTests, useEclosionStore } from '@/store/eclosion-store'
+import { resetMissionControlStore, useMissionControlStore } from '@/store/mission-control-store'
 import { resetSearchStore, useSearchStore } from '@/store/search-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 import { resetSettingsStore, useSettingsStore } from '@/store/settings-store'
@@ -35,6 +36,8 @@ beforeEach(() => {
   resetSettingsStore()
   resetSessionStore()
   resetSearchStore()
+  // W7：Mission Control 开关逐用例复位（菜单入口 toggle 不跨用例泄漏）。
+  resetMissionControlStore()
   seedSessionForTests({
     id: 'u1',
     username: 'alice',
@@ -140,6 +143,25 @@ describe('MenuBar', () => {
     expect(screen.getByRole('menuitem', { name: '最小化全部窗口' })).toBeDisabled()
     expect(screen.getByRole('menuitem', { name: '关闭全部窗口' })).toBeDisabled()
     expect(screen.queryByRole('menuitem', { name: '记事' })).not.toBeInTheDocument()
+  })
+
+  it('window menu toggles Mission Control（W7，审计 .tmp/spaces-audit.md §10）', () => {
+    render(<MenuBar />)
+
+    fireEvent.click(screen.getByRole('button', { name: '窗口' }))
+    const entry = screen.getByRole('menuitem', { name: '任务视图' })
+    // F4 无平台写法差异：快捷键提示恒 F4（aria-keyshortcuts 同步）。
+    expect(entry).toHaveAttribute('aria-keyshortcuts', 'F4')
+    expect(entry.textContent).toContain('F4')
+
+    fireEvent.click(entry)
+    expect(useMissionControlStore.getState().open).toBe(true)
+    // 菜单随动作收起（act 语义），MC 层保持开启。
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '窗口' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '任务视图' }))
+    expect(useMissionControlStore.getState().open).toBe(false)
   })
 
   it('窗口菜单只列当前 Space，关闭全部只作用于当前 Space（W2，审计 §5 决定 4）', () => {

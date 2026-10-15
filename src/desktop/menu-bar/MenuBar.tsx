@@ -16,6 +16,7 @@ import { NotificationCenter } from '@/desktop/taskbar/NotificationCenter'
 import { UserMenu } from '@/desktop/taskbar/UserMenu'
 import { useSearchStore } from '@/store/search-store'
 import { useSettingsStore } from '@/store/settings-store'
+import { useMissionControlStore } from '@/store/mission-control-store'
 import { useSpaceStore } from '@/store/space-store'
 import { useWindowStore } from '@/store/window-store'
 import { altShortcutLabel, redoShortcutLabel, shortcutLabel } from '@/core/platform'
@@ -352,6 +353,13 @@ export function MenuBar() {
           dropdownRefs.current['window'] = element
         }}
       >
+        {/* W7（审计 .tmp/spaces-audit.md §10）：任务视图入口——F4 同款 toggle
+            （store 翻转；MC 开启时经 popover 互斥顶替其他弹层）。 */}
+        <MenuItem
+          label={t('menubar.window.missionControl')}
+          shortcut="F4"
+          onSelect={() => act(() => useMissionControlStore.getState().toggle())}
+        />
         <MenuItem
           label={t('menubar.window.next')}
           shortcut={altShortcutLabel('W')}

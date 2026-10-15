@@ -7,6 +7,7 @@ import {
   openFromLiveHandler,
   windowSwitcher,
 } from '@/desktop/window-switcher/use-switcher'
+import { useMissionControlStore } from '@/store/mission-control-store'
 import { useSearchStore } from '@/store/search-store'
 import { useSpaceStore } from '@/store/space-store'
 import { useWindowStore } from '@/store/window-store'
@@ -18,6 +19,7 @@ import { useWindowStore } from '@/store/window-store'
  * - Alt+W     轻点=可见窗口轮转焦点；按住=呼出 Window Switcher 循环选择，
  *             松开提交（W6 三段交互，审计 .tmp/spaces-audit.md §9）
  * - Ctrl+Alt+←/→  切换 Space（W3，按 index 轮转；单 Space 时 no-op）
+ * - F4        开/关 Mission Control 任务视图（W7，审计 .tmp/spaces-audit.md §10）
  *
  * W3 起统一进中央 shortcut registry（src/desktop/shortcuts/registry.ts）：
  * 本模块只把条目注册进单实例分发器，对外行为与 `cycleWindows` 导出零变化。
@@ -26,6 +28,12 @@ import { useWindowStore } from '@/store/window-store'
 // W6（审计 §9）：switcherOpen 挂点接真值——实时读窗口切换器状态机的面板态。
 function switcherOpen(): boolean {
   return windowSwitcher.getState().open
+}
+
+// W7（审计 §10）：missionControlOpen 挂点——Esc 条目的 when 守卫（inline
+// 重命名编辑中让位：input 自理 Esc=还原，registry 不抢）。
+function missionControlOpen(): boolean {
+  return useMissionControlStore.getState().open
 }
 
 export function cycleWindows(): void {
@@ -62,6 +70,25 @@ export function useGlobalShortcuts(): void {
           event.preventDefault()
           useSearchStore.getState().toggle()
         },
+      }),
+      // W7（审计 §10）：F4 开/关 Mission Control 任务视图（任务书 §34）。
+      // F4 无既有条目争键，注册位次自由——置于 Esc 组之前便于阅读。
+      registerShortcut({
+        id: 'mission.control.toggle',
+        test: (event) => event.key === 'F4',
+        run: (event) => {
+          event.preventDefault()
+          useMissionControlStore.getState().toggle()
+        },
+      }),
+      // W7：MC 开启 → Esc 归 MC 关闭；注册序**必须在搜索 Esc 条目之前**
+      //（与 switcher Esc 同纪律，首个命中停止语义）；inline 重命名编辑中
+      // when 让位（input 自理 Esc=还原，registry 不抢、MC 不关）。
+      registerShortcut({
+        id: 'mission.control.escape',
+        when: () => missionControlOpen() && useMissionControlStore.getState().editingSpaceId === null,
+        test: (event) => event.key === 'Escape',
+        run: () => useMissionControlStore.getState().close(),
       }),
       // W6（审计 §9）：switcher 的 Esc 条目——面板开启 → cancel 不切换；
       // 注册序**必须在搜索 Esc 条目之前**（首个命中停止语义：面板开启期间

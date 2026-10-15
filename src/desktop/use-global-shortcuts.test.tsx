@@ -2,6 +2,7 @@ import { fireEvent, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { DEFAULT_SPACE_ID } from '@/core/window'
+import { resetMissionControlStore, useMissionControlStore } from '@/store/mission-control-store'
 import { resetSearchStore, useSearchStore } from '@/store/search-store'
 import { resetSpaceStore, useSpaceStore } from '@/store/space-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
@@ -20,6 +21,8 @@ beforeEach(() => {
   resetSearchStore()
   resetWindowStore()
   resetSpaceStore()
+  // W7（审计 .tmp/spaces-audit.md §10）：Mission Control 状态逐用例复位。
+  resetMissionControlStore()
 })
 
 // W6（审计 .tmp/spaces-audit.md §9）：窗口切换器状态机逐用例复位——只追加，
@@ -135,6 +138,60 @@ describe('cycleWindows', () => {
     windows = useWindowStore.getState().windows
     expect(windows.find((win) => win.id === third)?.focused).toBe(true)
     expect(windows.find((win) => win.id === other)?.focused).toBe(false)
+  })
+})
+
+// W7 Mission Control 快捷键（审计 .tmp/spaces-audit.md §10）：F4 toggle、
+// Esc 关闭（注册序在搜索 Esc 之前）、inline 重命名编辑中 Esc 让位。
+describe('Mission Control 快捷键（W7）', () => {
+  it('F4 开启 Mission Control，再按关闭（toggle）', () => {
+    render(<Harness />)
+
+    fireEvent.keyDown(window, { key: 'F4' })
+    expect(useMissionControlStore.getState().open).toBe(true)
+
+    fireEvent.keyDown(window, { key: 'F4' })
+    expect(useMissionControlStore.getState().open).toBe(false)
+  })
+
+  it('MC 开启时 Esc 归 MC 关闭（先于搜索 Esc 命中），不开搜索', () => {
+    render(<Harness />)
+    useMissionControlStore.getState().setOpen(true)
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(useMissionControlStore.getState().open).toBe(false)
+    expect(useSearchStore.getState().open).toBe(false)
+  })
+
+  it('MC 开启且搜索面板也在（防御）：Esc 先关 MC，搜索不动', () => {
+    render(<Harness />)
+    useMissionControlStore.getState().setOpen(true)
+    useSearchStore.getState().setOpen(true)
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(useMissionControlStore.getState().open).toBe(false)
+    expect(useSearchStore.getState().open).toBe(true)
+  })
+
+  it('MC 关闭时 Esc 不开 MC（既有「关搜索」语义零变化）', () => {
+    render(<Harness />)
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(useMissionControlStore.getState().open).toBe(false)
+  })
+
+  it('inline 重命名编辑中 Esc 让位：MC 不关（编辑态原样）', () => {
+    render(<Harness />)
+    useMissionControlStore.getState().setOpen(true)
+    useMissionControlStore.getState().setEditing(DEFAULT_SPACE_ID)
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(useMissionControlStore.getState().open).toBe(true)
+    expect(useMissionControlStore.getState().editingSpaceId).toBe(DEFAULT_SPACE_ID)
   })
 })
 

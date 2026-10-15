@@ -40,10 +40,12 @@ export const dictionaries = {
     'menubar.help.about': '关于 AgehaOS',
     'menubar.help.shortcuts': '键盘快捷键',
     'menubar.window.next': '切换到下一个窗口',
+    'menubar.window.missionControl': '任务视图',
     'shortcuts.title': '键盘快捷键',
     'shortcuts.search': '打开或关闭全局搜索',
     'shortcuts.cycleWindows': '在窗口之间切换',
     'shortcuts.switchSpace': '在上一个/下一个桌面（Space）之间切换',
+    'shortcuts.missionControl': '打开或关闭任务视图（Mission Control）',
     'shortcuts.dismiss': '关闭菜单、面板或搜索',
     'shortcuts.menuNav': '在菜单栏和菜单项之间移动',
     'shortcuts.maximize': '最大化或还原窗口',
@@ -290,6 +292,20 @@ export const dictionaries = {
     'window.switcher.minimized': '已最小化',
     'window.switcher.hint.release': '松开提交',
     'window.switcher.hint.cancel': '取消',
+
+    /* W7 Mission Control（审计 .tmp/spaces-audit.md §10）：全屏调度层——
+       Space 条（名称/N Apps 计数/新建/删除/inline rename）、迁移删除确认、
+       菜单与快捷键行。 */
+    'missionControl.title': '任务视图',
+    'missionControl.appsCount': '{count} 个应用',
+    'missionControl.newSpace': '新建桌面',
+    'missionControl.renameSpace': '重命名桌面',
+    'missionControl.deleteSpace': '删除桌面「{name}」',
+    'missionControl.deleteConfirm.title': '删除「{name}」？',
+    'missionControl.deleteConfirm.body':
+      '其中的 {count} 个窗口将迁移到「{target}」，随后该桌面被删除。',
+    'missionControl.deleteConfirm.confirm': '删除桌面',
+    'missionControl.deleteConfirm.cancel': '取消',
 
     'app.notes.title': '记事',
     'app.files.title': '文件',
@@ -711,10 +727,12 @@ export const dictionaries = {
     'menubar.help.about': 'About AgehaOS',
     'menubar.help.shortcuts': 'Keyboard shortcuts',
     'menubar.window.next': 'Switch to next window',
+    'menubar.window.missionControl': 'Mission Control',
     'shortcuts.title': 'Keyboard shortcuts',
     'shortcuts.search': 'Open or close global search',
     'shortcuts.cycleWindows': 'Switch between windows',
     'shortcuts.switchSpace': 'Move to the previous/next desktop (Space)',
+    'shortcuts.missionControl': 'Open or close Mission Control',
     'shortcuts.dismiss': 'Close menus, panels or search',
     'shortcuts.menuNav': 'Move through the menu bar and menu items',
     'shortcuts.maximize': 'Maximize or restore a window',
@@ -976,6 +994,18 @@ export const dictionaries = {
     'window.switcher.minimized': 'Minimized',
     'window.switcher.hint.release': 'Release to switch',
     'window.switcher.hint.cancel': 'Cancel',
+
+    /* W7 Mission Control（审计 .tmp/spaces-audit.md §10）：zh 词典同键镜像。 */
+    'missionControl.title': 'Mission Control',
+    'missionControl.appsCount': '{count} Apps',
+    'missionControl.newSpace': 'New Desktop',
+    'missionControl.renameSpace': 'Rename Desktop',
+    'missionControl.deleteSpace': 'Delete Desktop “{name}”',
+    'missionControl.deleteConfirm.title': 'Delete “{name}”?',
+    'missionControl.deleteConfirm.body':
+      'Its {count} window(s) will move to “{target}”, then the desktop is deleted.',
+    'missionControl.deleteConfirm.confirm': 'Delete Desktop',
+    'missionControl.deleteConfirm.cancel': 'Cancel',
 
     'app.notes.title': 'Notes',
     'app.files.title': 'Files',

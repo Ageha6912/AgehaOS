@@ -11,6 +11,12 @@ describe('ShortcutsDialog', () => {
     expect(screen.getByText('Ctrl+Alt+←/→')).toBeInTheDocument()
   })
 
+  it('lists the F4 Mission Control row (W7，审计 .tmp/spaces-audit.md §10)', () => {
+    render(<ShortcutsDialog onClose={() => undefined} />)
+    expect(screen.getByText('打开或关闭任务视图（Mission Control）')).toBeInTheDocument()
+    expect(screen.getByText('F4')).toBeInTheDocument()
+  })
+
   it('closes on Escape', () => {
     const onClose = vi.fn()
     render(<ShortcutsDialog onClose={onClose} />)

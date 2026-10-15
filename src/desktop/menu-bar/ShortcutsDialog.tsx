@@ -32,6 +32,8 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     { keys: shortcutLabel('K'), labelKey: 'shortcuts.search' },
     { keys: altShortcutLabel('W'), labelKey: 'shortcuts.cycleWindows' },
     { keys: ctrlAltShortcutLabel('←/→'), labelKey: 'shortcuts.switchSpace' },
+    // W7（审计 .tmp/spaces-audit.md §10）：F4 任务视图行。F4 无平台写法差异。
+    { keys: 'F4', labelKey: 'shortcuts.missionControl' },
     { keys: 'Esc', labelKey: 'shortcuts.dismiss' },
     { keys: '← → ↑ ↓', labelKey: 'shortcuts.menuNav' },
     { keys: t('shortcuts.doubleClickKey'), labelKey: 'shortcuts.maximize' },
