@@ -7,6 +7,7 @@ import { MenuBar } from '@/desktop/menu-bar/MenuBar'
 import { Sidebar } from '@/desktop/sidebar/Sidebar'
 import { Taskbar } from '@/desktop/taskbar/Taskbar'
 import { WindowLayer } from '@/desktop/window/WindowLayer'
+import { WindowSwitcher } from '@/desktop/window-switcher/WindowSwitcher'
 import { WallpaperLayer } from '@/desktop/wallpaper/WallpaperLayer'
 import { NotificationToasts } from '@/desktop/NotificationToasts'
 import { SearchPalette } from '@/desktop/search/SearchPalette'
@@ -154,6 +155,9 @@ export function Desktop() {
       <Taskbar />
       <NotificationToasts />
       <SearchPalette />
+      {/* Window Switcher 面板（W6，审计 .tmp/spaces-audit.md §9）：Alt+W 按住
+          呼出；z-50 档与搜索面板同层，popover 互斥保证不并存。 */}
+      <WindowSwitcher />
       <ContextMenu position={contextPos} onClose={() => setContextPos(null)} />
     </div>
   )

@@ -1,6 +1,12 @@
 import { useEffect } from 'react'
 
 import { mountShortcutRegistry, registerShortcut } from '@/desktop/shortcuts/registry'
+import {
+  commitFromLiveHandler,
+  cycleFromLiveHandler,
+  openFromLiveHandler,
+  windowSwitcher,
+} from '@/desktop/window-switcher/use-switcher'
 import { useSearchStore } from '@/store/search-store'
 import { useSpaceStore } from '@/store/space-store'
 import { useWindowStore } from '@/store/window-store'
@@ -8,18 +14,19 @@ import { useWindowStore } from '@/store/window-store'
 /**
  * 系统快捷键（PRD §26，v0.2 基础集）：
  * - Ctrl/⌘+K  呼出/隐藏全局搜索（PRD §15 统一入口）
- * - Esc       关闭搜索面板
- * - Alt+W     在可见窗口间轮转焦点（浏览器里 Alt+Tab 属操作系统，不可用）
+ * - Esc       关闭搜索面板（面板开启期先落 Window Switcher 的取消，见下）
+ * - Alt+W     轻点=可见窗口轮转焦点；按住=呼出 Window Switcher 循环选择，
+ *             松开提交（W6 三段交互，审计 .tmp/spaces-audit.md §9）
  * - Ctrl+Alt+←/→  切换 Space（W3，按 index 轮转；单 Space 时 no-op）
  *
  * W3 起统一进中央 shortcut registry（src/desktop/shortcuts/registry.ts）：
- * 本模块只把条目注册进单实例分发器，对外行为与 `cycleWindows` 导出零变化
- * （审计 .tmp/spaces-audit.md §6：既有用例全数保持绿）。
+ * 本模块只把条目注册进单实例分发器，对外行为与 `cycleWindows` 导出零变化。
  */
 
-// W6 挂点（审计 §6）：窗口切换器面板开启时 Alt+W 条目让位；当前恒 false，
-// 完整交互（按住循环 vs 呼出面板）由 W6 切片落地。
-const switcherOpen = false
+// W6（审计 §9）：switcherOpen 挂点接真值——实时读窗口切换器状态机的面板态。
+function switcherOpen(): boolean {
+  return windowSwitcher.getState().open
+}
 
 export function cycleWindows(): void {
   const { windows, focus } = useWindowStore.getState()
@@ -56,21 +63,34 @@ export function useGlobalShortcuts(): void {
           useSearchStore.getState().toggle()
         },
       }),
+      // W6（审计 §9）：switcher 的 Esc 条目——面板开启 → cancel 不切换；
+      // 注册序**必须在搜索 Esc 条目之前**（首个命中停止语义：面板开启期间
+      // Esc 归切换器，不落到「关搜索」）。
+      registerShortcut({
+        id: 'window.switcher.escape',
+        when: () => switcherOpen(),
+        test: (event) => event.key === 'Escape',
+        run: () => windowSwitcher.cancel(),
+      }),
       registerShortcut({
         id: 'search.close',
         // Esc 保持「关搜索」单职责（审计 §6：modal 冻结守卫 W7 再评估）。
         test: (event) => event.key === 'Escape',
         run: () => useSearchStore.getState().close(),
       }),
+      // W6：面板开启期间的 'w' 键（审计 §9「无论 altKey」）——keydown（含
+      // repeat 与面板开启中的再按）循环选中，keyup 提交。不设 altKey 门：兜住
+      // 「Alt 先于 W 松开」的 keyup 丢修饰竞态；范围由 when 收窄到面板开启
+      // 窗口期（≈一次 Alt+W 按住的寿命，keyup 丢失另有 blur 兜底提交）。
       registerShortcut({
-        id: 'window.cycle',
-        when: () => !switcherOpen,
-        test: (event) =>
-          event.altKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'w',
+        id: 'window.switcher',
+        when: () => switcherOpen(),
+        test: (event) => event.key.toLowerCase() === 'w',
         run: (event) => {
           event.preventDefault()
-          cycleWindows()
+          cycleFromLiveHandler()
         },
+        onKeyUp: commitFromLiveHandler,
       }),
       registerShortcut({
         id: 'space.prev',
@@ -89,6 +109,24 @@ export function useGlobalShortcuts(): void {
         run: (event) => {
           event.preventDefault()
           stepSpace(1)
+        },
+      }),
+      registerShortcut({
+        id: 'window.cycle',
+        // W6：switcherOpen 时让位（when 自守卫防重复入栈——面板开启期间本
+        // 条目不参与 keydown 分发，开面板路径不会二次触发）。
+        when: () => !switcherOpen(),
+        test: (event) =>
+          event.altKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'w',
+        run: (event) => {
+          event.preventDefault()
+          if (event.repeat) return
+          // 轻点路径（审计 §9「肌肉记忆兼容」）：与迁移前逐字节一致——
+          // 同一函数、同一调用点，keydown 即落焦点（既有用例零改动保持绿）。
+          cycleWindows()
+          // 多窗（active Space 含 minimized ≥2）开面板+预选刚聚焦窗；
+          // 0/1 窗由状态机内部 no-op（按住也不开面板）。
+          openFromLiveHandler()
         },
       }),
     ]

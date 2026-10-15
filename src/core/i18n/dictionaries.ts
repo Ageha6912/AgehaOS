@@ -284,6 +284,12 @@ export const dictionaries = {
     'window.minimize': '最小化窗口',
     'window.maximize': '最大化窗口',
     'window.restore': '还原窗口',
+    /* W6 Window Switcher（审计 .tmp/spaces-audit.md §9）：面板标题 / 最小化
+       条目徽标 / 底部键提示。空态无文案——<2 窗面板不渲染（状态机自动关）。 */
+    'window.switcher.title': '窗口切换',
+    'window.switcher.minimized': '已最小化',
+    'window.switcher.hint.release': '松开提交',
+    'window.switcher.hint.cancel': '取消',
 
     'app.notes.title': '记事',
     'app.files.title': '文件',
@@ -965,6 +971,11 @@ export const dictionaries = {
     'window.minimize': 'Minimize window',
     'window.maximize': 'Maximize window',
     'window.restore': 'Restore window',
+    /* W6 Window Switcher（审计 .tmp/spaces-audit.md §9）——与 zh 词典同键同步。 */
+    'window.switcher.title': 'Window Switcher',
+    'window.switcher.minimized': 'Minimized',
+    'window.switcher.hint.release': 'Release to switch',
+    'window.switcher.hint.cancel': 'Cancel',
 
     'app.notes.title': 'Notes',
     'app.files.title': 'Files',
