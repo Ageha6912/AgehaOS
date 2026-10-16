@@ -1,8 +1,8 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 
-import { AppIcon } from '@/apps/app-icon'
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
 import { usePopoverDismiss } from '@/components/use-popover-dismiss'
+import { WindowCardFace } from '@/desktop/window-card-face'
 import { useTranslation } from '@/core/i18n'
 import { useWindowStore } from '@/store/window-store'
 
@@ -21,9 +21,16 @@ import {
  * Esc / backdrop 点击 / window blur 取消。
  *
  * - 视觉：`.glass-popover`（既有钉扎档，src/index.css.test.ts）+ 软影
- *   `shadow-popover` + AppIcon（与 Taskbar/搜索同源）+ 标题；选中态
- *   `--ag-capsule-active` 族（Sidebar 同款「primary 配额=Active/Selected」）；
- *   z-50 档（与搜索面板同层，popover 互斥保证不并存）。
+ *   `shadow-popover`；**条目=与 Mission Control 窗口卡同款同尺寸的卡片脸**
+ *   （真机反馈第三轮用户裁决「向任务视图的窗口对齐」：共享 WindowCardFace
+ *   单一来源——224×152 拟态窗脸 AppIcon+标题+红黄绿控点+占位条，横向排布、
+ *   超宽自动换行 flex-wrap justify-center，面板盒自适应）；选中态=主色描边/
+ *   光晕（`--ag-capsule-active` 族既有 primary token：border-primary +
+ *   ring-primary + shadow-float，MC Space 拖拽落点 ring 同款配额），非选中
+ *   卡微降透明度（opacity-80，hover 提回）；❌ 关闭钮是 MC 专属，**不进**
+ *   切换器；minimized=窗脸降透明度（共享脸同款语义）+「已最小化」浮层徽章
+ *   （绝对定位不占布局，卡尺寸与 MC 卡严格一致）；z-50 档（与搜索面板同
+ *   层，popover 互斥保证不并存）。
  * - 互斥 + backdrop 取消（W11 改判、W12 目标 4 沿用）：`usePopoverDismiss`
  *   （dismissible:true + insideRefs=面板）claim `'window-switcher'`；
  *   「outside」=面板外 pointerdown（backdrop 点击——Alt 按住期间点不到
@@ -100,7 +107,13 @@ export function WindowSwitcher() {
             {t('window.switcher.title')}
           </span>
         </header>
-        <ul className="flex max-w-full items-stretch gap-1.5 overflow-hidden px-3 py-3">
+        {/* 条目=MC 任务视图同款卡片脸（真机反馈第三轮）：li 定宽 w-56(224px)
+            与 WindowCard 定位容器同档，按钮=卡片脸本体（p-3 + gap-2 + h-24
+            窗脸 → 224×152 与 MC 卡严格同尺寸）；flex-wrap + justify-center：
+            窗多超宽自动换行且行内居中，面板盒随内容自适应（max-w 兜底不溢
+            出视口）。选中=主色描边/光晕（--ag-capsule-active 族既有 primary
+            token），非选中微降透明度；❌ 关闭钮不进切换器（MC 专属）。 */}
+        <ul className="flex w-full flex-wrap items-stretch justify-center gap-3 overflow-hidden px-3 py-3">
           {windows.map((win) => {
             const selected = win.id === selectedId
             return (
@@ -110,31 +123,35 @@ export function WindowSwitcher() {
                 data-window-id={win.id}
                 data-selected={selected || undefined}
                 aria-current={selected ? 'true' : undefined}
+                className="relative w-56 shrink-0"
               >
                 {/* 点击条目=直接提交该窗（W12 §14 目标 5 保留手势）；choose
                     内部与 Enter/Alt keyup 共享同一提交流（关窗竞态顺延 +
                     minimized 组合）。 */}
                 <button
                   type="button"
+                  data-minimized={win.state === 'minimized' || undefined}
                   onClick={() => windowSwitcher.chooseFromLive(win.id)}
-                  className={`flex w-28 cursor-pointer flex-col items-center gap-1.5 rounded-lg px-2 py-2.5 ${
+                  className={`surface-glass flex w-full cursor-pointer flex-col items-center gap-2 rounded-xl border p-3 text-left transition-shadow select-none ${
                     selected
-                      ? '[background:var(--ag-capsule-active)] text-primary-contrast'
-                      : 'text-text-muted hover:bg-surface-raised'
+                      ? 'border-primary opacity-100 shadow-float ring-2 ring-primary'
+                      : 'border-border-subtle opacity-80 shadow-soft hover:opacity-100 hover:shadow-float'
                   }`}
                 >
-                  <AppIcon appId={win.appId} size={32} />
-                  <span className="w-full truncate text-center text-[11px] leading-tight">
-                    {win.title}
-                  </span>
-                  {win.state === 'minimized' && (
-                    <span
-                      className={`text-[10px] leading-none ${selected ? 'text-primary-contrast/80' : 'text-text-tertiary'}`}
-                    >
-                      {t('window.switcher.minimized')}
-                    </span>
-                  )}
+                  <WindowCardFace
+                    appId={win.appId}
+                    title={win.title}
+                    minimized={win.state === 'minimized'}
+                  />
                 </button>
+                {/* minimized 徽章（绝对定位浮层，不占布局——卡尺寸不因徽章
+                    偏离 MC 卡的 224×152）；pointer-events-none 让点击穿透到
+                    卡片按钮，交互语义与 MC 卡一致。 */}
+                {win.state === 'minimized' && (
+                  <span className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-border-subtle bg-surface-soft px-1.5 py-0.5 text-[10px] leading-none text-text-muted shadow-soft">
+                    {t('window.switcher.minimized')}
+                  </span>
+                )}
               </li>
             )
           })}

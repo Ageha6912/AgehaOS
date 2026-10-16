@@ -15,6 +15,9 @@ import { WindowSwitcher } from './WindowSwitcher'
  * 提交 · w 循环 · shift+w 反向 · esc 取消」、点击条目=提交该窗（保留手势）、
  * backdrop 点击与 window blur=取消不提交（W11 改判沿用）。popover 互斥
  * （claim/release/被顶替不提交）与关窗竞态顺延（live store 派生）护栏保留。
+ * **真机反馈第三轮（用户裁决「向任务视图的窗口对齐、大小一致」）**：条目从
+ * 「图标+标题 chip」改为与 Mission Control 窗口卡同款同尺寸的共享卡片脸
+ * （WindowCardFace，224×152），选中态=主色描边/光晕——交互语义零变化。
  */
 
 beforeEach(() => {
@@ -60,14 +63,39 @@ describe('WindowSwitcher 面板（W6 边缘态 + W12 Windows 语义）', () => {
     expect(selected?.getAttribute('aria-current')).toBe('true')
   })
 
-  it('选中态走 --ag-capsule-active 族（Sidebar 同款 primary Active/Selected 配额）', () => {
+  it('条目=与 Mission Control 同款卡片脸（共享 WindowCardFace 单一来源）：w-56 + 拟态窗脸 + 无 ❌', () => {
+    openTwoAndShowPanel()
+    const { getByTestId } = render(<WindowSwitcher />)
+
+    const item = getByTestId('window-switcher-layer').querySelector(
+      '[data-testid="window-switcher-item"]',
+    ) as HTMLElement
+    // 真机反馈第三轮「向任务视图对齐、大小一致」：li 定宽 w-56(224px)，与
+    // WindowCard 定位容器同档；卡面=共享拟态窗脸（AppIcon+标题+红黄绿控点
+    // +占位条，与 MC 卡同结构→同尺寸 224×152）。
+    expect(item.className).toContain('w-56')
+    expect(item.querySelectorAll('[aria-hidden="true"] span[class*="bg-wl-"]')).toHaveLength(3)
+    // ❌ 关闭钮是 MC 专属：切换器条目只有一个 button（卡片脸本体），无嵌套
+    // button、无 mission-control 关闭钮挂载点。
+    expect(item.querySelectorAll('button')).toHaveLength(1)
+    expect(item.querySelector('[data-testid="mission-control-card-close"]')).toBeNull()
+    // 同一硬性设计决定（禁 clone/禁截图）：零应用内容挂载点。
+    expect(item.querySelector('iframe, canvas, img, object, embed')).toBeNull()
+  })
+
+  it('选中态=主色描边/光晕（--ag-capsule-active 族既有 primary token：border/ring/float）', () => {
     openTwoAndShowPanel()
     const { getByTestId } = render(<WindowSwitcher />)
 
     const selected = getByTestId('window-switcher-layer').querySelector('[data-selected="true"]')
-    expect(selected?.querySelector('button')?.className).toContain(
-      '[background:var(--ag-capsule-active)]',
+    expect(selected?.querySelector('button')?.className).toContain('border-primary')
+    expect(selected?.querySelector('button')?.className).toContain('ring-primary')
+    expect(selected?.querySelector('button')?.className).toContain('shadow-float')
+    // 非选中卡微降透明度（与选中卡 opacity-100 形成主次）。
+    const unselected = getByTestId('window-switcher-layer').querySelector(
+      '[data-testid="window-switcher-item"]:not([data-selected])',
     )
+    expect(unselected?.querySelector('button')?.className).toContain('opacity-80')
   })
 
   it('minimized 条目带「已最小化」徽标', () => {

@@ -2,9 +2,10 @@ import { memo, type PointerEvent as ReactPointerEvent } from 'react'
 
 import { X } from '@phosphor-icons/react'
 
-import { AppIcon } from '@/apps/app-icon'
 import { useTranslation } from '@/core/i18n'
 import type { WindowState } from '@/core/window'
+
+import { WindowCardFace } from '@/desktop/window-card-face'
 
 /**
  * Mission Control 轻量窗口卡片（Window Management 2.0 W7，审计
@@ -50,35 +51,20 @@ export interface WindowCardProps {
   onClose: (win: CardWindow) => void
 }
 
-/** 卡面主体（AppIcon+标题+拟态窗脸）：WindowCard 与 WindowDragGhost 共用。 */
+/**
+ * 卡面主体（AppIcon+标题+拟态窗脸）：自真机反馈第三轮起提取为共享组件
+ * WindowCardFace（src/desktop/window-card-face.tsx）——WindowCard、
+ * WindowDragGhost 与 Alt+W 窗口切换器条目三方共同消费，卡面改一处即全体
+ * 对齐（「向任务视图对齐、大小一致」的单一来源）。此处仅按 CardWindow
+ * 快照转发 props，类名/结构原样（MC 视觉零变化）。
+ */
 function CardFace({ win }: { win: CardWindow }) {
   return (
-    <>
-      <span className="flex w-full items-center gap-2">
-        <AppIcon appId={win.appId} size={22} />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium text-text" title={win.title}>
-          {win.title}
-        </span>
-      </span>
-      {/* CSS 拟态窗脸（禁应用内容/禁 iframe clone/禁截图）：红黄绿窗控点 +
-          两根内容占位条，全部 aria-hidden 纯装饰。 */}
-      <span
-        aria-hidden="true"
-        className={`flex h-24 w-full flex-col overflow-hidden rounded-lg border border-border-subtle bg-surface-soft ${
-          win.state === 'minimized' ? 'opacity-50' : ''
-        }`}
-      >
-        <span className="flex items-center gap-1 border-b border-border-subtle px-1.5 py-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-wl-close" />
-          <span className="h-1.5 w-1.5 rounded-full bg-wl-min" />
-          <span className="h-1.5 w-1.5 rounded-full bg-wl-max" />
-        </span>
-        <span className="flex flex-1 flex-col gap-1 p-1.5">
-          <span className="h-1.5 w-3/4 rounded-full bg-border-strong" />
-          <span className="h-1.5 w-1/2 rounded-full bg-border-subtle" />
-        </span>
-      </span>
-    </>
+    <WindowCardFace
+      appId={win.appId}
+      title={win.title}
+      minimized={win.state === 'minimized'}
+    />
   )
 }
 
