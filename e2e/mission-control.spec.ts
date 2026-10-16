@@ -97,6 +97,26 @@ test('F4 打开任务视图：拖卡到另一 Space 胶囊，切过去窗口内�
       return Math.abs(card.x + card.width / 2 - (area.x + area.width / 2))
     })
     .toBeLessThan(2)
+  // 真机反馈第二轮（F4 视觉，用户裁决「卡片放大+网格块上移」）钉扎：
+  // ①卡宽 w-56=224px（旧 w-44=176px 放大一档；border-box，boundingBox
+  // 应恰为 224）；②上移偏置=容器 pb-28(112px) 使内层 m-auto 安全居中域
+  // 收缩——卡片块视觉中心比卡片区几何中心高约 56px（偏置的一半；不用
+  // translate，避免与滚动/命中语义打架）。容差 ±16px 吸收滚动条/取整毛刺。
+  await expect.poll(async () => (await mcCard.boundingBox())!.width).toBeCloseTo(224, 0)
+  await expect
+    .poll(async () => {
+      const card = (await mcCard.boundingBox())!
+      const area = (await cardsArea.boundingBox())!
+      return area.y + area.height / 2 - (card.y + card.height / 2)
+    })
+    .toBeGreaterThan(40)
+  await expect
+    .poll(async () => {
+      const card = (await mcCard.boundingBox())!
+      const area = (await cardsArea.boundingBox())!
+      return area.y + area.height / 2 - (card.y + card.height / 2)
+    })
+    .toBeLessThan(72)
 
   // 拖卡到 Desktop 2 胶囊落点：moveWindowToSpace（拖拽期间禁发 switchSpace）。
   // 删除钮同挂 data-space-id——限定胶囊本体 testid 消歧。

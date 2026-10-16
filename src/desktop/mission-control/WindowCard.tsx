@@ -93,7 +93,10 @@ function WindowCardImpl({
   return (
     // 定位容器：宽度档从卡面按钮上移到这里；pointer-events 保持继承卡片区
     // 的 none（见文件头命中语义说明），可点击性由内部两个 button 自持。
-    <div className="relative w-44 shrink-0">
+    // 真机反馈第二轮（F4 视觉）：w-44(176px)→w-56(224px) 放大一档——卡面
+    // 内部全是 w-full/比例宽（h-24 窗脸、w-3/4 占位条），无 w-44 硬编码
+    // 依赖，高度随拟态窗脸比例自适应；拖拽影（下）同步同宽保持同款。
+    <div className="relative w-56 shrink-0">
       <button
         type="button"
         data-testid="mission-control-card"
@@ -153,7 +156,7 @@ export const WindowDragGhost = memo(function WindowDragGhost({ win }: { win: Car
     <div
       data-testid="mission-control-drag-ghost"
       aria-hidden="true"
-      className="pointer-events-none flex w-44 shrink-0 flex-col items-center gap-2 rounded-xl border border-border-strong p-3 shadow-popover surface-glass"
+      className="pointer-events-none flex w-56 shrink-0 flex-col items-center gap-2 rounded-xl border border-border-strong p-3 shadow-popover surface-glass"
     >
       <CardFace win={win} />
     </div>

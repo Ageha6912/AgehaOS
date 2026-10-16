@@ -119,6 +119,11 @@ describe('MissionControl（W7 审计 §10）', () => {
     expect(cards.className).toContain('overflow-y-auto')
     expect(cards.className).toContain('overflow-x-hidden')
     expect(cards.className).toContain('scroll-thin')
+    // 真机反馈第二轮（用户裁决「网格块上移」）：外层滚动容器加 pb-28 下侧
+    // 留白偏置——内层 m-auto 的安全居中域（content-box 高）收缩 112px，
+    // 网格块视觉中心整体上移 56px（偏置的一半）。不用 translate（与滚动/
+    // 命中语义打架），jsdom 无布局故按仓库惯例钉 className（同上）。
+    expect(cards.className).toContain('pb-28')
     // backdrop 穿透语义零回归：容器自身保持 pointer-events-none（卡片内
     // 部 button 自持 auto，见 WindowCard）。
     expect(cards.className).toContain('pointer-events-none')

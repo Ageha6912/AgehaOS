@@ -499,10 +499,16 @@ export function MissionControl({
             拖拽中跟手视觉在根层拖拽影、原卡 pointer-events-none（W7 复核
             修复），本容器的滚动裁剪不参与拖拽视觉与命中测试；W7 语义零
             回归（elementFromPoint 命中/影层根/卡片 ❌/pointer-events 分层/
-            React.memo 全部原样）。 */}
+            React.memo 全部原样）。
+            真机反馈第二轮（用户裁决「卡片放大+网格块上移」）：容器加 pb-28
+            下侧留白偏置——上移偏置=用户裁决，m-auto 安全居中域收缩法：
+            pb-28(112px) 让内层 m-auto 的可用居中域（content-box 高）收缩
+            112px，网格块视觉中心随之整体上移 56px（偏置的一半）。不用
+            translate（位移会与滚动坐标/elementFromPoint 命中语义打架）；
+            超屏回落顶对齐滚动的路径不受影响，仅滚动末端多 112px 缓冲。 */}
         <div
           data-testid="mission-control-cards"
-          className="scroll-thin pointer-events-none flex min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto"
+          className="scroll-thin pointer-events-none flex min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto pb-28"
         >
           <div className="m-auto flex w-full flex-wrap justify-center gap-4">
             {spaceWindows.map((win) => (
