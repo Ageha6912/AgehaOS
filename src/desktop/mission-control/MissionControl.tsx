@@ -58,6 +58,17 @@ const DRAG_THRESHOLD_PX = 4
 /** 拖拽影跟手时的放大档（与窗口飞行同量级的克制浮起）。 */
 const DRAG_SCALE = 1.03
 
+/** 确认弹层开启态的模块级镜像（W7 复核 low 备忘）：use-global-shortcuts 的
+ * MC Esc 条目要在组件树外实时读「确认弹层未开启」让位，而 deleteCandidateId
+ * 是本组件 useState（迁移 store 不持本层局部态）——由下方 effect 依
+ * deleteCandidateId 同步镜像，卸载/关闭路径一律复位 false。 */
+let deleteConfirmOpen = false
+
+/** 确认弹层是否开启（registry MC Esc 条目的 when 消费；组件外可读）。 */
+export function isDeleteConfirmOpen(): boolean {
+  return deleteConfirmOpen
+}
+
 export type SpaceHitTest = (clientX: number, clientY: number) => string | null
 
 /** 默认落点命中测试：落点元素向上找 `[data-space-drop]`（Space 胶囊）；模块
@@ -165,6 +176,25 @@ export function MissionControl({
   useEffect(() => {
     if (!open) setDeleteCandidateId(null)
   }, [open])
+
+  // 迁移确认弹层的 Esc 取消 + 开启态模块级镜像（W7 复核 low 备忘）：弹层
+  // 开启期 registry 的 MC Esc 条目让位（when 读 isDeleteConfirmOpen，见上），
+  // Esc 由本层自理——仅取消弹层，MC 层不动；弹层不在场后再按 Esc 才落
+  // registry 关 MC。document 捕获段挂接（ShortcutsDialog/FileActionSheet
+  // 同款 dialog 模式，不依赖焦点落点）；镜像与监听依 deleteCandidateId
+  // 同增同删，cleanup 复位镜像（卸载/换候选两条路径都覆盖）。
+  useEffect(() => {
+    deleteConfirmOpen = deleteCandidateId !== null
+    if (deleteCandidateId === null) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setDeleteCandidateId(null)
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true)
+      deleteConfirmOpen = false
+    }
+  }, [deleteCandidateId])
 
   // 计数=该 Space 窗口数（审计 §10 决定 2：从 useWindowStore.windows 派生）。
   const countBySpace = useMemo(() => {
@@ -493,7 +523,8 @@ export function MissionControl({
       )}
 
       {/* 非空 Space 迁移删除确认（决策默认值 5 落点）：确认前零副作用——
-          窗口一个不动、Space 一个不删；确认后同步迁移+删除，无半删态。 */}
+          窗口一个不动、Space 一个不删；确认后同步迁移+删除，无半删态。
+          取消路=backdrop 点击（下）与 Esc（上方 effect 自理，仅取消弹层）。 */}
       {deleteCandidate && deleteTarget && (
         <div
           className="absolute inset-0 z-10 flex items-center justify-center bg-scrim/60"

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 
+import { isDeleteConfirmOpen } from '@/desktop/mission-control/MissionControl'
 import { mountShortcutRegistry, registerShortcut } from '@/desktop/shortcuts/registry'
 import {
   commitFromLiveHandler,
@@ -82,11 +83,17 @@ export function useGlobalShortcuts(): void {
         },
       }),
       // W7：MC 开启 → Esc 归 MC 关闭；注册序**必须在搜索 Esc 条目之前**
-      //（与 switcher Esc 同纪律，首个命中停止语义）；inline 重命名编辑中
-      // when 让位（input 自理 Esc=还原，registry 不抢、MC 不关）。
+      //（与 switcher Esc 同纪律，首个命中停止语义）。两处 when 让位：
+      // inline 重命名编辑中（input 自理 Esc=还原）与迁移确认弹层开启期
+      // （W7 复核 low 备忘：弹层自理 Esc=仅取消弹层，见
+      // MissionControl.isDeleteConfirmOpen）——否则 Esc 会越过弹层直关整个
+      // MC 层。
       registerShortcut({
         id: 'mission.control.escape',
-        when: () => missionControlOpen() && useMissionControlStore.getState().editingSpaceId === null,
+        when: () =>
+          missionControlOpen() &&
+          useMissionControlStore.getState().editingSpaceId === null &&
+          !isDeleteConfirmOpen(),
         test: (event) => event.key === 'Escape',
         run: () => useMissionControlStore.getState().close(),
       }),

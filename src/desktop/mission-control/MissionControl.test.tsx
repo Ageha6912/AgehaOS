@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_SPACE_ID } from '@/core/window'
+import { resetShortcutRegistry } from '@/desktop/shortcuts/registry'
+import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
 import {
   activateCardWindow,
   resetMissionControlStore,
@@ -25,6 +27,9 @@ beforeEach(() => {
   resetSpaceStore()
   resetPopoverStore()
   resetMissionControlStore()
+  // Esc 分层钉扎用例需要真 registry 分发与组件 document 捕获监听同场，
+  // 逐用例复位（条目与 window 监听都不跨用例泄漏）。
+  resetShortcutRegistry()
 })
 
 /** 开启 MC 层并渲染（jsdom 无 elementFromPoint，命中测试一律注入桩）。 */
@@ -33,6 +38,12 @@ function renderOpen(hitTest: (x: number, y: number) => string | null = () => nul
     useMissionControlStore.getState().setOpen(true)
   })
   return render(<MissionControl hitTest={hitTest} />)
+}
+
+/** 挂 shell 快捷键 registry 的空壳（Esc 分层钉扎用例与 MC 组件同场挂载）。 */
+function ShortcutsHarness(): null {
+  useGlobalShortcuts()
+  return null
 }
 
 describe('MissionControl（W7 审计 §10）', () => {
@@ -201,6 +212,39 @@ describe('MissionControl（W7 审计 §10）', () => {
     expect(useWindowStore.getState().windows).toHaveLength(1)
     expect(useWindowStore.getState().windows[0]?.spaceId).toBe(second)
     expect(screen.queryByTestId('mission-control-delete-confirm')).toBeNull()
+  })
+
+  it('确认弹层开启期 Esc 分层（W7 复核 low 备忘）：首击仅取消弹层（MC 层仍开），再击才关 MC', () => {
+    const second = useSpaceStore.getState().createSpace('工作')
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事', spaceId: second })
+    // registry 与组件同场：第一击 Esc 归弹层自理（document 捕获段），第二击
+    // 才落 registry 的 MC Esc 条目（when 守卫依 isDeleteConfirmOpen 让位）。
+    const { getByTestId } = render(
+      <>
+        <MissionControl />
+        <ShortcutsHarness />
+      </>,
+    )
+    act(() => {
+      useMissionControlStore.getState().setOpen(true)
+    })
+
+    fireEvent.click(
+      getByTestId('mission-control-spaces').querySelector(
+        `[data-testid="mission-control-space-delete"][data-space-id="${second}"]`,
+      )!,
+    )
+    expect(getByTestId('mission-control-delete-confirm')).toBeTruthy()
+
+    // 首击 Esc：弹层关、MC 层仍开、Space 零副作用（一个不删）。
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByTestId('mission-control-delete-confirm')).toBeNull()
+    expect(useMissionControlStore.getState().open).toBe(true)
+    expect(useSpaceStore.getState().spaces).toHaveLength(2)
+
+    // 再击 Esc：弹层已不在场，registry 恢复接管——MC 层关闭。
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(useMissionControlStore.getState().open).toBe(false)
   })
 
   it('非空 Space 确认删除：先迁全部窗口到相邻前一个 Space，最后一步才删（无半删态）', () => {

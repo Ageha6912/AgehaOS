@@ -44,6 +44,25 @@ function probeVisual(regionName: string) {
     }, regionName)
 }
 
+/**
+ * 等待窗口 region 自身的动画/过渡全部落定再测量（window-maximize 同款范式）。
+ * 2026-10-11 空间化升级（b319611/14161c3）遗留的确定性红：失焦窗阴影三档
+ * 切换走 sp-win-hover 的 480ms 回弹贝塞尔过渡（y2>1 过冲段插值越过目标值，
+ * boxShadow 被测出 ≈0.977 缩放小数像素，如 23.33/70.46 vs 钉扎 24/72）；
+ * 开窗飞行/聚焦小起立也是 section 自身的一次性 WAAPI。只查 region 自身的
+ * getAnimations()（含 CSS 过渡）：右栏环境慢浮动是常驻动画永远 running，
+ * 不能查全局动画。
+ */
+async function waitForRegionSettled(page: Page, regionName: string): Promise<void> {
+  await expect
+    .poll(() =>
+      page
+        .getByRole('region', { name: regionName })
+        .evaluate((el) => [...el.getAnimations()].every((a) => a.playState !== 'running')),
+    )
+    .toBe(true)
+}
+
 test('window chrome: radius/blur/header + active-inactive depth hierarchy without blue focus', async ({
   page,
 }) => {
@@ -57,6 +76,8 @@ test('window chrome: radius/blur/header + active-inactive depth hierarchy withou
   const notes = page.getByRole('region', { name: '记事' })
   await expect(notes).toBeVisible()
   await page.waitForTimeout(450) // 开窗飞行动画落定后再探针。
+  await waitForRegionSettled(page, '记事')
+  await waitForRegionSettled(page, '文件')
 
   const visualOf = (name: string) => probeVisual(name)
   const active = await visualOf('记事')(page)
@@ -93,6 +114,8 @@ test('window chrome: radius/blur/header + active-inactive depth hierarchy withou
   // 焦点迁移（Dock 瓷贴单实例激活语义）：点「文件」瓷贴 → 深度层级随迁。
   await page.getByTestId('dock-pin-com.ageha.files').click()
   await page.waitForTimeout(450)
+  await waitForRegionSettled(page, '记事')
+  await waitForRegionSettled(page, '文件')
   const switched = await visualOf('文件')(page)
   const dimmed = await visualOf('记事')(page)
   expect(switched!.background).toBe('rgba(255, 255, 255, 0.84)')
