@@ -81,6 +81,23 @@ test('F4 打开任务视图：拖卡到另一 Space 胶囊，切过去窗口内�
   await expect(bar).toContainText('Desktop 2')
   await expect(bar).toContainText('1 个应用')
 
+  // 真机反馈修复（F4 视觉）钉扎：卡片区改 Windows 任务视图同款居中网格——
+  // 旧单行起排在窄视口横向溢出（右缘裁切+横向滚动条）。此处钉：①卡片区
+  // 无横向溢出（scrollWidth==clientWidth → 横滚动条根除）；②卡片在卡片区
+  // 内水平居中（相对容器中轴，视口尺寸无关；poll 容忍 240ms 入场动画）。
+  const mcCard = page.getByTestId('mission-control-card')
+  const cardsArea = page.getByTestId('mission-control-cards')
+  await expect
+    .poll(async () => cardsArea.evaluate((el) => el.scrollWidth - el.clientWidth))
+    .toBeLessThanOrEqual(1)
+  await expect
+    .poll(async () => {
+      const card = (await mcCard.boundingBox())!
+      const area = (await cardsArea.boundingBox())!
+      return Math.abs(card.x + card.width / 2 - (area.x + area.width / 2))
+    })
+    .toBeLessThan(2)
+
   // 拖卡到 Desktop 2 胶囊落点：moveWindowToSpace（拖拽期间禁发 switchSpace）。
   // 删除钮同挂 data-space-id——限定胶囊本体 testid 消歧。
   const card = page.getByTestId('mission-control-card')

@@ -486,23 +486,36 @@ export function MissionControl({
 
         {/* 窗口卡片区=当前 Space 窗口；容器 pointer-events-none——卡片之间的
             空隙点击穿透到层根（backdrop 关闭语义），卡片自身恢复命中。
-            overflow-y-auto 仅服务卡片区自身滚动：拖拽中跟手视觉在根层拖拽影、
-            原卡 pointer-events-none（W7 复核修复），本容器的滚动裁剪不再参与
-            拖拽视觉与命中测试。 */}
+            真机反馈修复（Windows 任务视图同款居中网格）：旧单行起排在窄视口
+            会横向溢出（卡片从视口左缘起排、右缘裁切+横向滚动条），改两层——
+            外层=纵向滚动容器（flex-1+min-h-0 占满 Space 条下方余高；
+            overflow-y-auto + overflow-x-hidden + 仓库既有 scroll-thin 细滚动
+            条，Sidebar 同款组合），内层网格 flex-wrap 自动换行 +
+            justify-center 行内居中 + m-auto 双向安全居中：未超屏=卡片区在
+            MC 层内水平+垂直居中（与顶部 Space 条保持 gap-8 间距节奏）；窗口
+            极多纵向超屏时 auto margin 归零回落顶对齐滚动——不用
+            align-content:center（unsafe 居中在溢出滚动容器会把顶缘行裁出
+            可达域之外），换行后任何窗口数量都无横向溢出（横向滚动条根除）。
+            拖拽中跟手视觉在根层拖拽影、原卡 pointer-events-none（W7 复核
+            修复），本容器的滚动裁剪不参与拖拽视觉与命中测试；W7 语义零
+            回归（elementFromPoint 命中/影层根/卡片 ❌/pointer-events 分层/
+            React.memo 全部原样）。 */}
         <div
           data-testid="mission-control-cards"
-          className="pointer-events-none flex max-h-full flex-wrap content-start justify-center gap-4 overflow-y-auto"
+          className="scroll-thin pointer-events-none flex min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto"
         >
-          {spaceWindows.map((win) => (
-            <WindowCard
-              key={win.id}
-              win={win}
-              dragging={drag?.windowId === win.id}
-              onPointerDown={onCardPointerDown}
-              onActivate={onCardActivate}
-              onClose={onCardClose}
-            />
-          ))}
+          <div className="m-auto flex w-full flex-wrap justify-center gap-4">
+            {spaceWindows.map((win) => (
+              <WindowCard
+                key={win.id}
+                win={win}
+                dragging={drag?.windowId === win.id}
+                onPointerDown={onCardPointerDown}
+                onActivate={onCardActivate}
+                onClose={onCardClose}
+              />
+            ))}
+          </div>
         </div>
       </div>
 

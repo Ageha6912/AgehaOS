@@ -101,6 +101,36 @@ describe('MissionControl（W7 审计 §10）', () => {
     )
   })
 
+  it('卡片区布局（真机反馈修复钉扎）：换行网格双向居中 + 纵向细滚动条，无横滚语义', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const { getByTestId } = renderOpen()
+
+    // 用户裁决（真机截图：卡片从视口左缘起排、右缘裁切+横向滚动条）：
+    // 卡片区改「外层滚动容器 + 内层居中网格」两层——外层占满 Space 条下方
+    // 余高（flex-1+min-h-0）且只纵滚（overflow-y-auto + Sidebar 同款
+    // overflow-x-hidden + 仓库既有 scroll-thin 细滚动条）；内层网格
+    // flex-wrap 自动换行 + justify-center 行内居中 + m-auto 双向安全居中
+    // （未超屏=MC 层内水平+垂直居中；超屏回落顶对齐滚动，不出横滚）。
+    // jsdom 无布局，按仓库惯例钉 className（StoreApp/NotificationCenter
+    // scroll-thin 断言同款）。
+    const cards = getByTestId('mission-control-cards')
+    expect(cards.className).toContain('flex-1')
+    expect(cards.className).toContain('min-h-0')
+    expect(cards.className).toContain('overflow-y-auto')
+    expect(cards.className).toContain('overflow-x-hidden')
+    expect(cards.className).toContain('scroll-thin')
+    // backdrop 穿透语义零回归：容器自身保持 pointer-events-none（卡片内
+    // 部 button 自持 auto，见 WindowCard）。
+    expect(cards.className).toContain('pointer-events-none')
+
+    const grid = cards.firstElementChild as HTMLElement
+    expect(grid.className).toContain('flex-wrap')
+    expect(grid.className).toContain('justify-center')
+    expect(grid.className).toContain('m-auto')
+    // 卡片是网格直接子节点（换行网格的一等成员，窗口卡=一张一格）。
+    expect(grid.querySelector('[data-testid="mission-control-card"]')).not.toBeNull()
+  })
+
   it('点击胶囊=switchSpace（卡片区随之切换）', () => {
     const second = useSpaceStore.getState().createSpace('工作')
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
