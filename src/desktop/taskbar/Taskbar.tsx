@@ -7,10 +7,12 @@ import { componentFor } from '@/apps/builtin'
 import { requestFilesTrash } from '@/apps/app-deep-link'
 import { launchApp } from '@/apps/launch'
 import { useTranslation } from '@/core/i18n'
+import { activateCardWindow } from '@/store/mission-control-store'
 import { useSpaceStore } from '@/store/space-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { AppLauncher } from './AppLauncher'
+import { resolveActivation, resolveTileState } from './dock-space'
 import { dockWaveTransform } from './dock-wave'
 import { WindowPreview } from './WindowPreview'
 import { PINNED_APP_IDS } from './pinned-apps'
@@ -31,10 +33,10 @@ export function Taskbar() {
   const focus = useWindowStore((s) => s.focus)
   const minimize = useWindowStore((s) => s.minimize)
   const restore = useWindowStore((s) => s.restore)
-  // Space-aware（W2，审计 .tmp/spaces-audit.md §5 决定 4）：瓷贴计数/激活与
-  // 运行行只看当前 Space（跨 Space subtle 指示 W9 再做）。
+  // Space-aware（W2 订阅 + W9 两档指示，审计 .tmp/spaces-audit.md §12）：
+  // activeSpaceId 既有订阅已足够——瓷贴/运行行的档位判定渲染期派生
+  // （dock-space.ts 纯函数），本组件零新增订阅源（§12 决定 4）。
   const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
-  const spaceWindows = windows.filter((win) => win.spaceId === activeSpaceId)
 
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [anchorLeft, setAnchorLeft] = useState(0)
@@ -117,15 +119,35 @@ export function Taskbar() {
     return meta ? t(meta.titleKey) : appId
   }
 
-  /** 常驻瓷贴激活语义：无窗口启动；有窗口恢复/聚焦/再点最小化（仅当前 Space）。 */
+  /** 其他 Space 瓷贴/运行行点击（W9，审计 §12 决定 2，macOS Dock 惯例）：
+      先 switchSpace 再按窗口现场 restore/focus——组合语义与 MC 卡片/switcher
+      同源（activateCardWindow：仅 minimized 才 restore，最大化窗不被拍平），
+      窗不跨 Space 迁移（不把窗拉过来自建第三种归属语义）。
+      W9 复核 low：Space 归属一律读点击瞬间的 live 窗——渲染快照的 spaceId
+      在渲染与点击之间可能被 moveWindowToSpace 过期（会切到已无此窗的旧
+      Space）；live 窗已关闭则 no-op（防御式）。 */
+  const activateElsewhere = (windowId: string): void => {
+    const live = useWindowStore
+      .getState()
+      .windows.find((candidate) => candidate.id === windowId)
+    if (!live) return
+    activateCardWindow({ id: windowId, spaceId: live.spaceId, state: live.state })
+  }
+
+  /** 常驻瓷贴激活语义（W9 两档，审计 §12 决定 2）：无窗口启动；代表窗在
+      其他 Space=切 Space+restore/focus（macOS 惯例）；当前 Space 窗=恢复/
+      聚焦/再点最小化（既有 toggle 语义零变化）。 */
   const activatePinned = (appId: string): void => {
-    const appWindows = spaceWindows.filter((win) => win.appId === appId)
-    if (appWindows.length === 0) {
+    const plan = resolveActivation(resolveTileState(windows, appId, activeSpaceId))
+    if (plan.kind === 'launch') {
       launchApp(appId)
       return
     }
-    const target = appWindows[appWindows.length - 1]
-    toggleWindow(target.id, target.focused, target.state === 'minimized')
+    if (plan.kind === 'cross-space') {
+      activateElsewhere(plan.windowId)
+      return
+    }
+    toggleWindow(plan.windowId, plan.focused, plan.minimized)
   }
 
   const startHover = (id: string): void => {
@@ -211,15 +233,15 @@ export function Taskbar() {
               走悬停预览与浮起，激活态只剩指示点。 */}
           <div className="flex shrink-0 items-center gap-2 self-stretch">
             {PINNED_APP_IDS.map((appId) => {
-              const appWindows = spaceWindows.filter((win) => win.appId === appId)
-              const latest = appWindows[appWindows.length - 1]
-              const active = latest?.focused && latest.state !== 'minimized'
+              // Space 感知两档指示（W9，审计 §12 决定 1）：代表窗=当前 Space
+              // 最新窗优先（双窗跨 Space 时 active 判定不被他 Space 窗顶掉）。
+              const { latest, tier } = resolveTileState(windows, appId, activeSpaceId)
               return (
                 <div
                   key={appId}
                   className="relative"
                   onMouseEnter={
-                    latest
+                    latest && tier !== 'elsewhere'
                       ? (event) => {
                           setAnchorLeft(event.currentTarget.getBoundingClientRect().left)
                           startHover(latest.id)
@@ -238,25 +260,43 @@ export function Taskbar() {
                     <span aria-hidden="true" data-wave-icon className="flex">
                       <AppIcon appId={appId} size={48} />
                     </span>
-                    {active && (
-                      // Active 指示条（Shell 3.0 STEP 6）：底部 2px×16px 细条
-                      // （原 4px 点）——primary 配额 = Active/Selected 语义。
+                    {tier === 'active' && (
+                      // Active 指示条（Shell 3.0 STEP 6；W9 加档位标记）：
+                      // 底部 2px×16px 细条（原 4px 点）——primary 配额 =
+                      // Active/Selected 语义，语义零变化。
                       <span
                         aria-hidden="true"
+                        data-dock-indicator="active"
                         className="absolute bottom-0 left-1/2 h-0.5 w-4 -translate-x-1/2 rounded-full bg-primary"
                       />
                     )}
+                    {latest !== null && tier === 'elsewhere' && (
+                      // 其他 Space subtle 指示（W9，审计 §12 决定 1）：同位置
+                      // 圆点降不透明度档（bg-primary/40，无新 token 无新动效）；
+                      // 标注走下方 tooltip（他 Space 窗不出悬停预览）。
+                      <span
+                        aria-hidden="true"
+                        data-dock-indicator="elsewhere"
+                        className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary/40"
+                      />
+                    )}
                     {/* 名称气泡（2026-10-02 裁决：dock 气泡与左栏同款玻璃芯片，
-                        位于图标上方；原生 title 太简陋）。有运行中窗口的瓷贴
-                        让位给悬停预览（预览头部已含应用名，避免双层重叠）。 */}
-                    {appWindows.length === 0 && (
+                        位于图标上方）。无窗口=应用名；窗口全在其他 Space=
+                        「在其他空间」标注（W9）；有当前 Space 窗让位给悬停预览
+                        （预览头部已含应用名，避免双层重叠）。 */}
+                    {latest === null && (
                       <span aria-hidden="true" className="os-tooltip os-tooltip--dock">
                         {pinnedLabel(appId)}
                       </span>
                     )}
+                    {latest !== null && tier === 'elsewhere' && (
+                      <span aria-hidden="true" className="os-tooltip os-tooltip--dock">
+                        {t('dock.spaceElsewhere')}
+                      </span>
+                    )}
                   </button>
 
-                  {latest && hoveredId === latest.id && (
+                  {latest !== null && tier !== 'elsewhere' && hoveredId === latest.id && (
                     <WindowPreview
                       win={latest}
                       anchorLeft={anchorLeft}
@@ -276,55 +316,86 @@ export function Taskbar() {
             })}
           </div>
 
-          {/* 运行中窗口（非常驻瓷贴的应用）：预览/悬停浮起契约区。no-scrollbar：
-              悬停浮起的 scale 变换边界会撑出滚动区域，滚动条不得随悬停闪现
-              （修订 11），多窗口仍可滚轮横滚。 */}
-          {spaceWindows.some(
+          {/* 运行中窗口（非常驻瓷贴的应用，W9 起跨 Space 全量在列——系统级
+              行，其他 Space 行降透明度+标注，审计 §12 决定 3）：预览/悬停浮起
+              契约区。no-scrollbar：悬停浮起的 scale 变换边界会撑出滚动区域，
+              滚动条不得随悬停闪现（修订 11），多窗口仍可滚轮横滚。 */}
+          {windows.some(
             (win) => !PINNED_APP_IDS.includes(win.appId as (typeof PINNED_APP_IDS)[number]),
           ) && <div aria-hidden="true" className="mx-0.5 h-8 w-px shrink-0 bg-border" />}
           <div
             data-testid="dock-running-row"
             className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 self-stretch overflow-x-auto"
           >
-            {spaceWindows.map((win) => {
+            {windows.map((win) => {
               if (PINNED_APP_IDS.includes(win.appId as (typeof PINNED_APP_IDS)[number])) return null
-              const active = win.focused && win.state !== 'minimized'
+              // 两档（W9）：当前 Space 行为既有语义（active 条零变化）；
+              // 其他 Space 行降透明度+tooltip，点击=切 Space+restore/focus。
+              const inSpace = win.spaceId === activeSpaceId
+              const active = inSpace && win.focused && win.state !== 'minimized'
               return (
                 <div
                   key={win.id}
                   className="relative"
-                  onMouseEnter={(event) => {
-                    setAnchorLeft(event.currentTarget.getBoundingClientRect().left)
-                    startHover(win.id)
-                  }}
+                  onMouseEnter={
+                    inSpace
+                      ? (event) => {
+                          setAnchorLeft(event.currentTarget.getBoundingClientRect().left)
+                          startHover(win.id)
+                        }
+                      : undefined
+                  }
                   onMouseLeave={scheduleEndHover}
                 >
+                  {/* group 类（W9 复核 high）：.os-tooltip 基态 opacity:0 只被
+                      .group:hover/:focus-visible 点亮（index.css），按钮必须
+                      自带 group 才能点亮挂在其中的 tooltip——对齐瓷贴/回收站
+                      按钮范式。 */}
                   <button
                     type="button"
                     aria-label={win.title}
                     data-testid={`taskbar-item-${win.id}`}
-                    className={`dock-tile relative flex h-12 w-12 items-center justify-center rounded-xl text-sm ${
-                      active
-                        ? 'text-text'
-                        : win.state === 'minimized'
-                          ? 'text-text-muted/70 hover:text-text'
-                          : 'text-text-muted hover:text-text'
+                    className={`dock-tile group relative flex h-12 w-12 items-center justify-center rounded-xl text-sm ${
+                      !inSpace
+                        ? 'opacity-60'
+                        : active
+                          ? 'text-text'
+                          : win.state === 'minimized'
+                            ? 'text-text-muted/70 hover:text-text'
+                            : 'text-text-muted hover:text-text'
                     }`}
-                    onClick={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
+                    onClick={() => {
+                      if (!inSpace) {
+                        activateElsewhere(win.id)
+                        return
+                      }
+                      toggleWindow(win.id, win.focused, win.state === 'minimized')
+                    }}
                   >
                     <span aria-hidden="true" data-wave-icon className="flex">
                       <AppIcon appId={win.appId} size={48} />
                     </span>
                     {active && (
-                      // Active 指示条（Shell 3.0 STEP 6）：底部 2px×16px 细条。
+                      // Active 指示条（Shell 3.0 STEP 6；W9 加档位标记+Space 门）：
+                      // 只有当前 Space 窗口亮条（他 Space 窗的 focused 残留不亮）。
                       <span
                         aria-hidden="true"
+                        data-dock-indicator="active"
                         className="absolute bottom-0 left-1/2 h-0.5 w-4 -translate-x-1/2 rounded-full bg-primary"
                       />
                     )}
+                    {!inSpace && (
+                      // 其他 Space 标注（W9，审计 §12 决定 3）：同款玻璃芯片
+                      // tooltip。必须挂在带 group 的按钮**内**（W9 复核 high）：
+                      // 原先挂 wrapper 兄弟位，按钮无 group 祖先，点亮规则
+                      // `.group:hover .os-tooltip` 永不命中——tooltip 恒隐形。
+                      <span aria-hidden="true" className="os-tooltip os-tooltip--dock">
+                        {t('dock.spaceElsewhere')}
+                      </span>
+                    )}
                   </button>
 
-                  {hoveredId === win.id && (
+                  {inSpace && hoveredId === win.id && (
                     <WindowPreview
                       win={win}
                       anchorLeft={anchorLeft}

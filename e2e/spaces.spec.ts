@@ -105,6 +105,99 @@ test('switching spaces with Ctrl+Alt+arrows hides windows without unmounting the
 })
 
 /**
+ * W9（审计 .tmp/spaces-audit.md §12）：Dock Space 感知两档指示 + 跨 Space
+ * 点击往返。窗口经 W2 持久化播种（`agehaos.spaces.windows.v1`：files 走瓷贴
+ * 代表、动态面板走运行行，均落 space-work），桌面引导进 space-default——
+ * 钉扎瓷贴 elsewhere 圆点/运行行降档标注/点击=switchSpace+restore/focus 往返。
+ */
+test('dock shows two-tier space indicators; cross-space click switches and restores (W9)', async ({
+  page,
+}) => {
+  await seedTwoSpaces(page)
+  await page.addInitScript(
+    ({ key, value }) => {
+      window.localStorage.setItem(key, value)
+    },
+    {
+      key: 'agehaos.spaces.windows.v1',
+      value: JSON.stringify({
+        version: 1,
+        windows: [
+          {
+            id: 'seed-files',
+            appId: 'com.ageha.files',
+            title: '文件',
+            x: 120,
+            y: 90,
+            width: 720,
+            height: 480,
+            state: 'normal',
+            spaceId: 'space-work',
+            restoreBounds: null,
+            zIndex: 2,
+          },
+          {
+            id: 'seed-panel',
+            appId: 'com.ageha.dynamic.panel',
+            title: '动态面板',
+            x: 180,
+            y: 130,
+            width: 520,
+            height: 380,
+            state: 'normal',
+            spaceId: 'space-work',
+            restoreBounds: null,
+            zIndex: 3,
+          },
+        ],
+      }),
+    },
+  )
+  await page.goto('/')
+
+  const loginForm = page.getByRole('form', { name: '登录 AgehaOS' })
+  await expect(loginForm).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: '没有账户？创建一个' }).click()
+  await page.getByLabel('用户名').fill('spaces-w9-user')
+  await page.getByLabel('密码').fill('secret123')
+  await page.getByRole('button', { name: '注册' }).click()
+  await page.getByTestId('sidebar-desktop').waitFor({ timeout: 15_000 })
+  await page.waitForSelector('[data-testid="boot-screen"]', { state: 'detached', timeout: 15_000 })
+
+  // ① 瓷贴 elsewhere 档（files 窗在 space-work）：subtle 圆点 + 「在其他空间」
+  //    标注，无 primary 条（W9 决定 1）。
+  const filesPin = page.getByTestId('dock-pin-com.ageha.files')
+  await expect(filesPin.locator('[data-dock-indicator="elsewhere"]')).toBeVisible()
+  await expect(filesPin.locator('[data-dock-indicator="active"]')).toHaveCount(0)
+  await expect(filesPin).toContainText('在其他空间')
+
+  // ② 运行行 elsewhere 档（动态面板在 space-work）：在列、降透明度、带标注。
+  const panelItem = page.getByTestId('taskbar-item-seed-panel')
+  await expect(panelItem).toBeVisible()
+  await expect(panelItem).toHaveClass(/opacity-60/)
+  await expect(panelItem.locator('..')).toContainText('在其他空间')
+
+  // ③ 点击跨 Space 运行行=switchSpace+restore/focus（决定 2）：窗口可见、
+  //    activeSpaceId 落盘 space-work；行升档、瓷贴 elsewhere 圆点退场。
+  await panelItem.click()
+  const panel = page.getByRole('region', { name: '动态面板' })
+  await expect(panel).toBeVisible()
+  await expect.poll(() => persistedActiveSpaceId(page)).toBe('space-work')
+  await expect(panelItem).not.toHaveClass(/opacity-60/)
+  await expect(filesPin.locator('[data-dock-indicator="elsewhere"]')).toHaveCount(0)
+
+  // ④ 当前 Space 瓷贴点击=既有 toggle 语义零变化：聚焦未聚焦的 files 窗→条亮。
+  await filesPin.click()
+  await expect(filesPin.locator('[data-dock-indicator="active"]')).toBeVisible()
+
+  // ⑤ 快捷键切回 space-default（往返）：窗口隐藏、files 瓷贴回到 elsewhere 档。
+  await page.keyboard.press('Control+Alt+ArrowLeft')
+  await expect(panel).toBeHidden()
+  await expect.poll(() => persistedActiveSpaceId(page)).toBe('space-default')
+  await expect(filesPin.locator('[data-dock-indicator="elsewhere"]')).toBeVisible()
+})
+
+/**
  * W8（审计 .tmp/spaces-audit.md §11）：selector 四档映射 Primary Space——
  * personal 首点收养默认 Space（不新播）；study/dev/creative 首点各自播种并
  * 绑定；往返直切；**绑定持久化 round-trip**（刷新后映射保持，再点直切）；

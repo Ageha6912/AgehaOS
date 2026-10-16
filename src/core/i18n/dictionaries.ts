@@ -215,6 +215,9 @@ export const dictionaries = {
     'menubar.label': '菜单',
     'dock.trash': '回收站',
     'dock.trashHint': '打开文件管理器的回收站',
+    /* W9 Dock Space 感知（审计 .tmp/spaces-audit.md §12）：窗口在其他 Space
+       的瓷贴/运行行标注（tooltip，与瓷贴名称气泡同款玻璃芯片）。 */
+    'dock.spaceElsewhere': '在其他空间',
     'boot.skipHint': '点击任意处或按任意键跳过',
 
     'auth.loginTitle': '登录 AgehaOS',
@@ -917,6 +920,8 @@ export const dictionaries = {
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
     'dock.trashHint': 'Open the Files trash',
+    /* W9 Dock Space awareness（audit .tmp/spaces-audit.md §12）——zh 词典同键镜像。 */
+    'dock.spaceElsewhere': 'In another space',
     'boot.skipHint': 'Click anywhere or press any key to skip',
 
     'auth.loginTitle': 'Sign in to AgehaOS',

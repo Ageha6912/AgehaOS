@@ -5,6 +5,7 @@ import { X } from '@phosphor-icons/react'
 import { AppIcon } from '@/apps/app-icon'
 import { useTranslation } from '@/core/i18n'
 import type { WindowInstance } from '@/core/window/types'
+import { useSpaceStore } from '@/store/space-store'
 
 /** 预览宽度（w-64）与 Dock 图标边长（h-12/w-12）：横向居中锚定用。 */
 const PREVIEW_WIDTH = 256
@@ -41,6 +42,11 @@ export function WindowPreview({
   onMouseLeave?: () => void
 }) {
   const { t } = useTranslation()
+  // W9 主预览 Space 过滤（审计 .tmp/spaces-audit.md §12 决定 3）：预览只展示
+  // 当前 Space 窗口——他 Space 窗零渲染（组件级守卫；调用方 Taskbar 亦只对
+  // 当前 Space 窗挂悬停，双保险）。
+  const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
+  if (win.spaceId !== activeSpaceId) return null
   const minimized = win.state === 'minimized'
   const left = Math.max(
     8,

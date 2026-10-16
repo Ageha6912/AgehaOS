@@ -78,23 +78,167 @@ describe('Taskbar', () => {
     expect(item.querySelector('.bg-primary')).not.toBeNull()
   })
 
-  it('运行行与瓷贴激活只看当前 Space，其他 Space 窗口不可见（W2，审计 §5 决定 4）', () => {
+  it('Dock Space 感知两档：他 Space 窗运行行在列但降档+标注，瓷贴 subtle 圆点不亮 primary 条（W9，审计 §12 决定 1/3）', () => {
     const current = useWindowStore.getState().open({
       appId: 'com.ageha.dynamic.panel',
       title: '动态面板',
     })
+    const otherSpaceId = useSpaceStore.getState().createSpace()
+    // files 是常驻瓷贴 app（窗口由瓷贴代表，不进运行行）；运行行他 Space 项
+    // 须用非瓷贴 app（动态面板）各开一扇。
     const other = useWindowStore
       .getState()
-      .open({ appId: 'com.ageha.files', title: '文件', spaceId: 'space-other' })
-    expect(useSpaceStore.getState().activeSpaceId).not.toBe('space-other')
+      .open({ appId: 'com.ageha.dynamic.panel', title: '动态面板 2', spaceId: otherSpaceId })
+    useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件', spaceId: otherSpaceId })
+    expect(useSpaceStore.getState().activeSpaceId).not.toBe(otherSpaceId)
+    // open() 聚焦新窗（引擎语义）——把焦点还给当前 Space 窗，钉扎 active 条。
+    act(() => {
+      useWindowStore.getState().focus(current)
+    })
     render(<Taskbar />)
 
-    // 当前 Space 窗口在运行行；其他 Space 窗口不出现。
-    expect(screen.getByTestId(`taskbar-item-${current}`)).toBeInTheDocument()
-    expect(screen.queryByTestId(`taskbar-item-${other}`)).toBeNull()
+    // 当前 Space 窗口照旧：运行行 + active 条（既有语义零变化）。
+    const currentItem = screen.getByTestId(`taskbar-item-${current}`)
+    expect(currentItem.querySelector('[data-dock-indicator="active"]')).not.toBeNull()
+    expect(currentItem.className).not.toContain('opacity-60')
 
-    // files 瓷贴不被其他 Space 的 files 窗口点亮（active 指示条只在当前 Space）。
-    expect(screen.getByTestId('dock-pin-com.ageha.files').querySelector('.bg-primary')).toBeNull()
+    // 其他 Space 窗口仍在运行行（系统级行），但降透明度、无 active 条、带标注。
+    const otherItem = screen.getByTestId(`taskbar-item-${other}`)
+    expect(otherItem.className).toContain('opacity-60')
+    expect(otherItem.querySelector('[data-dock-indicator="active"]')).toBeNull()
+    // 标注 tooltip 挂在按钮内（W9 复核 high 修复后归位）。
+    expect(otherItem.querySelector('.os-tooltip--dock')?.textContent).toContain('在其他空间')
+
+    // files 瓷贴 elsewhere 档：subtle 圆点 + 标注气泡，绝不亮 primary 条。
+    const filesPin = screen.getByTestId('dock-pin-com.ageha.files')
+    expect(filesPin.querySelector('[data-dock-indicator="elsewhere"]')).not.toBeNull()
+    expect(filesPin.querySelector('.bg-primary')).toBeNull()
+    expect(filesPin.textContent).toContain('在其他空间')
+  })
+
+  it('其他 Space 运行行 tooltip 可点亮：按钮带 group 且 tooltip 是其后代（W9 复核 high 回归）', () => {
+    const otherSpaceId = useSpaceStore.getState().createSpace()
+    useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.dynamic.panel', title: '动态面板', spaceId: otherSpaceId })
+    render(<Taskbar />)
+
+    // 真实点亮由 CSS 决定：.os-tooltip 基态 opacity:0 只被
+    // `.group:hover/.group:focus-visible .os-tooltip` 命中 opacity:1
+    // （src/index.css；本文件不分层，规则压过 utilities）。jsdom 无法对
+    // 悬停伪类做 getComputedStyle 断言，故退而断言选择器的**结构前提**：
+    // 按钮（触发区）自带 group 类，且 tooltip 是按钮的 DOM 后代。修复前
+    // tooltip 挂按钮外的 wrapper 位且按钮无 group 类，点亮规则永不命中
+    // （tooltip 恒隐形）——旧 textContent 断言掩盖了这一点。
+    const item = screen.getByRole('button', { name: '动态面板' })
+    expect(item.classList.contains('group')).toBe(true)
+    const tooltip = item.querySelector('.os-tooltip--dock') as HTMLElement | null
+    expect(tooltip).not.toBeNull()
+    expect(item).toContainElement(tooltip)
+    expect(tooltip?.textContent).toContain('在其他空间')
+  })
+
+  it('点击其他 Space 瓷贴=switchSpace+restore+focus（macOS 惯例，不把窗拉过来；W9 审计 §12 决定 2）', () => {
+    const otherSpaceId = useSpaceStore.getState().createSpace()
+    const id = useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.files', title: '文件', spaceId: otherSpaceId })
+    useWindowStore.getState().minimize(id)
+    render(<Taskbar />)
+
+    fireEvent.click(screen.getByTestId('dock-pin-com.ageha.files'))
+
+    // 切到目标 Space + 还原 + 聚焦；窗口归属不变（未 moveWindowToSpace）。
+    expect(useSpaceStore.getState().activeSpaceId).toBe(otherSpaceId)
+    const win = useWindowStore.getState().windows.find((candidate) => candidate.id === id)
+    expect(win?.state).toBe('normal')
+    expect(win?.focused).toBe(true)
+    expect(win?.spaceId).toBe(otherSpaceId)
+  })
+
+  it('双窗跨 Space：瓷贴 active 判定以当前 Space 最新窗优先（W9，审计 §12 决定 1 钉扎）', () => {
+    // 创建序：当前 Space 窗先开，他 Space 窗后开（「全局最新」），再把当前
+    // Space 窗聚焦——瓷贴必须亮 active 条而非 elsewhere 圆点。
+    const current = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    const otherSpaceId = useSpaceStore.getState().createSpace()
+    useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.files', title: '文件 2', spaceId: otherSpaceId })
+    act(() => {
+      useWindowStore.getState().focus(current)
+    })
+    render(<Taskbar />)
+
+    const filesPin = screen.getByTestId('dock-pin-com.ageha.files')
+    expect(filesPin.querySelector('[data-dock-indicator="active"]')).not.toBeNull()
+    expect(filesPin.querySelector('[data-dock-indicator="elsewhere"]')).toBeNull()
+
+    // 点击走当前 Space toggle（聚焦→最小化），不切 Space。
+    fireEvent.click(filesPin)
+    expect(useSpaceStore.getState().activeSpaceId).not.toBe(otherSpaceId)
+    expect(
+      useWindowStore.getState().windows.find((candidate) => candidate.id === current)?.state,
+    ).toBe('minimized')
+  })
+
+  it('点击其他 Space 运行行=switchSpace+focus；当前 Space 行 toggle 零变化（W9）', () => {
+    const otherSpaceId = useSpaceStore.getState().createSpace()
+    const panelId = useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.dynamic.panel', title: '动态面板', spaceId: otherSpaceId })
+    render(<Taskbar />)
+
+    // 他 Space 行：点击切 Space 并聚焦（不改窗口归属）。
+    fireEvent.click(screen.getByTestId(`taskbar-item-${panelId}`))
+    expect(useSpaceStore.getState().activeSpaceId).toBe(otherSpaceId)
+    expect(
+      useWindowStore.getState().windows.find((candidate) => candidate.id === panelId)?.focused,
+    ).toBe(true)
+
+    // 再点（此刻属当前 Space 且聚焦）→ 既有 toggle 语义零变化：最小化。
+    fireEvent.click(screen.getByTestId(`taskbar-item-${panelId}`))
+    expect(
+      useWindowStore.getState().windows.find((candidate) => candidate.id === panelId)?.state,
+    ).toBe('minimized')
+  })
+
+  it('点击他 Space 运行行以 live 归属切 Space：渲染后窗口被迁移时不切过期快照（W9 复核 low 回归）', () => {
+    const staleSpaceId = useSpaceStore.getState().createSpace()
+    const movedSpaceId = useSpaceStore.getState().createSpace()
+    const panelId = useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.dynamic.panel', title: '动态面板', spaceId: staleSpaceId })
+    render(<Taskbar />)
+
+    // 渲染与点击之间：窗口被 moveWindowToSpace 迁走——运行行渲染快照的
+    // spaceId 已过期。修复前点击切到快照 Space（stale，那里已没有此窗）。
+    act(() => {
+      useWindowStore.getState().moveWindowToSpace(panelId, movedSpaceId)
+    })
+    fireEvent.click(screen.getByTestId(`taskbar-item-${panelId}`))
+
+    // 点击瞬间读 live 归属：切到窗口现在所在的 Space；归属语义不变
+    // （switchSpace+focus，不把窗拉回原 Space）。
+    expect(useSpaceStore.getState().activeSpaceId).toBe(movedSpaceId)
+    const win = useWindowStore.getState().windows.find((candidate) => candidate.id === panelId)
+    expect(win?.spaceId).toBe(movedSpaceId)
+    expect(win?.focused).toBe(true)
+  })
+
+  it('其他 Space 运行行悬停不出预览（主预览只展示当前 Space 窗，W9 审计 §12 决定 3）', () => {
+    const otherSpaceId = useSpaceStore.getState().createSpace()
+    useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.dynamic.panel', title: '动态面板', spaceId: otherSpaceId })
+    render(<Taskbar />)
+
+    const item = screen.getByRole('button', { name: '动态面板' })
+    fireEvent.mouseEnter(item.parentElement as HTMLElement)
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    // 他 Space 行不挂悬停计时：预览永不出现（tooltip 走 CSS，不需要计时器）。
+    expect(screen.queryByTestId('window-preview')).toBeNull()
   })
 
   it('shows a hover preview with title, close and minimized state', async () => {
