@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react'
+import { act, fireEvent, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { resetPopoverStore, usePopoverStore } from '@/store/popover-store'
@@ -9,9 +9,11 @@ import { resetWindowSwitcher, windowSwitcher } from './use-switcher'
 import { WindowSwitcher } from './WindowSwitcher'
 
 /**
- * Window Switcher 面板（W6，审计 .tmp/spaces-audit.md §9）钉扎：z 序渲染、
- * 选中高亮、popover 互斥（claim/release/被顶替不提交）、window blur 兜底提交、
- * 面板开启期间关窗竞态（live store 派生）。
+ * Window Switcher 面板钉扎。**W11 真机反馈改版（审计 .tmp/spaces-audit.md
+ * §13 A，用户裁决）**：面板常驻（keyup 不再提交收起）、点击条目=提交该窗、
+ * backdrop 点击（面板外 pointerdown）与 window blur=取消不提交、底部提示改
+ * 「Enter 提交 / Esc 取消 / 点击选择」。popover 互斥（claim/release/被顶替
+ * 不提交）与关窗竞态顺延（live store 派生）护栏保留。
  */
 
 beforeEach(() => {
@@ -31,14 +33,14 @@ function openTwoAndShowPanel(): { first: string; second: string } {
   return { first, second }
 }
 
-describe('WindowSwitcher 面板（W6 审计 §9）', () => {
+describe('WindowSwitcher 面板（W6 边缘态 + W11 常驻面板改版）', () => {
   it('面板关闭时零渲染', () => {
     const { container } = render(<WindowSwitcher />)
 
     expect(container.firstChild).toBeNull()
   })
 
-  it('渲染 z 降序条目 + 选中高亮 + 标题（i18n aria-label）', () => {
+  it('渲染 z 降序条目 + 选中=z 序下一位高亮 + 标题（i18n aria-label）', () => {
     const { first, second } = openTwoAndShowPanel()
     const { getByRole, getByTestId } = render(<WindowSwitcher />)
 
@@ -51,9 +53,9 @@ describe('WindowSwitcher 面板（W6 审计 §9）', () => {
     // z 降序：后开的 second（zIndex 2）在前
     expect(items[0]?.getAttribute('data-window-id')).toBe(second)
     expect(items[1]?.getAttribute('data-window-id')).toBe(first)
-    // 选中=预选的聚焦窗（second）
+    // W11：open 选中=z 序下一位（聚焦窗 second 的下一位=first）
     const selected = getByTestId('window-switcher-layer').querySelector('[data-selected="true"]')
-    expect(selected?.getAttribute('data-window-id')).toBe(second)
+    expect(selected?.getAttribute('data-window-id')).toBe(first)
     expect(selected?.getAttribute('aria-current')).toBe('true')
   })
 
@@ -62,7 +64,9 @@ describe('WindowSwitcher 面板（W6 审计 §9）', () => {
     const { getByTestId } = render(<WindowSwitcher />)
 
     const selected = getByTestId('window-switcher-layer').querySelector('[data-selected="true"]')
-    expect(selected?.className).toContain('[background:var(--ag-capsule-active)]')
+    expect(selected?.querySelector('button')?.className).toContain(
+      '[background:var(--ag-capsule-active)]',
+    )
   })
 
   it('minimized 条目带「已最小化」徽标', () => {
@@ -78,11 +82,40 @@ describe('WindowSwitcher 面板（W6 审计 §9）', () => {
     expect(getByText('记事')).toBeTruthy()
   })
 
-  it('面板容器 pointer-events-none（键盘驱动 MVP，指针穿透）', () => {
+  it('底部提示=「Enter 提交 / Esc 取消 / 点击选择」（W11 i18n 文案裁决）', () => {
+    openTwoAndShowPanel()
+    const { getByTestId } = render(<WindowSwitcher />)
+
+    const footer = getByTestId('window-switcher-footer')
+    expect(footer.textContent).toContain('提交')
+    expect(footer.textContent).toContain('取消')
+    expect(footer.textContent).toContain('点击选择')
+    // 旧「松开提交」提示随 W11 交互裁决移除
+    expect(footer.textContent).not.toContain('松开')
+  })
+
+  it('外层容器 pointer-events-none（指针穿透桌面），面板盒 pointer-events-auto（条目可点击）', () => {
     openTwoAndShowPanel()
     const { getByTestId } = render(<WindowSwitcher />)
 
     expect(getByTestId('window-switcher-layer').className).toContain('pointer-events-none')
+    expect(getByTestId('window-switcher').className).toContain('pointer-events-auto')
+  })
+
+  it('点击条目=提交该窗（choose；W11 决定 3）', () => {
+    const { first, second } = openTwoAndShowPanel()
+    const { getByTestId } = render(<WindowSwitcher />)
+    // open 选中=z-next（first）；点击 second 的条目 → second 聚焦、面板关
+    const itemButton = getByTestId('window-switcher-layer').querySelector(
+      `[data-testid="window-switcher-item"][data-window-id="${second}"] button`,
+    ) as HTMLButtonElement
+
+    fireEvent.click(itemButton)
+
+    const windows = useWindowStore.getState().windows
+    expect(windows.find((win) => win.id === second)?.focused).toBe(true)
+    expect(windows.find((win) => win.id === first)?.focused).toBe(false)
+    expect(windowSwitcher.getState().open).toBe(false)
   })
 
   it('互斥：开面板 claim window-switcher，cancel 后 release', () => {
@@ -104,12 +137,9 @@ describe('WindowSwitcher 面板（W6 审计 §9）', () => {
     const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
     useWindowStore.getState().minimize(second) // first 持焦点
     act(() => {
-      windowSwitcher.openFromLive()
+      windowSwitcher.openFromLive() // W11：选中=z-next=second（minimized，不即时聚焦）
     })
     const { unmount } = render(<WindowSwitcher />)
-    act(() => {
-      windowSwitcher.cycleFromLive() // 选中 second（minimized）
-    })
     expect(windowSwitcher.getState().selectedId).toBe(second)
 
     act(() => {
@@ -126,22 +156,58 @@ describe('WindowSwitcher 面板（W6 审计 §9）', () => {
     unmount()
   })
 
-  it('window blur 兜底提交（keyup 丢失不得悬挂）', () => {
-    const { first, second } = openTwoAndShowPanel()
-    const { unmount } = render(<WindowSwitcher />)
+  it('window blur=取消不提交（W11 改判：面板常驻无 keyup 可丢失，切走即取消）', () => {
+    const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    useWindowStore.getState().minimize(second) // first 持焦点
     act(() => {
-      windowSwitcher.cycleFromLive() // 选中 first
+      windowSwitcher.openFromLive() // 选中 second（minimized，未还原）
     })
+    const { unmount } = render(<WindowSwitcher />)
+    expect(windowSwitcher.getState().open).toBe(true)
 
     act(() => {
       window.dispatchEvent(new Event('blur'))
     })
 
-    // 提交选中 first：焦点落到 first（原焦点在 second）
+    // 取消而非提交：second 仍最小化（提交会 restore+focus）、焦点保持 first
+    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.state).toBe(
+      'minimized',
+    )
     expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
-    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(false)
     expect(windowSwitcher.getState().open).toBe(false)
     unmount()
+  })
+
+  it('backdrop 点击（面板外 pointerdown）=取消不提交（W11 决定 4）', () => {
+    const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    useWindowStore.getState().minimize(second)
+    act(() => {
+      windowSwitcher.openFromLive() // 选中 second（minimized）
+    })
+    const { getByTestId, unmount } = render(<WindowSwitcher />)
+
+    // 面板外按下（如桌面空白处）→ 取消；second 不被还原
+    fireEvent.pointerDown(getByTestId('window-switcher-layer'))
+    expect(windowSwitcher.getState().open).toBe(false)
+    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.state).toBe(
+      'minimized',
+    )
+    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
+    unmount()
+  })
+
+  it('面板内按下不算 backdrop（不取消）；点条目才提交', () => {
+    const { second } = openTwoAndShowPanel()
+    const { getByTestId } = render(<WindowSwitcher />)
+    const panel = getByTestId('window-switcher')
+
+    fireEvent.pointerDown(panel)
+    expect(windowSwitcher.getState().open).toBe(true) // 面板内 pointerdown 不取消
+
+    fireEvent.click(panel.querySelector(`[data-window-id="${second}"] button`)!)
+    expect(windowSwitcher.getState().open).toBe(false) // 显式点击条目才提交
   })
 
   it('面板开启期间关窗：选中失效顺延；关到 <2 窗自动收面板', () => {
@@ -152,9 +218,10 @@ describe('WindowSwitcher 面板（W6 审计 §9）', () => {
       windowSwitcher.openFromLive()
     })
     const { getByTestId, unmount } = render(<WindowSwitcher />)
-    expect(windowSwitcher.getState().selectedId).toBe(c) // 预选聚焦窗
+    // W11：open 选中=z-next（聚焦窗 c 的下一位=b）
+    expect(windowSwitcher.getState().selectedId).toBe(b)
 
-    // 选中窗被关：同位顺延（会话序列 [c, b, a] → [b, a]）
+    // 选中窗被关：同位顺延（会话序列 [c, b, a] → [b, a]，b 存活选中保持）
     act(() => {
       useWindowStore.getState().close(c)
     })
@@ -162,7 +229,7 @@ describe('WindowSwitcher 面板（W6 审计 §9）', () => {
     expect(windowSwitcher.getState().selectedId).toBe(b)
     expect(windowSwitcher.getState().open).toBe(true)
 
-    // 再关一扇：<2 窗 → 自动收面板
+    // 再关一扇（选中 b）：<2 窗 → 自动收面板（顺延不提交）
     act(() => {
       useWindowStore.getState().close(b)
     })
@@ -171,19 +238,34 @@ describe('WindowSwitcher 面板（W6 审计 §9）', () => {
     unmount()
   })
 
-  it('面板关闭后 blur 监听不残留（防悬挂双保险）', () => {
+  it('面板关闭后 blur 与 backdrop 监听不残留（防悬挂双保险）', () => {
     openTwoAndShowPanel()
     const { unmount } = render(<WindowSwitcher />)
 
     act(() => {
       windowSwitcher.cancel()
     })
-    // blur 处理器随面板关闭卸除：此后 blur 不再触发任何提交路径
+    // blur / 面板外按下处理器随面板关闭卸除：此后不再触发任何路径
     act(() => {
       window.dispatchEvent(new Event('blur'))
     })
+    fireEvent.pointerDown(document.body)
     expect(windowSwitcher.getState().open).toBe(false)
+    expect(usePopoverStore.getState().active).toBeNull()
 
+    unmount()
+  })
+
+  it('点击条目提交后 popover 槽位释放（choose 路径与 Esc 同源收尾）', () => {
+    openTwoAndShowPanel()
+    const { getByTestId, unmount } = render(<WindowSwitcher />)
+    expect(usePopoverStore.getState().active).toBe('window-switcher')
+
+    fireEvent.click(
+      getByTestId('window-switcher-layer').querySelector('[data-testid="window-switcher-item"] button')!,
+    )
+
+    expect(usePopoverStore.getState().active).toBeNull()
     unmount()
   })
 })

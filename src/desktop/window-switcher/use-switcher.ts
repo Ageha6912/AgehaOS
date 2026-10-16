@@ -4,25 +4,33 @@ import { useWindowStore } from '@/store/window-store'
 
 /**
  * Window Switcher 状态机（Window Management 2.0 W6，审计 .tmp/spaces-audit.md
- * §9）：纯逻辑零 DOM——输入=窗口快照列表（**active Space、z 降序、含
- * minimized**），事件=open / cycle / commit / cancel / windowsChanged，输出=
- * 面板可见性 + 选中 id + 聚焦指令（经注入的 `applyFocus` 落到 window-store；
- * 纯 factory 可注 spy 单测）。
+ * §9；**W11 真机反馈改版 §13 A——用户裁决，覆盖 W6 的「松开提交」三段交互**）：
+ * 纯逻辑零 DOM——输入=窗口快照列表（**active Space、z 降序、含 minimized**），
+ * 事件=open / cycle / choose / commit / cancel / windowsChanged，输出=面板可见
+ * 性 + 选中 id + 聚焦指令（经注入的 `applyFocus` 落到 window-store；纯 factory
+ * 可注 spy 单测）。
  *
- * 边缘态全钉扎（审计 §9）：
- * - 0 窗不开面板；1 窗轻点 no-op 且按住也不开面板（open 以 <2 窗拒绝）；
- * - **轻点（按下即松、未 cycle 过）=不开面板的等效语义**：commit 无指令——
- *   keydown 首按的轻点焦点移动由 use-global-shortcuts 的既有 `cycleWindows()`
- *   路径完成，commit 只关面板、不发多余 focus（与迁移前逐字节一致，连多余的
- *   window.focused 事件都不产生）；
+ * W11 交互定案（审计 §13 A）：Alt+W keydown（非 repeat）开**常驻面板**（选中=
+ * z 序下一位，多窗才开）；面板开启期间 W keydown（repeat/再按）循环下一位；
+ * **keyup 一律不提交**——松开 W 面板常驻；提交=点击条目（choose）或 Enter
+ * （commit）；取消=Esc / backdrop 点击 / window blur（不切换）。旧「轻点=按住
+ * 瞬态、松开提交」的等效语义与 `cycled` 标志随裁决移除：commit 现在只会由
+ * Enter/点击/blur 兜底之外的真实提交路径触达，永远是真提交。
+ *
+ * 边缘态钉扎（W6 保留 + W11 修订）：
+ * - 0 窗不开面板；1 窗轻点 no-op 且按住也不开面板（open 以 <2 窗拒绝）——
+ *   <2 窗轻点由 use-global-shortcuts 走既有 `cycleWindows()` 单步（0/1 窗
+ *   本身 no-op，零行为变化）；
  * - **面板开启期间窗口被关闭**：windowsChanged 由组件从 live store 派生，
  *   选中 id 失效自动顺延；提交流前再按 live 快照校验存在性（关窗竞态）；
- * - minimized 提交转 restore+focus（taskbar 同款，见 applyFocus 实现）。
+ * - minimized 提交转 restore+focus（taskbar 同款，见 applyFocus 实现）；
+ * - open/cycle 对可见窗即时聚焦（跟手），minimized 留给 commit 的
+ *   restore+focus 组合（Alt+Tab「浏览期间不高亮即还原」语义）。
  *
  * 会话序列稳定：windowsChanged 只删消失的、原位更新字段、新窗追加——**不按
- * live z 重排**。cycle 对可见窗即时 focus 会把该窗 zIndex 跳顶，若按 live z
- * 重排，下一次 cycle 的「下一位」会随焦点漂移乱序（Alt+Tab 的 Hold 期列表
- * 同样保持静态轮转序）。
+ * live z 重排**。cycle/open 对可见窗即时 focus 会把该窗 zIndex 跳顶，若按
+ * live z 重排，下一次 cycle 的「下一位」会随焦点漂移乱序（Alt+Tab 的 Hold 期
+ * 列表同样保持静态轮转序）。
  */
 
 /** 面板条目快照（use-switcher 只认这组字段，不持有 WindowInstance 全量）。 */
@@ -55,10 +63,12 @@ export interface SwitcherDeps {
 export interface WindowSwitcherMachine {
   subscribe(listener: () => void): () => void
   getState(): WindowSwitcherState
-  /** 多窗（含 minimized ≥2）开面板+预选；0/1 窗 no-op（不开面板）。 */
+  /** 多窗（含 minimized ≥2）开面板+预选 z 序下一位；0/1 窗 no-op（不开面板）。 */
   open(windows: SwitcherWindow[]): void
   /** 循环下一位（wrap）：可见窗即时聚焦，minimized 留给 commit。未开 no-op。 */
   cycle(): void
+  /** 点击选择：把选中切到被点条目后走同一提交流（`windows`=点击一刻 live 快照）。 */
+  choose(windowId: string, windows: SwitcherWindow[]): SwitcherCommitDirective | null
   /** 提交选中；`windows`=提交瞬间的 live 快照（关窗竞态的存在性校验源）。 */
   commit(windows: SwitcherWindow[]): SwitcherCommitDirective | null
   /** 取消：关面板、零聚焦指令（不切换）。 */
@@ -69,8 +79,6 @@ export interface WindowSwitcherMachine {
 
 export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine {
   let state: WindowSwitcherState = { open: false, selectedId: null, windows: [] }
-  /** 本次按住是否循环过——轻点（未循环）提交零指令（轻点路径逐字节兼容）。 */
-  let cycled = false
   const listeners = new Set<() => void>()
 
   function commitState(next: WindowSwitcherState): void {
@@ -81,7 +89,6 @@ export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine 
   /** 关面板：open 翻 false；windows/selectedId 保留（退场动画渲染最后一帧）。 */
   function close(): void {
     if (!state.open) return
-    cycled = false
     commitState({ ...state, open: false })
   }
 
@@ -90,6 +97,35 @@ export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine 
     const oldIndex = prev.findIndex((win) => win.id === state.selectedId)
     const fallback = next[Math.min(Math.max(oldIndex, 0), next.length - 1)] ?? next[0]
     return fallback.id
+  }
+
+  /**
+   * 提交流（W11：commit 的唯一实现——choose 复用）：关窗竞态的存在性校验以
+   * live 快照为准，选中失效按会话序列同位顺延；minimized 转 restore+focus
+   * 指令；已聚焦的可见窗不重复 focus（避免多余 window.focused/zIndex 跳动）。
+   */
+  function commitSelected(windows: SwitcherWindow[]): SwitcherCommitDirective | null {
+    if (!state.open) return null
+    if (windows.length === 0) {
+      close()
+      return null
+    }
+    const selectedId =
+      state.selectedId && windows.some((win) => win.id === state.selectedId)
+        ? state.selectedId
+        : carryForward(state.windows, windows)
+    const target = windows.find((win) => win.id === selectedId)
+    if (!target) {
+      close()
+      return null
+    }
+    const directive: SwitcherCommitDirective = {
+      windowId: target.id,
+      minimized: target.state === 'minimized',
+    }
+    if (directive.minimized || !target.focused) deps.applyFocus(directive)
+    close()
+    return directive
   }
 
   return {
@@ -103,14 +139,21 @@ export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine 
     getState: () => state,
 
     open(windows) {
-      // 0 窗不开面板；1 窗轻点 no-op 且按住也不开（审计 §9 边缘态钉扎）。
+      // 0 窗不开面板；1 窗轻点 no-op 且按住也不开（W6 边缘态钉扎，W11 沿用）。
       if (state.open || windows.length < 2) return
-      cycled = false
-      // 预选=当前聚焦窗（keydown 首按的轻点路径 cycleWindows() 已把焦点落到
-      // 「z 序下一位」，见 use-global-shortcuts；无聚焦（全最小化）回落 z 顶）。
-      const selected = windows.find((win) => win.focused) ?? windows[0]
+      // W11：选中=**z 序下一位**（相对当前聚焦窗，wrap；无聚焦回落 z 顶）——
+      // 替代 W6 的「预选当前聚焦窗」（旧实现靠 keydown 先跑 cycleWindows 落焦点，
+      // 新交互 keydown 只开面板，z-next 选择内聚到状态机）。
+      const focusedIndex = windows.findIndex((win) => win.focused)
+      const selected =
+        focusedIndex === -1 ? windows[0] : windows[(focusedIndex + 1) % windows.length]
       if (!selected) return
       commitState({ open: true, selectedId: selected.id, windows })
+      // 可见窗即时聚焦（跟手，与 cycle 同语义）；minimized 不抢还原——留给
+      // commit 的 restore+focus 组合。
+      if (selected.state !== 'minimized') {
+        deps.applyFocus({ windowId: selected.id, minimized: false })
+      }
     },
 
     cycle() {
@@ -118,45 +161,27 @@ export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine 
       const index = state.windows.findIndex((win) => win.id === state.selectedId)
       const next = state.windows[(index + 1) % state.windows.length]
       if (!next) return
-      cycled = true
       commitState({ ...state, selectedId: next.id })
       // 可见窗即时聚焦（跟手）；minimized 不抢还原——留给 commit 的
-      // restore+focus 组合（审计 §9「浏览期间不高亮即还原」的 Alt+Tab 语义）。
+      // restore+focus 组合（W6「浏览期间不高亮即还原」的 Alt+Tab 语义）。
       if (next.state !== 'minimized') {
         deps.applyFocus({ windowId: next.id, minimized: false })
       }
     },
 
-    commit(windows) {
+    choose(windowId, windows) {
       if (!state.open) return null
-      // 轻点（未循环过）：焦点已在位（cycleWindows 首按路径），关面板零指令
-      // ——多余 focus 都不发，与迁移前行为逐字节一致。
-      if (!cycled) {
-        close()
-        return null
+      // 点击选择：先把会话选中切到被点条目（live 无此窗则维持原选中，交给
+      // commitSelected 的关窗竞态顺延），再走同一提交流——点击与 Enter 共享
+      // 存在性校验与 minimized 组合语义。
+      if (windows.some((win) => win.id === windowId)) {
+        commitState({ ...state, selectedId: windowId })
       }
-      // 提交流前再校验存在性（关窗竞态，任务书 §23）：live 快照为准。
-      if (windows.length === 0) {
-        close()
-        return null
-      }
-      const selectedId =
-        state.selectedId && windows.some((win) => win.id === state.selectedId)
-          ? state.selectedId
-          : carryForward(state.windows, windows)
-      const target = windows.find((win) => win.id === selectedId)
-      if (!target) {
-        close()
-        return null
-      }
-      const directive: SwitcherCommitDirective = {
-        windowId: target.id,
-        minimized: target.state === 'minimized',
-      }
-      // 已聚焦的可见窗不重复 focus（避免多余 window.focused 事件/zIndex 跳动）。
-      if (directive.minimized || !target.focused) deps.applyFocus(directive)
-      close()
-      return directive
+      return commitSelected(windows)
+    },
+
+    commit(windows) {
+      return commitSelected(windows)
     },
 
     cancel() {
@@ -226,8 +251,8 @@ let machine = createDefaultMachine()
 /**
  * 模块单例门面（use-global-shortcuts 的快捷键与 WindowSwitcher 组件共用）：
  * resetWindowSwitcher 重建内部机器后门面引用稳定（挂载方零感知）。
- * openFromLive/commitFromLive 等在调用瞬间从 live store 派生快照——面板开启
- * 期间关窗/失焦兜底都拿到提交一刻的真实列表。
+ * openFromLive/chooseFromLive/commitFromLive 等在调用瞬间从 live store 派生
+ * 快照——面板开启期间关窗/取消兜底都拿到那一刻的真实列表。
  */
 export const windowSwitcher = {
   subscribe: (listener: () => void): (() => void) => machine.subscribe(listener),
@@ -237,6 +262,8 @@ export const windowSwitcher = {
     machine.windowsChanged(snapshotSwitcherWindows())
     machine.cycle()
   },
+  chooseFromLive: (windowId: string): SwitcherCommitDirective | null =>
+    machine.choose(windowId, snapshotSwitcherWindows()),
   commitFromLive: (): SwitcherCommitDirective | null =>
     machine.commit(snapshotSwitcherWindows()),
   windowsChangedFromLive: (): void => machine.windowsChanged(snapshotSwitcherWindows()),
@@ -254,6 +281,11 @@ export function resetWindowSwitcher(): void {
  */
 export function commitFromLiveHandler(): void {
   machine.commit(snapshotSwitcherWindows())
+}
+
+/** blur 兜底取消（W11：window blur 从「提交」改为「取消」，见审计 §13 A 决定 4）。 */
+export function cancelFromLiveHandler(): void {
+  machine.cancel()
 }
 
 export function windowsChangedFromLiveHandler(): void {

@@ -1,8 +1,12 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_SPACE_ID } from '@/core/window'
 import { resetShortcutRegistry } from '@/desktop/shortcuts/registry'
+import {
+  startSpaceFocusTracking,
+  stopSpaceFocusTracking,
+} from '@/desktop/window/space-focus'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
 import {
   activateCardWindow,
@@ -19,7 +23,9 @@ import { MissionControl } from './MissionControl'
  * Mission Control（W7，审计 .tmp/spaces-audit.md §10）钉扎：Space 条 CRUD 与
  * 计数、inline rename、空/非空删除两路（迁移流无半删态）、卡片区当前 Space
  * 口径、点击激活、拖拽落点 moveWindowToSpace（拖拽期间禁 switchSpace）、
- * popover 互斥与 backdrop 关闭。
+ * popover 互斥与 backdrop 关闭。W11（审计 §13 B）：卡片 ❌ 关闭钮 + 「点击
+ * 卡片最终焦点=被点窗口」两路钉扎（同 Space / 跨 Space，生产态 space-focus
+ * tracking 开启）。
  */
 
 beforeEach(() => {
@@ -30,6 +36,12 @@ beforeEach(() => {
   // Esc 分层钉扎用例需要真 registry 分发与组件 document 捕获监听同场，
   // 逐用例复位（条目与 window 监听都不跨用例泄漏）。
   resetShortcutRegistry()
+  // W11：space-focus 追踪逐用例复位（需要生产态的用例显式 start）。
+  stopSpaceFocusTracking()
+})
+
+afterEach(() => {
+  stopSpaceFocusTracking()
 })
 
 /** 开启 MC 层并渲染（jsdom 无 elementFromPoint，命中测试一律注入桩）。 */
@@ -311,9 +323,8 @@ describe('MissionControl（W7 审计 §10）', () => {
     const cross = useWindowStore
       .getState()
       .open({ appId: 'com.ageha.settings', title: '设置', spaceId: other })
-    act(() => {
-      useSpaceStore.getState().switchSpace(other) // 让 cross 不在当前 Space
-    })
+    // active 保持 DEFAULT：cross 在其他 Space——防御分支真正走到（W11 修正：
+    // 旧用例先 switchSpace(other) 再激活，分支条件恒 false 未被覆盖）。
 
     // 可见窗：仅 focus。
     activateCardWindow(useWindowStore.getState().windows.find((w) => w.id === visible)!)
@@ -326,10 +337,12 @@ describe('MissionControl（W7 审计 §10）', () => {
     expect(windows.find((win) => win.id === minimized)?.state).not.toBe('minimized')
     expect(windows.find((win) => win.id === minimized)?.focused).toBe(true)
 
-    // 跨 Space（防御分支）：先 switchSpace 到该窗所在 Space 再 focus。
+    // 跨 Space：先 switchSpace 到该窗所在 Space 再 focus（最终焦点=被点窗）。
     activateCardWindow(useWindowStore.getState().windows.find((w) => w.id === cross)!)
     expect(useSpaceStore.getState().activeSpaceId).toBe(other)
-    expect(useWindowStore.getState().windows.find((win) => win.id === cross)?.focused).toBe(true)
+    windows = useWindowStore.getState().windows
+    expect(windows.find((win) => win.id === cross)?.focused).toBe(true)
+    expect(windows.find((win) => win.id === visible)?.focused).toBe(false)
   })
 
   it('跨 Space 拖卡：目标胶囊高亮、drop 后 moveWindowToSpace、期间 activeSpaceId 不变', () => {
@@ -554,5 +567,114 @@ describe('MissionControl（W7 审计 §10）', () => {
 
     expect(useMissionControlStore.getState().editingSpaceId).toBeNull()
     expect(screen.queryByTestId('mission-control-layer')).toBeNull()
+  })
+})
+
+// W11（审计 .tmp/spaces-audit.md §13 B）：「点击卡片切到别的窗口」修复钉扎。
+// 根因调查结论（多层实证：jsdom 单测 ×tracking 开关 ×记忆窗在场、真实
+// Chromium E2E 探针）：W3 space-focus 的 switched 恢复（restoreSpaceFocus）
+// 在 activateCardWindow 的 switchSpace 内**同步先行**完成，卡片 focus 是同一
+// 任务内最后一次聚焦写——「最终焦点=被点窗口」由调用序保证，无微任务竞态；
+// 真正缺陷=激活函数信任**渲染期快照** `win.state`：快照 normal 而 live 已
+// minimized 时走 focus()，引擎对 minimized **静默拒绝**——点击既不还原也不
+// 聚焦（生产烟雾「点了没切过去/切到别的窗口」）。修复=分派读点击一刻的
+// live 状态 + 关窗竞态零动作守卫。以下用例按「失败测试先行」协议落地：
+// stale 快照用例在旧实现下失败（focus 被拒），其余为修复后两路钉扎。
+describe('W11 卡片激活聚焦与关闭钮（审计 §13 B）', () => {
+  it('同 Space 多窗：点卡片 X → X 聚焦（space-focus 生产态在场，微任务记忆写入不抢焦点）', async () => {
+    startSpaceFocusTracking()
+    const x = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const y = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    const { getByTestId } = renderOpen()
+    const card = getByTestId('mission-control-cards').querySelector(
+      `[data-window-id="${x}"]`,
+    ) as HTMLElement
+
+    fireEvent.click(card, { detail: 1 })
+    await act(async () => {}) // 排空 space-focus 的 setActiveWindow 微任务
+
+    const windows = useWindowStore.getState().windows
+    expect(windows.find((win) => win.id === x)?.focused).toBe(true)
+    expect(windows.find((win) => win.id === y)?.focused).toBe(false)
+  })
+
+  it('跨 Space 点击卡片 X → 切 Space 且 X 聚焦（目标 Space 记忆窗在场也不被抢焦点）', async () => {
+    startSpaceFocusTracking()
+    const other = useSpaceStore.getState().createSpace('工作')
+    const r = useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.files', title: '文件', spaceId: other })
+    const x = useWindowStore
+      .getState()
+      .open({ appId: 'com.ageha.notes', title: '记事', spaceId: other })
+    // B 的记忆窗=R（卡片激活要切过去的 Space 里「记住」的是别的窗——竞态假设
+    // 的覆盖现场）；active 保持 DEFAULT（卡片跨 Space 激活=防御分支真实路径）。
+    act(() => {
+      useSpaceStore.getState().setActiveWindow(other, r)
+    })
+
+    act(() => {
+      activateCardWindow(useWindowStore.getState().windows.find((w) => w.id === x)!)
+    })
+    await act(async () => {})
+
+    expect(useSpaceStore.getState().activeSpaceId).toBe(other)
+    const windows = useWindowStore.getState().windows
+    expect(windows.find((win) => win.id === x)?.focused).toBe(true)
+    expect(windows.find((win) => win.id === r)?.focused).toBe(false)
+  })
+
+  it('stale 快照防御：快照 normal 而 live 已 minimized → 点击仍 restore+focus（旧实现 focus 被引擎静默拒绝）', () => {
+    const x = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    // 渲染后、点击前窗被其他路径最小化（showDesktop/应用自最小化）：组件
+    // 重渲染前的旧卡片快照（state:'normal'）被传进激活函数。
+    useWindowStore.getState().minimize(x)
+
+    act(() => {
+      activateCardWindow({ id: x, spaceId: DEFAULT_SPACE_ID, state: 'normal' }) // stale 快照
+    })
+
+    const target = useWindowStore.getState().windows.find((win) => win.id === x)
+    expect(target?.state).not.toBe('minimized') // restore
+    expect(target?.focused).toBe(true) // + focus
+  })
+
+  it('关窗竞态：点击瞬间窗已关 → 零动作（不抛错、焦点不漂移）', () => {
+    const x = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const y = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    useWindowStore.getState().close(x)
+
+    act(() => {
+      activateCardWindow({ id: x, spaceId: DEFAULT_SPACE_ID, state: 'normal' }) // 已关窗的旧卡
+    })
+
+    const windows = useWindowStore.getState().windows
+    expect(windows.some((win) => win.id === x)).toBe(false)
+    expect(windows.find((win) => win.id === y)?.focused).toBe(true) // 原焦点不动
+  })
+
+  it('卡片 ❌ 关闭钮：点击=close 该窗（卡随退场消失）、不触发卡片激活、MC 层不关', () => {
+    const x = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const y = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    // 关 minimized 窗的卡最锐利：误触激活会 restore+focus（y 存活且聚焦），
+    // 正确的 close 则窗口消失（ghost 在 WindowLayer 退场）。
+    useWindowStore.getState().minimize(y)
+    const { getByTestId } = renderOpen()
+    const close = getByTestId('mission-control-cards').querySelector(
+      `[data-testid="mission-control-card-close"][data-window-id="${y}"]`,
+    ) as HTMLElement
+
+    // onPointerDown stopPropagation：指针序列不进卡片激活/拖拽簿记。
+    fireEvent.pointerDown(close, { button: 0, pointerId: 1 })
+    fireEvent.click(close)
+
+    const windows = useWindowStore.getState().windows
+    expect(windows.some((win) => win.id === y)).toBe(false) // close 而非激活
+    expect(windows.find((win) => win.id === x)?.focused).toBe(true) // close 的 focusTopmost 落 x
+    expect(
+      getByTestId('mission-control-cards').querySelector(`[data-window-id="${y}"]`),
+    ).toBeNull() // 卡随窗口列表更新消失
+    expect(useMissionControlStore.getState().open).toBe(true) // MC 层不关
   })
 })

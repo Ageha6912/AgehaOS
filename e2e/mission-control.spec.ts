@@ -53,6 +53,11 @@ async function registerAndOpenNotes(page: Page): Promise<void> {
   await expect(page.locator('section[aria-label="记事"]')).toBeVisible()
 }
 
+/** 聚焦探针：WindowFrame 聚焦档类（sp-win-focused）所在 section 的 aria-label。 */
+function focusedSection(page: Page) {
+  return page.locator('section.sp-win-focused')
+}
+
 test('F4 打开任务视图：拖卡到另一 Space 胶囊，切过去窗口内容存活，Esc 关闭', async ({
   page,
 }) => {
@@ -131,3 +136,58 @@ test('菜单入口打开任务视图：「+」新建桌面，Esc 关闭', async 
   await page.keyboard.press('Escape')
   await expect(page.getByTestId('mission-control-layer')).toHaveCount(0)
 })
+
+// W11（审计 .tmp/spaces-audit.md §13 B）生产烟雾反馈修复钉扎：
+// ①卡片 ❌ 关闭钮=close 该窗（卡随退场消失、窗口 DOM 随 ghost 退场）；
+// ②「点击卡片最终焦点=被点窗口」（真实浏览器 pointer 序列，含 setPointerCapture）。
+test('W11：卡片右上角 ❌ 关闭钮点击=关闭该窗，卡与窗口一并退场', async ({ page }) => {
+  await registerAndOpenNotes(page)
+  // 再开一扇「文件」（后开者持焦点）
+  await page.getByTestId('dock-pin-com.ageha.files').click()
+  await expect(page.locator('section[aria-label="文件"]')).toBeVisible()
+
+  await page.keyboard.press('F4')
+  const layer = page.getByTestId('mission-control-layer')
+  await expect(layer).toBeVisible()
+  await expect(layer.getByTestId('mission-control-card')).toHaveCount(2)
+
+  // 关「文件」卡（右上角 ❌）：窗口关闭、卡从卡片区消失、MC 层保持开启。
+  // ❌ 钮是卡片 button 的兄弟节点（button 禁嵌套），按 data-window-id 定位。
+  const fileCard = layer.getByTestId('mission-control-card').filter({ hasText: '文件' })
+  const fileCardId = await fileCard.getAttribute('data-window-id')
+  await layer
+    .locator(`[data-testid="mission-control-card-close"][data-window-id="${fileCardId}"]`)
+    .click()
+  await expect(layer.getByTestId('mission-control-card')).toHaveCount(1)
+  // 关窗 ghost 播完后窗口 section 离场（退场动画 ≤400ms 档 + 余量）
+  await expect(page.locator('section[aria-label="文件"]')).toHaveCount(0)
+  // 记事仍在且获得焦点（引擎 close 的 focusTopmost 补焦点）
+  await expect(page.locator('section[aria-label="记事"]')).toBeVisible()
+  await expect(focusedSection(page)).toHaveAttribute('aria-label', '记事')
+
+  // Esc 关闭 MC
+  await page.keyboard.press('Escape')
+  await expect(layer).toHaveCount(0)
+})
+
+test('W11：同 Space 多窗点击卡片 X → X 聚焦（点击卡片最终焦点=被点窗口）', async ({ page }) => {
+  await registerAndOpenNotes(page)
+  await page.getByTestId('dock-pin-com.ageha.files').click()
+  await expect(page.locator('section[aria-label="文件"]')).toBeVisible()
+  // 焦点先归「记事」（「文件」后开自带焦点）
+  await page.keyboard.press('Alt+w')
+  const switcher = page.getByTestId('window-switcher')
+  await expect(switcher).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(focusedSection(page)).toHaveAttribute('aria-label', '记事')
+
+  await page.keyboard.press('F4')
+  const layer = page.getByTestId('mission-control-layer')
+  const cards = layer.getByTestId('mission-control-card')
+  await expect(cards).toHaveCount(2)
+
+  // 点「文件」卡（非聚焦窗）：真实 pointer 序列 → 文件聚焦
+  await cards.filter({ hasText: '文件' }).click()
+  await expect(focusedSection(page)).toHaveAttribute('aria-label', '文件')
+})
+

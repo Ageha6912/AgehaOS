@@ -291,6 +291,13 @@ export function MissionControl({
     activateCardWindow(win)
   }, [])
 
+  /** ❌ 关闭钮（W11 审计 §13 B①）：useWindowStore close 该窗——卡随窗口列表
+   * 更新从卡片区消失，关窗 ghost 在 WindowLayer 原地播完退场（与标题栏关闭
+   * 钮同一条引擎路径）；MC 层不关（批量整理窗口的调度语义）。 */
+  const onCardClose = useCallback((win: CardWindow) => {
+    useWindowStore.getState().close(win.id)
+  }, [])
+
   const onCreateSpace = useCallback(() => {
     useSpaceStore.getState().createSpace()
   }, [])
@@ -493,6 +500,7 @@ export function MissionControl({
               dragging={drag?.windowId === win.id}
               onPointerDown={onCardPointerDown}
               onActivate={onCardActivate}
+              onClose={onCardClose}
             />
           ))}
         </div>

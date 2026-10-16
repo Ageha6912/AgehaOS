@@ -17,8 +17,11 @@ import { useWindowStore } from '@/store/window-store'
  * 系统快捷键（PRD §26，v0.2 基础集）：
  * - Ctrl/⌘+K  呼出/隐藏全局搜索（PRD §15 统一入口）
  * - Esc       关闭搜索面板（面板开启期先落 Window Switcher 的取消，见下）
- * - Alt+W     轻点=可见窗口轮转焦点；按住=呼出 Window Switcher 循环选择，
- *             松开提交（W6 三段交互，审计 .tmp/spaces-audit.md §9）
+ * - Alt+W     <2 窗轻点=可见窗口轮转焦点（既有 cycleWindows 单步）；多窗=
+ *             开**常驻** Window Switcher 面板，W 循环选择、Enter/点击提交、
+ *             Esc/backdrop/blur 取消（**W11 真机反馈改版，审计
+ *             .tmp/spaces-audit.md §13 A——用户裁决，覆盖 W6「松开提交」**：
+ *             轻点时面板闪现几毫秒即消失看不到，改版后松开 W 面板常驻）
  * - Ctrl+Alt+←/→  切换 Space（W3，按 index 轮转；单 Space 时 no-op）
  * - F4        开/关 Mission Control 任务视图（W7，审计 .tmp/spaces-audit.md §10）
  *
@@ -112,10 +115,11 @@ export function useGlobalShortcuts(): void {
         test: (event) => event.key === 'Escape',
         run: () => useSearchStore.getState().close(),
       }),
-      // W6：面板开启期间的 'w' 键（审计 §9「无论 altKey」）——keydown（含
-      // repeat 与面板开启中的再按）循环选中，keyup 提交。不设 altKey 门：兜住
-      // 「Alt 先于 W 松开」的 keyup 丢修饰竞态；范围由 when 收窄到面板开启
-      // 窗口期（≈一次 Alt+W 按住的寿命，keyup 丢失另有 blur 兜底提交）。
+      // W6→W11（审计 §13 A）：面板开启期间的 'w' 键（「无论 altKey」——兜住
+      // 「Alt 先于 W 松开」的 keyup 丢修饰竞态）循环下一位（repeat 与再按同
+      // 语义）。**W11 用户裁决：keyup 一律不提交**——onKeyUp 用法移除（松开
+      // W 面板常驻，提交改走 Enter/点击条目）；registry 的 onKeyUp 基础设施
+      // 保留不动（供后续条目使用）。
       registerShortcut({
         id: 'window.switcher',
         when: () => switcherOpen(),
@@ -124,7 +128,23 @@ export function useGlobalShortcuts(): void {
           event.preventDefault()
           cycleFromLiveHandler()
         },
-        onKeyUp: commitFromLiveHandler,
+      }),
+      // W11（审计 §13 A 决定 3）：面板开启时 Enter=提交当前选中。注册位在
+      // switcher 组内（无其他 Enter 条目争键）；焦点落在面板条目上时让位给
+      // 原生 button 激活（native click → choose 该条目，防「Tab 到别的条目
+      // 按 Enter 却提交了选中」的错位）。preventDefault 同时阻断焦点元素
+      // （如 chrome 按钮）的原生激活，防提交后再补一发点击。
+      registerShortcut({
+        id: 'window.switcher.enter',
+        when: () => switcherOpen(),
+        test: (event) => event.key === 'Enter',
+        run: (event) => {
+          if (event.target instanceof Element && event.target.closest('[data-window-switcher-panel]')) {
+            return
+          }
+          event.preventDefault()
+          commitFromLiveHandler()
+        },
       }),
       registerShortcut({
         id: 'space.prev',
@@ -148,19 +168,19 @@ export function useGlobalShortcuts(): void {
       registerShortcut({
         id: 'window.cycle',
         // W6：switcherOpen 时让位（when 自守卫防重复入栈——面板开启期间本
-        // 条目不参与 keydown 分发，开面板路径不会二次触发）。
+        // 条目不参与 keydown 分发，W 循环由「window.switcher」条目接管）。
         when: () => !switcherOpen(),
         test: (event) =>
           event.altKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'w',
         run: (event) => {
           event.preventDefault()
+          // 面板未开时的 repeat 不动作（1 窗按住不开面板，W6 既有钉扎沿用）。
           if (event.repeat) return
-          // 轻点路径（审计 §9「肌肉记忆兼容」）：与迁移前逐字节一致——
-          // 同一函数、同一调用点，keydown 即落焦点（既有用例零改动保持绿）。
-          cycleWindows()
-          // 多窗（active Space 含 minimized ≥2）开面板+预选刚聚焦窗；
-          // 0/1 窗由状态机内部 no-op（按住也不开面板）。
+          // W11（审计 §13 A 决定 1/5）：多窗开**常驻面板**（选中=z 序下一位、
+          // 可见窗即时聚焦，0/1 窗内部 no-op）；面板没开（=0/1 窗）走既有
+          // cycleWindows 单步——<2 窗轻点零行为变化（0/1 窗本身 no-op）。
           openFromLiveHandler()
+          if (!switcherOpen()) cycleWindows()
         },
       }),
     ]

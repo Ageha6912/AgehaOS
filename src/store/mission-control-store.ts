@@ -48,12 +48,23 @@ export interface ActivatableWindow {
  * use-switcher applyFocusToStore 同款）：switchSpace（如需——卡片区=当前
  * Space 口径下的防御分支）+ minimized 卡 restore+focus（restore 自 minimized
  * 回落时内部已 focus）/ 可见窗 focus。模块级导出供单测。
+ *
+ * W11（审计 §13 B②）：restore/focus 分派读**点击一刻的 live 状态**，不信渲染
+ * 期快照 `win.state`——卡片快照可能过期（渲染后、点击前窗被其他路径最小化，
+ * 如 sidebar showDesktop/应用自最小化），快照 normal 而 live 已 minimized 时
+ * 旧实现走 `focus()`，而引擎 focus() 永不解除最小化（window-manager 头注）会
+ * **静默拒绝**——点击「切不过去」且原焦点原样保留（生产烟雾反馈的根因）。
+ * 竞态依据：switchSpace 的 `space.switched`→space-focus 恢复（W3 记忆窗）在
+ * 上一行**同步先行**完成，此处的 restore/focus 是同一任务内最后一次聚焦写，
+ * 故「卡片点击的最终焦点=被点窗口」由调用序直接保证，无微任务竞态窗口。
  */
 export function activateCardWindow(win: ActivatableWindow): void {
   const spaceStore = useSpaceStore.getState()
   if (win.spaceId !== spaceStore.activeSpaceId) spaceStore.switchSpace(win.spaceId)
   const windowStore = useWindowStore.getState()
-  if (win.state === 'minimized') windowStore.restore(win.id)
+  const live = windowStore.windows.find((entry) => entry.id === win.id)
+  if (!live) return // 关窗竞态：卡片点了但窗已关——零动作（卡随重渲染消失）
+  if (live.state === 'minimized') windowStore.restore(win.id)
   else windowStore.focus(win.id)
 }
 
