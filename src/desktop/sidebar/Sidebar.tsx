@@ -26,6 +26,7 @@ import { timePhaseOf } from '@/core/dynamic/generative/seed'
 import { useTranslation, formatMessage } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { launcherWorkspaceScore, rankByScore } from '@/desktop/workspace/affinity'
+import { applySpaceBindingPlan, planWorkspaceSpaceBinding } from '@/desktop/workspace/space-binding'
 import type { WorkspacePanelController } from '@/desktop/workspace/use-workspace-panel'
 import { DEFAULT_WALLPAPER_SRC } from '@/desktop/wallpaper/WallpaperLayer'
 import { requestLauncherCategory } from '@/desktop/taskbar/launcher-intent'
@@ -267,9 +268,29 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
   const user = useSessionStore((s) => s.user)
   const workspace = useWorkspaceStore((s) => s.workspace)
   const setWorkspace = useWorkspaceStore((s) => s.setWorkspace)
+  // W8（审计 §11）：Space 映射所需的活跃真相 + 四档绑定表（随 store 响应式
+  // 更新——MC/快捷键切 Space 时副指示圆点跟随移动）。
+  const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
+  const workspaceBindings = useSpaceStore((s) => s.workspaceBindings)
   const installedApps = useAppStore((s) => s.apps)
   const recent = useUsageStore((s) => s.recent)
   const now = useNow()
+
+  // W8 selector 点击：先照旧激活 W 档（workspace-store 承担选中态，零改动），
+  // 再按映射纯逻辑执行 Space 步骤——绑定存活直切；personal 首点收养
+  // DEFAULT_SPACE_ID（不新播）；无绑定/死绑定走播种回落（createSpace→
+  // bind→switch，评审建议 7）。
+  const selectWorkspace = (id: WorkspaceId): void => {
+    setWorkspace(id)
+    const spaceState = useSpaceStore.getState()
+    const plan = planWorkspaceSpaceBinding({
+      workspace: id,
+      bindings: spaceState.workspaceBindings,
+      spaces: spaceState.spaces,
+      activeSpaceId: spaceState.activeSpaceId,
+    })
+    applySpaceBindingPlan(plan, id, spaceState)
+  }
 
   // 今日空间：真实日期（locale 感知）+ 问候引擎时段 + 当前用户称呼。
   const dateText = new Intl.DateTimeFormat(locale, {
@@ -346,11 +367,19 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
         {/* 工作空间 selector（本阶段只做 selector：不改窗口 workspace）；
             选择持久化 + 真实影响排序（affinity.ts）。选中态 = 同族明暗渐变
             胶囊（--ag-capsule-active，§34 参考图口径；primary 的 Active/
-            Selected 配额内）。 */}
+            Selected 配额内）。
+            W8（审计 §11）：点击 = W 档激活（既有 setWorkspace 调用不动，
+            workspace-store 零改动红线）+ Space 映射步骤（有绑定且存活直切，
+            否则按需收养/播种并绑定）；绑定 Space === 活跃 Space 的档位显示
+            Active 副指示小圆点（既有 capsule-active/border 族 token，无新
+            token，主选中样式语义不变）。 */}
         <PanelSection label={t('workspace.panel.workspaces')} testid="workspaces">
           <div role="group" aria-label={t('workspace.panel.workspaces')} className="flex flex-col gap-1">
             {WORKSPACE_META.map(({ id, labelKey, icon: Icon }) => {
               const checked = workspace === id
+              // 副指示只看 Space 真相（绑定 Space 是否活跃），与 W 档选中态
+              // （aria-pressed）正交：MC/快捷键切 Space 也会移动圆点。
+              const spaceActive = workspaceBindings[id] === activeSpaceId
               return (
                 <button
                   key={id}
@@ -363,7 +392,7 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
                         '[background:var(--ag-capsule-active)] font-medium text-primary-contrast'
                       : 'text-text-muted hover:bg-surface-raised hover:text-text'
                   }`}
-                  onClick={() => setWorkspace(id)}
+                  onClick={() => selectWorkspace(id)}
                 >
                   <span
                     className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${
@@ -373,6 +402,13 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
                     <Icon size={13} weight="fill" aria-hidden="true" />
                   </span>
                   <span className="min-w-0 truncate">{t(labelKey)}</span>
+                  {spaceActive && (
+                    <span
+                      aria-hidden="true"
+                      data-testid={`workspace-space-dot-${id}`}
+                      className="h-1.5 w-1.5 shrink-0 rounded-full border border-primary [background:var(--ag-capsule-active)]"
+                    />
+                  )}
                   <CaretRight size={11} aria-hidden="true" className="ml-auto shrink-0 opacity-70" />
                 </button>
               )

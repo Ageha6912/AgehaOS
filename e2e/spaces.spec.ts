@@ -39,6 +39,18 @@ function persistedActiveSpaceId(page: Page): Promise<string | null> {
   )
 }
 
+/** W8：读完整持久化载荷（含四档绑定表）。 */
+function persistedSpacesPayload(page: Page): Promise<{
+  activeSpaceId?: string
+  spaces?: unknown[]
+  workspaceBindings?: Record<string, string>
+} | null> {
+  return page.evaluate(
+    (key) => JSON.parse(window.localStorage.getItem(key) ?? 'null'),
+    SPACES_STORAGE_KEY,
+  )
+}
+
 test('switching spaces with Ctrl+Alt+arrows hides windows without unmounting them', async ({
   page,
 }) => {
@@ -90,4 +102,66 @@ test('switching spaces with Ctrl+Alt+arrows hides windows without unmounting the
   await expect(notes).toBeHidden()
   await page.keyboard.press('Control+Alt+ArrowLeft')
   await expect(notes).toBeVisible()
+})
+
+/**
+ * W8（审计 .tmp/spaces-audit.md §11）：selector 四档映射 Primary Space——
+ * personal 首点收养默认 Space（不新播）；study/dev/creative 首点各自播种并
+ * 绑定；往返直切；**绑定持久化 round-trip**（刷新后映射保持，再点直切）；
+ * 副指示圆点与活跃 Space 一致。全新引导（不预写持久化）验证播种全链路。
+ */
+test('workspace selector tiers seed, bind and switch spaces; mapping survives reload (W8)', async ({
+  page,
+}) => {
+  await page.goto('/')
+  const loginForm = page.getByRole('form', { name: '登录 AgehaOS' })
+  await expect(loginForm).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: '没有账户？创建一个' }).click()
+  await page.getByLabel('用户名').fill('spaces-w8-user')
+  await page.getByLabel('密码').fill('secret123')
+  await page.getByRole('button', { name: '注册' }).click()
+  await page.getByTestId('sidebar').waitFor({ timeout: 15_000 })
+  await page.waitForSelector('[data-testid="boot-screen"]', { state: 'detached', timeout: 15_000 })
+
+  // 展开面板（品牌钮 pin，交互与鼠标位置解耦）。
+  await page.getByTestId('sidebar-brand').click()
+
+  // ① personal 首点：收养默认 Space（不新播、活跃保持、圆点亮在 personal）。
+  await page.getByTestId('workspace-option-personal').click()
+  await expect(page.getByTestId('workspace-space-dot-personal')).toBeVisible()
+  await expect
+    .poll(async () => (await persistedSpacesPayload(page))?.workspaceBindings?.personal ?? null)
+    .toBe('space-default')
+  await expect.poll(() => persistedActiveSpaceId(page)).toBe('space-default')
+
+  // ② study/dev/creative 首点：各自播种一个 Space 并绑定、活跃跟随、圆点移动。
+  const boundIds: Record<string, string> = { personal: 'space-default' }
+  for (const tier of ['study', 'dev', 'creative'] as const) {
+    await page.getByTestId(`workspace-option-${tier}`).click()
+    await expect
+      .poll(async () => (await persistedSpacesPayload(page))?.workspaceBindings?.[tier] ?? null)
+      .not.toBeNull()
+    const bound = ((await persistedSpacesPayload(page))?.workspaceBindings ?? {})[tier]!
+    boundIds[tier] = bound
+    await expect.poll(() => persistedActiveSpaceId(page)).toBe(bound)
+    await expect(page.getByTestId(`workspace-space-dot-${tier}`)).toBeVisible()
+    await expect(page.getByTestId('workspace-space-dot-personal')).toHaveCount(0)
+  }
+  // 四档各一个 Space，共 4 个（无重复 "Desktop 1"）。
+  await expect.poll(async () => (await persistedSpacesPayload(page))?.spaces?.length).toBe(4)
+
+  // ③ 往返：点 personal 直切回默认 Space（绑定存活直切，不新播）。
+  await page.getByTestId('workspace-option-personal').click()
+  await expect.poll(() => persistedActiveSpaceId(page)).toBe('space-default')
+  await expect(page.getByTestId('workspace-space-dot-personal')).toBeVisible()
+  await expect(page.getByTestId('workspace-space-dot-study')).toHaveCount(0)
+
+  // ④ 绑定持久化 round-trip：刷新后映射保持，点 study 直切回绑定 Space。
+  await page.reload()
+  await page.getByTestId('sidebar').waitFor({ timeout: 15_000 })
+  await page.waitForSelector('[data-testid="boot-screen"]', { state: 'detached', timeout: 15_000 })
+  await page.getByTestId('sidebar-brand').click()
+  await page.getByTestId('workspace-option-study').click()
+  await expect.poll(() => persistedActiveSpaceId(page)).toBe(boundIds.study)
+  await expect(page.getByTestId('workspace-space-dot-study')).toBeVisible()
 })

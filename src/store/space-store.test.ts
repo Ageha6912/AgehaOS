@@ -186,6 +186,132 @@ describe('space-store × 窗口归属（W2，审计 .tmp/spaces-audit.md §5 决
   })
 })
 
+describe('useSpaceStore 四档绑定（W8，审计 .tmp/spaces-audit.md §11）', () => {
+  it('bindWorkspace 写入 + getBoundSpace 读出，绑定随载荷落盘（version 仍 1）', () => {
+    const work = useSpaceStore.getState().createSpace('工作')
+    useSpaceStore.getState().bindWorkspace('study', work)
+
+    expect(useSpaceStore.getState().getBoundSpace('study')).toBe(work)
+    expect(useSpaceStore.getState().workspaceBindings).toEqual({ study: work })
+    const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY)!)
+    expect(persisted.version).toBe(1)
+    expect(persisted.workspaceBindings).toEqual({ study: work })
+  })
+
+  it('getBoundSpace：无绑定 → null；绑定指向死 id → null', () => {
+    expect(useSpaceStore.getState().getBoundSpace('study')).toBeNull()
+
+    // 手工预写悬空绑定（Space 已不存在）→ 判活返回 null，不动 Space 列表。
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        spaces: [{ id: DEFAULT_SPACE_ID, name: 'Desktop 1', index: 0, createdAt: 1000, updatedAt: 1000 }],
+        activeSpaceId: DEFAULT_SPACE_ID,
+        workspaceBindings: { study: 'space-ghost' },
+      }),
+    )
+    reloadSpaceStore()
+    expect(useSpaceStore.getState().getBoundSpace('study')).toBeNull()
+    expect(useSpaceStore.getState().spaces).toHaveLength(1)
+  })
+
+  it('deleteSpace 清空指向被删 Space 的绑定，他档绑定不动（引擎不知情，store 层清理）', () => {
+    useSpaceStore.getState().bindWorkspace('personal', DEFAULT_SPACE_ID)
+    const a = useSpaceStore.getState().createSpace('A')
+    const b = useSpaceStore.getState().createSpace('B')
+    useSpaceStore.getState().bindWorkspace('study', a)
+    useSpaceStore.getState().bindWorkspace('dev', b)
+
+    useSpaceStore.getState().deleteSpace(a)
+
+    expect(useSpaceStore.getState().getBoundSpace('study')).toBeNull()
+    expect(useSpaceStore.getState().getBoundSpace('personal')).toBe(DEFAULT_SPACE_ID)
+    expect(useSpaceStore.getState().getBoundSpace('dev')).toBe(b)
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).workspaceBindings).toEqual({
+      personal: DEFAULT_SPACE_ID,
+      dev: b,
+    })
+  })
+
+  it('拒删（最后一个 Space）不动绑定：Space 与绑定同保持', () => {
+    useSpaceStore.getState().bindWorkspace('personal', DEFAULT_SPACE_ID)
+    useSpaceStore.getState().deleteSpace(DEFAULT_SPACE_ID)
+
+    expect(useSpaceStore.getState().spaces).toHaveLength(1)
+    expect(useSpaceStore.getState().getBoundSpace('personal')).toBe(DEFAULT_SPACE_ID)
+  })
+
+  it('reloadSpaceStore round-trip：绑定随刷新保持', () => {
+    useSpaceStore.getState().bindWorkspace('personal', DEFAULT_SPACE_ID)
+    const work = useSpaceStore.getState().createSpace('工作')
+    useSpaceStore.getState().bindWorkspace('study', work)
+
+    useSpaceStore.setState({ spaces: [], activeSpaceId: DEFAULT_SPACE_ID, workspaceBindings: {} })
+    reloadSpaceStore()
+
+    expect(useSpaceStore.getState().getBoundSpace('personal')).toBe(DEFAULT_SPACE_ID)
+    expect(useSpaceStore.getState().getBoundSpace('study')).toBe(work)
+  })
+
+  it('旧载荷缺 workspaceBindings 字段 → 空映射，Space 列表照常恢复（前向兼容）', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        spaces: [
+          { id: DEFAULT_SPACE_ID, name: 'Desktop 1', index: 0, createdAt: 1000, updatedAt: 1000 },
+          { id: 'space-x', name: '工作', index: 1, createdAt: 1000, updatedAt: 1000 },
+        ],
+        activeSpaceId: 'space-x',
+      }),
+    )
+    reloadSpaceStore()
+
+    expect(useSpaceStore.getState().spaces.map((s) => s.id)).toEqual([DEFAULT_SPACE_ID, 'space-x'])
+    expect(useSpaceStore.getState().workspaceBindings).toEqual({})
+    expect(useSpaceStore.getState().getBoundSpace('personal')).toBeNull()
+  })
+
+  it('字段损坏（非对象/值非字符串/键不是四档）→ 丢弃该字段，不清 Space 列表', () => {
+    const spaces = [
+      { id: DEFAULT_SPACE_ID, name: 'Desktop 1', index: 0, createdAt: 1000, updatedAt: 1000 },
+    ]
+    for (const corrupted of ['oops', 42, { study: 42 }, { hobby: 'space-x' }, [DEFAULT_SPACE_ID]]) {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ version: 1, spaces, activeSpaceId: DEFAULT_SPACE_ID, workspaceBindings: corrupted }),
+      )
+      reloadSpaceStore()
+
+      expect(useSpaceStore.getState().spaces.map((s) => s.id), `corrupt: ${JSON.stringify(corrupted)}`).toEqual([
+        DEFAULT_SPACE_ID,
+      ])
+      expect(useSpaceStore.getState().workspaceBindings).toEqual({})
+    }
+  })
+
+  it('冷启动从持久化恢复绑定（全新页面语义）', async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        spaces: [
+          { id: DEFAULT_SPACE_ID, name: 'Desktop 1', index: 0, createdAt: 1000, updatedAt: 1000 },
+          { id: 'space-x', name: 'Desktop 2', index: 1, createdAt: 1000, updatedAt: 1000 },
+        ],
+        activeSpaceId: DEFAULT_SPACE_ID,
+        workspaceBindings: { study: 'space-x' },
+      }),
+    )
+    vi.resetModules()
+    const fresh = await import('./space-store')
+
+    expect(fresh.useSpaceStore.getState().workspaceBindings).toEqual({ study: 'space-x' })
+    expect(fresh.useSpaceStore.getState().getBoundSpace('study')).toBe('space-x')
+  })
+})
+
 describe('space-store 模块加载期引导（全新页面语义）', () => {
   it('冷启动从 localStorage 恢复 Space 列表与 active 选择', async () => {
     localStorage.setItem(

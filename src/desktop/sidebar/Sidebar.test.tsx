@@ -2,6 +2,7 @@ import { fireEvent, render, screen, act } from '@testing-library/react'
 import { useRef } from 'react'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
+import { DEFAULT_SPACE_ID } from '@/core/window'
 import { resetAppStore } from '@/store/app-store'
 import { resetEclosionStore, seedEclosionForTests, useEclosionStore } from '@/store/eclosion-store'
 import { resetLauncherStore, useLauncherStore } from '@/store/launcher-store'
@@ -641,5 +642,102 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     const entry = screen.getByTestId('workspace-world-entry')
     expect(entry.textContent).toContain('等待换新')
     expect(entry.textContent).not.toContain('今日已更新')
+  })
+})
+
+/**
+ * W8 Workspace↔Space 四档映射（审计 .tmp/spaces-audit.md §11）：selector 点击
+ * = W 档激活（既有语义不动）+ Space 映射步骤；绑定 Space === 活跃 Space 的
+ * 档位显示 Active 副指示小圆点（与主选中态正交）。
+ */
+describe('workspace selector × Space 映射（W8）', () => {
+  function expandPanel(): void {
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+  }
+
+  it('点击 study 首次播种并绑定 Space，activeSpaceId 切到该 Space（无重复 Desktop 1）', () => {
+    render(<SidebarHarness />)
+    expandPanel()
+
+    fireEvent.click(screen.getByTestId('workspace-option-study'))
+
+    const { spaces, activeSpaceId, getBoundSpace } = useSpaceStore.getState()
+    expect(spaces.map((space) => space.name)).toEqual(['Desktop 1', 'Desktop 2'])
+    expect(activeSpaceId).toBe(getBoundSpace('study'))
+    expect(getBoundSpace('personal')).toBeNull()
+    // W 档激活语义照旧（workspace-store 零改动红线）。
+    expect(useWorkspaceStore.getState().workspace).toBe('study')
+  })
+
+  it('personal 首点收养 DEFAULT_SPACE_ID：不新播、活跃保持默认 Space', () => {
+    render(<SidebarHarness />)
+    expandPanel()
+
+    fireEvent.click(screen.getByTestId('workspace-option-personal'))
+
+    const { spaces, activeSpaceId, getBoundSpace } = useSpaceStore.getState()
+    expect(spaces).toHaveLength(1)
+    expect(activeSpaceId).toBe(DEFAULT_SPACE_ID)
+    expect(getBoundSpace('personal')).toBe(DEFAULT_SPACE_ID)
+  })
+
+  it('四档各自绑定后再点即直切回绑定 Space（映射 1:1，互不串档）', () => {
+    render(<SidebarHarness />)
+    expandPanel()
+
+    fireEvent.click(screen.getByTestId('workspace-option-personal'))
+    fireEvent.click(screen.getByTestId('workspace-option-study'))
+    fireEvent.click(screen.getByTestId('workspace-option-dev'))
+    fireEvent.click(screen.getByTestId('workspace-option-creative'))
+
+    const { spaces, getBoundSpace } = useSpaceStore.getState()
+    expect(spaces.map((space) => space.name)).toEqual(['Desktop 1', 'Desktop 2', 'Desktop 3', 'Desktop 4'])
+    expect(getBoundSpace('study')).not.toBeNull()
+    expect(getBoundSpace('dev')).not.toBeNull()
+    expect(getBoundSpace('creative')).not.toBeNull()
+
+    // 往返：点 personal 直切回默认 Space，绑定点名可溯。
+    fireEvent.click(screen.getByTestId('workspace-option-personal'))
+    expect(useSpaceStore.getState().activeSpaceId).toBe(getBoundSpace('personal'))
+    expect(useSpaceStore.getState().activeSpaceId).toBe(DEFAULT_SPACE_ID)
+  })
+
+  it('Active 副指示：绑定 Space 活跃的档位亮圆点，随 Space 切换移动（与 aria-pressed 正交）', () => {
+    render(<SidebarHarness />)
+    expandPanel()
+
+    // 无绑定：四档全无圆点。
+    expect(screen.queryByTestId('workspace-space-dot-personal')).toBeNull()
+
+    // personal 收养默认 Space（活跃）→ 圆点亮在 personal。
+    fireEvent.click(screen.getByTestId('workspace-option-personal'))
+    expect(screen.getByTestId('workspace-space-dot-personal')).not.toBeNull()
+
+    // study 播种并活跃 → 圆点移到 study；personal 绑定仍在但不再活跃。
+    fireEvent.click(screen.getByTestId('workspace-option-study'))
+    expect(screen.getByTestId('workspace-space-dot-study')).not.toBeNull()
+    expect(screen.queryByTestId('workspace-space-dot-personal')).toBeNull()
+    // 主选中样式语义不变：aria-pressed 仍由 W 档选中决定。
+    expect(screen.getByTestId('workspace-option-study').getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('workspace-option-personal').getAttribute('aria-pressed')).toBe('false')
+
+    // 快捷键/MC 路径切回默认 Space（不经 selector）→ 圆点跟随回 personal，
+    // W 档选中态不动——副指示只看 Space 真相。
+    act(() => {
+      useSpaceStore.getState().switchSpace(DEFAULT_SPACE_ID)
+    })
+    expect(screen.getByTestId('workspace-space-dot-personal')).not.toBeNull()
+    expect(screen.queryByTestId('workspace-space-dot-study')).toBeNull()
+    expect(screen.getByTestId('workspace-option-study').getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('副指示圆点用既有 token 族（capsule-active/border），无新 token（审计 §11）', () => {
+    render(<SidebarHarness />)
+    expandPanel()
+    fireEvent.click(screen.getByTestId('workspace-option-personal'))
+
+    const dot = screen.getByTestId('workspace-space-dot-personal')
+    expect(dot.className).toContain('[background:var(--ag-capsule-active)]')
+    expect(dot.className).toContain('border-primary')
   })
 })
