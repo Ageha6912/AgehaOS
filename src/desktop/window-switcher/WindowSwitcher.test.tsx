@@ -9,11 +9,12 @@ import { resetWindowSwitcher, windowSwitcher } from './use-switcher'
 import { WindowSwitcher } from './WindowSwitcher'
 
 /**
- * Window Switcher 面板钉扎。**W11 真机反馈改版（审计 .tmp/spaces-audit.md
- * §13 A，用户裁决）**：面板常驻（keyup 不再提交收起）、点击条目=提交该窗、
- * backdrop 点击（面板外 pointerdown）与 window blur=取消不提交、底部提示改
- * 「Enter 提交 / Esc 取消 / 点击选择」。popover 互斥（claim/release/被顶替
- * 不提交）与关窗竞态顺延（live store 派生）护栏保留。
+ * Window Switcher 面板钉扎。**W12 Windows Alt+Tab 同款语义（审计
+ * .tmp/spaces-audit.md §14，用户确认）**：按住 Alt+W 面板驻留（提交触发点=
+ * Alt keyup，在 use-global-shortcuts.test.tsx 钉扎）、底部提示改「alt 松开
+ * 提交 · w 循环 · shift+w 反向 · esc 取消」、点击条目=提交该窗（保留手势）、
+ * backdrop 点击与 window blur=取消不提交（W11 改判沿用）。popover 互斥
+ * （claim/release/被顶替不提交）与关窗竞态顺延（live store 派生）护栏保留。
  */
 
 beforeEach(() => {
@@ -33,7 +34,7 @@ function openTwoAndShowPanel(): { first: string; second: string } {
   return { first, second }
 }
 
-describe('WindowSwitcher 面板（W6 边缘态 + W11 常驻面板改版）', () => {
+describe('WindowSwitcher 面板（W6 边缘态 + W12 Windows 语义）', () => {
   it('面板关闭时零渲染', () => {
     const { container } = render(<WindowSwitcher />)
 
@@ -82,16 +83,18 @@ describe('WindowSwitcher 面板（W6 边缘态 + W11 常驻面板改版）', () 
     expect(getByText('记事')).toBeTruthy()
   })
 
-  it('底部提示=「Enter 提交 / Esc 取消 / 点击选择」（W11 i18n 文案裁决）', () => {
+  it('底部提示=「alt 松开提交 · w 循环 · shift+w 反向 · esc 取消」（W12 §14 目标 6）', () => {
     openTwoAndShowPanel()
     const { getByTestId } = render(<WindowSwitcher />)
 
     const footer = getByTestId('window-switcher-footer')
-    expect(footer.textContent).toContain('提交')
+    expect(footer.textContent).toContain('松开提交')
+    expect(footer.textContent).toContain('循环')
+    expect(footer.textContent).toContain('反向')
     expect(footer.textContent).toContain('取消')
-    expect(footer.textContent).toContain('点击选择')
-    // 旧「松开提交」提示随 W11 交互裁决移除
-    expect(footer.textContent).not.toContain('松开')
+    // W11 的「Enter 提交 / 点击选择」提示随 W12 主路径（松开 Alt）切换移除
+    // （两手势保留，不再占提示位）
+    expect(footer.textContent).not.toContain('点击选择')
   })
 
   it('外层容器 pointer-events-none（指针穿透桌面），面板盒 pointer-events-auto（条目可点击）', () => {
@@ -102,7 +105,7 @@ describe('WindowSwitcher 面板（W6 边缘态 + W11 常驻面板改版）', () 
     expect(getByTestId('window-switcher').className).toContain('pointer-events-auto')
   })
 
-  it('点击条目=提交该窗（choose；W11 决定 3）', () => {
+  it('点击条目=提交该窗（choose；W12 §14 目标 5 保留手势）', () => {
     const { first, second } = openTwoAndShowPanel()
     const { getByTestId } = render(<WindowSwitcher />)
     // open 选中=z-next（first）；点击 second 的条目 → second 聚焦、面板关
@@ -156,7 +159,7 @@ describe('WindowSwitcher 面板（W6 边缘态 + W11 常驻面板改版）', () 
     unmount()
   })
 
-  it('window blur=取消不提交（W11 改判：面板常驻无 keyup 可丢失，切走即取消）', () => {
+  it('window blur=取消不提交（W11 改判、W12 §14 目标 4 沿用：切走即取消）', () => {
     const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
     useWindowStore.getState().minimize(second) // first 持焦点
@@ -179,7 +182,7 @@ describe('WindowSwitcher 面板（W6 边缘态 + W11 常驻面板改版）', () 
     unmount()
   })
 
-  it('backdrop 点击（面板外 pointerdown）=取消不提交（W11 决定 4）', () => {
+  it('backdrop 点击（面板外 pointerdown）=取消不提交（W12 §14 目标 4，W11 改判沿用）', () => {
     const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
     useWindowStore.getState().minimize(second)

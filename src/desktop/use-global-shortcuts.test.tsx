@@ -52,25 +52,38 @@ describe('global shortcuts (PRD §15/§26)', () => {
     expect(useSearchStore.getState().open).toBe(false)
   })
 
-  it('cycles focus across visible windows with Alt+W', () => {
+  it('Alt+W 轻点=直接切到 z 序下一位（W12 §14 用户裁决改写：keydown 开面板、Alt keyup 提交，旧「每按一次轮转一次」语义随 Windows 化移除）', () => {
     const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
     render(<Harness />)
 
-    // 两个窗口都是 normal；当前焦点在最后打开的 second 上。
+    // 两个窗口都是 normal；当前焦点在最后打开的 second 上。轻点=开面板（面板
+    // 闪现属 Windows 同款设计）后立即松 Alt → 提交选中窗=z-next=first。
     fireEvent.keyDown(window, { key: 'w', altKey: true })
+    expect(windowSwitcher.getState().open).toBe(true)
+    fireEvent.keyUp(window, { key: 'Alt' })
+    expect(windowSwitcher.getState().open).toBe(false)
     expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
     expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(false)
 
+    // 再轻点：first 已持焦（z 序跳顶）→ z-next=second，直接切过去
     fireEvent.keyDown(window, { key: 'w', altKey: true })
+    fireEvent.keyUp(window, { key: 'Alt' })
+    expect(windowSwitcher.getState().open).toBe(false)
     expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(true)
   })
 
-  it('ignores Alt+W with fewer than two visible windows', () => {
+  it('ignores Alt+W with fewer than two visible windows（W12 增补：Alt keyup 零作用）', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     render(<Harness />)
 
     fireEvent.keyDown(window, { key: 'w', altKey: true })
+    expect(windowSwitcher.getState().open).toBe(false)
+    expect(useWindowStore.getState().windows[0]?.focused).toBe(true)
+
+    // 面板没开 → Alt keyup 不触发提交路径（when 自守卫）
+    fireEvent.keyUp(window, { key: 'Alt' })
+    expect(windowSwitcher.getState().open).toBe(false)
     expect(useWindowStore.getState().windows[0]?.focused).toBe(true)
   })
 })
@@ -202,31 +215,125 @@ describe('Mission Control 快捷键（W7）', () => {
   })
 })
 
-// W11 Window Switcher 常驻面板改版（审计 .tmp/spaces-audit.md §13 A，用户裁
-// 决，覆盖 W6「松开提交」三段交互）：Alt+W keydown 开常驻面板（选中=z 序下
-// 一位 + 可见窗即时聚焦）、面板开启期 W keydown（repeat/再按）循环、**keyup
-// 一律不提交**、提交=Enter（注册条目）或点击条目（WindowSwitcher.test 钉扎）、
-// 取消=Esc（本文件钉注册序）/backdrop/blur（组件测试钉扎）。W6 旧用例已按新
+// W12 Window Switcher Windows 语义（审计 .tmp/spaces-audit.md §14，用户确认，
+// 覆盖 W11「常驻面板、keyup 一律不提交」）：按住 Alt+W keydown 开面板（选中=
+// z 序下一位 + 可见窗即时聚焦、Alt 按住期间驻留）、面板开启期 W keydown
+// （repeat/连按）正向循环、Shift+W（event.key=大写 'W'，匹配归一到 lower）
+// 或 ← 反向、→ 正向、**松开 Alt=提交选中**（registry onKeyUp 基础设施 W6
+// 落地后首次回归使用；快速轻点=面板闪现后直接切到选中窗，Windows 同款设计）、
+// Esc/backdrop/blur 取消、Enter/点击条目保留为补充提交手势。W11 用例已按新
 // 语义改写（各用例注明裁决依据）。
-describe('Window Switcher 常驻面板（W11 改版）', () => {
-  it('多窗 keydown 开常驻面板：焦点即落 z 序下一位，keyup 后面板仍在（不提交）', () => {
+describe('Window Switcher Windows 语义（W12）', () => {
+  it('按住 Alt+W 开面板（选中=z-next、即时聚焦）；W keyup 不提交（驻留）；Alt keyup=提交选中', () => {
     const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
     render(<Harness />)
 
     fireEvent.keyDown(window, { key: 'w', altKey: true })
-    // open 即时聚焦 z-next（first），面板常驻
+    // open 即时聚焦 z-next（first），面板驻留
     expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
     expect(windowSwitcher.getState().open).toBe(true)
+    expect(windowSwitcher.getState().selectedId).toBe(first)
 
-    // W11 裁决：keyup 一律不提交——面板常驻、焦点不动
+    // W12 裁决：W keyup 零作用——面板驻留、焦点不动（提交触发点=Alt keyup）
     fireEvent.keyUp(window, { key: 'w', altKey: true })
     expect(windowSwitcher.getState().open).toBe(true)
+    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
+
+    // Alt keyup=提交选中：面板收起、焦点保持选中窗（已聚焦 → 不重复切换）
+    fireEvent.keyUp(window, { key: 'Alt' })
+    expect(windowSwitcher.getState().open).toBe(false)
+    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
+    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(false)
+
+    // 面板已关：再次 Alt keyup 零作用（when 自守卫，不重复提交）
+    fireEvent.keyUp(window, { key: 'Alt' })
+    expect(windowSwitcher.getState().open).toBe(false)
+    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
+  })
+
+  it('面板开启期 repeat keydown 正向循环；Alt keyup 提交 minimized → restore+focus（W12 提交触发点改 Alt keyup）', () => {
+    const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    useWindowStore.getState().minimize(second) // first 被 focusTopmost 聚焦
+    render(<Harness />)
+
+    fireEvent.keyDown(window, { key: 'w', altKey: true })
+    expect(windowSwitcher.getState().open).toBe(true) // 含 minimized 共 2 窗 → 开面板
+    // open 选中=z-next=second（minimized，不即时聚焦）
+    expect(windowSwitcher.getState().selectedId).toBe(second)
+
+    // repeat 正向循环回 first（可见 → 即时聚焦），再一步到 second
+    fireEvent.keyDown(window, { key: 'w', altKey: true, repeat: true })
+    expect(windowSwitcher.getState().selectedId).toBe(first)
+    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
+    fireEvent.keyDown(window, { key: 'w', altKey: true, repeat: true })
+    expect(windowSwitcher.getState().selectedId).toBe(second)
+
+    // W keyup 零作用——minimized 不被还原（旧「keyup 提交」语义 W11 已移除、
+    // W12 提交触发点移到 Alt keyup）
+    fireEvent.keyUp(window, { key: 'w' })
+    expect(windowSwitcher.getState().open).toBe(true)
+    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.state).toBe(
+      'minimized',
+    )
+
+    // Alt keyup 提交 minimized 选中 → restore+focus
+    fireEvent.keyUp(window, { key: 'Alt' })
+
+    const target = useWindowStore.getState().windows.find((win) => win.id === second)
+    expect(target?.state).not.toBe('minimized') // restore
+    expect(target?.focused).toBe(true) // + focus
+    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(false)
+    expect(windowSwitcher.getState().open).toBe(false)
+  })
+
+  it('Shift+W 反向循环（event.key=大写 W，匹配归一 + shiftKey 分流；W12 §14 目标 2）', () => {
+    const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    render(<Harness />)
+
+    fireEvent.keyDown(window, { key: 'w', altKey: true })
+    expect(windowSwitcher.getState().selectedId).toBe(first) // z-next
+
+    // Shift 按下时 key 是大写 'W'——必须归一后才命中 W 条目；shiftKey → 反向
+    fireEvent.keyDown(window, { key: 'W', altKey: true, shiftKey: true })
+    expect(windowSwitcher.getState().selectedId).toBe(second) // 反向回聚焦窗
+    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(true)
+
+    // 反向选中的窗照常经 Alt keyup 提交
+    fireEvent.keyUp(window, { key: 'Alt' })
+    expect(windowSwitcher.getState().open).toBe(false)
+    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(true)
+    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(false)
+  })
+
+  it('面板开启期 →=正向、←=反向（方向键浏览）；Ctrl+Alt+方向键不被抢键（Space 切换条目仍可达）', () => {
+    const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    render(<Harness />)
+
+    fireEvent.keyDown(window, { key: 'w', altKey: true })
+    expect(windowSwitcher.getState().selectedId).toBe(first)
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    expect(windowSwitcher.getState().selectedId).toBe(second)
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    expect(windowSwitcher.getState().selectedId).toBe(first)
+
+    // Ctrl+Alt+←（Space 切换）不在 switcher 方向键条目命中范围（test 自斥
+    // ctrlKey）——选中不动、面板不收（space.prev 条目在本机单 Space 下 no-op）
+    fireEvent.keyDown(window, { key: 'ArrowLeft', ctrlKey: true, altKey: true })
+    expect(windowSwitcher.getState().open).toBe(true)
+    expect(windowSwitcher.getState().selectedId).toBe(first)
+
+    fireEvent.keyUp(window, { key: 'Alt' })
+    expect(windowSwitcher.getState().open).toBe(false)
     expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
     expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(false)
   })
 
-  it('面板开启时 Enter=提交当前选中（面板收起、焦点保持）', () => {
+  it('面板开启时 Enter=提交当前选中（W12 §14 目标 5 保留补充手势；面板收起、焦点保持）', () => {
     const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
     render(<Harness />)
@@ -246,7 +353,7 @@ describe('Window Switcher 常驻面板（W11 改版）', () => {
     expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
   })
 
-  it('单窗轻点 no-op 且按住（repeat keydown）也不开面板（<2 窗零行为变化）', () => {
+  it('单窗轻点 no-op 且按住（repeat keydown）也不开面板；W/Alt keyup 零作用（<2 窗零行为变化，W12 增补 Alt keyup 断言）', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     render(<Harness />)
 
@@ -256,43 +363,11 @@ describe('Window Switcher 常驻面板（W11 改版）', () => {
     fireEvent.keyDown(window, { key: 'w', altKey: true, repeat: true })
     expect(windowSwitcher.getState().open).toBe(false)
 
+    // W12：面板没开 → 任何 keyup 都不触发提交路径
     fireEvent.keyUp(window, { key: 'w', altKey: true })
-    expect(useWindowStore.getState().windows[0]?.focused).toBe(true)
-  })
-
-  it('面板开启期 repeat keydown 循环选中；keyup 不提交；Enter 提交 minimized → restore+focus', () => {
-    const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
-    const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
-    useWindowStore.getState().minimize(second) // first 被 focusTopmost 聚焦
-    render(<Harness />)
-
-    fireEvent.keyDown(window, { key: 'w', altKey: true })
-    expect(windowSwitcher.getState().open).toBe(true) // 含 minimized 共 2 窗 → 开面板
-    // W11：open 选中=z-next=second（minimized，不即时聚焦）
-    expect(windowSwitcher.getState().selectedId).toBe(second)
-
-    // repeat 循环回 first（可见 → 即时聚焦）
-    fireEvent.keyDown(window, { key: 'w', altKey: true, repeat: true })
-    expect(windowSwitcher.getState().selectedId).toBe(first)
-    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
-
-    // 再循环回 second；keyup（丢 Alt 修饰的竞态形态）零作用——面板常驻、
-    // minimized 不被还原（旧「keyup 提交」语义随 W11 裁决移除）
-    fireEvent.keyDown(window, { key: 'w', altKey: true, repeat: true })
-    fireEvent.keyUp(window, { key: 'w' })
-    expect(windowSwitcher.getState().open).toBe(true)
-    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.state).toBe(
-      'minimized',
-    )
-
-    // Enter 提交 minimized → restore+focus
-    fireEvent.keyDown(window, { key: 'Enter' })
-
-    const target = useWindowStore.getState().windows.find((win) => win.id === second)
-    expect(target?.state).not.toBe('minimized') // restore
-    expect(target?.focused).toBe(true) // + focus
-    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(false)
+    fireEvent.keyUp(window, { key: 'Alt' })
     expect(windowSwitcher.getState().open).toBe(false)
+    expect(useWindowStore.getState().windows[0]?.focused).toBe(true)
   })
 
   it('repeat 循环到可见窗即时聚焦；keyup 不提交；Enter 提交不重复切换', () => {
@@ -349,9 +424,11 @@ describe('Window Switcher 常驻面板（W11 改版）', () => {
     expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
     expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(false)
 
-    // 取消后的 keyup 零作用（W11 后恒为零作用）
+    // 取消后的 W/Alt keyup 全零作用（W12：cancel 后松 Alt 不得触发提交）
     fireEvent.keyUp(window, { key: 'w' })
+    fireEvent.keyUp(window, { key: 'Alt' })
     expect(windowSwitcher.getState().open).toBe(false)
+    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
     expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(false)
   })
 

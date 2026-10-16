@@ -14,26 +14,30 @@ import {
 
 /**
  * Window Switcher 面板（Window Management 2.0 W6，审计 .tmp/spaces-audit.md
- * §9；**W11 真机反馈改版 §13 A——用户裁决，覆盖「松开提交」**）：Alt+W keydown
- * 开**常驻面板**（松开 W 不再提交收起），W 循环选中，**Enter/点击条目提交**，
+ * §9；**W12 Windows Alt+Tab 同款语义 §14——用户裁决，覆盖 W11 常驻面板**）：
+ * 按住 Alt+W 开面板（Alt 按住期间驻留），W/→ 正向循环、Shift+W/← 反向循环，
+ * **松开 Alt=提交选中**（registry onKeyUp 条目承载，见 use-global-shortcuts
+ * 「window.switcher.alt-commit」）；Enter/点击条目为保留的补充提交手势；
  * Esc / backdrop 点击 / window blur 取消。
  *
  * - 视觉：`.glass-popover`（既有钉扎档，src/index.css.test.ts）+ 软影
  *   `shadow-popover` + AppIcon（与 Taskbar/搜索同源）+ 标题；选中态
  *   `--ag-capsule-active` 族（Sidebar 同款「primary 配额=Active/Selected」）；
  *   z-50 档（与搜索面板同层，popover 互斥保证不并存）。
- * - 互斥 + backdrop 取消（W11）：`usePopoverDismiss`（dismissible:true +
- *   insideRefs=面板）claim `'window-switcher'`；「outside」=面板外 pointerdown
- *   （backdrop 点击）与「焦点落进应用 iframe」→ cancel 关闭**不提交**；
- *   「superseded」=被其他弹层顶替 → 同样取消不提交（minimized 选中不被还原）。
+ * - 互斥 + backdrop 取消（W11 改判、W12 目标 4 沿用）：`usePopoverDismiss`
+ *   （dismissible:true + insideRefs=面板）claim `'window-switcher'`；
+ *   「outside」=面板外 pointerdown（backdrop 点击——Alt 按住期间点不到
+ *   backdrop，松开后语义取消防误切）与「焦点落进应用 iframe」→ cancel 关闭
+ *   **不提交**；「superseded」=被其他弹层顶替 → 同样取消不提交（minimized
+ *   选中不被还原）。
  * - Esc 取消走 registry 既有条目（use-global-shortcuts「window.switcher.
  *   escape」，注册序在搜索 Esc 之前）；dismiss 钩子自带的 Esc 监听与之幂等
  *   （cancel 对已关面板零作用），分层纪律不变。
- * - window blur 取消（W11 从「提交兜底」改判）：面板已常驻、无 keyup 可丢失，
- *   切走标签页/OS 抢焦点时直接取消，不留悬挂面板。
- * - 点击选择（W11 新增交互）：条目为真 button（hover 反馈 + 原生键盘激活）；
- *   面板盒 pointer-events-auto、外层容器保持 pointer-events-none（面板外指针
- *   穿透桌面，同时 dismiss 钩子的 document pointerdown 判定 backdrop）。
+ * - window blur 取消（W11 改判、W12 沿用）：切走标签页/OS 抢焦点时直接取消，
+ *   不留悬挂面板（面板驻留语义下 blur 无 keyup 可等）。
+ * - 点击条目=直接提交（choose）：条目为真 button（hover 反馈 + 原生键盘激
+ *   活）；面板盒 pointer-events-auto、外层容器保持 pointer-events-none（面板
+ *   外指针穿透桌面，同时 dismiss 钩子的 document pointerdown 判定 backdrop）。
  * - 关窗竞态（任务书 §23）：面板开启期间订阅 live store，窗口关闭经
  *   windowsChanged 派生——选中失效自动顺延、<2 窗自动收面板。
  */
@@ -46,9 +50,10 @@ export function WindowSwitcher() {
   const phase = useExitPhase(open)
   const panelRef = useRef<HTMLDivElement | null>(null)
 
-  // 弹层互斥 + backdrop 取消（W11 审计 §13 A 决定 4）：开面板 claim、被顶替
-  // （superseded）/面板外按下（outside）/焦点落进 iframe（outside）→ cancel
-  // 关闭不提交；dismissible:true + insideRefs 让面板内 pointerdown 不误判。
+  // 弹层互斥 + backdrop 取消（W12 沿用 W11 改判，审计 §14 目标 4）：开面板
+  // claim、被顶替（superseded）/面板外按下（outside）/焦点落进 iframe（outside）
+  // → cancel 关闭不提交；dismissible:true + insideRefs 让面板内 pointerdown
+  // 不误判。
   usePopoverDismiss(
     'window-switcher',
     open,
@@ -58,7 +63,8 @@ export function WindowSwitcher() {
     { dismissible: true, insideRefs: [panelRef] },
   )
 
-  // window blur 取消（W11 改判，不得悬挂）：切走标签页/OS 抢焦点 → 取消不提交。
+  // window blur 取消（W12 沿用 W11 改判，不得悬挂）：切走标签页/OS 抢焦点 →
+  // 取消不提交。
   useEffect(() => {
     if (!open) return
     window.addEventListener('blur', cancelFromLiveHandler)
@@ -105,8 +111,9 @@ export function WindowSwitcher() {
                 data-selected={selected || undefined}
                 aria-current={selected ? 'true' : undefined}
               >
-                {/* 点击选择=提交该条目（W11 审计 §13 A 决定 3）；choose 内部
-                    与 Enter 共享同一提交流（关窗竞态顺延 + minimized 组合）。 */}
+                {/* 点击条目=直接提交该窗（W12 §14 目标 5 保留手势）；choose
+                    内部与 Enter/Alt keyup 共享同一提交流（关窗竞态顺延 +
+                    minimized 组合）。 */}
                 <button
                   type="button"
                   onClick={() => windowSwitcher.chooseFromLive(win.id)}
@@ -136,16 +143,24 @@ export function WindowSwitcher() {
           data-testid="window-switcher-footer"
           className="flex items-center gap-4 border-t border-border-subtle px-4 py-2 text-[11px] text-text-muted"
         >
+          {/* W12 §14 目标 6：提示改「松开 Alt 提交 · W 循环 · Shift+W 反向 ·
+              Esc 取消」（zh/en 双词典同步）；Enter/点击条目的提交手势保留，
+              但主路径已是松开 Alt，不再占提示位。 */}
           <span className="flex items-center gap-1">
-            <SwitcherKbd>enter</SwitcherKbd>
-            {t('window.switcher.hint.commit')}
+            <SwitcherKbd>alt</SwitcherKbd>
+            {t('window.switcher.hint.release')}
+          </span>
+          <span className="flex items-center gap-1">
+            <SwitcherKbd>w</SwitcherKbd>
+            {t('window.switcher.hint.cycle')}
+          </span>
+          <span className="flex items-center gap-1">
+            <SwitcherKbd>shift+w</SwitcherKbd>
+            {t('window.switcher.hint.backward')}
           </span>
           <span className="flex items-center gap-1">
             <SwitcherKbd>esc</SwitcherKbd>
             {t('window.switcher.hint.cancel')}
-          </span>
-          <span className="flex items-center gap-1">
-            {t('window.switcher.hint.click')}
           </span>
         </footer>
       </div>

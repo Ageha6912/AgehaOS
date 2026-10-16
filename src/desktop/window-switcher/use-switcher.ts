@@ -4,20 +4,22 @@ import { useWindowStore } from '@/store/window-store'
 
 /**
  * Window Switcher 状态机（Window Management 2.0 W6，审计 .tmp/spaces-audit.md
- * §9；**W11 真机反馈改版 §13 A——用户裁决，覆盖 W6 的「松开提交」三段交互**）：
- * 纯逻辑零 DOM——输入=窗口快照列表（**active Space、z 降序、含 minimized**），
- * 事件=open / cycle / choose / commit / cancel / windowsChanged，输出=面板可见
- * 性 + 选中 id + 聚焦指令（经注入的 `applyFocus` 落到 window-store；纯 factory
- * 可注 spy 单测）。
+ * §9；**W12 Windows Alt+Tab 同款语义 §14——用户裁决，覆盖 W11 的「常驻面板 +
+ * Enter/点击提交」**）：纯逻辑零 DOM——输入=窗口快照列表（**active Space、
+ * z 降序、含 minimized**），事件=open / cycle / choose / commit / cancel /
+ * windowsChanged，输出=面板可见性 + 选中 id + 聚焦指令（经注入的 `applyFocus`
+ * 落到 window-store；纯 factory 可注 spy 单测）。
  *
- * W11 交互定案（审计 §13 A）：Alt+W keydown（非 repeat）开**常驻面板**（选中=
- * z 序下一位，多窗才开）；面板开启期间 W keydown（repeat/再按）循环下一位；
- * **keyup 一律不提交**——松开 W 面板常驻；提交=点击条目（choose）或 Enter
- * （commit）；取消=Esc / backdrop 点击 / window blur（不切换）。旧「轻点=按住
- * 瞬态、松开提交」的等效语义与 `cycled` 标志随裁决移除：commit 现在只会由
- * Enter/点击/blur 兜底之外的真实提交路径触达，永远是真提交。
+ * W12 交互定案（审计 §14，Windows Alt+Tab 同款）：按住 Alt+W keydown（非
+ * repeat）开面板（选中=z 序下一位，多窗才开），**Alt 按住期间面板驻留**；
+ * 面板开启期 W keydown（repeat/连按）循环，Shift+W 或 ← 反向、→ 正向
+ * （方向见 cycle 的 direction 参数）；**松开 Alt=提交选中**（提交触发点从
+ * W11 的「Enter/点击」扩展出 Alt keyup，经 registry onKeyUp 承载；快速轻点=
+ * 面板闪现几毫秒即提交，属 Windows 同款设计）；取消=Esc / backdrop 点击 /
+ * window blur（不切换）。W11 的「面板常驻、keyup 一律不提交」随裁决被覆盖，
+ * 但 Enter/点击条目两条提交手势保留（补充手势）。
  *
- * 边缘态钉扎（W6 保留 + W11 修订）：
+ * 边缘态钉扎（W6 保留 + W12 沿用）：
  * - 0 窗不开面板；1 窗轻点 no-op 且按住也不开面板（open 以 <2 窗拒绝）——
  *   <2 窗轻点由 use-global-shortcuts 走既有 `cycleWindows()` 单步（0/1 窗
  *   本身 no-op，零行为变化）；
@@ -49,6 +51,12 @@ export interface SwitcherCommitDirective {
   minimized: boolean
 }
 
+/**
+ * 循环方向（W12 §14：Shift+W / ← 反向、W / → 正向）：+1=z 序下一位（wrap），
+ * -1=z 序上一位（wrap）。
+ */
+export type SwitcherCycleDirection = 1 | -1
+
 export interface WindowSwitcherState {
   open: boolean
   selectedId: string | null
@@ -65,8 +73,11 @@ export interface WindowSwitcherMachine {
   getState(): WindowSwitcherState
   /** 多窗（含 minimized ≥2）开面板+预选 z 序下一位；0/1 窗 no-op（不开面板）。 */
   open(windows: SwitcherWindow[]): void
-  /** 循环下一位（wrap）：可见窗即时聚焦，minimized 留给 commit。未开 no-op。 */
-  cycle(): void
+  /**
+   * 循环选中（wrap）：`direction` 缺省 +1 正向（W12 §14：Shift+W/← 传 -1）；
+   * 可见窗即时聚焦，minimized 留给 commit。未开 no-op。
+   */
+  cycle(direction?: SwitcherCycleDirection): void
   /** 点击选择：把选中切到被点条目后走同一提交流（`windows`=点击一刻 live 快照）。 */
   choose(windowId: string, windows: SwitcherWindow[]): SwitcherCommitDirective | null
   /** 提交选中；`windows`=提交瞬间的 live 快照（关窗竞态的存在性校验源）。 */
@@ -156,10 +167,13 @@ export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine 
       }
     },
 
-    cycle() {
+    cycle(direction: SwitcherCycleDirection = 1) {
       if (!state.open || state.windows.length === 0) return
       const index = state.windows.findIndex((win) => win.id === state.selectedId)
-      const next = state.windows[(index + 1) % state.windows.length]
+      // W12 §14：方向参数——+1 z 序下一位 / -1 上一位（都 wrap；负偏移取模前
+      // 先加 length 保证非负）。
+      const next =
+        state.windows[(index + direction + state.windows.length) % state.windows.length]
       if (!next) return
       commitState({ ...state, selectedId: next.id })
       // 可见窗即时聚焦（跟手）；minimized 不抢还原——留给 commit 的
@@ -258,9 +272,9 @@ export const windowSwitcher = {
   subscribe: (listener: () => void): (() => void) => machine.subscribe(listener),
   getState: (): WindowSwitcherState => machine.getState(),
   openFromLive: (): void => machine.open(snapshotSwitcherWindows()),
-  cycleFromLive: (): void => {
+  cycleFromLive: (direction: SwitcherCycleDirection = 1): void => {
     machine.windowsChanged(snapshotSwitcherWindows())
-    machine.cycle()
+    machine.cycle(direction)
   },
   chooseFromLive: (windowId: string): SwitcherCommitDirective | null =>
     machine.choose(windowId, snapshotSwitcherWindows()),
@@ -276,14 +290,16 @@ export function resetWindowSwitcher(): void {
 }
 
 /**
- * 稳定引用的事件处理器（组件 addEventListener / store.subscribe 用——模块级
- * 函数引用恒定，面板开启期 effect 不随渲染重挂）。
+ * 稳定引用的事件处理器（组件 addEventListener / store.subscribe / registry
+ * onKeyUp 用——模块级函数引用恒定，面板开启期 effect 不随渲染重挂）。
+ * W12 §14：同时是 Alt keyup 提交的处理器（松开 Alt=提交选中，Windows Alt+Tab
+ * 同款；registry 侧条目见 use-global-shortcuts「window.switcher.alt-commit」）。
  */
 export function commitFromLiveHandler(): void {
   machine.commit(snapshotSwitcherWindows())
 }
 
-/** blur 兜底取消（W11：window blur 从「提交」改为「取消」，见审计 §13 A 决定 4）。 */
+/** blur 兜底取消（W11 改判取消、W12 沿用：window blur=取消，见审计 §14 目标 4）。 */
 export function cancelFromLiveHandler(): void {
   machine.cancel()
 }
@@ -297,8 +313,8 @@ export function openFromLiveHandler(): void {
   machine.open(snapshotSwitcherWindows())
 }
 
-/** 面板开启期间 keydown（repeat/再按）循环下一位（先经 live 变化合并）。 */
-export function cycleFromLiveHandler(): void {
+/** 面板开启期间 keydown（repeat/再按）循环选中；W12 §14：Shift+W/← 传 -1 反向。 */
+export function cycleFromLiveHandler(direction: SwitcherCycleDirection = 1): void {
   machine.windowsChanged(snapshotSwitcherWindows())
-  machine.cycle()
+  machine.cycle(direction)
 }

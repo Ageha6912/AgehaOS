@@ -289,15 +289,18 @@ export const dictionaries = {
     'window.minimize': '最小化窗口',
     'window.maximize': '最大化窗口',
     'window.restore': '还原窗口',
-    /* W6→W11 Window Switcher（审计 .tmp/spaces-audit.md §9/§13 A）：面板标题 /
-       最小化条目徽标 / 底部键提示（W11 改版=常驻面板：Enter 提交 / Esc 取消 /
-       点击选择；旧「松开提交」提示随交互裁决移除）。空态无文案——<2 窗面板
-       不渲染（状态机自动关）。 */
+    /* W6→W11→W12 Window Switcher（审计 .tmp/spaces-audit.md §9/§13/§14）：
+       面板标题 / 最小化条目徽标 / 底部键提示。W12=Windows Alt+Tab 同款语义，
+       提示改「alt 松开提交 · w 循环 · shift+w 反向 · esc 取消」（与键位芯片
+       连读即「松开 Alt 提交 · W 循环 · Shift+W 反向 · Esc 取消」）；旧
+       hint.commit（Enter 提交）/hint.click（点击选择）随主路径切换移除
+       （两手势保留，只是不再占提示位）。空态无文案——<2 窗面板不渲染。 */
     'window.switcher.title': '窗口切换',
     'window.switcher.minimized': '已最小化',
-    'window.switcher.hint.commit': '提交',
+    'window.switcher.hint.release': '松开提交',
+    'window.switcher.hint.cycle': '循环',
+    'window.switcher.hint.backward': '反向',
     'window.switcher.hint.cancel': '取消',
-    'window.switcher.hint.click': '点击选择',
 
     /* W7 Mission Control（审计 .tmp/spaces-audit.md §10）：全屏调度层——
        Space 条（名称/N Apps 计数/新建/删除/inline rename）、迁移删除确认、
@@ -997,12 +1000,13 @@ export const dictionaries = {
     'window.minimize': 'Minimize window',
     'window.maximize': 'Maximize window',
     'window.restore': 'Restore window',
-    /* W6→W11 Window Switcher（审计 §13 A）——与 zh 词典同键同步。 */
+    /* W6→W11→W12 Window Switcher（审计 §14）——与 zh 词典同键同步。 */
     'window.switcher.title': 'Window Switcher',
     'window.switcher.minimized': 'Minimized',
-    'window.switcher.hint.commit': 'to switch',
+    'window.switcher.hint.release': 'release to switch',
+    'window.switcher.hint.cycle': 'cycle',
+    'window.switcher.hint.backward': 'cycle back',
     'window.switcher.hint.cancel': 'Cancel',
-    'window.switcher.hint.click': 'Click to choose',
 
     /* W7 Mission Control（审计 .tmp/spaces-audit.md §10）：zh 词典同键镜像。 */
     'missionControl.title': 'Mission Control',

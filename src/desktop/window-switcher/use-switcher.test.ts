@@ -14,12 +14,13 @@ import {
 } from './use-switcher'
 
 /**
- * Window Switcher 状态机钉扎。**W11 真机反馈改版（审计 .tmp/spaces-audit.md
- * §13 A，用户裁决，覆盖 W6「松开提交」三段交互）**：Alt+W keydown 开**常驻
- * 面板**（选中=z 序下一位）、keyup 一律不提交、提交=点击条目（choose）或
- * Enter（commit）、取消=Esc/backdrop/blur。W6 的「轻点（未 cycle）commit 零
- * 指令」等效语义与 cycled 标志随裁决移除——commit 现在永远是真提交；旧用例
- * 已按新语义改写（各用例注明）。
+ * Window Switcher 状态机钉扎。**W12 Windows Alt+Tab 同款语义（审计
+ * .tmp/spaces-audit.md §14，用户确认，覆盖 W11「常驻面板 + Enter/点击提交」
+ * 的提交触发面）**：按住 Alt+W 开面板（Alt 按住期间驻留）、cycle 增方向参数
+ * （W/→ 正向 +1，Shift+W/← 反向 -1）、**松开 Alt=提交选中**（registry
+ * onKeyUp 承载，见 use-global-shortcuts.test.tsx；机器层仍是 commit）、
+ * Esc/backdrop/blur 取消、Enter/点击条目保留为补充提交手势。W6 边缘态与
+ * W11 的关窗竞态顺延/minimized restore+focus 护栏全部沿用。
  */
 
 function win(
@@ -48,7 +49,7 @@ function createSpyMachine() {
   return { machine, applied }
 }
 
-describe('window switcher 状态机（W6 边缘态 + W11 常驻面板改版）', () => {
+describe('window switcher 状态机（W6 边缘态 + W12 Windows 语义）', () => {
   it('0 窗不开面板', () => {
     const { machine } = createSpyMachine()
 
@@ -97,7 +98,7 @@ describe('window switcher 状态机（W6 边缘态 + W11 常驻面板改版）',
     expect(applied).toEqual([]) // minimized 不抢还原——留给 commit 的 restore+focus
   })
 
-  it('cycle 循环下一位（wrap）：可见窗即时聚焦（applyFocus minimized:false）', () => {
+  it('cycle() 缺省正向（+1）循环下一位（wrap）：可见窗即时聚焦（applyFocus minimized:false）', () => {
     const { machine, applied } = createSpyMachine()
     machine.open(twoWindows()) // 选中 a（open 已聚焦 a）
 
@@ -107,6 +108,50 @@ describe('window switcher 状态机（W6 边缘态 + W11 常驻面板改版）',
       { windowId: 'a', minimized: false }, // open 的即时聚焦
       { windowId: 'b', minimized: false }, // cycle 的即时聚焦
     ])
+  })
+
+  it('cycle(-1) 反向循环（W12 §14：Shift+W/←）：z 序上一位（wrap）+ 可见窗即时聚焦', () => {
+    const { machine, applied } = createSpyMachine()
+    machine.open(twoWindows()) // 选中 a（z 序下一位）
+
+    machine.cycle(-1) // a → b（反向 wrap）
+    expect(machine.getState().selectedId).toBe('b')
+    expect(applied).toEqual([
+      { windowId: 'a', minimized: false }, // open 的即时聚焦
+      { windowId: 'b', minimized: false }, // 反向 cycle 的即时聚焦
+    ])
+  })
+
+  it('cycle(-1) 从序列首反向回绕到末位（三窗）', () => {
+    const { machine } = createSpyMachine()
+    machine.open([
+      win('c', { zIndex: 3, focused: true }),
+      win('b', { zIndex: 2 }),
+      win('a', { zIndex: 1 }),
+    ])
+    // open 选中 z-next=b（index 1）：反向一步到序列首 c，再一步回绕到末位 a
+    machine.cycle(-1)
+    expect(machine.getState().selectedId).toBe('c')
+    machine.cycle(-1)
+    expect(machine.getState().selectedId).toBe('a')
+  })
+
+  it('cycle(-1) 到 minimized：只移动选中、不即时聚焦（与正向同纪律）', () => {
+    const { machine, applied } = createSpyMachine()
+    machine.open([
+      win('a', { zIndex: 2, focused: true }),
+      win('m', { zIndex: 1, state: 'minimized' }),
+    ])
+    // open 选中 m（minimized，零聚焦指令）
+    expect(applied).toEqual([])
+
+    machine.cycle(-1) // m → a：可见窗即时聚焦
+    expect(machine.getState().selectedId).toBe('a')
+    expect(applied).toEqual([{ windowId: 'a', minimized: false }])
+
+    machine.cycle(-1) // a → m：minimized 不抢还原
+    expect(machine.getState().selectedId).toBe('m')
+    expect(applied).toEqual([{ windowId: 'a', minimized: false }])
   })
 
   it('cycle 到 minimized：只移动选中、不即时聚焦（还原留给 commit）', () => {
@@ -288,8 +333,25 @@ describe('window switcher 状态机（W6 边缘态 + W11 常驻面板改版）',
   })
 })
 
-describe('window switcher 单例（live store 接线，W6/W11）', () => {
-  it('minimized 提交转 restore+focus 组合（taskbar 同款）', () => {
+describe('window switcher 单例（live store 接线，W6/W12）', () => {
+  it('cycleFromLive 方向透传（W12 §14）：-1 反向 / +1 正向（先经 live 合并再循环）', () => {
+    resetWindowStore()
+    resetSpaceStore()
+    resetWindowSwitcher()
+    const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    useWindowStore.getState().focus(first)
+    windowSwitcher.openFromLive() // 选中 z-next=second（会话序 [second, first]）
+    expect(windowSwitcher.getState().selectedId).toBe(second)
+
+    windowSwitcher.cycleFromLive(-1) // Shift+W/← 路径：second → first
+    expect(windowSwitcher.getState().selectedId).toBe(first)
+
+    windowSwitcher.cycleFromLive(1) // W/→ 路径：first → second
+    expect(windowSwitcher.getState().selectedId).toBe(second)
+  })
+
+  it('minimized 提交转 restore+focus 组合（taskbar 同款；W12 提交触发点=Alt keyup/Enter/点击，机器层同为 commit）', () => {
     resetWindowStore()
     resetSpaceStore()
     resetWindowSwitcher()
