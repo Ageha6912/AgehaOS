@@ -1923,3 +1923,116 @@ blur 40px 不动（材质档未变，变的只是空间表达的振幅）。
 摘类（浮起立即落定 = 聚焦锁定感）、拖拽开始即摘类（跟手零延迟）、
 `prefers-reduced-motion` 全局塌缩、spatialMotion 关档不挂类。钉扎：
 `index.css.test.ts` 令牌组 + 悬停类过渡断言。
+
+## 37. Ageha Spaces · Space/Snap/Mission Control 视觉契约（2026-10-11/15）
+
+> Window Management 2.0 九片（W1-W9）的视觉与交互规格。结构契约见
+> ARCHITECTURE.md §3.26；窗口材质与深度语言仍归 §36（`--sp-*` 命名空间
+> 不动）。全程视觉铁律：**零新 hex、零新 token、零新动效体系**——Space
+> 切换与 Mission Control 入场消费既有 `--ag` motion 档（WAAPI +
+> `EASE_FLIGHT_LEG2`），Snap 预览与 Dock 指示走既有 token/CSS 档；交互
+> 新层级只有一处增补 = **Mission Control z-[60]**（Toast/搜索 z-50 之上、
+> 模态 z-[70] 之下，阶梯其他成员零改动）。
+
+### 37.1 Space 切换过渡（W3）
+
+切换 = **容器级进场淡入，无退场动画**：`startSpaceTransition`
+（window-motion.ts）对 WindowLayer 容器播 WAAPI——
+`translateX(±24px) → 0` + `opacity 0 → 1`，`SPACE_SWITCH_MS` **240ms**
+（180-400ms 档）、缓动 `EASE_FLIGHT_LEG2`（cubic-bezier(0.2, 0, 0, 1)）、
+`fill: both` 落定后 cancel（终帧压级联，use-window-motion 同律）。方向感
+只做进场（forward=+24 / back=−24），离场窗由渲染过滤即时 hidden——
+「非常克制」口径；`prefers-reduced-motion` 或 WAAPI 不可用返 null **直切
+落定**。容器级不与单窗 open/close/genie 飞行共享元素（ActiveFlight 单槽
+不互踩）；非活跃 Space 窗口走 hidden 类（与 minimized 同机制）保持挂载，
+iframe 与应用状态存活、退场 ghost 永远可见播完。
+
+### 37.2 Snap 吸附与预览层（W4/W5）
+
+- **缘判定带**：`Math.max(12, Math.round(带宽 × 2%))` 按视口动态（
+  `SNAP_EDGE_MIN_PX=12` 保底；320px→12px、2560px→51px 双断言禁 1920
+  硬编码）。顶缘优先于左右（角落先触顶）：顶带命中=最大化（「整视口真
+  全屏」§32.5 修订 12 语义），左右带命中=半屏方向；带外 null。
+- **预览 = 终态几何，像素级一致**：SnapPreviewOverlay 的 rect 直接消费
+  `calculateSnapGeometry` 产物（与松手吸附同一单一来源，零二次换算——
+  一致性是结构保证而非对齐校验）；E2E 以 `toBe` 探针断言预览盒与落窗盒
+  逐项相等。maximize 意图**不显预览**（维持直吸）。
+- **Overlay 视觉**：WindowLayer 容器内首子 + `zIndex: 0`（引擎窗 zIndex
+  从 1 起恒垫底，最大化抬层 z-[45] 时预览仍在层内最低 z 无需特判）；
+  rect=null 零 DOM 零重排；`aria-hidden` + 继承容器 pointer-events-none。
+  面样式全走既有 token：`.glass-hint`（blur sm hint，降级环境自然消失）
+  + `border-border-subtle`（--ag-border-subtle 明暗双档发丝边）+
+  `bg-scrim`（--ag-scrim）+ 圆角 `rounded-[var(--sp-window-radius)]`
+  （32px，对齐 §36.8 窗口圆角档）。
+- **过渡**：几何属性 `transition-[left,top,width,height]` 挂
+  `--ag-motion-fast`（120ms，≤200ms 档）+ `--ag-motion-ease`；
+  `prefers-reduced-motion` 全局塌缩直切（CSS media query，不进 WAAPI）。
+  WindowFrame 侧：预览与吸附提交共享同一意图判定源；pointerup/cancel/
+  blur 全路径清预览防悬挂。
+
+### 37.3 Mission Control（W7）
+
+- **层级与入场**：`fixed inset-0 z-[60]`，层底 `bg-scrim-strong`；入场=
+  整体 zoom-out WAAPI（`scale(1.035) → 1` + 淡入，**240ms**，
+  `EASE_FLIGHT_LEG2` 贝塞尔，fill:both 终帧随卸载 cancel）——「空间展开」
+  气质；reduced-motion / jsdom 直切。退场 120ms 淡出窗口期保持挂载
+  （useExitPhase 范式）。开启即 popover 单槽互斥（dismissible:false，被
+  顶替即关）；backdrop（非卡片/非胶囊/非按钮区）点击关闭。
+- **Space 条胶囊**：每 Space 一枚——name + 「N Apps」派生计数（从窗口
+  store 派生，非独立状态）；点击切 Space、「+」新建、双击/回车 inline
+  rename（Enter 提交 / Esc 还原，非空 ≤120 引擎校验）；删除钮仅非最后
+  Space 显示（**隐藏而非禁用**，与「最后一个拒删」引擎语义一致）。
+- **轻量卡 = 拟态窗脸**：卡面 = AppIcon + 标题 + CSS 拟态窗脸——**禁
+  渲染应用内容、禁 iframe clone、禁截图**（测试断言无应用挂载点禁
+  remount），React.memo；点击卡片=切到该窗所在 Space + restore/focus。
+- **跨 Space 拖窗**：4px 阈值 pointer 拖卡到目标胶囊落点 →
+  moveWindowToSpace——窗口组件树全程不动、应用零重启；拖拽影挂**层根
+  `drag-layer`**（fixed + pointer-events-none + transform-only 跟手），
+  原卡拖拽中 pointer-events-none + opacity-40 留位——命中测试不依赖
+  卡片区 overflow 裁剪副作用（拖向胶囊途中不被视觉切断）；拖拽期间禁发
+  switchSpace（drop 后才动）。
+- **确认弹层与 Esc 分层**：非空 Space 删除走迁移确认弹层（默认目标=
+  相邻前一 Space；确认后先逐窗迁移、最后一步才 deleteSpace，无半删态）。
+  Esc 分层序：弹层开启期 MC 的 registry Esc 条目让位（when 读开启态
+  模块级镜像），Esc 仅取消弹层（document 捕获段自理）；弹层不在场后
+  再按 Esc 才经 registry 关整层——MC/switcher Esc 条目注册序均在搜索
+  Esc 之前（首个命中停止语义）。
+
+### 37.4 Dock 两档空间感知指示（W9）
+
+- **两档判定**（`dock-space.ts` 纯模块，零 DOM 零订阅）：当前 Space →
+  既有 **active 条**（底部 2×16px primary 细条，§34.6，语义零变化）；
+  其他 Space → **subtle 圆点**（底部同位置 `h-1 w-1 rounded-full
+  bg-primary/40` 降不透明度档）+ tooltip「在其他空间」zh/en——无新
+  token、无新动效；`null`=无指示（无窗，或当前 Space 窗未聚焦/已最小化，
+  与既有「不亮」口径一致）。
+- **瓷贴代表窗跨 Space 选取**：一个 app 多窗分居时**当前 Space 最新窗
+  优先**（active 判定不被其他 Space 的更新窗顶掉）。
+- **点击语义（macOS 惯例）**：点他 Space 瓷贴 = `switchSpace` →
+  `restore+focus`（不把窗拉过来自建第三种归属）；点击瞬间读 live
+  spaceId 防过期快照。运行行仍列全部窗口（系统级行）但他 Space 行降
+  透明 + 标注；悬停主预览只展示当前 Space 窗口。
+- **契约不变**：波浪/浮起链（dock-wave 唯一浮起，§32.5 修订 13 与
+  §36.1 裁决 1）与引擎层零触碰。
+
+### 37.5 Window Switcher（W6，Alt+W）
+
+面板 = `.glass-popover`（surface-glass 既有钉扎档）+ `shadow-popover`
+软影 + `border-border` 细边 + AppIcon（与 Taskbar 同一图标源）；**z-50
+档**（与搜索面板同层，popover 单槽互斥保证不并存）。选中态
+`[background:var(--ag-capsule-active)]` + `text-primary-contrast`（
+「primary 配额=Active/Selected」同族语义）。交互三段：Alt+W 按住出面板
+并按 z 序轮转（会话序列稳定，不随焦点跳顶重排）、松开提交（选中为
+minimized 转 restore+focus）、轻点=不开面板直接轮转（迁移前肌肉记忆
+兼容）；Esc 关面板不切换（注册序在搜索 Esc 前）；面板开启期 window
+blur 兜底提交当前选中，不悬挂。
+
+### 37.6 Workspace↔Space 映射副指示（W8）
+
+Workspace selector 主选中样式语义不变（选中 W 档胶囊
+`--ag-capsule-active` 不动）；增**Active 副指示**——某 W 档绑定的
+Space === activeSpaceId 时，该档显示**小圆点**（`h-1.5 w-1.5
+rounded-full` + `border-primary` + `[background:var(--ag-capsule-active)]`
+既有 token），随任意路径的 switchSpace（快捷键/Mission Control/Dock
+点击）实时移动。四档 1:1 Primary 绑定：personal 首点绑默认 Space
+"Desktop 1"（不新播）；绑定指向已删 Space 或无绑定时按需播种回落。

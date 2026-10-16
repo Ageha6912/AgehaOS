@@ -40,7 +40,16 @@ AgehaOS 是一个运行在现代浏览器中的「操作系统式 Web OS」：**
 
 ### 🖥 Desktop Shell 3.0 · Workspace Environment
 
-窗口管理器（拖拽/缩放/焦点档/Genie/幽灵关闭）、虚拟文件系统 + 文件管理器、App Store 与沙箱应用运行时（Type B iframe + Type C SDK）、通知中心、Ctrl+K 全局搜索（应用 / 文件 / 动作三域）、终端与计算器等系统应用。视觉契约见 [docs/DESIGN.md](docs/DESIGN.md) §17-§34、§36。
+窗口管理器（拖拽/缩放/焦点档/Genie/幽灵关闭）、虚拟文件系统 + 文件管理器、App Store 与沙箱应用运行时（Type B iframe + Type C SDK）、通知中心、Ctrl+K 全局搜索（应用 / 文件 / 动作三域）、终端与计算器等系统应用。
+
+**Window Management 2.0 + Ageha Spaces**（多桌面与窗口调度）：
+
+- **多桌面（Space）**：F4 打开 Mission Control——新建 / 重命名 / 删除 Space，把窗口卡片拖到另一枚 Space 胶囊即跨桌面移动（应用不重启）；Ctrl+Alt+←/→ 快速切换，切换不销毁窗口，回来还是原样
+- **窗口贴靠（Snap）**：拖窗口到屏幕左/右缘出现半屏预览，松手像素级精确吸附；拖到顶缘即最大化；刷新页面后窗口位置、大小与所在桌面原样恢复
+- **Alt+W 窗口切换器**：按住出面板按层级循环选择、松开切换，轻点直接轮转焦点
+- **Dock 空间感知**：其他 Space 里运行的应用在 Dock 显示小圆点与「在其他空间」标注，点击直达所在桌面；左侧 Workspace selector 四档与 Space 联动绑定，圆点指示当前档
+
+视觉契约见 [docs/DESIGN.md](docs/DESIGN.md) §17-§34、§36-§37。
 
 ### 🌅 AI 动态桌面
 

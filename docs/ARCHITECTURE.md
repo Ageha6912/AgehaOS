@@ -725,6 +725,86 @@ AI 按固定规格现场生成 L1 基础软件（计算器/记事本/时钟）�
     `e2e/sync-status.spec.ts` / `e2e/mobile-terminal-panel.spec.ts`
     增补（快捷键行）/ `e2e/mobile-perf.spec.ts`（冷加载探针）。
 
+### 3.26 Ageha Spaces 与窗口管理 2.0（`src/core/window` + `src/store` + `src/desktop`，W1-W9 九片，2026-10-11/15）
+
+> 桌面窗口域的第二次升级（Window Management 2.0）：在 §3.4 窗口管理器与
+> §3.24 工作空间选择器之上引入多桌面（Space）模型、窗口贴靠（Snap）与
+> Mission Control 调度层。九片提交链：W1 Space 数据模型 `701f5c0` →
+> W2 Window→Space `f158458` → W3 Space 切换 `902e8df` + `d70c466`（快捷键
+> 可发现性顺延）→ W4 Window Snap `216b3d4` → W5 Snap Preview `ad3f742` →
+> W6 Window Switcher `383d3d5` → W7 Mission Control `21a27dd` →
+> W8 Workspace↔Space `8ac1054` → W9 Dock 空间感知指示 `102aa07`。视觉
+> 契约见 DESIGN.md §37；架构铁律贯穿全程：**Extend, Don't Replace**——
+> 只扩展既有 Window Manager / window-store / 事件总线 / motion 体系，
+> 禁第二套 App State、Window Lifecycle、Motion Engine。
+
+- **三层分层**（沿用 §1/§2 总分层，Space 域严格落在各自层）：
+  - **core 引擎层**（框架无关、零 DOM）：`space-manager.ts`（`SpaceManager`
+    类，create/delete/rename/switch/reorder + `setActiveWindow`，构造注入
+    `Pick<EventBus,'emit'>` / `generateId` / `isEmpty` 谓词三依赖，全部读取
+    深拷贝，对齐 WindowManager 范式）；`window-manager.ts` 增
+    `moveWindowToSpace` / `snap(id, dir, band)` / `unsnap`（**band 由调用方
+    传入，引擎不读布局**）；`snap.ts` 纯几何（`calculateSnapGeometry` /
+    `snapIntentFromPointer` / 缘判定带宽 `max(12, round(带宽×2%))`）。
+  - **store 层**（zustand 包引擎单例）：`space-store.ts`（`useSpaceStore` +
+    `agehaos.spaces.v1` 手写 localStorage 持久化）与 `window-store.ts`
+    （窗口几何/状态/归属持久化走 `window-persist.ts` 纯 schema 层 + key
+    `agehaos.spaces.windows.v1`）——两 key 设备本地、不进云同步（§3.24
+    口径）；`moveWindowToSpace` 的目标存在性校验在 store 层完成。
+  - **desktop 层**（UI 与交互）：WindowLayer 渲染过滤、space-focus 焦点
+    追踪、SnapPreviewOverlay、MissionControl、WindowSwitcher、Taskbar
+    空间感知指示、shortcuts registry——引擎层（space-manager/window-manager）
+    在 W7/W8/W9 三片均零 diff。
+- **关键架构裁决**：
+  - **Space ≠ Workspace**：workspace-store（§3.24）**一行不改**（W8 红线
+    复核 `git diff` 为 0），永为「个人/学习/开发/创作」偏好维度；四档与
+    Space 是 **1:1 Primary 绑定**，绑定表 `workspaceBindings` 存在
+    space-store 持久化内（窗口/Space 域数据），依赖方向只允许 store/UI 侧
+    对 workspace-store 的 `WorkspaceId` **类型**引用，运行时值不 import。
+  - **无环依赖 = provider 注入**：window-store **禁止 import space-store**
+    ——window-store 暴露模块级 `setWindowSpaceIdProvider` /
+    `setWindowSpaceExistsProvider`（缺省兜底 DEFAULT_SPACE_ID），space-store
+    装配期单向注册「当前 Space」/「存在性」/ isEmpty 真实计数三件套，依赖
+    方向只有 space-store→window-store 单向；launchApp/移动/SDK 全部开窗
+    调用点零改动即「新窗进当前 Space」。
+  - **渲染过滤 = 可见性非卸载**：切 Space 不销毁窗口——WindowLayer 按
+    activeSpaceId 传 spaceHidden（与 minimized 同走 hidden 类机制），iframe
+    与应用状态存活；退场 ghost 不受过滤永远播完；maximized 抬层判定只统计
+    当前 Space。
+  - **动效挂既有 motion 体系**：Space 切换 = 容器级 WAAPI
+    （`startSpaceTransition`，进场 ±24px 淡入 `SPACE_SWITCH_MS=240`，
+    reduced-motion/无 WAAPI 返 null 直切），不与单窗 open/close 飞行共享
+    元素、规避 ActiveFlight 单槽互踩；snap 预览过渡走 `--ag-motion-fast`
+    CSS 档；禁第二套动画引擎。
+  - **持久化全部 version 1 前向兼容**：W3 增 `Space.activeWindowId?`、W4
+    增 `snapMode`/`restoreState` 可选字段、W8 增 `workspaceBindings`——
+    三次扩展 **version 均 bump-free**（旧载荷缺字段回落 null/'normal'/空
+    映射，字段损坏整字段丢弃不清列表），不迁移不清桌面。
+  - **快照 + hydrate 引擎范式**：引擎 `snapshot(): PersistedSpaces` /
+    `hydrate(data): boolean`（version 校验 + 结构校验，损坏回落引导态——
+    播种恰好一个默认 Space "Desktop 1" 且 active）；**恢复路径静默不广播**
+    （重放历史事件会触发幽灵消费方）；窗口 hydrate 由 Desktop 挂载 effect
+    显式序 `reloadSpaceStore()` → `hydratePersistedWindows()`（Space 先于
+    窗口、不靠模块副作用顺序），移动 Shell 不调用 → 移动「刷新即清空」
+    零变化（M1-6 红线），hydrate 丢弃非法 appId/spaceId 失联条目、焦点归
+    active Space 栈顶、引擎 topZ 重置保单调。
+- **事件面（ADR 4：先登记 SystemEventMap + 契约测试）**：`space.created /
+  deleted / switched / renamed / reordered` 五个 Space 生命周期事件 +
+  `window.space-assigned`（跨 Space 迁移）/ `window.snapped` /
+  `window.unsnapped`（snap 状态机）三个窗口域事件，契约测试
+  `space-events.test.ts` 钉扎全名注册与 payload 形状；`setActiveWindow`
+  刻意不广播（window.focused 已有，防双重真相）。
+- **中央 shortcut registry**（`src/desktop/shortcuts/registry.ts`）：有序
+  条目单实例 `{ id, when?, test, run, onKeyUp? }` + 挂载一次 window
+  keydown/keyup(capture)，首个命中条目执行后停止；既有 Ctrl+K/Esc/Alt+W
+  三键迁移入册对外行为零变化；W6 **onKeyUp 向后兼容扩展**（不传的既有
+  条目对 keyup 零感知）支撑 Alt+W「按住出面板、松开提交、轻点轮转」三段
+  交互；Esc 分层序按注册序天然成立——`mission.control.escape` /
+  `window.switcher.escape` 均注册在 `search.close` 之前（面板开启期
+  `when` 守卫让位，MC 确认弹层开启时 MC Esc 条目进一步让位、弹层自理）；
+  Space 切换 `space.prev/next` = Ctrl+Alt+←/→（真机实测无 Intel 热键
+  冲突后采纳）。
+
 ## 4. 后续模块技术要点
 
 ### 4.1 应用运行时完善（`src/core/runtime`，PRD §8/§25）
