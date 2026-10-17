@@ -372,7 +372,10 @@ export function MissionControl({
     >
       <div
         ref={surfaceRef}
-        className="pointer-events-none flex h-full flex-col items-center gap-8 px-10 pb-12 pt-14"
+        // gap-6（真机反馈第四轮补偿值）：卡片区滚动容器加 pt-3（❌ 出挑余量，
+        // 见下方卡片区注释）后，surface 纵向 gap 8→6 同步补偿——「条底→卡顶」
+        // 总量 24+12=36px 与原 gap-8 的 32px 同档（E2E 24-40px 档带内）。
+        className="pointer-events-none flex h-full flex-col items-center gap-6 px-10 pb-12 pt-14"
       >
         {/* Space 条（审计 §10 决定 2）：胶囊=name+N Apps；点击切换、双击/回车
             inline rename、+ 新建、删除钮仅非最后 Space 显示。 */}
@@ -495,18 +498,24 @@ export function MissionControl({
             滚动条根除）。
             真机反馈第三轮（用户裁决「网格平移到 Space 条正下方=顶对齐」）：
             内层 m-auto 双向安全居中移除、第二轮 pb-28 上移偏置随之失去意义
-            一并移除——网格落回外层滚动容器顶部=Space 条正下方；与 Space 条
-            的间距=外层 surface 纵向 flex 的既有 gap-8（网格不另加纵向
-            margin，避免与 gap-8 叠成双倍间距）；水平 justify-center 与换行
-            行为不变。顶对齐后超屏回落路径更简单：内容超出余高时
-            overflow-y-auto 从头滚动全部可达（不再依赖 auto margin 归零）。
-            拖拽中跟手视觉在根层拖拽影、原卡 pointer-events-none（W7 复核
-            修复），本容器的滚动裁剪不参与拖拽视觉与命中测试；W7 语义零
-            回归（elementFromPoint 命中/影层根/卡片 ❌/pointer-events 分层/
-            React.memo 全部原样）。 */}
+            一并移除——网格落回外层滚动容器顶部=Space 条正下方；水平
+            justify-center 与换行行为不变。顶对齐后超屏回落路径更简单：
+            内容超出余高时 overflow-y-auto 从头滚动全部可达（不再依赖
+            auto margin 归零）。
+            真机反馈第四轮（❌ 关闭钮上缘被裁，用户截图 ❌ 只剩下半）：❌
+            钮绝对定位 -top-2（出挑卡顶 8px），W16 顶对齐后网格紧贴本滚动
+            容器上缘——出挑 8px 落在 overflow 裁剪区外被切。修复：本容器加
+            pt-3（12px 出挑余量，❌ 完整可见）；surface 纵向 gap-8→gap-6
+            同步补偿（24+12=36px ≈ 原 32px，「条底→卡顶」仍在 E2E 24-40px
+            档带内，总高不 extra）。水平方向核查无需改动：justify-center
+            居中行首尾卡不贴容器缘（-right-2 出挑由居中与 surface px-10
+            双兜底），行首尾卡 ❌ 无对称裁切风险。拖拽中跟手视觉在根层
+            拖拽影、原卡 pointer-events-none（W7 复核修复），本容器的滚动
+            裁剪不参与拖拽视觉与命中测试；W7 语义零回归（elementFromPoint
+            命中/影层根/卡片 ❌/pointer-events 分层/React.memo 全部原样）。 */}
         <div
           data-testid="mission-control-cards"
-          className="scroll-thin pointer-events-none flex min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto"
+          className="scroll-thin pointer-events-none flex min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto pt-3"
         >
           <div className="flex w-full flex-wrap justify-center gap-4">
             {spaceWindows.map((win) => (

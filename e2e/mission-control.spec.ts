@@ -97,21 +97,37 @@ test('F4 打开任务视图：拖卡到另一 Space 胶囊，切过去窗口内�
       return Math.abs(card.x + card.width / 2 - (area.x + area.width / 2))
     })
     .toBeLessThan(2)
-  // 真机反馈第三轮（F4 视觉，用户裁决「网格上移到 Space 条正下方=顶对齐」）
-  // 钉扎：①卡宽 w-56=224px 保持（第二轮「卡片放大」裁决不回退；border-box，
-  // boundingBox 应恰为 224）；②顶对齐=网格顶缘贴卡片区容器顶缘（内层
-  // m-auto 垂直居中与第二轮 pb-28 上移偏置均已移除，不再有「块中心比容器
-  // 中心高 56px」的居中几何；块底缘之下余白远大于顶部=顶对齐的反向证明，
-  // poll 容忍 240ms 入场动画）；③与 Space 条的间距=surface 既有 gap-8 节奏
-  // （条底缘→网格顶缘≈32px，容差带吸收滚动条/取整毛刺）。
+  // 真机反馈第三/四轮（F4 视觉）钉扎：①卡宽 w-56=224px 保持（第二轮
+  // 「卡片放大」裁决不回退；border-box，boundingBox 应恰为 224）；②顶对齐
+  // + ❌ 出挑余量（第四轮用户裁决：❌ 钮 -top-2 出挑卡顶 8px，W16 顶对齐后
+  // 网格紧贴滚动容器上缘，出挑落在 overflow 裁剪区外被切、❌ 只剩下半）
+  // ——卡片区容器 pt-3=网格顶缘距容器顶缘 12px（带 10-14 容差吸滚动条/
+  // 取整毛刺；「顶对齐」语义保留：12px 是补偿余量而非居中偏置，块底缘
+  // 之下余白仍远大于顶部，poll 容忍 240ms 入场动画）；③与 Space 条的间距
+  // =surface gap-6 + 容器 pt-3=条底缘→网格顶缘≈36px（第四轮把第三轮的
+  // gap-8≈32px 等量下移为 12px 补偿，24-40px 档带原断言不动）。
   await expect.poll(async () => (await mcCard.boundingBox())!.width).toBeCloseTo(224, 0)
   await expect
     .poll(async () => {
       const card = (await mcCard.boundingBox())!
       const area = (await cardsArea.boundingBox())!
-      return card.y - area.y
+      const offset = card.y - area.y
+      return offset > 10 && offset < 14 // pt-3=12px ±取整毛刺
     })
-    .toBeLessThan(2)
+    .toBeTruthy()
+  // 第四轮钉扎的反向证明：行首卡 ❌ 关闭钮（-top-2 出挑卡顶 8px）完整落在
+  // 滚动容器可视区内——钮顶缘不得越过容器顶缘（越过即被 overflow 裁切，
+  // 用户截图「❌ 只剩下半」的几何定义）。
+  await expect
+    .poll(async () => {
+      const close = (await layer
+        .locator('[data-testid="mission-control-card-close"]')
+        .first()
+        .boundingBox())!
+      const area = (await cardsArea.boundingBox())!
+      return close.y - area.y
+    })
+    .toBeGreaterThanOrEqual(0)
   await expect
     .poll(async () => {
       const card = (await mcCard.boundingBox())!

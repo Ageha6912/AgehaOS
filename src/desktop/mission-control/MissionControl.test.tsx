@@ -120,17 +120,23 @@ describe('MissionControl（W7 审计 §10）', () => {
     expect(cards.className).toContain('scroll-thin')
     // 真机反馈第三轮（用户裁决「网格平移到 Space 条正下方=顶对齐」）：
     // ①移除内层 m-auto 垂直居中——网格落回外层滚动容器顶部；②第二轮的
-    // pb-28 上移偏置（m-auto 居中域收缩法）随之失去意义，一并移除；
-    // ③与 Space 条的间距节奏=外层 surface 纵向 flex 的既有 gap-8——网格
-    // 不另加纵向 margin（钉「无 mt-」防与 gap-8 叠成双倍间距）。jsdom 无
-    // 布局故按仓库惯例钉 className（同上）。
+    // pb-28 上移偏置（m-auto 居中域收缩法）随之失去意义，一并移除。
+    // 真机反馈第四轮（用户裁决：❌ 关闭钮 -top-2 出挑卡顶 8px 被滚动容器
+    // 上缘 overflow 裁切，截图 ❌ 只剩下半）——③外层滚动容器加 pt-3
+    // （12px 出挑余量，❌ 完整可见）；④surface 纵向 gap-8 同步降为 gap-6
+    // 补偿：「条底→卡顶」总量 24+12=36px ≈ 原 32px（E2E 24-40px 档带内，
+    // 总高不 extra）。网格不另加纵向 margin（钉「无 mt-」防与 gap-6 叠成
+    // 双倍间距）。jsdom 无布局故按仓库惯例钉 className（同上）。
     expect(cards.className).not.toContain('pb-28')
     expect(grid.className).not.toContain('m-auto')
     expect(grid.className).not.toContain('mt-')
-    // 间距节奏类：Space 条与卡片区共用的 surface 纵向 flex 容器保持 gap-8。
+    // 间距节奏类：surface 纵向 flex 容器 gap-6（第四轮补偿值）+ 卡片区
+    // 滚动容器 pt-3（❌ 出挑余量）。
     const surface = cards.parentElement as HTMLElement
     expect(surface.className).toContain('flex-col')
-    expect(surface.className).toContain('gap-8')
+    expect(surface.className).toContain('gap-6')
+    expect(surface.className).not.toContain('gap-8')
+    expect(cards.className).toContain('pt-3')
     // backdrop 穿透语义零回归：容器自身保持 pointer-events-none（卡片内
     // 部 button 自持 auto，见 WindowCard）。
     expect(cards.className).toContain('pointer-events-none')
