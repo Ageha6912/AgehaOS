@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## [0.4.0] · open-claude-ui 借鉴五拍：IME 守卫 / 思考折叠 / 图片预览 / 幂律渐隐 / 键盘漫游（2026-10-17）
+
+对照 open-claude-ui（Claude Desktop 逆向复刻库）的交互物理算法，逐项移植到 AgehaOS 语境；测试新增约 30 例，前端 2120 + 后端 157 全绿，E2E 146/147（唯一失败 window-resize 为 HEAD 既有、与本次无关）。
+
+- **CJK 输入法双重互锁守卫**（修真 bug）：新增 `isImeComposing`（`isComposing || keyCode 229`）接入搜索面板 / PromptDialog / 全局弹层 Esc——组合期确认候选词不再误提交、取消选词不再误关面板
+- **羽化思考流折叠面板**：服务端 `think` 帧新增思考文本增量（原只有字数）；客户端会话保留 4000 字尾迹，生成窗底部折叠面板 0fr→1fr 自动展开/终态收起/手动开合优先，尾迹过内容过滤闸
+- **文件管理器图片预览**：图片扩展名走字节路径转 data URL（原打开即「二进制文件」报错）+ 光标不动点滚轮缩放（仿射内核 `zoomAt` 可测）+ 拖拽平移 + 双击复位 + 触屏步进按钮（窄容器 44px 命中区）
+- **7 档幂律滚动渐隐**：单段线性换 (1−t)^1.5 七停靠点 `color-mix` 渐变（跟随主题变量、防高分屏色阶断层），并补顶缘渐隐（到底时提示上方还有内容）
+- **Roving TabIndex**：Mission Control 卡片网格方向键空间漫游（行带 ±2px 容差、最近列、边界停住不 wrap）+ Switcher 箭头复用 `cycleFromLive` 且焦点跟随选中
+- **lint 清障**：`isDeleteConfirmOpen` 镜像挪入 `delete-confirm-state.ts`，修复 HEAD 既有的 `react-refresh/only-export-components` 错误（现 0 错误）
+- 未引入（有意）：流式滚动图钉（宿主不持滚动容器）、Diff 视图（成品 HTML 无场景）、麦克风波形（无语音输入）、BroadcastChannel 多标签同步（云同步已覆盖）、Web Audio 音效（P3 待口味裁决）
+
 ### Round 2 · 参考图对齐：浮动双栏 / 中央品牌 / Dock 提升 / 启动器居中（2026-10-01，DESIGN.md §31）
 
 - **R2-1 浮动双栏**：左系统导航栏改圆角玻璃悬浮卡（离缘留边），右侧小组件拆为四张独立浮卡（容器指针穿透、卡片接指针）——「Web 侧栏 / Dashboard」形态退役，几何契约（80/232 带区、最大化、面板停靠）零改动
