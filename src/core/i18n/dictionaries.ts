@@ -360,6 +360,7 @@ export const dictionaries = {
     // 羽化模式（AI-GENERATED-APPS-DESIGN §1.1 用语：结茧中 / 破茧 / 重新羽化）
     'app.clock.title': '时钟',
     'eclosion.generating': '结茧中…（思考 {count} 字）',
+    'eclosion.think.toggle': '思考过程',
     'eclosion.queued': '排队中…（同时最多 2 个生成流）',
     'eclosion.fallbackNotice': '已回落经典版',
     'eclosion.regenerate': '重新羽化',
@@ -472,6 +473,8 @@ export const dictionaries = {
     'files.trash.emptyHint': '删除的项目会出现在这里，可还原或彻底删除',
     'files.preview.title': '文件预览',
     'files.preview.close': '关闭预览',
+    'files.preview.zoomIn': '放大',
+    'files.preview.zoomOut': '缩小',
     'files.dialog.name': '名称',
     'files.dialog.confirm': '确定',
     'files.dialog.cancel': '取消',
@@ -1064,6 +1067,7 @@ export const dictionaries = {
     // Eclosion mode (design §1.1 wording: cocooning / power-on / regenerate)
     'app.clock.title': 'Clock',
     'eclosion.generating': 'Cocooning… (thinking, {count} chars)',
+    'eclosion.think.toggle': 'Thinking',
     'eclosion.queued': 'Queued… (at most 2 concurrent generations)',
     'eclosion.fallbackNotice': 'Classic version restored',
     'eclosion.regenerate': 'Regenerate',
@@ -1183,6 +1187,8 @@ export const dictionaries = {
     'files.trash.emptyHint': 'Deleted items appear here; restore or delete them permanently',
     'files.preview.title': 'Preview',
     'files.preview.close': 'Close preview',
+    'files.preview.zoomIn': 'Zoom in',
+    'files.preview.zoomOut': 'Zoom out',
     'files.dialog.name': 'Name',
     'files.dialog.confirm': 'OK',
     'files.dialog.cancel': 'Cancel',
