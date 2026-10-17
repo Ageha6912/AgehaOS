@@ -63,6 +63,38 @@ describe('PromptDialog', () => {
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
+  it('blocks implicit submit while Enter confirms an IME composition, passes plain Enter through', () => {
+    render(
+      <PromptDialog
+        title="重命名"
+        label="名称"
+        initialValue="a.txt"
+        confirmLabel="确定"
+        cancelLabel="取消"
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    const input = screen.getByRole('textbox')
+
+    // 组合期 Enter（确认候选词）：preventDefault 阻断隐式表单提交。
+    const composingEnter = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(composingEnter, 'isComposing', { value: true })
+    expect(fireEvent(input, composingEnter)).toBe(false)
+
+    // 普通 Enter（组合已结束）：默认行为放行。
+    const plainEnter = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    })
+    expect(fireEvent(input, plainEnter)).toBe(true)
+  })
+
   it('shows a validation error message', () => {
     render(
       <PromptDialog

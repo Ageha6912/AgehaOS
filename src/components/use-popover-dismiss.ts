@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react'
 
+import { isImeComposing } from '@/components/ime-guard'
 import { usePopoverStore } from '@/store/popover-store'
 
 export type PopoverDismissReason = 'escape' | 'outside' | 'superseded'
@@ -58,7 +59,8 @@ export function usePopoverDismiss(
       onCloseRef.current('outside')
     }
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onCloseRef.current('escape')
+      // 输入法组合期的 Esc 是「取消选词」，不属于关闭弹层的手势。
+      if (event.key === 'Escape' && !isImeComposing(event)) onCloseRef.current('escape')
     }
     // window blur 也会在焦点离开 body 时触发（jsdom 及部分浏览器），切走
     // 浏览器标签页也不该关弹层：只在焦点确实落进 iframe 时才算外部点击。

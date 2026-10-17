@@ -86,6 +86,35 @@ describe('SearchPalette (PRD §15 · Shell 3.0 STEP 9)', () => {
     expect(useSearchStore.getState().open).toBe(false)
   })
 
+  it('ignores Enter/Escape during IME composition, restores the gestures after', () => {
+    render(<SearchPalette />)
+    openPalette()
+    const input = screen.getByTestId('search-input')
+
+    // 组合期：Enter 确认候选词不得开窗，Esc 取消选词不得关面板。
+    const composingEnter = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(composingEnter, 'isComposing', { value: true })
+    fireEvent(input, composingEnter)
+    const composingEsc = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(composingEsc, 'isComposing', { value: true })
+    fireEvent(input, composingEsc)
+
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+    expect(useSearchStore.getState().open).toBe(true)
+
+    // 组合结束后同键位恢复正常手势：Esc 关面板。
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(useSearchStore.getState().open).toBe(false)
+  })
+
   it('moves the active result with arrow keys', async () => {
     render(<SearchPalette />)
     openPalette()

@@ -60,6 +60,22 @@ describe('usePopoverDismiss（UI 评审 P0-2 弹层关闭契约）', () => {
     expect(screen.queryByTestId('panel-a')).toBeNull()
   })
 
+  it('ignores Escape during IME composition, then closes on the real Escape', () => {
+    const onClose = vi.fn()
+    render(<Popover id="a" onClose={onClose} />)
+    fireEvent.click(screen.getByText('open-a'))
+
+    // 输入法组合期的 Esc = 取消选词（isComposing=true），不得关弹层。
+    const composingEsc = new KeyboardEvent('keydown', { key: 'Escape' })
+    Object.defineProperty(composingEsc, 'isComposing', { value: true })
+    fireEvent(document.body, composingEsc)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByTestId('panel-a')).toBeInTheDocument()
+
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledWith('escape')
+  })
+
   it('closes on an outside press but not on a press inside the panel', () => {
     const onClose = vi.fn()
     render(

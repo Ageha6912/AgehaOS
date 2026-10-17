@@ -1,4 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type KeyboardEvent } from 'react'
+
+import { isImeComposing } from '@/components/ime-guard'
 
 export interface PromptDialogProps {
   title: string
@@ -48,6 +50,12 @@ export function PromptDialog({
             autoFocus
             value={value}
             onChange={(event) => setValue(event.target.value)}
+            onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+              // 输入法组合期确认候选词的 Enter 不得触发隐式表单提交。
+              if (event.key === 'Enter' && isImeComposing(event.nativeEvent)) {
+                event.preventDefault()
+              }
+            }}
             className="mt-1 w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text focus:border-primary"
           />
         </label>

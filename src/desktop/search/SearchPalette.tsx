@@ -17,6 +17,7 @@ import { useUsageStore } from '@/store/usage-store'
 import type { VfsSearchResult } from '@/core/filesystem'
 
 import { popoverMotionClass, useExitPhase } from '@/components/pop-motion'
+import { isImeComposing } from '@/components/ime-guard'
 import { usePopoverDismiss } from '@/components/use-popover-dismiss'
 
 import { limitFiles, rankApps, type SearchableApp } from './search'
@@ -205,6 +206,9 @@ export function SearchPalette() {
               setActive(0)
             }}
             onKeyDown={(event) => {
+              // 输入法组合期（选词/翻候选）：Enter 确认候选、Esc 取选词，
+              // 都不是「打开结果/关闭面板」手势，整段忽略。
+              if (isImeComposing(event.nativeEvent)) return
               if (event.key === 'Escape') {
                 event.preventDefault()
                 close()
