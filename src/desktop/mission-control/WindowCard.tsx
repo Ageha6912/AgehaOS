@@ -49,6 +49,10 @@ export interface WindowCardProps {
   onActivate: (win: CardWindow) => void
   /** ❌ 关闭钮回调（W11）：容器裁决=useWindowStore close 该窗，卡随退场消失。 */
   onClose: (win: CardWindow) => void
+  /** Roving TabIndex（无障碍）：仅漫游活跃卡 0，其余 -1；缺省保持原生 Tab 序。 */
+  tabIndex?: number
+  /** 卡片拿到 DOM 焦点（Tab/点击/箭头漫游）时上报，容器据此挪动活跃位。 */
+  onRovingFocus?: (win: CardWindow) => void
 }
 
 /**
@@ -74,6 +78,8 @@ function WindowCardImpl({
   onPointerDown,
   onActivate,
   onClose,
+  tabIndex,
+  onRovingFocus,
 }: WindowCardProps) {
   const { t } = useTranslation()
   return (
@@ -86,11 +92,14 @@ function WindowCardImpl({
       <button
         type="button"
         data-testid="mission-control-card"
+        data-roving-card=""
         data-window-id={win.id}
         data-space-id={win.spaceId}
         data-minimized={win.state === 'minimized' || undefined}
         data-dragging={dragging || undefined}
         aria-label={win.title}
+        tabIndex={tabIndex}
+        onFocus={() => onRovingFocus?.(win)}
         onPointerDown={(event) => onPointerDown(event, win)}
         onClick={() => onActivate(win)}
         // 拖拽中原卡（W7 复核修复）：`pointer-events-none` 让 elementFromPoint

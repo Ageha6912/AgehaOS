@@ -63,8 +63,32 @@ describe('WindowSwitcher 面板（W6 边缘态 + W12 Windows 语义）', () => {
     expect(selected?.getAttribute('aria-current')).toBe('true')
   })
 
-  it('条目=与 Mission Control 同款卡片脸（共享 WindowCardFace 单一来源）：w-56 + 拟态窗脸 + 无 ❌', () => {
-    openTwoAndShowPanel()
+  it('Roving TabIndex：选中条目 tabIndex 0、其余 -1；箭头键走 cycle 语义且焦点跟随', () => {
+    const { first, second } = openTwoAndShowPanel()
+    const { getByTestId } = render(<WindowSwitcher />)
+
+    const buttons = Array.from(
+      getByTestId('window-switcher-layer').querySelectorAll<HTMLButtonElement>(
+        '[data-testid="window-switcher-item"] button',
+      ),
+    )
+    // z 降序条目（second 在前）；open 选中=z 序下一位=first。
+    expect(buttons.map((button) => button.tabIndex)).toEqual([-1, 0])
+
+    // → = 正向 cycle：first → second（wrap）；DOM 焦点随选中挪动。
+    // （keydown 派发在条目按钮上——handler 挂在 ul，按钮冒泡进处理器。）
+    fireEvent.keyDown(buttons[1]!, { key: 'ArrowRight' })
+    expect(windowSwitcher.getState().selectedId).toBe(second)
+    expect(document.activeElement).toBe(buttons[0])
+    expect(buttons.map((button) => button.tabIndex)).toEqual([0, -1])
+
+    // ← = 反向 cycle：second → first。
+    fireEvent.keyDown(buttons[0]!, { key: 'ArrowLeft' })
+    expect(windowSwitcher.getState().selectedId).toBe(first)
+    expect(document.activeElement).toBe(buttons[1])
+  })
+
+  it('条目=与 Mission Control 同款卡片脸（共享 WindowCardFace 单一来源）：w-56 + 拟态窗脸 + 无 ❌', () => {    openTwoAndShowPanel()
     const { getByTestId } = render(<WindowSwitcher />)
 
     const item = getByTestId('window-switcher-layer').querySelector(

@@ -723,4 +723,41 @@ describe('W11 卡片激活聚焦与关闭钮（审计 §13 B）', () => {
     ).toBeNull() // 卡随窗口列表更新消失
     expect(useMissionControlStore.getState().open).toBe(true) // MC 层不关
   })
+
+  it('Roving TabIndex：方向键漫游卡片网格，tabIndex 随焦点挪动', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    useWindowStore.getState().open({ appId: 'com.ageha.terminal', title: '终端' })
+    const { getByTestId } = renderOpen()
+
+    const cards = Array.from(
+      getByTestId('mission-control-cards').querySelectorAll<HTMLButtonElement>(
+        '[data-roving-card]',
+      ),
+    )
+    // 初始：首卡 tabIndex 0（Tab 一次直达卡片区），其余 -1。
+    expect(cards.map((card) => card.tabIndex)).toEqual([0, -1, -1])
+
+    // 焦点落卡即上报：点击/Tab 后活跃位跟随（onFocus 单一事实源）。
+    act(() => {
+      cards[1]?.focus()
+    })
+    expect(cards.map((card) => card.tabIndex)).toEqual([-1, 0, -1])
+
+    fireEvent.keyDown(getByTestId('mission-control-cards'), { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(cards[2])
+    expect(cards.map((card) => card.tabIndex)).toEqual([-1, -1, 0])
+
+    // 边界停住（不 wrap）：来回后回 cards[1]，再 ← 到 cards[0]，首卡再按 ← 不动。
+    fireEvent.keyDown(getByTestId('mission-control-cards'), { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(cards[1])
+    fireEvent.keyDown(getByTestId('mission-control-cards'), { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(cards[0])
+    fireEvent.keyDown(getByTestId('mission-control-cards'), { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(cards[0])
+
+    // jsdom 零尺寸几何 → 全卡同带 → 纵向漫游停在原位。
+    fireEvent.keyDown(getByTestId('mission-control-cards'), { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(cards[0])
+  })
 })

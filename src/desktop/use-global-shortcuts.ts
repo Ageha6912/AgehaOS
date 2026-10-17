@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { isDeleteConfirmOpen } from '@/desktop/mission-control/MissionControl'
+import { isDeleteConfirmOpen } from '@/desktop/mission-control/delete-confirm-state'
 import { mountShortcutRegistry, registerShortcut } from '@/desktop/shortcuts/registry'
 import {
   commitFromLiveHandler,

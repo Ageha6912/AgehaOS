@@ -4,13 +4,16 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 
 import { Plus, X } from '@phosphor-icons/react'
 
 import { prefersReducedMotion, useExitPhase } from '@/components/pop-motion'
+import { rovingGridTarget, type GridDirection } from '@/components/roving-grid'
 import { usePopoverDismiss } from '@/components/use-popover-dismiss'
+import { setDeleteConfirmOpen } from '@/desktop/mission-control/delete-confirm-state'
 import { formatMessage, useTranslation } from '@/core/i18n'
 import type { Space } from '@/core/window'
 import { bezier, EASE_FLIGHT_LEG2 } from '@/core/window/motion'
@@ -57,17 +60,6 @@ const MISSION_CONTROL_ENTER_MS = 240
 const DRAG_THRESHOLD_PX = 4
 /** 拖拽影跟手时的放大档（与窗口飞行同量级的克制浮起）。 */
 const DRAG_SCALE = 1.03
-
-/** 确认弹层开启态的模块级镜像（W7 复核 low 备忘）：use-global-shortcuts 的
- * MC Esc 条目要在组件树外实时读「确认弹层未开启」让位，而 deleteCandidateId
- * 是本组件 useState（迁移 store 不持本层局部态）——由下方 effect 依
- * deleteCandidateId 同步镜像，卸载/关闭路径一律复位 false。 */
-let deleteConfirmOpen = false
-
-/** 确认弹层是否开启（registry MC Esc 条目的 when 消费；组件外可读）。 */
-export function isDeleteConfirmOpen(): boolean {
-  return deleteConfirmOpen
-}
 
 export type SpaceHitTest = (clientX: number, clientY: number) => string | null
 
@@ -178,13 +170,14 @@ export function MissionControl({
   }, [open])
 
   // 迁移确认弹层的 Esc 取消 + 开启态模块级镜像（W7 复核 low 备忘）：弹层
-  // 开启期 registry 的 MC Esc 条目让位（when 读 isDeleteConfirmOpen，见上），
-  // Esc 由本层自理——仅取消弹层，MC 层不动；弹层不在场后再按 Esc 才落
-  // registry 关 MC。document 捕获段挂接（ShortcutsDialog/FileActionSheet
-  // 同款 dialog 模式，不依赖焦点落点）；镜像与监听依 deleteCandidateId
-  // 同增同删，cleanup 复位镜像（卸载/换候选两条路径都覆盖）。
+  // 开启期 registry 的 MC Esc 条目让位（when 读 isDeleteConfirmOpen——
+  // delete-confirm-state 模块），Esc 由本层自理——仅取消弹层，MC 层不动；
+  // 弹层不在场后再按 Esc 才落 registry 关 MC。document 捕获段挂接
+  // （ShortcutsDialog/FileActionSheet 同款 dialog 模式，不依赖焦点落点）；
+  // 镜像与监听依 deleteCandidateId 同增同删，cleanup 复位镜像（卸载/换候选
+  // 两条路径都覆盖）。
   useEffect(() => {
-    deleteConfirmOpen = deleteCandidateId !== null
+    setDeleteConfirmOpen(deleteCandidateId !== null)
     if (deleteCandidateId === null) return
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') setDeleteCandidateId(null)
@@ -192,7 +185,7 @@ export function MissionControl({
     document.addEventListener('keydown', onKeyDown, true)
     return () => {
       document.removeEventListener('keydown', onKeyDown, true)
-      deleteConfirmOpen = false
+      setDeleteConfirmOpen(false)
     }
   }, [deleteCandidateId])
 
@@ -208,6 +201,36 @@ export function MissionControl({
     () => windows.filter((win) => win.spaceId === activeSpaceId),
     [windows, activeSpaceId],
   )
+
+  // Roving TabIndex（无障碍）：卡片网格方向键漫游——活跃卡 tabIndex 0、其余
+  // -1；焦点落卡（Tab/点击/箭头）即经 onFocus 挪动活跃位。窗口增删/切 Space
+  // 后活跃 id 失效时派生回落首卡，无需显式重置。
+  const [rovingId, setRovingId] = useState<string | null>(null)
+  const rovingActiveId = spaceWindows.some((win) => win.id === rovingId)
+    ? rovingId
+    : (spaceWindows[0]?.id ?? null)
+  const onCardRovingFocus = useCallback((win: CardWindow) => setRovingId(win.id), [])
+  const onCardsKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!event.key.startsWith('Arrow')) return
+    const buttons = Array.from(
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[data-roving-card]'),
+    )
+    const current = buttons.findIndex((button) => button === document.activeElement)
+    if (current === -1) return
+    const target = rovingGridTarget(
+      buttons.map((button) => {
+        const rect = button.parentElement?.getBoundingClientRect()
+        return { top: rect?.top ?? 0, left: rect?.left ?? 0 }
+      }),
+      current,
+      event.key as GridDirection,
+    )
+    const next = buttons[target]
+    if (target === current || next === undefined) return
+    event.preventDefault()
+    // focus 触发卡 onFocus → onCardRovingFocus 同步活跃位（单一事实源）。
+    next.focus()
+  }, [])
 
   // —— 稳定回调（useCallback + refs + getState）：WindowCard memo 的前提。——
 
@@ -515,6 +538,7 @@ export function MissionControl({
             命中/影层根/卡片 ❌/pointer-events 分层/React.memo 全部原样）。 */}
         <div
           data-testid="mission-control-cards"
+          onKeyDown={onCardsKeyDown}
           className="scroll-thin pointer-events-none flex min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto pt-3"
         >
           <div className="flex w-full flex-wrap justify-center gap-4">
@@ -523,6 +547,8 @@ export function MissionControl({
                 key={win.id}
                 win={win}
                 dragging={drag?.windowId === win.id}
+                tabIndex={win.id === rovingActiveId ? 0 : -1}
+                onRovingFocus={onCardRovingFocus}
                 onPointerDown={onCardPointerDown}
                 onActivate={onCardActivate}
                 onClose={onCardClose}

@@ -56,6 +56,10 @@ export function WindowSwitcher() {
   )
   const phase = useExitPhase(open)
   const panelRef = useRef<HTMLDivElement | null>(null)
+  // Roving TabIndex（无障碍）：选中条目 tabIndex 0、其余 -1；箭头键走既有
+  // cycle 语义（与 W/Shift+W 同流），DOM 焦点跟随选中——Tab 进面板即落在
+  // 当前选中卡。
+  const itemButtonRefs = useRef(new Map<string, HTMLButtonElement>())
 
   // 弹层互斥 + backdrop 取消（W12 沿用 W11 改判，审计 §14 目标 4）：开面板
   // claim、被顶替（superseded）/面板外按下（outside）/焦点落进 iframe（outside）
@@ -103,9 +107,7 @@ export function WindowSwitcher() {
         className={`surface-glass glass-popover pointer-events-auto max-w-[calc(100vw-3rem)] overflow-hidden rounded-xl border border-border shadow-popover ${popoverMotionClass(phase.exiting)}`}
       >
         <header className="flex items-center gap-2 border-b border-border-subtle px-4 py-2.5">
-          <span className="text-xs font-medium text-text-muted">
-            {t('window.switcher.title')}
-          </span>
+          <span className="text-xs font-medium text-text-muted">{t('window.switcher.title')}</span>
         </header>
         {/* 条目=MC 任务视图同款卡片脸（真机反馈第三轮）：li 定宽 w-56(224px)
             与 WindowCard 定位容器同档，按钮=卡片脸本体（p-3 + gap-2 + h-24
@@ -113,7 +115,18 @@ export function WindowSwitcher() {
             窗多超宽自动换行且行内居中，面板盒随内容自适应（max-w 兜底不溢
             出视口）。选中=主色描边/光晕（--ag-capsule-active 族既有 primary
             token），非选中微降透明度；❌ 关闭钮不进切换器（MC 专属）。 */}
-        <ul className="flex w-full flex-wrap items-stretch justify-center gap-3 overflow-hidden px-3 py-3">
+        <ul
+          className="flex w-full flex-wrap items-stretch justify-center gap-3 overflow-hidden px-3 py-3"
+          onKeyDown={(event) => {
+            const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown'
+            const backward = event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+            if (!forward && !backward) return
+            event.preventDefault()
+            windowSwitcher.cycleFromLive(forward ? 1 : -1)
+            const nextId = windowSwitcher.getState().selectedId
+            if (nextId !== null) itemButtonRefs.current.get(nextId)?.focus()
+          }}
+        >
           {windows.map((win) => {
             const selected = win.id === selectedId
             return (
@@ -130,6 +143,11 @@ export function WindowSwitcher() {
                     minimized 组合）。 */}
                 <button
                   type="button"
+                  ref={(el) => {
+                    if (el) itemButtonRefs.current.set(win.id, el)
+                    else itemButtonRefs.current.delete(win.id)
+                  }}
+                  tabIndex={selected ? 0 : -1}
                   data-minimized={win.state === 'minimized' || undefined}
                   onClick={() => windowSwitcher.chooseFromLive(win.id)}
                   className={`surface-glass flex w-full cursor-pointer flex-col items-center gap-2 rounded-xl border p-3 text-left transition-shadow select-none ${
