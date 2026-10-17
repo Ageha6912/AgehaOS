@@ -25,7 +25,7 @@ function resolveByNameTable(table: Record<string, string>) {
 }
 
 describe('MOBILE_APP_ORDER', () => {
-  it('常量表 = 切片指定的 7 个内置应用序（dynamic.panel 最前、terminal 收尾）', () => {
+  it('常量表 = 切片指定的 8 个内置应用序（dynamic.panel 最前、browser 收尾）', () => {
     expect(MOBILE_APP_ORDER).toEqual([
       'com.ageha.dynamic.panel',
       'com.ageha.files',
@@ -34,6 +34,7 @@ describe('MOBILE_APP_ORDER', () => {
       'com.ageha.calculator',
       'com.ageha.store',
       'com.ageha.terminal',
+      'com.ageha.browser',
     ])
   })
 })

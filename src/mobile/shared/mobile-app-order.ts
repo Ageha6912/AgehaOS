@@ -21,6 +21,8 @@ export const MOBILE_APP_ORDER: readonly string[] = [
   'com.ageha.calculator',
   'com.ageha.store',
   'com.ageha.terminal',
+  // 浏览器（2026-10-17，档 C）：系统应用，追加在 terminal 之后——原 7 序不动。
+  'com.ageha.browser',
 ]
 
 /** 优先序名次：未列入的 id 一律返回 `Number.MAX_SAFE_INTEGER`（排后）。 */

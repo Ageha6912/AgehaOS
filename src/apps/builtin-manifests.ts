@@ -83,5 +83,15 @@ export const BUILTIN_APP_MANIFESTS: readonly unknown[] = [
     permissions: [],
     window: { width: 660, height: 440, resizable: true },
   },
+  {
+    // 浏览器（档 C）：内容经 /api/browse 服务端代理回流（会话门 + SSRF 闸 +
+    // HTML 重写）；窗口内打不开的站点有「在新标签页打开」的真实浏览兜底。
+    id: 'com.ageha.browser',
+    name: 'Browser',
+    version: '0.1.0',
+    entry: '/apps/browser/index.html',
+    permissions: [],
+    window: { width: 1060, height: 700, resizable: true },
+  },
   ...ECLOSION_APP_MANIFESTS,
 ]

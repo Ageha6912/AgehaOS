@@ -42,12 +42,12 @@ test.describe('mobile context（360×800 iPhone UA）', () => {
     await expect(shell).toBeVisible({ timeout: 15_000 })
     await expect(shell).toHaveAttribute('data-nav-view', 'home')
 
-    // ① 打开：标题行搜索按钮 → Bottom Sheet（dialog）+ 全量注册表 10 条。
+    // ① 打开：标题行搜索按钮 → Bottom Sheet（dialog）+ 全量注册表 11 条。
     await page.getByTestId('mobile-launcher-open').click()
     const sheet = page.getByTestId('mobile-launcher-sheet')
     await expect(sheet).toBeVisible()
     await expect(sheet).toHaveAttribute('role', 'dialog')
-    await expect(page.getByTestId('mobile-launcher-item')).toHaveCount(10)
+    await expect(page.getByTestId('mobile-launcher-item')).toHaveCount(11)
 
     // ② 实时过滤：manifest.name 大小写不敏感（'FILES' 只余 Files 一行）。
     const search = page.getByTestId('mobile-launcher-search')

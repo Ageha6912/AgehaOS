@@ -98,9 +98,9 @@ describe('MobileLauncher', () => {
     // backdrop 在场（点击关闭的承接面）。
     expect(screen.getByTestId('mobile-launcher-backdrop')).toBeInTheDocument()
 
-    // 全量条数（boot = 10），前 7 = 常量优先序，羽化 L1 按本地化展示名排后。
+    // 全量条数（boot = 11），前 8 = 常量优先序，羽化 L1 按本地化展示名排后。
     const registrySize = useAppStore.getState().apps.length
-    expect(registrySize).toBe(10)
+    expect(registrySize).toBe(11)
     const ids = renderedAppIds()
     expect(ids).toHaveLength(registrySize)
     expect(ids.slice(0, MOBILE_APP_ORDER.length)).toEqual([...MOBILE_APP_ORDER])
@@ -163,7 +163,7 @@ describe('MobileLauncher', () => {
 
     fireEvent.change(screen.getByTestId('mobile-launcher-search'), { target: { value: '' } })
     expect(screen.queryByTestId('mobile-launcher-empty')).toBeNull()
-    expect(renderedAppIds()).toHaveLength(10)
+    expect(renderedAppIds()).toHaveLength(11)
   })
 
   it('en 档：sheet 可访问名 / placeholder / 空态文案随词典切换（双词典对齐）', () => {
@@ -242,7 +242,7 @@ describe('MobileLauncher', () => {
 
     rerender(<MobileLauncher open onClose={vi.fn()} />)
     expect(screen.getByTestId('mobile-launcher-search')).toHaveValue('')
-    expect(renderedAppIds()).toHaveLength(10)
+    expect(renderedAppIds()).toHaveLength(11)
   })
 
   it('motion-prefs「窗口切换转场」关档：根上追加 .mobile-launcher-static 直切', () => {
@@ -296,7 +296,7 @@ describe('MobileLauncher 全域搜索（M4-1 文件域，fake timers 驱动防�
     expect(screen.queryByTestId('mobile-launcher-group-apps')).toBeNull()
     expect(screen.queryByTestId('mobile-launcher-group-files')).toBeNull()
     expect(screen.getByTestId('mobile-launcher-items')).toBeInTheDocument()
-    expect(renderedAppIds()).toHaveLength(10)
+    expect(renderedAppIds()).toHaveLength(11)
   })
 
   it('防抖：停满 200ms 才发起一次搜索，期间连续输入只保留最后一次', async () => {
@@ -411,7 +411,7 @@ describe('MobileLauncher 全域搜索（M4-1 文件域，fake timers 驱动防�
     rerender(<MobileLauncher open onClose={vi.fn()} />)
     expect(screen.getByTestId('mobile-launcher-search')).toHaveValue('')
     expect(screen.queryByTestId('mobile-launcher-file-item')).toBeNull()
-    expect(renderedAppIds()).toHaveLength(10)
+    expect(renderedAppIds()).toHaveLength(11)
     expect(searchMock).toHaveBeenCalledTimes(1)
   })
 })

@@ -100,7 +100,7 @@ test.describe('mobile context（360×800 iPhone UA，touchscreen）', () => {
     // 打开的是抽屉不是应用：导航停在 home，窗口计数 0。
     await expect(shell).toHaveAttribute('data-nav-view', 'home')
     await expect(shell).toHaveAttribute('data-window-count', '0')
-    await expect(page.getByTestId('mobile-launcher-item')).toHaveCount(10)
+    await expect(page.getByTestId('mobile-launcher-item')).toHaveCount(11)
   })
 
   test('Launcher 打开期间同位再上滑：不重复触发、不关闭（手势 enabled=false）', async ({

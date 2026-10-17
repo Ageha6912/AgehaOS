@@ -186,7 +186,7 @@ describe('MobileHome', () => {
 
     const grid = screen.getByTestId('mobile-app-grid')
     expect(screen.getByTestId('mobile-home')).toContainElement(grid)
-    expect(screen.getAllByTestId('mobile-app-tile')).toHaveLength(10)
+    expect(screen.getAllByTestId('mobile-app-tile')).toHaveLength(11)
 
     // DOM 序 = 视觉序（DESIGN.md §0.6）：最近使用在前、应用网格续接其后。
     const recents = screen.getByTestId('mobile-recent-apps')

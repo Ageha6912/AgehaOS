@@ -43,16 +43,16 @@ afterEach(() => {
 })
 
 describe('MobileAppGrid', () => {
-  it('渲染数量 = 注册表条数：boot 全量 10 格（7 内置 + 羽化 L1），不分页', () => {
+  it('渲染数量 = 注册表条数：boot 全量 11 格（8 内置含浏览器 + 羽化 L1），不分页', () => {
     render(<MobileAppGrid />)
 
     const registrySize = useAppStore.getState().apps.length
-    expect(registrySize).toBe(10)
+    expect(registrySize).toBe(11)
     expect(screen.getAllByTestId('mobile-app-tile')).toHaveLength(registrySize)
-    expect(screen.getAllByTestId('mobile-app-tile')).toHaveLength(10)
+    expect(screen.getAllByTestId('mobile-app-tile')).toHaveLength(11)
   })
 
-  it('排序：前 7 格 = 常量优先序，羽化 L1 按本地化展示名排后（zh：时钟→计算器→记事）', () => {
+  it('排序：前 8 格 = 常量优先序，羽化 L1 按本地化展示名排后（zh：时钟→计算器→记事）', () => {
     render(<MobileAppGrid />)
 
     const ids = renderedAppIds()
@@ -114,7 +114,7 @@ describe('MobileAppGrid', () => {
 
   it('注册表 commit 即刻重渲染：安装第三方 +1 格（未列入按名排后）、卸载 -1 格', () => {
     render(<MobileAppGrid />)
-    expect(renderedAppIds()).toHaveLength(10)
+    expect(renderedAppIds()).toHaveLength(11)
 
     act(() => {
       expect(
@@ -127,15 +127,15 @@ describe('MobileAppGrid', () => {
         }).ok,
       ).toBe(true)
     })
-    expect(renderedAppIds()).toHaveLength(11)
+    expect(renderedAppIds()).toHaveLength(12)
     // 未列入组按展示名小写码元序排后：'zebra tool'（ASCII 'z' = 0x7A）落在
-    // 全部 CJK 名（时钟 U+65F6 起）之前、优先序 7 格之后 → 表位 8（下标 7）。
-    expect(renderedAppIds()[7]).toBe('com.ageha.thirdparty')
+    // 全部 CJK 名（时钟 U+65F6 起）之前、优先序 8 格之后 → 表位 9（下标 8）。
+    expect(renderedAppIds()[8]).toBe('com.ageha.thirdparty')
 
     act(() => {
       expect(uninstallApp('com.ageha.thirdparty')).toBe(true)
     })
-    expect(renderedAppIds()).toHaveLength(10)
+    expect(renderedAppIds()).toHaveLength(11)
   })
 
   it('标题走 i18n：zh-CN「全部应用」/ en「All Apps」，同时进 aria-label', () => {
@@ -208,8 +208,8 @@ describe('MobileAppGrid', () => {
     render(<MobileAppGrid />)
 
     fireEvent.click(screen.getByTestId('mobile-launcher-open'))
-    // 抽屉列表 = 全量注册表（10 条），与网格同一排序纯函数的输出。
-    expect(screen.getAllByTestId('mobile-launcher-item')).toHaveLength(10)
+    // 抽屉列表 = 全量注册表（11 条），与网格同一排序纯函数的输出。
+    expect(screen.getAllByTestId('mobile-launcher-item')).toHaveLength(11)
 
     fireEvent.click(
       screen

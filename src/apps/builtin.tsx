@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { MessageKey } from '@/core/i18n'
 
 import { DynamicPanelApp } from './dynamic-panel/DynamicPanelApp'
+import { BrowserApp } from './browser/BrowserApp'
 import { FileManagerApp } from './files/FileManagerApp'
 import { NotesApp } from './notes/NotesApp'
 import { SettingsApp } from './settings/SettingsApp'
@@ -30,6 +31,7 @@ export const APP_UI_META: Record<string, AppUiMeta> = {
   'com.ageha.calculator': { titleKey: 'app.calculator.title', Component: CalculatorApp },
   'com.ageha.dynamic.panel': { titleKey: 'app.dynamicPanel.title', Component: DynamicPanelApp },
   'com.ageha.terminal': { titleKey: 'app.terminal.title', Component: TerminalApp },
+  'com.ageha.browser': { titleKey: 'app.browser.title', Component: BrowserApp },
 }
 
 export function componentFor(appId: string): AppUiMeta | null {

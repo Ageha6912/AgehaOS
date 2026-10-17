@@ -31,6 +31,7 @@ const PRIORITY_ORDER = [
   'com.ageha.calculator',
   'com.ageha.store',
   'com.ageha.terminal',
+  'com.ageha.browser',
 ]
 
 test.describe('mobile context（360×800 iPhone UA）', () => {
@@ -53,25 +54,25 @@ test.describe('mobile context（360×800 iPhone UA）', () => {
     await expect(page.locator('[data-shell="mobile"]')).toBeVisible({ timeout: 15_000 })
   }
 
-  test('应用网格：≥7 格、前 7 格优先序、羽化 L1 排后、命中区 ≥44px', async ({ page }) => {
+  test('应用网格：≥8 格、前 8 格优先序、羽化 L1 排后、命中区 ≥44px', async ({ page }) => {
     await registerAndReachMobile(page, 'e2emobileappgrid')
 
     const grid = page.getByTestId('mobile-app-grid')
     await expect(grid).toBeVisible()
     await expect(grid.getByRole('heading', { level: 2 })).toHaveText('全部应用')
 
-    // 全量渲染：boot 注册表 = 7 内置 + 羽化 L1 三件套 = 10 格（≥7 切片口径）。
+    // 全量渲染：boot 注册表 = 8 内置（含浏览器）+ 羽化 L1 三件套 = 11 格。
     const tiles = grid.getByTestId('mobile-app-tile')
-    await expect(tiles).toHaveCount(10)
+    await expect(tiles).toHaveCount(11)
 
-    // 前 7 格 = 常量优先序（注册表 boot 序无关，网格排序生效）。
+    // 前 8 格 = 常量优先序（注册表 boot 序无关，网格排序生效）。
     for (const [index, appId] of PRIORITY_ORDER.entries()) {
       await expect(tiles.nth(index)).toHaveAttribute('data-app-id', appId)
     }
     // 未列入组排后：羽化 L1 三件套收尾（按 zh 展示名码元序 时→计→记）。
-    await expect(tiles.nth(7)).toHaveAttribute('data-app-id', 'com.ageha.eclosion.clock')
-    await expect(tiles.nth(8)).toHaveAttribute('data-app-id', 'com.ageha.eclosion.calculator')
-    await expect(tiles.nth(9)).toHaveAttribute('data-app-id', 'com.ageha.eclosion.notes')
+    await expect(tiles.nth(8)).toHaveAttribute('data-app-id', 'com.ageha.eclosion.clock')
+    await expect(tiles.nth(9)).toHaveAttribute('data-app-id', 'com.ageha.eclosion.calculator')
+    await expect(tiles.nth(10)).toHaveAttribute('data-app-id', 'com.ageha.eclosion.notes')
 
     // 触控纪律（DESIGN.md §35.3）：整格命中区 ≥44×44px。
     const box = (await tiles.nth(0).boundingBox())!

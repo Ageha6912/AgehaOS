@@ -12,6 +12,7 @@ import {
   FolderOpen,
   GameController,
   GearSix,
+  Globe,
   GridFour,
   Hash,
   Joystick,
@@ -85,6 +86,8 @@ export const APP_BADGES: Record<string, AppBadge> = {
   'com.ageha.calculator': { from: '#6d75f8', to: '#4338ca', glyph: Calculator },
   'com.ageha.dynamic.panel': { from: '#1fb8a6', to: '#0f766e', glyph: Newspaper },
   'com.ageha.terminal': { from: '#3a4761', to: '#1c2434', glyph: TerminalWindow },
+  // 浏览器（档 C：窗口内浏览 + 新标签兜底）：地球仪字形 + 明亮天蓝族。
+  'com.ageha.browser': { from: '#38bdf8', to: '#1d4ed8', glyph: Globe },
   // 羽化三件套（AI-GENERATED-APPS-DESIGN §5.2）：字形与原生对应应用一致
   // （同一应用、另一形态），配色换冷色青蓝族以示「AI 生成版」。
   'com.ageha.eclosion.calculator': { from: '#38bdf8', to: '#1d4ed8', glyph: Calculator },
