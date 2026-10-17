@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## [0.4.1] · 系统音效（P3）：Web Audio 振荡器合成（2026-10-17）
+
+open-claude-ui 的「振荡器合成 + 8% 底噪门限」算法落地，零音频资产；测试 +17（前端 2137 + 后端 157 全绿），E2E 146/147（唯一失败 window-resize 为 HEAD 既有）。
+
+- **音效谱五条**（峰值 ≤0.16、总时长 ≤0.9s）：登录=A 大调三音上行、通知=E5→A5 双音、吸附=低频下扫软叩击、Mission Control 开/合=纯四度上/下行
+- **防爆音包络**：0 起振 → 5ms 线性爬峰 → 指数衰减到 ≈-80dB → 归零截停；**8% 底噪门限**整条裁掉低增益音轨；同名音效 60ms 冷却防连发叠噪
+- **环境纪律**：AudioContext 惰性创建 + suspended 即 resume（自动播放策略，登录点击在手势路径上）；无 AudioContext（jsdom/老浏览器）静默 no-op；play 全程 try/catch——音效永不阻塞桌面
+- **接线四点**：notification-store push / window-store snap（引擎拒绝无声）/ mission-control-store 开合（重复关无声）/ App 登录成功
+- **设置开关**：外观区新增「系统音效」（sound-prefs-store，motion-prefs 同款设备本地范式，不进云同步，默认开）
+- 测试钉扎真 bug：class 构造器直调（不 `new`）抛 TypeError 被静默吞 → 表现为音效永不发声
+- 有意不做：跟随系统音量/主题变奏、更多接线点（窗口开关/回收站）——先听这五条的真机反馈
+
 ## [0.4.0] · open-claude-ui 借鉴五拍：IME 守卫 / 思考折叠 / 图片预览 / 幂律渐隐 / 键盘漫游（2026-10-17）
 
 对照 open-claude-ui（Claude Desktop 逆向复刻库）的交互物理算法，逐项移植到 AgehaOS 语境；测试新增约 30 例，前端 2120 + 后端 157 全绿，E2E 146/147（唯一失败 window-resize 为 HEAD 既有、与本次无关）。
