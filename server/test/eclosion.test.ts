@@ -652,8 +652,9 @@ describe('POST /api/eclosion/generate (§5.3/§9)', () => {
 
     expect(result.frames[0].data).toMatchObject({ model: 'test-model' })
     expect(typeof result.frames[0].data.requestId).toBe('string')
-    expect(result.frames[1].data).toEqual({ chars: 3 })
-    expect(result.frames[2].data).toEqual({ chars: 5 })
+    // think 帧带思考流增量 text（客户端折叠面板尾迹）；chars 仍累计。
+    expect(result.frames[1].data).toEqual({ chars: 3, text: '思考中' })
+    expect(result.frames[2].data).toEqual({ chars: 5, text: '继续' })
     expect(htmlOf(result.frames)).toBe(CLEAN_HTML)
     const done = result.frames[result.frames.length - 1].data
     expect(done.cached).toBe(false)

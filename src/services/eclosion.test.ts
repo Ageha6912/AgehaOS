@@ -199,6 +199,8 @@ describe('EclosionOrchestrator：SSE 流式生成（§5.3）', () => {
     expect(snapshot.phase).toBe('done')
     expect(snapshot.source).toBe('network')
     expect(snapshot.thinkChars).toBe(120)
+    // 旧服务端帧不带 text：尾迹保持空串（向后兼容）。
+    expect(snapshot.thinkTail).toBe('')
     const joined = snapshot.chunks.map((chunk) => chunk.html).join('')
     expect(joined).toContain('<style>a{b}</style>')
     expect(joined).toContain('<div>x</div>')
@@ -218,6 +220,28 @@ describe('EclosionOrchestrator：SSE 流式生成（§5.3）', () => {
     const second = replay.ensureSession(CALCULATOR)!
     await second.settled()
     expect(second.getSnapshot().source).toBe('cache')
+  })
+
+  it('accumulates the thinking tail from think text and bounds it to the tail limit', async () => {
+    const longA = 'a'.repeat(3000)
+    const longB = 'b'.repeat(3000)
+    const { fetcher } = makeTransport([
+      sseResponse([
+        frame('think', { chars: 3000, text: longA }),
+        frame('think', { chars: 6000, text: longB }),
+        frame('delta', { text: '<!doctype html><html><body><div>x</div></body></html>' }),
+        frame('done', { bytes: 1, ms: 1 }),
+      ]),
+    ])
+    const orchestrator = makeOrchestrator(fetcher)
+    const session = orchestrator.ensureSession(CALCULATOR)!
+    await session.settled()
+
+    const snapshot = session.getSnapshot()
+    expect(snapshot.thinkChars).toBe(6000)
+    // 尾迹只保留最后 4000 字（完整思考不落宿主内存）。
+    expect(snapshot.thinkTail).toHaveLength(4000)
+    expect(snapshot.thinkTail).toBe(`${'a'.repeat(1000)}${longB}`)
   })
 
   it('marks a password input in the generated content (§10 host-side scan)', async () => {

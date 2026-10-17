@@ -577,7 +577,9 @@ export async function eclosionRoutes(
             onReasoningDelta: (text) => {
               streamedChars += text.length
               thinkChars += text.length
-              write('think', { chars: thinkChars })
+              // text = 思考流增量：客户端折叠面板展示尾迹；旧客户端只读
+              // chars，多出的字段天然兼容。
+              write('think', { chars: thinkChars, text })
             },
             onContentDelta: (text) => {
               streamedChars += text.length

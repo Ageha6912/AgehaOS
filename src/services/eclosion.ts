@@ -56,6 +56,9 @@ const PASSWORD_INPUT_PATTERN = /type\s*=\s*["']?\s*password/i
 export const REPORT_TEXT_MAX_LENGTH = 512
 export const REPORT_DETAIL_MAX_LENGTH = 2048
 
+/** 思考流尾迹上限（字）：折叠面板只展示最后一段，完整思考不落宿主内存。 */
+const THINK_TAIL_MAX_CHARS = 4000
+
 export type EclosionSessionPhase = 'queued' | 'generating' | 'done' | 'error'
 
 export interface EclosionSessionSnapshot {
@@ -64,6 +67,11 @@ export interface EclosionSessionSnapshot {
   phase: EclosionSessionPhase
   /** think 事件累计思考字数。 */
   thinkChars: number
+  /**
+   * 思考流尾迹（think 帧自带 text 时的最后 N 字，供折叠面板展示；
+   * 旧服务端帧只发字数，此值保持空串）。不持久化、不进镜像。
+   */
+  thinkTail: string
   /** 增量标记片（仅闭合元素，绝不含 script——截留在宿主侧）。 */
   chunks: readonly EclosionStreamChunk[]
   /** 截留脚本（破茧 eclosion:power-on 时才下发）。 */
@@ -99,6 +107,7 @@ export class EclosionSession {
       specId,
       phase: 'queued',
       thinkChars: 0,
+      thinkTail: '',
       chunks: [],
       scripts: [],
       source: null,
@@ -911,6 +920,7 @@ export class EclosionOrchestrator {
       phase: 'queued',
       attempt,
       thinkChars: 0,
+      thinkTail: '',
       chunks: [],
       scripts: [],
       source: null,
@@ -1073,6 +1083,7 @@ export class EclosionOrchestrator {
     const parser: SseParser = createSseParser()
     let rawHtml = ''
     let thinkChars = 0
+    let thinkTail = ''
     let finished = false
     let aborted = false
 
@@ -1112,9 +1123,14 @@ export class EclosionOrchestrator {
       const handleFrame = (frame: { event: string; data: string }): void => {
         if (frame.event === 'think') {
           const chars = readNumber(frame.data, 'chars')
-          if (chars !== null) {
-            thinkChars = chars
-            session.commit({ thinkChars })
+          if (chars !== null) thinkChars = chars
+          // 思考流尾迹：旧服务端帧无 text，只字数；两者任一变化即提交。
+          const text = readString(frame.data, 'text')
+          if (text !== null && text !== '') {
+            thinkTail = (thinkTail + text).slice(-THINK_TAIL_MAX_CHARS)
+          }
+          if (chars !== null || (text !== null && text !== '')) {
+            session.commit({ thinkChars, thinkTail })
           }
           return
         }

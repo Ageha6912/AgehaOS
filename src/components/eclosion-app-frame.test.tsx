@@ -122,6 +122,91 @@ afterEach(() => {
 })
 
 describe('EclosionAppFrame（宿主容器）', () => {
+  /** 手工可控的 SSE 流：push 分帧、close 收尾（测思考面板的中间态）。 */
+  function deferredSse() {
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    const encoder = new TextEncoder()
+    const response = new Response(
+      new ReadableStream<Uint8Array>({ start: (c) => (controller = c) }),
+    )
+    return {
+      response,
+      push: (text: string) => controller.enqueue(encoder.encode(text)),
+      close: () => controller.close(),
+    }
+  }
+
+  it('auto-opens the thinking panel while streaming, respects manual collapse, collapses on done', async () => {
+    const deferred = deferredSse()
+    const { orchestrator } = makeOrchestrator([deferred.response])
+    const windowId = useWindowStore.getState().open({ appId: CALCULATOR, title: '计算器' })
+    render(
+      <EclosionAppFrame appId={CALCULATOR} windowId={windowId} title="计算器" orchestrator={orchestrator} />,
+    )
+    const session = orchestrator.ensureSession(CALCULATOR)!
+    await act(async () => {
+      await waitFor(() => expect(session.getSnapshot().phase).toBe('generating'))
+    })
+
+    // 思考尾迹一到：面板出现且自动展开（0fr→1fr 的 grid 行）。
+    await act(async () => {
+      deferred.push(frame('think', { chars: 5, text: '用户想要一个番茄钟' }))
+    })
+    expect(screen.getByTestId('eclosion-think')).toBeInTheDocument()
+    const toggle = screen.getByTestId('eclosion-think-toggle')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const body = screen.getByTestId('eclosion-think-body')
+    expect(body.style.gridTemplateRows).toBe('1fr')
+    expect(screen.getByTestId('eclosion-think-text')).toHaveTextContent('用户想要一个番茄钟')
+
+    // 用户手动收起后，后续思考帧不再强制展开（本轮交还用户）。
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await act(async () => {
+      deferred.push(frame('think', { chars: 10, text: '，配上统计' }))
+    })
+    expect(screen.getByTestId('eclosion-think-toggle')).toHaveAttribute('aria-expanded', 'false')
+
+    // done：自动收起（aria-expanded=false，面板本体随 generating 结束消失）。
+    await act(async () => {
+      deferred.push(frame('delta', { text: '<!doctype html><html><body><div>x</div></body></html>' }))
+      deferred.push(frame('done', { bytes: 1, ms: 1 }))
+      deferred.close()
+    })
+    await waitFor(() => expect(session.getSnapshot().phase).toBe('done'))
+    expect(screen.getByTestId('eclosion-think-toggle')).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('hides the thinking panel when the tail violates the content filter', async () => {
+    const deferred = deferredSse()
+    const { orchestrator } = makeOrchestrator([deferred.response])
+    const windowId = useWindowStore.getState().open({ appId: CALCULATOR, title: '计算器' })
+    render(
+      <EclosionAppFrame appId={CALCULATOR} windowId={windowId} title="计算器" orchestrator={orchestrator} />,
+    )
+    const session = orchestrator.ensureSession(CALCULATOR)!
+    await act(async () => {
+      await waitFor(() => expect(session.getSnapshot().phase).toBe('generating'))
+    })
+
+    // 尾迹命中本地词库：面板不渲染（字数条照常），尾迹仍在会话状态里。
+    await act(async () => {
+      deferred.push(frame('think', { chars: 2, text: '赌博网站' }))
+    })
+    expect(screen.queryByTestId('eclosion-think')).toBeNull()
+    expect(screen.getByTestId('eclosion-progress')).toBeInTheDocument()
+    expect(session.getSnapshot().thinkTail).toBe('赌博网站')
+
+    await act(async () => {
+      deferred.push(frame('delta', { text: '<!doctype html><html><body><div>x</div></body></html>' }))
+      deferred.push(frame('done', { bytes: 1, ms: 1 }))
+      deferred.close()
+    })
+    await waitFor(() => expect(session.getSnapshot().phase).toBe('done'))
+  })
+
   it('renders the sandboxed runner iframe with a cache-busting version param', async () => {
     const cache = createEclosionCache()
     await cache.writeBasic(frameUser, {

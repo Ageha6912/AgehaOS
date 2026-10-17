@@ -3,14 +3,14 @@ import { createPortal } from 'react-dom'
 
 import { useTranslation, formatMessage, getLocale } from '@/core/i18n'
 import { systemBus } from '@/core/events'
+import { filterContentText } from '@/core/dynamic/content/filter'
 import { handleSdkRequest, requiredPermission, SDK_RESULT_TYPE } from '@/core/apps/sdk-bridge'
-import {
-  ECLOSION_RUNNER_ENTRY,
-  WEB_APP_SANDBOX,
-  hostHelloMessage,
-} from '@/core/apps/web-app'
+import { ECLOSION_RUNNER_ENTRY, WEB_APP_SANDBOX, hostHelloMessage } from '@/core/apps/web-app'
 import type { Permission } from '@/core/permissions'
-import { parseRunnerToHostMessage, sdkCapabilitiesForPermissions } from '@/core/eclosion/runner-protocol'
+import {
+  parseRunnerToHostMessage,
+  sdkCapabilitiesForPermissions,
+} from '@/core/eclosion/runner-protocol'
 import { eclosionAppKind, findEclosionSpecByAppId, type EclosionSpec } from '@/core/eclosion/spec'
 import { MissingApp } from '@/apps/placeholder-app'
 import { CalculatorApp } from '@/apps/calculator/CalculatorApp'
@@ -77,7 +77,9 @@ function EclosionNativeFallback({
       <NotesApp windowId={windowId} />
     )
   }
-  return <WebAppFrame entry={spec.fallback.entry} appId={spec.appId} windowId={windowId} title={title} />
+  return (
+    <WebAppFrame entry={spec.fallback.entry} appId={spec.appId} windowId={windowId} title={title} />
+  )
 }
 
 // ── 标题栏配件（§5.4/§10：徽标 + 重新羽化 + 获取 + 举报 + 密码框红色警示） ──
@@ -186,7 +188,8 @@ export function EclosionTitleExtras({
                 windowId,
               ).then((ok) => {
                 setReportBusy(false)
-                if (ok) setReportOpen(false) // 成功路径窗口已被编排器关闭
+                if (ok)
+                  setReportOpen(false) // 成功路径窗口已被编排器关闭
                 else setReportFailed(true)
               })
             }}
@@ -245,6 +248,7 @@ const NO_SESSION_SNAPSHOT: EclosionSessionSnapshot = {
   specId: '',
   phase: 'queued',
   thinkChars: 0,
+  thinkTail: '',
   chunks: [],
   scripts: [],
   source: null,
@@ -400,7 +404,11 @@ export function EclosionAppFrame({
     (snap: EclosionSessionSnapshot) => {
       if (!runnerReadyRef.current) return
       if (!themeSentRef.current) {
-        postToRunner({ type: 'eclosion:chunk', seq: nextSeqRef.current, html: themeStyleChunkHtml() })
+        postToRunner({
+          type: 'eclosion:chunk',
+          seq: nextSeqRef.current,
+          html: themeStyleChunkHtml(),
+        })
         nextSeqRef.current += 1
         themeSentRef.current = true
       }
@@ -533,7 +541,15 @@ export function EclosionAppFrame({
         source?.postMessage({ type: SDK_RESULT_TYPE, ...response }, '*')
       })
     },
-    [appId, clearRenderTimer, hasSpecPermission, orchestrator, sdkCapabilities, sdkPermissions, windowId],
+    [
+      appId,
+      clearRenderTimer,
+      hasSpecPermission,
+      orchestrator,
+      sdkCapabilities,
+      sdkPermissions,
+      windowId,
+    ],
   )
 
   useEffect(() => {
@@ -556,6 +572,30 @@ export function EclosionAppFrame({
       requestRetryRef.current(`generate-failed:${snapshot.errorCode ?? 'unknown'}`)
     }
   }, [session, snapshot, windowId, title, t, spec])
+
+  // 思考流折叠面板（0fr→1fr，禁 max-height 魔法数字）：思考尾迹一到即自动
+  // 展开，done/error 自动收起；用户手动开合后本轮交还用户，新一轮思考
+  // （尾迹清空重积）恢复自动。
+  const [thinkOpen, setThinkOpen] = useState(false)
+  const thinkManualRef = useRef(false)
+  const thinkBodyRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (snapshot.thinkTail === '') {
+      thinkManualRef.current = false
+      setThinkOpen(false)
+      return
+    }
+    if (snapshot.phase === 'done' || snapshot.phase === 'error') {
+      setThinkOpen(false)
+    } else if (!thinkManualRef.current) {
+      setThinkOpen(true)
+    }
+  }, [snapshot.phase, snapshot.thinkTail])
+  useEffect(() => {
+    // 展开态跟随流式滚动到底（尾迹持续追加，最新思考恒可见）。
+    const body = thinkBodyRef.current
+    if (thinkOpen && body) body.scrollTop = body.scrollHeight
+  }, [thinkOpen, snapshot.thinkTail])
 
   // ── 渲染 ─────────────────────────────────────────────────────────────────
 
@@ -607,6 +647,8 @@ export function EclosionAppFrame({
   }
 
   const generating = snapshot.phase === 'queued' || snapshot.phase === 'generating' || !renderedOk
+  // 思考面板可见性：有尾迹且过内容过滤（与想象域同闸——违规时只留字数条）。
+  const thinkPanelVisible = snapshot.thinkTail !== '' && filterContentText(snapshot.thinkTail).ok
 
   return (
     <div className="relative h-full bg-surface" data-testid="eclosion-host">
@@ -620,20 +662,69 @@ export function EclosionAppFrame({
         onLoad={onIframeLoad}
       />
       {generating && (
-        <div
-          data-testid="eclosion-progress"
-          aria-live="polite"
-          className="absolute inset-x-0 bottom-0 z-10 flex h-7 items-center justify-center border-t border-border-subtle bg-surface/90 text-xs text-text-muted"
-        >
-          {snapshot.phase === 'queued' ? (
-            t('eclosion.queued')
-          ) : (
-            <span className="inline-flex items-center gap-2">
-              <span aria-hidden="true" className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-              {formatMessage(t('eclosion.generating'), { count: String(snapshot.thinkChars) })}
-            </span>
+        <>
+          {thinkPanelVisible && (
+            <div
+              data-testid="eclosion-think"
+              className="absolute inset-x-0 bottom-7 z-10 border-t border-border-subtle bg-surface/90"
+            >
+              <button
+                type="button"
+                data-testid="eclosion-think-toggle"
+                aria-expanded={thinkOpen}
+                aria-controls="eclosion-think-body"
+                className="flex h-6 w-full items-center gap-1.5 px-3 text-[11px] text-text-muted hover:text-text"
+                onClick={() => {
+                  thinkManualRef.current = true
+                  setThinkOpen((open) => !open)
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`inline-block text-[9px] leading-none transition-transform duration-200 ${
+                    thinkOpen ? 'rotate-90' : ''
+                  }`}
+                >
+                  ▶
+                </span>
+                {t('eclosion.think.toggle')}
+              </button>
+              <div
+                id="eclosion-think-body"
+                data-testid="eclosion-think-body"
+                className="grid transition-[grid-template-rows] duration-300 ease-out"
+                style={{ gridTemplateRows: thinkOpen ? '1fr' : '0fr' }}
+              >
+                <div className="min-h-0 overflow-hidden">
+                  <div
+                    ref={thinkBodyRef}
+                    data-testid="eclosion-think-text"
+                    className="scroll-thin max-h-36 overflow-y-auto whitespace-pre-wrap break-words px-3 pb-2 text-[11px] leading-relaxed text-text-muted"
+                  >
+                    {snapshot.thinkTail}
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
-        </div>
+          <div
+            data-testid="eclosion-progress"
+            aria-live="polite"
+            className="absolute inset-x-0 bottom-0 z-10 flex h-7 items-center justify-center border-t border-border-subtle bg-surface/90 text-xs text-text-muted"
+          >
+            {snapshot.phase === 'queued' ? (
+              t('eclosion.queued')
+            ) : (
+              <span className="inline-flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary"
+                />
+                {formatMessage(t('eclosion.generating'), { count: String(snapshot.thinkChars) })}
+              </span>
+            )}
+          </div>
+        </>
       )}
     </div>
   )
