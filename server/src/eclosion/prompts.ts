@@ -16,8 +16,12 @@ import { WORLD_ICON_WHITELIST, WORLD_NAME_BLOCKLIST, WORLD_PALETTES } from './wo
  * 级联入场/按压反馈/强制 reduced-motion），生成的应用不再是无样式骨架。
  */
 function systemContract(locale: 'zh-CN' | 'en'): string {
+  // 推理语言与文案语言一并约束：契约只写过「界面文案」语言时，思考流会
+  // 自行漂到英文，而思考流经 think 帧原样显示给用户（2026-10-17 用户反馈）。
   const uiLanguage =
-    locale === 'zh-CN' ? '全部界面文案用简体中文' : 'Write all UI copy in English'
+    locale === 'zh-CN'
+      ? '全部界面文案用简体中文；你的思考过程（内部推理）也一律用简体中文'
+      : 'Write all UI copy in English, and do your internal reasoning in English'
   return [
     '你是 AgehaOS 网页桌面操作系统的应用生成器。输出**单个自包含 HTML 文档**，严格遵守：',
     `1. 文档必须以 <!doctype html> 开头、以 </html> 结尾——</html> 之后不得再输出任何字符（禁止自检、注释、解释）。所有逻辑放进文档内 <script>，不引用任何外部文件。${uiLanguage}。`,
@@ -134,7 +138,9 @@ export interface WorldPromptInput {
  */
 function worldSystemContract(locale: 'zh-CN' | 'en'): string {
   const uiLanguage =
-    locale === 'zh-CN' ? '全部文案用简体中文' : 'Write all copy in English'
+    locale === 'zh-CN'
+      ? '全部文案用简体中文；你的思考过程（内部推理）也一律用简体中文'
+      : 'Write all copy in English, and do your internal reasoning in English'
   return [
     '你是 AgehaOS 的「今日世界」生成器。只输出 JSON Lines（每行一个独立 JSON 对象），严格遵守：',
     `1. 第 1 行是主题对象：{"type":"theme","headline","paletteId","accentHue","wallpaper":{"engine","paletteId","mood"}}。${uiLanguage}。`,

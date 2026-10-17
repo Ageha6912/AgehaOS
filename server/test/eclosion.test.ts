@@ -356,8 +356,22 @@ describe('eclosion basic spec table (server copy, §5.2)', () => {
     }
   })
 
-  it('capability lines match the sandbox AgehaOS client shape (feature-detect + Promise 语义)', () => {
-    // 计算器零权限：明示只剩 theme、其余命名空间不存在（不是「被拒」）。
+  it('reasoning language follows the request locale (思考流原样显示给用户)', () => {
+    // zh-CN：思考过程必须中文（2026-10-17 用户反馈：契约只约束界面文案时，
+    // 推理会自行漂到英文，而 think 帧把推理原样显示给用户）。
+    const zh = buildBasicMessages(findBasicSpec('calculator') as EclosionBasicSpec, 'zh-CN')
+    expect(zh[0]?.content).toContain('思考过程（内部推理）也一律用简体中文')
+
+    // en：英文推理指令（双语词典两态都钉住）。
+    const en = buildBasicMessages(findBasicSpec('calculator') as EclosionBasicSpec, 'en')
+    expect(en[0]?.content).toContain('do your internal reasoning in English')
+
+    // imagine / world 同一约束（world 走 worldSystemContract）。
+    const imagine = buildImagineMessages('番茄钟', 'zh-CN')
+    expect(imagine[0]?.content).toContain('思考过程（内部推理）也一律用简体中文')
+  })
+
+  it('capability lines match the sandbox AgehaOS client shape (feature-detect + Promise 语义)', () => {    // 计算器零权限：明示只剩 theme、其余命名空间不存在（不是「被拒」）。
     const calc = buildBasicMessages(findBasicSpec('calculator') as EclosionBasicSpec, 'zh-CN')
     const calcUser = calc[1]?.content ?? ''
     expect(calcUser).toContain('只有 theme 命名空间')

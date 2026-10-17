@@ -13,6 +13,7 @@ open-claude-ui 的「振荡器合成 + 8% 底噪门限」算法落地，零音�
 - **环境纪律**：AudioContext 惰性创建 + suspended 即 resume（自动播放策略，登录点击在手势路径上）；无 AudioContext（jsdom/老浏览器）静默 no-op；play 全程 try/catch——音效永不阻塞桌面
 - **接线四点**：notification-store push / window-store snap（引擎拒绝无声）/ mission-control-store 开合（重复关无声）/ App 登录成功
 - **设置开关**：外观区新增「系统音效」（sound-prefs-store，motion-prefs 同款设备本地范式，不进云同步，默认开）
+- **思考流中文约束**（用户反馈）：系统契约补推理语言指令——原契约只约束界面文案语言，GLM 的思考流会自行漂到英文而 think 帧原样上屏；现 zh-CN=思考用简体中文、en=英文推理，basic/today/imagine/world 四路同约束（服务端 159 测试含双语断言）
 - 测试钉扎真 bug：class 构造器直调（不 `new`）抛 TypeError 被静默吞 → 表现为音效永不发声
 - 有意不做：跟随系统音量/主题变奏、更多接线点（窗口开关/回收站）——先听这五条的真机反馈
 

@@ -646,6 +646,13 @@ describe('world prompt injection guard (§6.1)', () => {
     expect(messages[1].content).toContain('无锚点纯想象')
     expect(messages[1].content).not.toContain('<trending_signals>\n[{')
   })
+
+  it('system contract pins reasoning language to the request locale (think 帧原样上屏)', () => {
+    const zh = buildWorldMessages({ items: [], degraded: true }, 'zh-CN')
+    expect(zh[0].content).toContain('思考过程（内部推理）也一律用简体中文')
+    const en = buildWorldMessages({ items: [], degraded: true }, 'en')
+    expect(en[0].content).toContain('do your internal reasoning in English')
+  })
 })
 
 // ── GET /api/eclosion/world（懒触发 + 全局按日缓存 + 个人版优先） ───────────
