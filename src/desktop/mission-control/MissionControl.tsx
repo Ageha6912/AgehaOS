@@ -486,31 +486,29 @@ export function MissionControl({
 
         {/* 窗口卡片区=当前 Space 窗口；容器 pointer-events-none——卡片之间的
             空隙点击穿透到层根（backdrop 关闭语义），卡片自身恢复命中。
-            真机反馈修复（Windows 任务视图同款居中网格）：旧单行起排在窄视口
+            真机反馈修复（Windows 任务视图同款网格）：旧单行起排在窄视口
             会横向溢出（卡片从视口左缘起排、右缘裁切+横向滚动条），改两层——
             外层=纵向滚动容器（flex-1+min-h-0 占满 Space 条下方余高；
             overflow-y-auto + overflow-x-hidden + 仓库既有 scroll-thin 细滚动
             条，Sidebar 同款组合），内层网格 flex-wrap 自动换行 +
-            justify-center 行内居中 + m-auto 双向安全居中：未超屏=卡片区在
-            MC 层内水平+垂直居中（与顶部 Space 条保持 gap-8 间距节奏）；窗口
-            极多纵向超屏时 auto margin 归零回落顶对齐滚动——不用
-            align-content:center（unsafe 居中在溢出滚动容器会把顶缘行裁出
-            可达域之外），换行后任何窗口数量都无横向溢出（横向滚动条根除）。
+            justify-center 行内居中：换行后任何窗口数量都无横向溢出（横向
+            滚动条根除）。
+            真机反馈第三轮（用户裁决「网格平移到 Space 条正下方=顶对齐」）：
+            内层 m-auto 双向安全居中移除、第二轮 pb-28 上移偏置随之失去意义
+            一并移除——网格落回外层滚动容器顶部=Space 条正下方；与 Space 条
+            的间距=外层 surface 纵向 flex 的既有 gap-8（网格不另加纵向
+            margin，避免与 gap-8 叠成双倍间距）；水平 justify-center 与换行
+            行为不变。顶对齐后超屏回落路径更简单：内容超出余高时
+            overflow-y-auto 从头滚动全部可达（不再依赖 auto margin 归零）。
             拖拽中跟手视觉在根层拖拽影、原卡 pointer-events-none（W7 复核
             修复），本容器的滚动裁剪不参与拖拽视觉与命中测试；W7 语义零
             回归（elementFromPoint 命中/影层根/卡片 ❌/pointer-events 分层/
-            React.memo 全部原样）。
-            真机反馈第二轮（用户裁决「卡片放大+网格块上移」）：容器加 pb-28
-            下侧留白偏置——上移偏置=用户裁决，m-auto 安全居中域收缩法：
-            pb-28(112px) 让内层 m-auto 的可用居中域（content-box 高）收缩
-            112px，网格块视觉中心随之整体上移 56px（偏置的一半）。不用
-            translate（位移会与滚动坐标/elementFromPoint 命中语义打架）；
-            超屏回落顶对齐滚动的路径不受影响，仅滚动末端多 112px 缓冲。 */}
+            React.memo 全部原样）。 */}
         <div
           data-testid="mission-control-cards"
-          className="scroll-thin pointer-events-none flex min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto pb-28"
+          className="scroll-thin pointer-events-none flex min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto"
         >
-          <div className="m-auto flex w-full flex-wrap justify-center gap-4">
+          <div className="flex w-full flex-wrap justify-center gap-4">
             {spaceWindows.map((win) => (
               <WindowCard
                 key={win.id}

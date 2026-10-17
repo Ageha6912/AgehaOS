@@ -97,26 +97,36 @@ test('F4 打开任务视图：拖卡到另一 Space 胶囊，切过去窗口内�
       return Math.abs(card.x + card.width / 2 - (area.x + area.width / 2))
     })
     .toBeLessThan(2)
-  // 真机反馈第二轮（F4 视觉，用户裁决「卡片放大+网格块上移」）钉扎：
-  // ①卡宽 w-56=224px（旧 w-44=176px 放大一档；border-box，boundingBox
-  // 应恰为 224）；②上移偏置=容器 pb-28(112px) 使内层 m-auto 安全居中域
-  // 收缩——卡片块视觉中心比卡片区几何中心高约 56px（偏置的一半；不用
-  // translate，避免与滚动/命中语义打架）。容差 ±16px 吸收滚动条/取整毛刺。
+  // 真机反馈第三轮（F4 视觉，用户裁决「网格上移到 Space 条正下方=顶对齐」）
+  // 钉扎：①卡宽 w-56=224px 保持（第二轮「卡片放大」裁决不回退；border-box，
+  // boundingBox 应恰为 224）；②顶对齐=网格顶缘贴卡片区容器顶缘（内层
+  // m-auto 垂直居中与第二轮 pb-28 上移偏置均已移除，不再有「块中心比容器
+  // 中心高 56px」的居中几何；块底缘之下余白远大于顶部=顶对齐的反向证明，
+  // poll 容忍 240ms 入场动画）；③与 Space 条的间距=surface 既有 gap-8 节奏
+  // （条底缘→网格顶缘≈32px，容差带吸收滚动条/取整毛刺）。
   await expect.poll(async () => (await mcCard.boundingBox())!.width).toBeCloseTo(224, 0)
   await expect
     .poll(async () => {
       const card = (await mcCard.boundingBox())!
       const area = (await cardsArea.boundingBox())!
-      return area.y + area.height / 2 - (card.y + card.height / 2)
+      return card.y - area.y
     })
-    .toBeGreaterThan(40)
+    .toBeLessThan(2)
   await expect
     .poll(async () => {
       const card = (await mcCard.boundingBox())!
       const area = (await cardsArea.boundingBox())!
-      return area.y + area.height / 2 - (card.y + card.height / 2)
+      return area.y + area.height - (card.y + card.height)
     })
-    .toBeLessThan(72)
+    .toBeGreaterThan(100)
+  await expect
+    .poll(async () => {
+      const card = (await mcCard.boundingBox())!
+      const barBox = (await bar.boundingBox())!
+      const gap = card.y - (barBox.y + barBox.height)
+      return gap > 24 && gap < 40
+    })
+    .toBeTruthy()
 
   // 拖卡到 Desktop 2 胶囊落点：moveWindowToSpace（拖拽期间禁发 switchSpace）。
   // 删除钮同挂 data-space-id——限定胶囊本体 testid 消歧。

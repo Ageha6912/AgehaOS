@@ -101,37 +101,42 @@ describe('MissionControl（W7 审计 §10）', () => {
     )
   })
 
-  it('卡片区布局（真机反馈修复钉扎）：换行网格双向居中 + 纵向细滚动条，无横滚语义', () => {
+  it('卡片区布局（真机反馈修复钉扎）：换行网格顶对齐+行内居中 + 纵向细滚动条，无横滚语义', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     const { getByTestId } = renderOpen()
 
     // 用户裁决（真机截图：卡片从视口左缘起排、右缘裁切+横向滚动条）：
-    // 卡片区改「外层滚动容器 + 内层居中网格」两层——外层占满 Space 条下方
+    // 卡片区改「外层滚动容器 + 内层网格」两层——外层占满 Space 条下方
     // 余高（flex-1+min-h-0）且只纵滚（overflow-y-auto + Sidebar 同款
     // overflow-x-hidden + 仓库既有 scroll-thin 细滚动条）；内层网格
-    // flex-wrap 自动换行 + justify-center 行内居中 + m-auto 双向安全居中
-    // （未超屏=MC 层内水平+垂直居中；超屏回落顶对齐滚动，不出横滚）。
-    // jsdom 无布局，按仓库惯例钉 className（StoreApp/NotificationCenter
-    // scroll-thin 断言同款）。
+    // flex-wrap 自动换行 + justify-center 行内居中。jsdom 无布局，按仓库
+    // 惯例钉 className（StoreApp/NotificationCenter scroll-thin 断言同款）。
     const cards = getByTestId('mission-control-cards')
+    const grid = cards.firstElementChild as HTMLElement
     expect(cards.className).toContain('flex-1')
     expect(cards.className).toContain('min-h-0')
     expect(cards.className).toContain('overflow-y-auto')
     expect(cards.className).toContain('overflow-x-hidden')
     expect(cards.className).toContain('scroll-thin')
-    // 真机反馈第二轮（用户裁决「网格块上移」）：外层滚动容器加 pb-28 下侧
-    // 留白偏置——内层 m-auto 的安全居中域（content-box 高）收缩 112px，
-    // 网格块视觉中心整体上移 56px（偏置的一半）。不用 translate（与滚动/
-    // 命中语义打架），jsdom 无布局故按仓库惯例钉 className（同上）。
-    expect(cards.className).toContain('pb-28')
+    // 真机反馈第三轮（用户裁决「网格平移到 Space 条正下方=顶对齐」）：
+    // ①移除内层 m-auto 垂直居中——网格落回外层滚动容器顶部；②第二轮的
+    // pb-28 上移偏置（m-auto 居中域收缩法）随之失去意义，一并移除；
+    // ③与 Space 条的间距节奏=外层 surface 纵向 flex 的既有 gap-8——网格
+    // 不另加纵向 margin（钉「无 mt-」防与 gap-8 叠成双倍间距）。jsdom 无
+    // 布局故按仓库惯例钉 className（同上）。
+    expect(cards.className).not.toContain('pb-28')
+    expect(grid.className).not.toContain('m-auto')
+    expect(grid.className).not.toContain('mt-')
+    // 间距节奏类：Space 条与卡片区共用的 surface 纵向 flex 容器保持 gap-8。
+    const surface = cards.parentElement as HTMLElement
+    expect(surface.className).toContain('flex-col')
+    expect(surface.className).toContain('gap-8')
     // backdrop 穿透语义零回归：容器自身保持 pointer-events-none（卡片内
     // 部 button 自持 auto，见 WindowCard）。
     expect(cards.className).toContain('pointer-events-none')
 
-    const grid = cards.firstElementChild as HTMLElement
     expect(grid.className).toContain('flex-wrap')
     expect(grid.className).toContain('justify-center')
-    expect(grid.className).toContain('m-auto')
     // 卡片是网格直接子节点（换行网格的一等成员，窗口卡=一张一格）。
     expect(grid.querySelector('[data-testid="mission-control-card"]')).not.toBeNull()
   })
