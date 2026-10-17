@@ -123,6 +123,61 @@ describe('FileManager', () => {
     expect(screen.queryByRole('dialog', { name: '文件预览' })).not.toBeInTheDocument()
   })
 
+  it('previews an uploaded image with cursor-anchored zoom controls', async () => {
+    const vfs = await createVfs()
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    await vfs.writeFileBytes('/Documents/dot.png', png)
+    render(<FileManager vfs={vfs} windowId="w-files" />)
+    fireEvent.click(
+      await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' }),
+    )
+
+    fireEvent.doubleClick(await screen.findByText('dot.png'))
+    await screen.findByRole('dialog', { name: '文件预览' })
+    const surface = screen.getByTestId('files-image-preview')
+    const img = surface.querySelector('img')
+    expect(img).not.toBeNull()
+    expect(img).toHaveAttribute('src', `data:image/png;base64,${btoa(String.fromCharCode(...png))}`)
+
+    // 按钮步进缩放（中心锚，1.25×）→ 125%。
+    fireEvent.click(screen.getByRole('button', { name: '放大' }))
+    expect(screen.getByTestId('files-image-zoom-level')).toHaveTextContent('125%')
+
+    // 滚轮缩放（jsdom 零尺寸矩形：锚点退化为原点，纯验证 scale 联动）。
+    fireEvent.wheel(surface, { deltaY: -120 })
+    expect(screen.getByTestId('files-image-zoom-level')).toHaveTextContent('150%')
+
+    // 拖拽平移：pointer capture 后位移累计进 translate（滚轮系数 e^0.18≈1.1972）。
+    fireEvent.pointerDown(surface, { button: 0, pointerId: 1, clientX: 0, clientY: 0 })
+    fireEvent.pointerMove(surface, { pointerId: 1, clientX: 30, clientY: -14 })
+    const style = img?.getAttribute('style') ?? ''
+    expect(style).toContain('translate(30px')
+    expect(style).toContain('-14px')
+    expect(style).toContain('scale(1.4965')
+    fireEvent.pointerUp(surface, { pointerId: 1 })
+
+    // 双击复位。
+    fireEvent.doubleClick(surface)
+    expect(screen.getByTestId('files-image-zoom-level')).toHaveTextContent('100%')
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭预览' }))
+    expect(screen.queryByTestId('files-image-preview')).not.toBeInTheDocument()
+  })
+
+  it('keeps the is-binary error for non-image binary files', async () => {
+    const vfs = await createVfs()
+    await vfs.writeFileBytes('/Documents/data.bin', Uint8Array.from([0x00, 0x01, 0x02]))
+    render(<FileManager vfs={vfs} windowId="w-files" />)
+    fireEvent.click(
+      await within(screen.getByRole('complementary')).findByRole('button', { name: '文档' }),
+    )
+
+    fireEvent.doubleClick(await screen.findByText('data.bin'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('二进制文件')
+    expect(screen.queryByTestId('files-image-preview')).not.toBeInTheDocument()
+  })
+
   it('renames a selected entry', async () => {
     const vfs = await createVfs()
     await vfs.writeFile('/Documents/old.txt', 'x')

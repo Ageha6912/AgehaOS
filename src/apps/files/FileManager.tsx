@@ -26,6 +26,8 @@ import { joinPath, splitPath, Vfs, MAX_FILE_BYTES } from '@/core/filesystem'
 import { consumeFilesTarget, useFilesTargetStore } from '@/store/files-target-store'
 
 import { vfsErrorMessageKey } from './error-messages'
+import { bytesToImageDataUrl, imageMimeFor } from './image-preview'
+import { ImagePreview } from './ImagePreview'
 import { useNarrowContainer } from '@/apps/use-narrow-container'
 import { useLongPress } from '@/mobile/gesture/use-long-press'
 import { FileActionSheet } from './FileActionSheet'
@@ -34,10 +36,10 @@ import type { FileEntry, FileRowAction } from './file-actions'
 type DialogState =
   { kind: 'newFolder' } | { kind: 'newFile' } | { kind: 'rename'; entry: FileEntry } | null
 
-interface PreviewState {
-  path: string
-  content: string
-}
+type PreviewState = { path: string } & (
+  | { kind: 'text'; content: string }
+  | { kind: 'image'; src: string }
+)
 
 /** Top-level system directories exposed in the sidebar (PRD §11.1, minus Trash). */
 const QUICK_ACCESS_ROOTS: Array<{ name: string; icon: Icon }> = [
@@ -177,8 +179,16 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
       return
     }
     try {
+      // 图片扩展名走字节载荷转 data URL（<img> 呈现 SVG 不执行其脚本）；
+      // 其余照旧读文本——二进制非图片文件由 readFile 抛 is-binary，走既有报错。
+      const mime = imageMimeFor(entry.node.name)
+      if (mime !== null) {
+        const bytes = await vfs.readFileBytes(entry.path)
+        setPreview({ path: entry.path, kind: 'image', src: bytesToImageDataUrl(bytes, mime) })
+        return
+      }
       const content = await vfs.readFile(entry.path)
-      setPreview({ path: entry.path, content })
+      setPreview({ path: entry.path, kind: 'text', content })
     } catch (cause) {
       setError(vfsErrorMessageKey(cause))
     }
@@ -680,9 +690,13 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                 {t('files.preview.close')}
               </button>
             </div>
-            <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all bg-surface-raised p-4 font-mono text-xs text-text">
-              {preview.content === '' ? t('files.empty') : preview.content}
-            </pre>
+            {preview.kind === 'image' ? (
+              <ImagePreview src={preview.src} name={preview.path} narrow={narrow} />
+            ) : (
+              <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all bg-surface-raised p-4 font-mono text-xs text-text">
+                {preview.content === '' ? t('files.empty') : preview.content}
+              </pre>
+            )}
           </div>
         </div>
       )}
