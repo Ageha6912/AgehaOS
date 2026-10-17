@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 import { formatMessage } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
+import { systemSounds } from '@/services/sounds'
 
 /**
  * 通知中心状态（PRD §16）：历史查看、标记已读、清空、单条删除。
@@ -88,6 +89,7 @@ export const useNotificationStore = create<NotificationState>()((set, get) => ({
       read: false,
     }
     set({ items: [item, ...get().items].slice(0, NOTIFICATION_LIMIT) })
+    systemSounds.play('notify')
     return item.id
   },
 

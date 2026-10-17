@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_SPACE_ID, MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@/core/window'
 import { registerBuiltinApps, resetAppStore } from '@/store/app-store'
+import { systemSounds } from '@/services/sounds'
 
 import {
   WINDOWS_STORAGE_KEY,
@@ -295,6 +296,20 @@ describe('useWindowStore × Window Snap（W4，审计 .tmp/spaces-audit.md §7�
     expect(win.state).toBe('normal')
     expect(win.snapMode).toBeNull()
     expect(win).toMatchObject({ x: 100, y: 100, width: 600, height: 400 })
+  })
+
+  it('吸附成功响一声软叩击；引擎拒绝（maximized）无声', () => {
+    const play = vi.spyOn(systemSounds, 'play').mockImplementation(() => undefined)
+    const { open, toggleMaximize, snap } = useWindowStore.getState()
+    const id = open({ appId: 'com.ageha.notes', title: '记事', x: 100, y: 100, width: 600, height: 400 })
+    snap(id, 'left', BAND)
+    expect(play).toHaveBeenCalledWith('snap')
+
+    play.mockClear()
+    const other = open({ appId: 'com.ageha.notes', title: '记事 2', x: 100, y: 100, width: 600, height: 400 })
+    toggleMaximize(other)
+    snap(other, 'left', BAND) // 引擎拒绝：状态未变 = 无声
+    expect(play).not.toHaveBeenCalled()
   })
 
   it('非法调用（maximized snap / normal unsnap）no-op 不产生脏 commit', () => {

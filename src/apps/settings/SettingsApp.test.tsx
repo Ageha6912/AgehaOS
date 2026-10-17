@@ -9,6 +9,7 @@ import { resetAppStore } from '@/store/app-store'
 import { resetMotionPrefsStore, useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetSettingsStore, useSettingsStore } from '@/store/settings-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
+import { resetSoundPrefsStore, useSoundPrefsStore } from '@/store/sound-prefs-store'
 
 import { SettingsApp } from './SettingsApp'
 
@@ -17,6 +18,7 @@ beforeEach(() => {
   resetMotionPrefsStore()
   resetSettingsStore()
   resetSessionStore()
+  resetSoundPrefsStore()
   useLocaleStore.setState(useLocaleStore.getInitialState())
 })
 
@@ -94,6 +96,27 @@ describe('SettingsApp', () => {
     expect(screen.getByTestId('motion-spatial-toggle').getAttribute('aria-checked')).toBe('false')
     expect(JSON.parse(localStorage.getItem('agehaos.motion.prefs.v1') ?? '{}')).toMatchObject({
       spatialMotion: false,
+    })
+  })
+
+  it('exposes the system sounds toggle defaulting on with its hint (设备本地)', () => {
+    render(<SettingsApp />)
+
+    const toggle = screen.getByTestId('sounds-toggle')
+    expect(useSoundPrefsStore.getState().enabled).toBe(true)
+    expect(toggle).toHaveAttribute('role', 'switch')
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    expect(toggle).toHaveAttribute('aria-label', '系统音效')
+    expect(
+      screen.getByText('通知、吸附与空间提示音（振荡器合成，本机生效不进云同步）'),
+    ).toBeInTheDocument()
+
+    // 关掉音效 → 偏好落库（设备本地），开关 aria-checked 跟随。
+    fireEvent.click(toggle)
+    expect(screen.getByTestId('sounds-toggle').getAttribute('aria-checked')).toBe('false')
+    expect(useSoundPrefsStore.getState().enabled).toBe(false)
+    expect(JSON.parse(localStorage.getItem('agehaos.sound.prefs.v1') ?? '{}')).toMatchObject({
+      enabled: false,
     })
   })
 

@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { systemSounds } from '@/services/sounds'
 
 import {
   NOTIFICATION_LIMIT,
@@ -28,6 +30,12 @@ describe('notification-store (PRD §16.2)', () => {
     expect(items).toHaveLength(2)
     expect(items[0]?.bodyParams).toEqual({ app: 'B' })
     expect(unreadCount(items)).toBe(2)
+  })
+
+  it('push 配一声通知音（系统音效在 store 层接线）', () => {
+    const play = vi.spyOn(systemSounds, 'play').mockImplementation(() => undefined)
+    pushOf('A')
+    expect(play).toHaveBeenCalledWith('notify')
   })
 
   it('stores the optional navigation target (M4-2) and defaults it to absent', () => {

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 import type { WindowState } from '@/core/window'
+import { systemSounds } from '@/services/sounds'
 import { useSpaceStore } from './space-store'
 import { useWindowStore } from './window-store'
 
@@ -26,8 +27,11 @@ export const useMissionControlStore = create<MissionControlState>()((set, get) =
   open: false,
   editingSpaceId: null,
 
-  setOpen: (open) =>
-    set(open ? { open: true } : { open: false, editingSpaceId: null }),
+  setOpen: (open) => {
+    // 空间开合提示音：只在真实翻转时响（复位类 setOpen(false) 重复调用无声）。
+    if (open !== get().open) systemSounds.play(open ? 'mission-in' : 'mission-out')
+    set(open ? { open: true } : { open: false, editingSpaceId: null })
+  },
 
   toggle: () => get().setOpen(!get().open),
 

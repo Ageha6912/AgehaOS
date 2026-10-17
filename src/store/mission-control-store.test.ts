@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { systemSounds } from '@/services/sounds'
 
 import { resetMissionControlStore, useMissionControlStore } from './mission-control-store'
 
@@ -26,6 +28,20 @@ describe('mission-control-store（W7 审计 §10）', () => {
 
     expect(useMissionControlStore.getState().open).toBe(false)
     expect(useMissionControlStore.getState().editingSpaceId).toBeNull()
+  })
+
+  it('空间开合提示音：开=mission-in、关=mission-out、重复关无声', () => {
+    const play = vi.spyOn(systemSounds, 'play').mockImplementation(() => undefined)
+    const store = useMissionControlStore.getState()
+    store.setOpen(true)
+    expect(play).toHaveBeenCalledWith('mission-in')
+    store.close()
+    expect(play).toHaveBeenCalledWith('mission-out')
+
+    play.mockClear()
+    store.close()
+    store.setOpen(false)
+    expect(play).not.toHaveBeenCalled()
   })
 
   it('toggle 在开/关间翻转；关闭复位编辑态', () => {

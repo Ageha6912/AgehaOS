@@ -9,6 +9,7 @@ import { useNarrowContainer } from '@/apps/use-narrow-container'
 import { BrandLogo } from '@/components/brand-logo'
 import { ToggleSwitch } from '@/components/toggle-switch'
 import { useMotionPrefsStore, type MotionPrefKey } from '@/store/motion-prefs-store'
+import { useSoundPrefsStore } from '@/store/sound-prefs-store'
 import { ArrowsClockwise, CaretLeft, GlobeHemisphereWest, Butterfly, ListChecks, LockSimple, Palette, ShieldCheck, Sparkle, UserCircle } from '@phosphor-icons/react'
 
 import { useTranslation, useLocaleStore } from '@/core/i18n'
@@ -304,6 +305,8 @@ function AppearanceSection({ narrow = false }: { narrow?: boolean }) {
   const setFontSize = useSettingsStore((s) => s.setFontSize)
   const motion = useMotionPrefsStore()
   const setPref = useMotionPrefsStore((s) => s.setPref)
+  const soundsEnabled = useSoundPrefsStore((s) => s.enabled)
+  const setSoundsEnabled = useSoundPrefsStore((s) => s.setEnabled)
 
   return (
     <section aria-label={t('settings.appearance')}>
@@ -345,6 +348,19 @@ function AppearanceSection({ narrow = false }: { narrow?: boolean }) {
           />
         </div>
       ))}
+      {/* 系统音效（sound-prefs-store，motion-prefs 同款设备本地范式）。 */}
+      <div className="flex items-center justify-between gap-3 py-2">
+        <span className="min-w-0">
+          <span className="block text-sm text-text">{t('settings.sounds')}</span>
+          <span className="mt-0.5 block text-xs text-text-muted">{t('settings.soundsHint')}</span>
+        </span>
+        <ToggleSwitch
+          checked={soundsEnabled}
+          label={t('settings.sounds')}
+          testId="sounds-toggle"
+          onClick={() => setSoundsEnabled(!soundsEnabled)}
+        />
+      </div>
     </section>
   )
 }

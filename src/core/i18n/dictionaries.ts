@@ -526,6 +526,8 @@ export const dictionaries = {
        动效）；移动控制中心以「减弱空间动效」反相呈现同一布尔。 */
     'settings.motionSpatial': '空间动效',
     'settings.motionSpatialHint': '窗口深度与悬浮氛围动效',
+    'settings.sounds': '系统音效',
+    'settings.soundsHint': '通知、吸附与空间提示音（振荡器合成，本机生效不进云同步）',
     'theme.light': '浅色',
     'theme.dark': '深色',
     'theme.system': '跟随系统',
@@ -1239,6 +1241,8 @@ export const dictionaries = {
        center presents the same boolean inverted as "Reduce spatial motion". */
     'settings.motionSpatial': 'Spatial motion',
     'settings.motionSpatialHint': 'Window depth and ambient floating motion',
+    'settings.sounds': 'System sounds',
+    'settings.soundsHint': 'Synthesized chimes for notifications, snap and spaces (per-device, not synced)',
     'theme.light': 'Light',
     'theme.dark': 'Dark',
     'theme.system': 'System',

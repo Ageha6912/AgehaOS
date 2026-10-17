@@ -9,6 +9,7 @@ import {
 } from '@/core/window'
 import type { CreateWindowOptions, SnapBand, Viewport, WindowInstance } from '@/core/window'
 import { getAppManifest } from '@/store/app-store'
+import { systemSounds } from '@/services/sounds'
 
 import {
   WINDOWS_STORAGE_KEY,
@@ -169,9 +170,13 @@ export const useWindowStore = create<WindowStoreState>()(() => {
     },
 
     // W4 Window Snap（审计 §7）：action 透传 + commit+persist；band 由调用方
-    // （WindowFrame）传入，store 层零 DOM。
+    // （WindowFrame）传入，store 层零 DOM。吸附成功配一声软叩击（引擎拒绝=
+    // 状态未变=无声，jsdom 无 AudioContext 时 sounds 静默）。
     snap: (id, dir, band) => {
-      if (engine.snap(id, dir, band)) commit()
+      if (engine.snap(id, dir, band)) {
+        commit()
+        systemSounds.play('snap')
+      }
     },
 
     unsnap: (id) => {

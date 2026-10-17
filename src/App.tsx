@@ -7,6 +7,7 @@ import { MobileShell } from '@/mobile/MobileShell'
 import { useBootStore } from '@/store/boot-store'
 import { useDeviceStore } from '@/store/device-store'
 import { useSessionStore } from '@/store/session-store'
+import { systemSounds } from '@/services/sounds'
 
 export default function App() {
   const phase = useBootStore((state) => state.phase)
@@ -29,7 +30,15 @@ export default function App() {
       {booting ? null : phase === 'ready' ? (
         shell === 'mobile' ? <MobileShell /> : <Desktop />
       ) : (
-        <LoginScreen onSuccess={() => setPhase('ready')} />
+        <>
+          {/* 登录成功 = A 大调三音开机音（点击提交是用户手势，自动播放策略放行）。 */}
+          <LoginScreen
+            onSuccess={() => {
+              systemSounds.play('boot')
+              setPhase('ready')
+            }}
+          />
+        </>
       )}
       {/* 开机覆盖层（DESIGN.md §11）：finishBoot 后目的界面先挂载在下层，
           覆盖层继续播退场动画，收尾（layerExitDone）后卸载。 */}
