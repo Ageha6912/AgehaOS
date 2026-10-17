@@ -1,0 +1,283 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+
+import { assertPublicUrl, BrowsePolicyError, type ResolveHost } from '../browse/url-policy'
+import {
+  browseErrorPage,
+  decodeWithCharset,
+  detectCharset,
+  rewriteHtml,
+  buildBrowseUrl,
+} from '../browse/rewrite'
+import type { DataStore } from '../store/types'
+import { SESSION_COOKIE } from './auth'
+
+/**
+ * 浏览器代理（/api/browse?url=...）：服务端取回目标页面，剥掉禁止嵌入的
+ * 响应头，把文档重写为经代理回流后同源供给窗口内 iframe。
+ *
+ * 安全契约：
+ * - 会话门（未登录 401）+ 每会话限流（文档级 120/min——资产仍从原站直载，
+ *   不经代理，所以网页浏览的文档请求量不大）；
+ * - SSRF：目标与每一跳重定向都过 assertPublicUrl（公网 http/https、
+ *   默认端口、域名全量 A/AAAA 必须公网）；
+ * - 头消毒：不转发客户端 Cookie/Referer 到上游；上游 Set-Cookie/CSP/
+ *   X-Frame-Options 一律不回流（自己渲染的响应头由 helmet 兜底）；
+ * - 资源上限：超时 12s 中止、响应体 5MB 封顶（超限 413 错误页）；
+ * - HTML 一律按探测字符集解码后重编码 UTF-8 输出（gbk 中文站不再乱码），
+ *   并被注入 <base> + 链接重写；非 HTML（图片/PDF 等）按字节透传。
+ *
+ * 退化预期（档 C 口径）：静态/半静态站点体验良好；SPA、POST 表单提交、
+ * 依赖登录态的站点会在错误页给出「在新标签页打开」的真实浏览兜底。
+ */
+
+const BROWSE_TIMEOUT_MS = 12_000
+const BROWSE_MAX_BYTES = 5 * 1024 * 1024
+const BROWSE_MAX_REDIRECTS = 5
+
+const UPSTREAM_HEADERS: Readonly<Record<string, string>> = {
+  // 以普通桌面浏览器身份取页（部分站点对默认 UA 直接 403）。
+  'user-agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+}
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
+
+export interface BrowseRoutesOptions {
+  store: DataStore
+  rateLimitWindowMs: number
+  /** 测试注入：替换 fetch / DNS / 上限 / 放行端口集。 */
+  fetcher?: typeof fetch
+  resolveHost?: ResolveHost
+  timeoutMs?: number
+  maxBytes?: number
+  allowedPorts?: ReadonlySet<string>
+  /**
+   * 本地开发开关：放行 198.18.0.0/15 基准段（TUN fake-IP）。缺省读
+   * AGEHA_BROWSE_TRUST_FAKE_IP=1；生产不设该变量即恒关。
+   */
+  allowBenchmarkRange?: boolean
+}
+
+async function readCapped(response: Response, maxBytes: number): Promise<Uint8Array | null> {
+  const contentLength = Number(response.headers.get('content-length') ?? '')
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) return null
+  const reader = response.body?.getReader()
+  if (reader === undefined) return new Uint8Array(0)
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined)
+      return null
+    }
+    chunks.push(value)
+  }
+  const merged = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return merged
+}
+
+export async function browseRoutes(
+  app: FastifyInstance,
+  options: BrowseRoutesOptions,
+): Promise<void> {
+  const { store } = options
+  const fetcher = options.fetcher ?? fetch
+  const timeoutMs = options.timeoutMs ?? BROWSE_TIMEOUT_MS
+  const maxBytes = options.maxBytes ?? BROWSE_MAX_BYTES
+  const policyOptions = {
+    resolveHost: options.resolveHost,
+    allowedPorts: options.allowedPorts,
+    // 生产无此环境变量 → 恒 false；本地 TUN（fake-IP）开发时置 1。
+    allowBenchmarkRange: options.allowBenchmarkRange ?? process.env.AGEHA_BROWSE_TRUST_FAKE_IP === '1',
+  }
+
+  /** 会话门（sync/eclosion 同范式）：未登录给 HTML 错误页（iframe 里可读）。 */
+  const requireUser = async (request: FastifyRequest, reply: FastifyReply): Promise<boolean> => {
+    const token = request.cookies[SESSION_COOKIE]
+    if (!token) {
+      void reply
+        .code(401)
+        .type('text/html; charset=utf-8')
+        .send(browseErrorPage({ title: '需要登录', message: '登录 AgehaOS 后才能使用浏览器。' }))
+      return false
+    }
+    const session = await store.findSession(token)
+    if (!session || session.expiresAt <= Date.now()) {
+      void reply
+        .code(401)
+        .type('text/html; charset=utf-8')
+        .send(browseErrorPage({ title: '需要登录', message: '会话已过期，请重新登录。' }))
+      return false
+    }
+    return true
+  }
+
+  const sendError = (
+    reply: FastifyReply,
+    status: number,
+    title: string,
+    message: string,
+    target?: string,
+  ): FastifyReply =>
+    reply
+      .code(status)
+      .type('text/html; charset=utf-8')
+      .send(
+        browseErrorPage({
+          title,
+          message,
+          targetUrl: target,
+          retryHref: target === undefined ? undefined : buildBrowseUrl(target),
+        }),
+      )
+
+  // helmet 路由级覆盖：CSP 全关（代理文档要能加载原站资产与脚本）；
+  // XFO/COOP/nosniff 等其余头盔头保留（XFO SAMEORIGIN = 同源窗口可嵌）。
+  app.get<{ Querystring: { url?: string } }>(
+    '/browse',
+    {
+      helmet: { contentSecurityPolicy: false },
+      config: {
+        rateLimit: {
+          max: 120,
+          timeWindow: options.rateLimitWindowMs,
+          keyGenerator: (request: FastifyRequest) => request.cookies[SESSION_COOKIE] ?? request.ip,
+        },
+      },
+    },
+    async (request, reply) => {
+      if (!(await requireUser(request, reply))) return reply
+      const raw = request.query.url
+      if (typeof raw !== 'string' || raw.trim() === '') {
+        return sendError(reply, 400, '缺少地址', '请求里没有要打开的目标地址。')
+      }
+
+      let current: URL
+      try {
+        current = await assertPublicUrl(raw, policyOptions)
+      } catch (cause) {
+        if (cause instanceof BrowsePolicyError) {
+          const blocked = cause.code === 'private-address' || cause.code === 'port-not-allowed'
+          return sendError(
+            reply,
+            cause.status,
+            blocked ? '该地址不允许访问' : '地址无法解析',
+            blocked
+              ? '代理只允许访问公网 http/https 地址（默认端口）。'
+              : '请检查地址是否拼写正确。',
+            raw,
+          )
+        }
+        throw cause
+      }
+
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+      /** 手动跟随重定向（每跳过 SSRF 闸）；返回终响应与最终 URL（重写 base 用）。 */
+      const followRedirects = async (
+        initial: URL,
+      ): Promise<{ response: Response; finalUrl: string }> => {
+        let current = initial
+        for (let hop = 0; ; hop++) {
+          const hopResponse = await fetcher(current.toString(), {
+            redirect: 'manual',
+            signal: controller.signal,
+            headers: UPSTREAM_HEADERS,
+          })
+          if (!REDIRECT_STATUSES.has(hopResponse.status)) {
+            return { response: hopResponse, finalUrl: current.toString() }
+          }
+          const location = hopResponse.headers.get('location')
+          await hopResponse.body?.cancel().catch(() => undefined)
+          if (location === null) return { response: hopResponse, finalUrl: current.toString() }
+          if (hop >= BROWSE_MAX_REDIRECTS) {
+            throw new BrowsePolicyError(502, 'too-many-redirects')
+          }
+          let next: URL
+          try {
+            next = new URL(location, current)
+          } catch {
+            throw new BrowsePolicyError(502, 'bad-redirect')
+          }
+          // 每一跳都重新过闸：跳转向私网地址同样按策略拒绝。
+          current = await assertPublicUrl(next.toString(), policyOptions)
+        }
+      }
+
+      let response: Response
+      let finalUrl: string
+      try {
+        ;({ response, finalUrl } = await followRedirects(current))
+      } catch (cause) {
+        if (cause instanceof BrowsePolicyError) {
+          if (cause.code === 'too-many-redirects') {
+            return sendError(reply, 502, '重定向过多', '目标站点的跳转次数超出上限。', raw)
+          }
+          if (cause.code === 'bad-redirect') {
+            return sendError(reply, 502, '重定向异常', '目标站点返回了无法解析的跳转地址。', raw)
+          }
+          return sendError(
+            reply,
+            cause.status,
+            '该地址不允许访问',
+            '跳转后的地址未通过代理策略。',
+            raw,
+          )
+        }
+        if (cause instanceof Error && cause.name === 'AbortError') {
+          return sendError(reply, 504, '请求超时', '目标站点响应太慢，已中止。', raw)
+        }
+        return sendError(reply, 502, '无法连接', '目标站点当前不可达。', raw)
+      } finally {
+        clearTimeout(timer)
+      }
+
+      if (response.status >= 300) {
+        await response.body?.cancel().catch(() => undefined)
+        return sendError(
+          reply,
+          502,
+          '目标站点返回了错误',
+          `上游返回 HTTP ${response.status}（页面可能不存在或需要登录）。`,
+          raw,
+        )
+      }
+
+      const contentType = response.headers.get('content-type')
+      const rawBytes = await readCapped(response, maxBytes)
+      if (rawBytes === null) {
+        return sendError(reply, 413, '页面过大', '目标页面超出代理的大小上限（5MB）。', raw)
+      }
+
+      const isHtml = contentType === null || /text\/html|application\/xhtml\+xml/i.test(contentType)
+      if (!isHtml) {
+        // 图片/PDF 等直通字节；content-type 原样，但绝不放行上游的缓存/凭据头。
+        return reply
+          .code(200)
+          .type(contentType ?? 'application/octet-stream')
+          .header('cache-control', 'private, max-age=0, no-store')
+          .send(Buffer.from(rawBytes))
+      }
+
+      const charset = detectCharset(rawBytes, contentType)
+      const decoded = decodeWithCharset(rawBytes, charset)
+      const rewritten = rewriteHtml(decoded, finalUrl)
+      return reply
+        .code(200)
+        .type('text/html; charset=utf-8')
+        .header('cache-control', 'private, max-age=0, no-store')
+        .send(rewritten)
+    },
+  )
+}

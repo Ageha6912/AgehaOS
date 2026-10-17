@@ -10,10 +10,12 @@ import { originCheck } from './plugins/origin-check'
 import type { RedisLike } from './rate-limit-redis'
 import { aiRoutes } from './routes/ai'
 import { authRoutes } from './routes/auth'
+import { browseRoutes } from './routes/browse'
 import { eclosionRoutes } from './routes/eclosion'
 import { sampleRoutes } from './routes/samples'
 import { storeRoutes } from './routes/store'
 import { syncRoutes } from './routes/sync'
+import type { BrowseRoutesOptions } from './routes/browse'
 import { startWorldScheduler, type WorldSchedulerHandle } from './eclosion/scheduler'
 import { GitHubTrendingRssSource, createTrendingService, type TrendingSource } from './eclosion/trending'
 import { loadOrCreateSigningKey } from './store-keys'
@@ -35,6 +37,11 @@ export interface BuildAppOptions {
   redis?: RedisLike
   /** 测试注入的热点源（今日世界生成；缺省 GitHub Trending RSS，绝不真联网于测试）。 */
   eclosionTrending?: TrendingSource
+  /** 测试注入的浏览器代理出口（fetcher/resolveHost/上限；缺省真 fetch + 真 DNS）。 */
+  browse?: Pick<
+    BrowseRoutesOptions,
+    'fetcher' | 'resolveHost' | 'timeoutMs' | 'maxBytes' | 'allowedPorts' | 'allowBenchmarkRange'
+  >
 }
 
 /**
@@ -143,6 +150,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     eclosion: config.eclosion,
     trending,
     rateLimitWindowMs: config.rateLimit.windowMs,
+  })
+
+  // 浏览器代理（档 C 窗口内浏览）：会话门 + SSRF 闸 + 头消毒 + HTML 重写；
+  // 路由级关 CSP（代理文档要加载原站资产），其余头盔头保留。
+  await app.register(browseRoutes, {
+    prefix: '/api',
+    store,
+    rateLimitWindowMs: config.rateLimit.windowMs,
+    ...options.browse,
   })
 
   // 举报样本上传（DDS §8.6）：匿名上报 + 服务端分类器，复审清单仅 admin。
