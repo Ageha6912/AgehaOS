@@ -1,3 +1,6 @@
+import { encodeBrowsePath } from './path-codec'
+import { browsePreludeTag } from './prelude'
+
 /**
  * 浏览代理的 HTML 重写（无解析器依赖的正则档）：
  * - 注入 `<base href="最终URL">`（资产/CSS url() 仍从原站加载，文档本体走代理）；
@@ -6,8 +9,20 @@
  *   真站就撞 X-Frame-Options；POST 的 method/enctype 原样保留（代理路由
  *   按原始字节转发，multipart 边界不破坏）。
  * - 既有的 `<base>` 一律移除（防重定向到未经闸的地址）。
+ * 链接产出两种形态（linkStyle）：
+ * - 'query'（兜底模式）：/api/browse?url=…（不透明 origin 沙箱下可用）；
+ *   **注入 <base href=目标>**——该模式下无 SW 接管请求，资产/相对 URL 必须
+ *   直连原站。
+ * - 'path'（档 ③ 子域模式）：/https/host/path 相对路径；**不注入 base**——
+ *   页面相对 URL（含 JS 相对 fetch/XHR）按文档真实地址（browse 路径态）解析，
+ *   经 SW → /raw → 服务端（资产字节透传）；注入 base 会把页面 JS 的相对请求
+ *   劫持到真实站点（跨域 CORS 全灭，2026-10-18 冒烟实证）。同时注入存储
+ *   命名空间前奏。
+ *
  * 已知取舍：属性值里含 `>` 的畸形标签不覆盖（正则档被接受的上限）。
  */
+
+export type LinkStyle = 'query' | 'path'
 
 /** 代理文档路径（客户端 iframe 与重写共用同一字面量，两侧测试各自钉死）。 */
 export const BROWSE_PATH = '/api/browse'
@@ -22,7 +37,7 @@ function escapeAttr(value: string): string {
 
 const NON_NAVIGABLE_PREFIXES = ['javascript:', 'mailto:', 'tel:', 'data:', 'blob:', 'about:']
 
-function rewriteHrefValue(value: string, base: URL): string | null {
+function rewriteHrefValue(value: string, base: URL, linkStyle: LinkStyle): string | null {
   const trimmed = value.trim()
   if (trimmed === '' || trimmed.startsWith('#')) return null
   const lower = trimmed.toLowerCase()
@@ -34,7 +49,9 @@ function rewriteHrefValue(value: string, base: URL): string | null {
     return null
   }
   if (target.protocol !== 'http:' && target.protocol !== 'https:') return null
-  return buildBrowseUrl(target.toString())
+  return linkStyle === 'path'
+    ? (encodeBrowsePath(target.toString()) ?? buildBrowseUrl(target.toString()))
+    : buildBrowseUrl(target.toString())
 }
 
 const URL_ATTRIBUTE = /\b(href|action)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi
@@ -44,7 +61,13 @@ const BASE_TAG = /<base\b[^>]*>/gi
 const HEAD_OPEN = /<head[^>]*>/i
 const HTML_OPEN = /<html[^>]*>/i
 
-export function rewriteHtml(html: string, finalUrl: string): string {
+export interface RewriteOptions {
+  /** 链接产出形态（缺省 query=兜底模式）。 */
+  linkStyle?: LinkStyle
+}
+
+export function rewriteHtml(html: string, finalUrl: string, options: RewriteOptions = {}): string {
+  const linkStyle = options.linkStyle ?? 'query'
   const base = new URL(finalUrl)
   let out = html.replace(BASE_TAG, '')
   out = out.replace(ANCHOR_TAGS, (_whole: string, tag: string, attrs: string) => {
@@ -52,7 +75,7 @@ export function rewriteHtml(html: string, finalUrl: string): string {
       URL_ATTRIBUTE,
       (match: string, attr: string, dq?: string, sq?: string) => {
         if (attr.toLowerCase() !== 'href') return match
-        const rewritten = rewriteHrefValue(dq ?? sq ?? '', base)
+        const rewritten = rewriteHrefValue(dq ?? sq ?? '', base, linkStyle)
         return rewritten === null ? match : `href="${escapeAttr(rewritten)}"`
       },
     )
@@ -65,13 +88,16 @@ export function rewriteHtml(html: string, finalUrl: string): string {
       URL_ATTRIBUTE,
       (match: string, attr: string, dq?: string, sq?: string) => {
         if (attr.toLowerCase() !== 'action') return match
-        const rewritten = rewriteHrefValue(dq ?? sq ?? '', base)
+        const rewritten = rewriteHrefValue(dq ?? sq ?? '', base, linkStyle)
         return rewritten === null ? match : `action="${escapeAttr(rewritten)}"`
       },
     )
     return `<form${replaced}>`
   })
-  const inject = `<base href="${escapeAttr(base.toString())}">`
+  // 档 ③ 路径模式不注入 base（相对 URL 归 SW/服务端回转）；query 模式注入
+  // base（无 SW 接管，资产与相对 URL 直连原站——见文件头说明）。
+  const inject =
+    linkStyle === 'path' ? browsePreludeTag() : `<base href="${escapeAttr(base.toString())}">`
   if (HEAD_OPEN.test(out)) out = out.replace(HEAD_OPEN, (match) => `${match}${inject}`)
   else if (HTML_OPEN.test(out)) out = out.replace(HTML_OPEN, (match) => `${match}${inject}`)
   else out = inject + out
