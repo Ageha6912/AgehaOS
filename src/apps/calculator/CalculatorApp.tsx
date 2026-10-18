@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { useTranslation } from '@/core/i18n'
+import { useWindowStore } from '@/store/window-store'
 
 import { useNarrowContainer } from '@/apps/use-narrow-container'
 
@@ -167,7 +168,30 @@ const KEYBOARD_MAP: Record<string, string> = {
   '%': '%',
 }
 
-export function CalculatorApp() {
+/** 可编辑元素（输入字段/文本域/下拉/富文本）：物理键盘的按键属于它们。 */
+const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
+
+export function isEditableTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || EDITABLE_TAGS.has(target.tagName))
+  )
+}
+
+export interface CalculatorAppProps {
+  /** 宿主窗口 id；缺省（直接挂载/预览）视为聚焦窗口（守卫二回退）。 */
+  windowId?: string
+}
+
+/**
+ * 物理键盘监听的作用域守卫（2026-10-18 用户 bug 修复）：window 级 keydown
+ * 此前无任何守卫，计算器一旦被打开过（组件保持挂载，即使窗口失焦/被盖住），
+ * 全系统所有输入框的 0-9、运算符标点、Backspace 都被 preventDefault 吞掉
+ * ——地址栏/搜索框「打不进数字标点、退格失效」。两层守卫：
+ * ① 可编辑字段豁免：焦点在 input/textarea/可编辑区内一律让位；
+ * ② 聚焦窗口门控：仅当本窗口聚焦（或有 windowId 缺失的回退档）才接管。
+ */
+export function CalculatorApp({ windowId }: CalculatorAppProps = {}) {
   const { t } = useTranslation()
   // 窄容器分支（M3-4）：观测应用根内容盒宽，与设备判定（device-store）无关
   // ——桌面窄窗口同样进入窄分支，移动宽视口保持宽布局。
@@ -178,6 +202,14 @@ export function CalculatorApp() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      // 守卫一（2026-10-18 用户 bug）：焦点在可编辑字段内，数字/标点/退格
+      // 属于该字段的输入——绝不 preventDefault。
+      if (isEditableTarget(event.target)) return
+      // 守卫二：仅聚焦窗口接管物理键盘（windowId 缺失视为聚焦回退）。
+      if (windowId !== undefined) {
+        const focused = useWindowStore.getState().windows.find((w) => w.id === windowId)?.focused
+        if (focused !== true) return
+      }
       const mapped = KEYBOARD_MAP[event.key] ?? event.key
       if (/^[0-9]$/.test(mapped) || ['+', '-', '×', '÷', '=', 'C', '.', '%', '±'].includes(mapped)) {
         event.preventDefault()
@@ -190,7 +222,7 @@ export function CalculatorApp() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [press])
+  }, [press, windowId])
 
   return (
     <div ref={rootRef} className="surface-panel flex h-full flex-col" aria-label={t('app.calculator.title')}>

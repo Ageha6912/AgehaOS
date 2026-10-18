@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { registerBuiltinApps, resetAppStore } from '@/store/app-store'
+import { resetWindowStore, useWindowStore } from '@/store/window-store'
+
 import { CalculatorApp } from './CalculatorApp'
 
 function press(key: string) {
@@ -120,5 +123,65 @@ describe('CalculatorApp 窄容器（M3-4）', () => {
     expect(screen.getByTestId('calculator-key-=').className).toBe(
       'rounded-md text-sm font-medium tabular-nums bg-primary text-primary-contrast hover:opacity-90 ',
     )
+  })
+})
+
+/**
+ * 物理键盘监听的作用域守卫（2026-10-18 用户 bug）：计算器挂载后
+ * 在地址栏/搜索框打不进数字与标点、退格也失效——window 级监听无守卫
+ * 吞掉了全系统的 0-9/运算符/Backspace。守卫两层：可编辑字段豁免 +
+ * 仅聚焦窗口接管。
+ */
+describe('CalculatorApp × 物理键盘作用域守卫（2026-10-18 修复）', () => {
+  beforeEach(() => {
+    resetAppStore()
+    registerBuiltinApps()
+    resetWindowStore()
+  })
+
+  function keydownOn(target: Element): boolean {
+    return fireEvent.keyDown(target, { key: '5' })
+  }
+
+  it('焦点在输入框内：数字/标点/退格不被吞，计算器不响应（用户 bug 复现）', () => {
+    const windowId = useWindowStore.getState().open({ appId: 'com.ageha.calculator', title: '计算器' })
+    render(
+      <>
+        <CalculatorApp windowId={windowId} />
+        <input data-testid="probe" />
+      </>,
+    )
+    const probe = screen.getByTestId('probe')
+
+    // fireEvent 返回 false = preventDefault 被调用（输入被吞）。
+    expect(fireEvent.keyDown(probe, { key: '5' })).toBe(true)
+    expect(fireEvent.keyDown(probe, { key: '.' })).toBe(true)
+    expect(fireEvent.keyDown(probe, { key: '+' })).toBe(true)
+    expect(fireEvent.keyDown(probe, { key: 'Backspace' })).toBe(true)
+    expect(display()).toBe('0')
+  })
+
+  it('窗口未聚焦：物理键盘不接管（被盖住的窗口不得抢键）', () => {
+    const calcId = useWindowStore.getState().open({ appId: 'com.ageha.calculator', title: '计算器' })
+    // 另开一窗夺焦。
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<CalculatorApp windowId={calcId} />)
+
+    expect(keydownOn(document.body)).toBe(true)
+    expect(display()).toBe('0')
+  })
+
+  it('窗口聚焦：物理键盘便利保留（数字接管 + preventDefault）', () => {
+    const calcId = useWindowStore.getState().open({ appId: 'com.ageha.calculator', title: '计算器' })
+    render(<CalculatorApp windowId={calcId} />)
+
+    expect(keydownOn(document.body)).toBe(false)
+    expect(display()).toBe('5')
+  })
+
+  it('无 windowId（直接挂载/预览）：回退为视为聚焦，既有行为不变', () => {
+    render(<CalculatorApp />)
+    expect(keydownOn(document.body)).toBe(false)
+    expect(display()).toBe('5')
   })
 })
