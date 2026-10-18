@@ -87,6 +87,11 @@ export function BrowserApp() {
   const [activeId, setActiveId] = useState(() => tabs[0]?.id ?? '')
   const [address, setAddress] = useState('')
   const addressRef = useRef<HTMLInputElement>(null)
+  /** 地址栏「待全选」标记（导航后/新聚焦时置位）：浏览器在 mousedown/mouseup
+   *  的默认动作里按点击落点重置选区——在 mouseup 处 preventDefault 并**重新
+   *  select()** 才能保住全选（点地址栏打字=替换）。首次 mouseup 消费标记；
+   *  已全选后再点一次（标记已清）正常落光标改局部（地址栏惯例）。 */
+  const addressSelectPendingRef = useRef(false)
   // 站点数据（服务端 Cookie 罐）元信息：null = 不可用（本地预览/未登录）→ 隐藏区块。
   const [siteData, setSiteData] = useState<SiteDataSummary | null>(null)
 
@@ -108,7 +113,13 @@ export function BrowserApp() {
   // 切标签/导航/后退前进后地址栏跟随当前条目（起始页清空并聚焦）。
   useEffect(() => {
     setAddress(currentUrl === null ? '' : displayForTarget(currentUrl))
-    if (currentUrl === null) addressRef.current?.focus()
+    if (currentUrl === null) {
+      addressRef.current?.focus()
+    } else {
+      // 导航后惯例（Chrome 同款）：地址栏内容处于全选，点击后打字即替换。
+      addressSelectPendingRef.current = true
+      addressRef.current?.select()
+    }
   }, [activeId, currentUrl])
 
   const updateTab = (id: string, patch: Partial<BrowserTab>): void =>
@@ -297,9 +308,22 @@ export function BrowserApp() {
             narrow ? 'h-11' : 'h-7'
           }`}
           onChange={(event) => setAddress(event.target.value)}
-          // 浏览器惯例：聚焦即全选——点地址栏直接打字 = 替换旧地址（而非
-          // 追加；光标落点由再点一次决定）。2026-10-18 生产验证抓到的缺口。
-          onFocus={(event) => event.currentTarget.select()}
+          // 浏览器惯例：点地址栏打字 = 替换旧地址（而非追加）。
+          // 0.6.1 首修只挂 focus 的 select()，被真实浏览器点击默认动作的落点
+          // 覆盖（E2E 复验到「example.comwww.sogou.com」）——现在在 mouseup
+          // 处 preventDefault 并重新 select()，保住导航后/聚焦时的全选；
+          // 已全选后再点一次落光标改局部（惯例第二档）。
+          onFocus={(event) => {
+            addressSelectPendingRef.current = true
+            event.currentTarget.select()
+          }}
+          onMouseUp={(event) => {
+            if (addressSelectPendingRef.current) {
+              addressSelectPendingRef.current = false
+              event.preventDefault()
+              event.currentTarget.select()
+            }
+          }}
           onKeyDown={(event) => {
             // 输入法组合期的 Enter 是选词确认（ime-guard 双重互锁）。
             if (event.key === 'Enter' && !isImeComposing(event.nativeEvent)) {

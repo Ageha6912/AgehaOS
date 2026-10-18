@@ -76,6 +76,20 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     expect(input.selectionEnd).toBe('example.com'.length)
   })
 
+  it('聚焦全选的 mouseup 防护：首次 mouseup 被 preventDefault 保住选区，二次正常落点', () => {
+    render(<BrowserApp />)
+    navigate('example.com')
+    const input = addressInput()
+
+    fireEvent.focus(input)
+    // 首次 mouseup：preventDefault（返回 false）且选区被重新全选。
+    expect(fireEvent.mouseUp(input)).toBe(false)
+    expect(input.selectionStart).toBe(0)
+    expect(input.selectionEnd).toBe('example.com'.length)
+    // 标记已消费：再点一次不拦截（正常落光标改局部）。
+    expect(fireEvent.mouseUp(input)).toBe(true)
+  })
+
   it('输入法组合期 Enter 不导航（ime-guard 双重互锁）', () => {
     render(<BrowserApp />)
     const input = addressInput()
