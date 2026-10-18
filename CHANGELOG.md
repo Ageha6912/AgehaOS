@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+## [0.7.0] · 浏览器限制路线档 ③：子域 + Service Worker 重写引擎（2026-10-18）
+
+让 SPA 与 JS 驱动交互进窗口：代理文档迁到独立子域 `browse.ageha.cn`（origin 隔离后可安全开 `allow-same-origin` 沙箱），站内一切请求由薄 Service Worker 换算回服务端代理。**本地真浏览器冒烟全链路实证**：引导链 → SW 接管 → 相对请求经 `/raw` 回流 → 页面自身脚本代理、存储命名空间生效。测试 +45（前端 2171 + 后端 220 全绿）。⚠️ **生产启用仅差一条 DNS 记录**：`browse.ageha.cn A 47.76.33.22`（Caddy 站块已就位、证书届时自动签发；DNS 未生效期间客户端 6s 引导超时**自动回退**现模式，零影响）。
+
+- **服务端**：三条入口共用代理主体——`/api/browse?url=`（query 兜底）、`/https|http/*`（**路径态文档** `/https/example.com/a?b=1`，SW 缺席时直连也可渲染）、`/raw/*`（SW 数据通道）；`/sw.js`（薄 SW 源码）+ `/__bootstrap`（引导页：令牌换子域 cookie + 注册 SW + 回执）+ `POST /__claim` + `GET /api/browse/token`（主域签发 10 分钟领取令牌）
+- **子域鉴权**：会话 cookie（主域 host-only）之外新增 browse grant（HMAC 签名 {userId, exp}，httpOnly 子域 cookie，6h）——主域会话不跨子域外泄；grant 不能续签 grant（无界续期防护）
+- **嵌入契约升级**：XFO 关停（子域文档必须被主域跨源 iframe 嵌入）→ 统一 `frame-ancestors` 头（'self' + 本地回环 + 主域 `AGEHA_PUBLIC_ORIGIN` 可覆盖）；**vite CSP 的 frame-src 纳入 browse 源**（否则被 OS 自身 CSP 挡死——冒烟实证）
+- **路径模式不注入 `<base>`**（关键修正）：注入 base 会把页面 JS 的相对 fetch/XHR 劫持去真实站点（跨域 CORS 全灭——冒烟实证「CORS blocked example.com」）；路径模式下相对 URL 按文档真实地址解析 → SW → /raw → 代理（资产字节透传），query 兜底模式保留 base（无 SW 接管，资产直连）
+- **客户端**：浏览器应用挂载时引导（`VITE_BROWSE_ORIGIN` 显式 > 远程认证缺省子域 > 空=禁用）；成功 = iframe 走 `${browseOrigin}/https/host/path` + `allow-same-origin` 沙箱；失败/超时 6s **静默回退** query 模式；keep-alive/书签/历史全不变
+- **存储命名空间前奏**：注入脚本以 `scheme+host` 前缀包装 localStorage/sessionStorage（子域单 origin 共享存储 → 逐站隔离）；已知边界：`document.cookie` 未虚拟化
+- 已知边界延续：WebSocket 不被 SW 拦截；页面 JS 里的**绝对 URL** 请求仍直连真站（跨域取决站点 CORS）；风控站点（Cloudflare 等）不受本帖影响
+- 基础设施：Caddy `browse.ageha.cn { reverse_proxy 127.0.0.1:8787 }` 已 live（校验通过）；等待 DNS 记录
+
 ## [0.6.2] · 修复（完整版）：地址栏点选替换——mouseup 重新全选（2026-10-18）
 
 **0.6.1 首修不生效的教训**：只挂 `onFocus` 的 `select()` 会被真实浏览器点击默认动作的落点覆盖（本地/生产真机 E2E 均复现「example.comwww.sogou.com」；组件测试的 fireEvent.focus 不经过鼠标序列，属假绿）。完整修复：导航后（effect）与新聚焦时置「待全选」标记并 `select()`，在 **mouseup 处 preventDefault 并重新 select()** 保住全选——点地址栏打字=替换；标记消费后再点一次落光标改局部（Chrome 惯例第二档）。组件测试更新 + 真实浏览器 E2E 中间验证过（跑完即删）。
