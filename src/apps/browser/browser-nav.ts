@@ -33,8 +33,10 @@ export function browsePathFor(target: string): string | null {
     return null
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+  // 地址栏目标一律写 https 段：https 子域下 http 段会被混合内容拦死（与
+  // rewrite.ts 的重写侧升级同口径）。
   const path = url.pathname === '' ? '/' : url.pathname
-  return `/${url.protocol.slice(0, -1)}/${url.host}${path}${url.search}`
+  return `/https/${url.host}${path}${url.search}`
 }
 
 /**

@@ -1,5 +1,5 @@
 import { encodeBrowsePath } from './path-codec'
-import { browsePreludeTag } from './prelude'
+import { browseClickGuardTag, browsePreludeTag } from './prelude'
 
 /**
  * 浏览代理的 HTML 重写（无解析器依赖的正则档）：
@@ -49,6 +49,11 @@ function rewriteHrefValue(value: string, base: URL, linkStyle: LinkStyle): strin
     return null
   }
   if (target.protocol !== 'http:' && target.protocol !== 'https:') return null
+  // 混合内容防护（2026-10-18 B 站实证）：文档在 https 子域，页面里的**协议
+  // 相对链接** `//host/x` 会被浏览器解析成 http——原样编码成 /http/... 会被
+  // 按混合内容拦成 chrome-error。只升级这一类（原文以 // 开头）；显式
+  // `http://` 链接保持真实协议（服务端原样请求，避免把不支持 https 的站点打死）。
+  if (trimmed.startsWith('//') && target.protocol === 'http:') target.protocol = 'https:'
   return linkStyle === 'path'
     ? (encodeBrowsePath(target.toString()) ?? buildBrowseUrl(target.toString()))
     : buildBrowseUrl(target.toString())
@@ -94,10 +99,13 @@ export function rewriteHtml(html: string, finalUrl: string, options: RewriteOpti
     )
     return `<form${replaced}>`
   })
-  // 档 ③ 路径模式不注入 base（相对 URL 归 SW/服务端回转）；query 模式注入
-  // base（无 SW 接管，资产与相对 URL 直连原站——见文件头说明）。
+  // 点击守卫两种模式都注入（弹窗/顶层导航在沙箱里均不可靠，见 prelude 注释）；
+  // 档 ③ 路径模式不注入 base（相对 URL 归 SW/服务端回转）+ 注入存储命名空间；
+  // query 模式注入 base（无 SW 接管，资产与相对 URL 直连原站——见文件头说明）。
   const inject =
-    linkStyle === 'path' ? browsePreludeTag() : `<base href="${escapeAttr(base.toString())}">`
+    linkStyle === 'path'
+      ? `${browseClickGuardTag()}${browsePreludeTag()}`
+      : `${browseClickGuardTag()}<base href="${escapeAttr(base.toString())}">`
   if (HEAD_OPEN.test(out)) out = out.replace(HEAD_OPEN, (match) => `${match}${inject}`)
   else if (HTML_OPEN.test(out)) out = out.replace(HTML_OPEN, (match) => `${match}${inject}`)
   else out = inject + out

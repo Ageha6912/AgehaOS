@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { BROWSE_PRELUDE_SCRIPT } from '../src/browse/prelude'
+import { BROWSE_CLICK_GUARD_SCRIPT, BROWSE_PRELUDE_SCRIPT } from '../src/browse/prelude'
 import { decodeBrowsePath, encodeBrowsePath, isBrowsePath } from '../src/browse/path-codec'
 import { signGrant, verifyGrant } from '../src/browse/grant'
 import { browseSwSource } from '../src/browse/sw-source'
@@ -50,7 +50,7 @@ describe('path-codec（路径态编码）', () => {
     expect(decodeBrowsePath('/raw/https/example.com/', '')).toBeNull() // /raw 剥前缀后才是路径态
   })
 
-  it('isBrowsePath：首段为 scheme 才算', () => {
+  it('isBrowsePath：首段为 scheme 才算（/http 保留为兼容旧链接）', () => {
     expect(isBrowsePath('/https/example.com/')).toBe(true)
     expect(isBrowsePath('/http/x/')).toBe(true)
     expect(isBrowsePath('/raw/https/example.com/')).toBe(false)
@@ -149,6 +149,88 @@ describe('BROWSE_PRELUDE_SCRIPT（存储命名空间前奏，真实求值）', (
   })
 })
 
+describe('BROWSE_CLICK_GUARD_SCRIPT（点击守卫，真实求值）', () => {
+  interface Harness {
+    click: (attrs: { target?: string; href?: string } | null) => {
+      prevented: boolean
+      posted: unknown[]
+      href: string
+    }
+  }
+
+  function setup(): Harness {
+    const listeners: Record<string, (event: unknown) => void> = {}
+    const posted: unknown[] = []
+    const locationStub = {
+      pathname: '/https/example.com/',
+      href: 'https://browse.local/https/example.com/',
+      search: '',
+    }
+    const documentStub = {
+      addEventListener: (type: string, handler: (event: unknown) => void) => {
+        listeners[type] = handler
+      },
+    }
+    const windowStub = {
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      setTimeout: () => 0,
+    }
+    const parentStub = { postMessage: (message: unknown) => posted.push(message) }
+    new Function('document', 'window', 'parent', 'location', 'URL', BROWSE_CLICK_GUARD_SCRIPT)(
+      documentStub,
+      windowStub,
+      parentStub,
+      locationStub,
+      URL,
+    )
+
+    return {
+      click(attrs) {
+        const anchor =
+          attrs === null
+            ? null
+            : {
+                getAttribute: (name: string) =>
+                  name === 'target' ? (attrs.target ?? null) : (attrs.href ?? null),
+              }
+        let prevented = false
+        listeners.click?.({
+          target: { closest: () => anchor },
+          preventDefault: () => {
+            prevented = true
+          },
+        })
+        return { prevented, posted, href: locationStub.href }
+      },
+    }
+  }
+
+  it('_blank 链接：拦下并请求宿主在新标签页打开（真实 URL，路径态换算回站点）', () => {
+    const harness = setup()
+    const result = harness.click({ target: '_blank', href: '//www.bilibili.com/video/BV1?t=1' })
+    expect(result.prevented).toBe(true)
+    expect(result.posted).toEqual([
+      { type: 'agehaos:open-external', url: 'https://www.bilibili.com/video/BV1?t=1' },
+    ])
+    // 宿主未回执时不在此刻同帧导航（setTimeout 兜底由真实浏览器验证）。
+    expect(result.href).toBe('https://browse.local/https/example.com/')
+  })
+
+  it('_self/缺 target/锚点不拦（站点自身手势）', () => {
+    const harness = setup()
+    for (const attrs of [
+      { target: '_self', href: '/x' },
+      { href: '/x' },
+      { target: '_blank', href: '#section' },
+      { target: '_blank' },
+    ]) {
+      expect(harness.click(attrs as never).prevented).toBe(false)
+    }
+    expect(harness.click(null).prevented).toBe(false)
+  })
+})
+
 describe('browseSwSource（SW 源码真实求值）', () => {
   interface FakeRequest {
     url: string
@@ -241,22 +323,32 @@ describe('browseSwSource（SW 源码真实求值）', () => {
     expect(fetchStub).not.toHaveBeenCalled()
   })
 
-  it('路径态请求（导航/链接）直接换算 /raw 目标', async () => {
+  it('路径态导航放行（不二次换算；防 /video/x 丢 host）', async () => {
     const fetchStub = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
       async () => new Response('ok'),
     )
     vi.stubGlobal('fetch', fetchStub)
     const { listeners } = loadWorker(new Map())
+    // 已是路径态的导航：respondWith 不应被调用（浏览器直接请求服务端路由）。
+    expect(
+      runFetch(listeners, makeRequest('https://browse.local/https/www.bilibili.com/video/BV1')),
+    ).toBeUndefined()
+    expect(fetchStub).not.toHaveBeenCalled()
+  })
 
-    const promise = runFetch(
-      listeners,
-      makeRequest('https://browse.local/https/example.com/a/b?q=1'),
+  it('路径态请求（导航/链接）直接换算 /raw 目标', async () => {
+    const fetchStub = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => new Response('ok'),
     )
-    expect(promise).toBeDefined()
-    await promise
+    vi.stubGlobal('fetch', fetchStub)
+
+    // 路径态导航本身放行（由服务端路由渲染）；页面内同源请求按基准换算。
+    const clients = new Map([['c1', { url: 'https://browse.local/https/example.com/a/b?q=1' }]])
+    const scoped = loadWorker(clients)
+    await runFetch(scoped.listeners, makeRequest('https://browse.local/assets/app.js?q=1'), 'c1')
     expect(fetchStub).toHaveBeenCalledTimes(1)
     const [url, init] = fetchStub.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('/raw/https/example.com/a/b?q=1')
+    expect(url).toBe('/raw/https/example.com/assets/app.js?q=1')
     expect(init.method).toBe('GET')
     expect(init.credentials).toBe('same-origin')
   })
@@ -280,22 +372,37 @@ describe('browseSwSource（SW 源码真实求值）', () => {
     expect((fetchStub.mock.calls[1] as [string])[0]).toBe('/raw/https/example.com/assets/app.js')
   })
 
+  it('http 目标升级 https 再拼 /raw（混合内容防护）', async () => {
+    const fetchStub = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => new Response('ok'),
+    )
+    vi.stubGlobal('fetch', fetchStub)
+    const clients = new Map([['c9', { url: 'https://browse.local/https/example.com/a' }]])
+    const { listeners } = loadWorker(clients)
+
+    await runFetch(listeners, makeRequest('https://browse.local/api/x'), 'c9')
+    // 基准是 https 目标 → /raw/https。
+    expect((fetchStub.mock.calls[0] as [string])[0]).toBe('/raw/https/example.com/api/x')
+  })
+
   it('POST 携带原始体与 content-type（表单/上传经 SW 到 /raw）', async () => {
     const fetchStub = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
       async () => new Response('ok'),
     )
     vi.stubGlobal('fetch', fetchStub)
-    const { listeners } = loadWorker(new Map())
 
+    const clients = new Map([['c2', { url: 'https://browse.local/https/example.com/login' }]])
+    const scoped = loadWorker(clients)
     await runFetch(
-      listeners,
-      makeRequest('https://browse.local/https/example.com/login', 'POST', {
+      scoped.listeners,
+      makeRequest('https://browse.local/submit', 'POST', {
         contentType: 'application/x-www-form-urlencoded',
         bytes: [97, 61, 49],
       }),
+      'c2',
     )
     const [url, init] = fetchStub.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('/raw/https/example.com/login')
+    expect(url).toBe('/raw/https/example.com/submit')
     expect(init.method).toBe('POST')
     expect((init.headers as Record<string, string>)['content-type']).toBe(
       'application/x-www-form-urlencoded',

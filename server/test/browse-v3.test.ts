@@ -92,7 +92,7 @@ describe('/https · /raw · 子域自举（档 ③）', () => {
     cookie = String(Array.isArray(setCookie) ? setCookie[0] : setCookie).split(';')[0] ?? ''
   }
 
-  /** 上游页面的路径态形态（http 段）。 */
+  /** 上游页面的路径态形态（段名 = 真实协议；协议相对链接才会被升级）。 */
   function pathOf(path: string): string {
     return `/http/localhost:${upstreamPort}${path}`
   }
@@ -119,6 +119,7 @@ describe('/https · /raw · 子域自举（档 ③）', () => {
     // （跨域 CORS 全灭，2026-10-18 冒烟实证）。
     expect(response.body).not.toContain('<base')
     expect(response.body).toContain('__agehaBrowseSite') // 存储命名空间前奏
+    expect(response.body).toContain("addEventListener('click'") // 点击守卫（两模式都注入）
     expect(response.body).toContain('method="post"') // 方法原样
   })
 

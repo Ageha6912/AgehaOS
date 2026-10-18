@@ -40,6 +40,9 @@ self.addEventListener('fetch', function (event) {
     return
   }
   if (url.origin !== self.location.origin) return
+  // 已是路径态（/https|http/host/...）的导航：那是我们自己的文档地址，直接
+  // 放行——绝不能再次换算（否则 /video/x 会被当成相对请求二次解析，丢 host）。
+  if (PATH_TARGET.test(url.pathname)) return
   if (INFRA.test(url.pathname)) return
 
   event.respondWith(
@@ -66,6 +69,9 @@ self.addEventListener('fetch', function (event) {
       var rawPath
       try {
         var t = new URL(target)
+        // 混合内容防护：仅协议相对（//host）解析出的 http 目标升级 https；
+        // 显式 http 目标保持真实协议（服务端原样请求）。
+        if (target.indexOf('//') === 0 && t.protocol === 'http:') t.protocol = 'https:'
         rawPath = '/raw/' + t.protocol.slice(0, -1) + '/' + t.host + t.pathname + t.search
       } catch (e) {
         return fetch(request)

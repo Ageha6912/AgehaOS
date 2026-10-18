@@ -42,3 +42,53 @@ try{Object.defineProperty(window,'sessionStorage',{configurable:true,get:functio
 export function browsePreludeTag(): string {
   return `<script>${BROWSE_PRELUDE_SCRIPT}</script>`
 }
+
+/**
+ * 点击守卫（两种模式都注入，2026-10-18 B 站实证）：代理 iframe 是沙箱环境，
+ * `target="_blank"` 的链接与 `_top/_parent` 导航要么被弹窗拦截器吞掉、要么
+ * 被沙箱禁止——用户感知「点了没反应」。捕获阶段把这三类点击拦成**同帧
+ * 导航**：落到重写后的路径态地址——能打开就打开；被风控/SPA 挡住也会看到
+ * 带「在新标签页打开」的真实错误页（可见的失败优于静默失败）。
+ */
+export const BROWSE_CLICK_GUARD_SCRIPT = `(function(){try{
+function absolute(href){
+  try{return new URL(href,location.href).toString()}catch(e){return null}
+}
+document.addEventListener('click',function(e){
+  var t=e.target;
+  var a=t&&t.closest?t.closest('a[target]'):null;
+  if(!a)return;
+  var target=(a.getAttribute('target')||'').toLowerCase();
+  if(target!=='_blank')return; // _top/_parent 交沙箱（导航被拒即静默，见下）
+  var href=a.getAttribute('href');
+  if(!href||href.charAt(0)==='#')return;
+  var url=absolute(href);
+  if(!url)return;
+  // 目标若是本代理的路径态地址，先换算回真实站点 URL 再交给宿主。
+  var m=new RegExp('^(https?://[^/]+)/(https?)/([^/]+)(/.*)?$').exec(url);
+  if(m){url=m[2]+'://'+m[3]+(m[4]||'/')}
+  e.preventDefault();
+  // 沙箱里 _blank 弹窗不可靠、跨源顶层导航被禁：请求宿主「在新标签页打开」
+  // （真实浏览器顶层标签，零限制）。宿主未响应时退回同帧导航（站内可渲染的
+  // 目标仍能打开）。
+  var responded=false;
+  function onAck(ev){
+    var d=ev.data;
+    if(!d||d.type!=='agehaos:browse-open-external')return;
+    responded=true;
+    try{window.removeEventListener('message',onAck)}catch(e){}
+  }
+  try{window.addEventListener('message',onAck)}catch(e){}
+  try{parent.postMessage({type:'agehaos:open-external',url:url},'*')}catch(e){}
+  setTimeout(function(){
+    if(responded)return;
+    try{window.removeEventListener('message',onAck)}catch(e){}
+    location.href=href; // 同帧兜底（站内目标）
+  },600);
+},true);
+}catch(e){}})();`
+
+/** 点击守卫注入标签。 */
+export function browseClickGuardTag(): string {
+  return `<script>${BROWSE_CLICK_GUARD_SCRIPT}</script>`
+}

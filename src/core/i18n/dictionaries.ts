@@ -246,7 +246,8 @@ export const dictionaries = {
     'notification.title.worldReady': '今日世界已就绪',
     /* Shell 3.1 STEP 3：趋势信号行已迁出顶栏（右栏 WorldCard 承载），通知
        指引同步改指新入口——「点按顶栏小字」是死指引（视觉评审第 4 轮）。 */
-    'notification.body.worldReady': '趋势信号已织入今日的世界，点按右栏「今日世界」卡的小字信号行可查看来源。',
+    'notification.body.worldReady':
+      '趋势信号已织入今日的世界，点按右栏「今日世界」卡的小字信号行可查看来源。',
     'notification.center': '通知中心',
     'notification.empty': '暂无通知',
     'notification.markRead': '标记已读',
@@ -266,7 +267,6 @@ export const dictionaries = {
     'search.hint.navigate': '选择',
     'search.hint.open': '打开',
     'search.hint.close': '关闭',
-
 
     'taskbar.start': '开始',
     'launcher.searchPlaceholder': '搜索应用…',
@@ -338,11 +338,16 @@ export const dictionaries = {
     'browser.recent': '最近访问',
     'browser.noBookmarks': '暂无书签：访问页面后点星标收藏。',
     'browser.noHistory': '暂无访问记录。',
-    'browser.homeHint': '输入网址直接访问，输入关键词用搜索引擎；窗口内打不开的站点可经「在新标签页打开」真实浏览。',
+    'browser.homeHint':
+      '输入网址直接访问，输入关键词用搜索引擎；窗口内打不开的站点可经「在新标签页打开」真实浏览。',
     'browser.siteData': '站点数据',
     'browser.siteDataCount': '已保存 {count} 条站点登录数据（仅存于服务器）',
     'browser.siteDataNone': '暂无已保存的站点数据',
     'browser.siteDataClear': '清除',
+    'browser.mode.enhanced': '增强模式已启用：站点交互与存储按站隔离',
+    'browser.mode.pending': '正在准备增强模式…',
+    'browser.mode.fallback':
+      '增强模式不可用（受限模式）：部分站点交互受限，可用「在新标签页打开」完整浏览',
     'terminal.input': '终端输入',
     'terminal.help.body':
       '可用命令：pwd / ls / cd / cat / echo / mkdir / touch / rm / date / whoami / clear / help。rm 移入回收站。',
@@ -400,17 +405,22 @@ export const dictionaries = {
     'eclosion.reportDialog.cancel': '取消',
     'eclosion.reportDialog.failed': '上报失败，请稍后重试。',
     'eclosion.banned.title': '此应用已被举报',
-    'eclosion.banned.body': '你已举报此 AI 生成应用；本次登录会话内它保持停用，重新登录后可再次生成。',
+    'eclosion.banned.body':
+      '你已举报此 AI 生成应用；本次登录会话内它保持停用，重新登录后可再次生成。',
 
     'settings.eclosion.section': '羽化',
     'settings.eclosion.themeFollow': '主题跟随今日世界',
-    'settings.eclosion.themeFollowHint': '壁纸与强调色随每日趋势信号变化；关闭后仅保留今日应用，不改主题。',
+    'settings.eclosion.themeFollowHint':
+      '壁纸与强调色随每日趋势信号变化；关闭后仅保留今日应用，不改主题。',
     'settings.eclosion.enable': '启用羽化模式',
-    'settings.eclosion.enableHint': '计算器、记事本、时钟改由 AI 按固定规格生成；原生实现保留为兜底，任何失败都会自动回落。',
-    'settings.eclosion.remoteOnlyHint': '羽化模式仅在远程认证模式下可用；本地认证下始终使用原生应用。',
+    'settings.eclosion.enableHint':
+      '计算器、记事本、时钟改由 AI 按固定规格生成；原生实现保留为兜底，任何失败都会自动回落。',
+    'settings.eclosion.remoteOnlyHint':
+      '羽化模式仅在远程认证模式下可用；本地认证下始终使用原生应用。',
     'settings.eclosion.aiNotConfigured': '服务端未配置 AI，已回落原生实现。',
     'settings.eclosion.generateMode': '基础软件生成方式',
-    'settings.eclosion.generateModeHint': '每个基础软件可单独选择「羽化版」或「经典版」；仅总开关开启时生效。',
+    'settings.eclosion.generateModeHint':
+      '每个基础软件可单独选择「羽化版」或「经典版」；仅总开关开启时生效。',
     'settings.eclosion.modeEclosion': '羽化版',
     'settings.eclosion.modeClassic': '经典版',
     'settings.eclosion.quotaLabel': '今日生成额度',
@@ -418,10 +428,12 @@ export const dictionaries = {
     'settings.eclosion.quotaReset': '{time} 重置',
     'settings.eclosion.quotaUnavailable': '暂无法获取额度（服务端不可达或未配置）。',
     'settings.eclosion.clearData': '清除羽化数据',
-    'settings.eclosion.clearHint': '删除本机缓存的全部羽化应用生成结果；应用自身的笔记等数据不受影响。',
+    'settings.eclosion.clearHint':
+      '删除本机缓存的全部羽化应用生成结果；应用自身的笔记等数据不受影响。',
     'settings.eclosion.cleared': '已清除羽化数据。',
     'settings.eclosion.replay': '蝶谱',
-    'settings.eclosion.replayHint': '每日世界的时间线（标题、配色、应用名单与壁纸参数，最多 60 天）；「回到那天」只恢复主题与壁纸。',
+    'settings.eclosion.replayHint':
+      '每日世界的时间线（标题、配色、应用名单与壁纸参数，最多 60 天）；「回到那天」只恢复主题与壁纸。',
     'settings.eclosion.replayEmpty': '暂无蝶谱记录；今日世界就绪后每日会在此留下一条。',
     'settings.eclosion.replayRevert': '回到那天的主题',
     'settings.reviewSource.all': '全部来源',
@@ -533,8 +545,7 @@ export const dictionaries = {
     'wallpaper.field.wineNight': '酒红夜',
     'wallpaper.field.graphite': '石墨',
     'wallpaper.field.copperNight': '铜夜',
-    
-    
+
     'settings.motionGlow': '指针跟随光晕',
     'settings.motionGlowHint': '指针在桌面空白处移动时，跟随一团柔和的主题色光斑',
     'settings.motionGroupHint': '装饰性动效：开得越多越耗电，按喜好开关，只对这台设备生效',
@@ -627,7 +638,8 @@ export const dictionaries = {
     'settings.sync.neverSynced': '尚未同步。',
     'settings.sync.offlineHint': '设备当前离线——恢复联网后，将在下次文件或设置变更时继续同步。',
     'notification.title.fileSyncOversized': '文件同步暂停',
-    'notification.body.fileSyncOversized': '文件快照超过 256KB 上限，本轮改动未上传；请清理大文件后重试。',
+    'notification.body.fileSyncOversized':
+      '文件快照超过 256KB 上限，本轮改动未上传；请清理大文件后重试。',
 
     'notes.save': '保存',
     'notes.empty': '选择或新建一条笔记',
@@ -939,14 +951,18 @@ export const dictionaries = {
        button). Dismissal persists via a versioned localStorage key
        (install-prompt-decision.ts), no dictionary key. */
     'mobile.pwa.install.title': 'Install AgehaOS',
-    'mobile.pwa.install.description': 'Add to your home screen and open AgehaOS as a standalone app.',
+    'mobile.pwa.install.description':
+      'Add to your home screen and open AgehaOS as a standalone app.',
     'mobile.pwa.install.action': 'Install',
     'mobile.pwa.install.pending': 'Waiting for confirmation…',
-    'mobile.pwa.install.dismiss': 'Close, don\'t ask again',
-    'mobile.pwa.install.dismissedOutcome': 'Installation was cancelled in the browser. You can still install from the browser menu later.',
+    'mobile.pwa.install.dismiss': "Close, don't ask again",
+    'mobile.pwa.install.dismissedOutcome':
+      'Installation was cancelled in the browser. You can still install from the browser menu later.',
     'mobile.pwa.install.iosTitle': 'Add AgehaOS to your Home Screen',
-    'mobile.pwa.install.iosDescription': 'Use Safari\'s Share feature to install AgehaOS as a standalone app:',
-    'mobile.pwa.install.iosStepShare': '1. Tap the Share button in the toolbar at the bottom of the screen',
+    'mobile.pwa.install.iosDescription':
+      "Use Safari's Share feature to install AgehaOS as a standalone app:",
+    'mobile.pwa.install.iosStepShare':
+      '1. Tap the Share button in the toolbar at the bottom of the screen',
     'mobile.pwa.install.iosStepAdd': '2. Choose "Add to Home Screen" and confirm',
     'menubar.label': 'Menu',
     'dock.trash': 'Trash',
@@ -972,12 +988,16 @@ export const dictionaries = {
     'auth.logout': 'Sign out',
 
     'notification.title.appCrashed': 'App problem',
-    'notification.body.appCrashed': '"{app}" stopped responding. The rest of the system is unaffected.',
+    'notification.body.appCrashed':
+      '"{app}" stopped responding. The rest of the system is unaffected.',
     'notification.title.wallpaperFailed': 'Wallpaper generation failed',
-    'notification.body.wallpaperFailed': 'This wallpaper did not pass the quality gate; the fallback was applied.',
+    'notification.body.wallpaperFailed':
+      'This wallpaper did not pass the quality gate; the fallback was applied.',
     'notification.title.eclosionAppFailed': 'Eclosion app generation failed',
-    'notification.body.eclosionAppFailed': '"{app}" fell back to the classic version. You can regenerate later.',
-    'notification.body.eclosionAppFailedNoFallback': '"{app}" failed to generate. You can retry later.',
+    'notification.body.eclosionAppFailed':
+      '"{app}" fell back to the classic version. You can regenerate later.',
+    'notification.body.eclosionAppFailedNoFallback':
+      '"{app}" failed to generate. You can retry later.',
     'notification.title.worldReady': 'Today’s world is ready',
     /* Shell 3.1 STEP 3: the signal line moved out of the menu bar (the widgets
        WorldCard hosts it now) — point the guide at the new entry. */
@@ -1002,7 +1022,6 @@ export const dictionaries = {
     'search.hint.navigate': 'Navigate',
     'search.hint.open': 'Open',
     'search.hint.close': 'Close',
-
 
     'taskbar.start': 'Start',
     'launcher.searchPlaceholder': 'Search apps…',
@@ -1073,6 +1092,10 @@ export const dictionaries = {
     'browser.siteDataCount': '{count} site sign-ins saved (server-side only)',
     'browser.siteDataNone': 'No saved site data',
     'browser.siteDataClear': 'Clear',
+    'browser.mode.enhanced': 'Enhanced mode active: site interactions and isolated storage enabled',
+    'browser.mode.pending': 'Preparing enhanced mode…',
+    'browser.mode.fallback':
+      'Enhanced mode unavailable (restricted mode): some sites are limited — use "Open in new tab" for full browsing',
     'terminal.input': 'Terminal input',
     'terminal.help.body':
       'Commands: pwd / ls / cd / cat / echo / mkdir / touch / rm / date / whoami / clear / help. rm moves to the trash.',
@@ -1142,7 +1165,8 @@ export const dictionaries = {
       'Calculator, Notes and Clock are generated by AI from fixed specs; the native apps stay as fallbacks and any failure falls back automatically.',
     'settings.eclosion.remoteOnlyHint':
       'Eclosion mode is only available with remote authentication; local accounts always use the native apps.',
-    'settings.eclosion.aiNotConfigured': 'The server has no AI configured; the classic apps are used.',
+    'settings.eclosion.aiNotConfigured':
+      'The server has no AI configured; the classic apps are used.',
     'settings.eclosion.generateMode': 'Basic app generation',
     'settings.eclosion.generateModeHint':
       'Pick the eclosion or classic version per basic app; takes effect only while the master toggle is on.',
@@ -1151,7 +1175,8 @@ export const dictionaries = {
     'settings.eclosion.quotaLabel': 'Today’s generation quota',
     'settings.eclosion.quotaLine': '{used} / {limit} generated',
     'settings.eclosion.quotaReset': 'Resets at {time}',
-    'settings.eclosion.quotaUnavailable': 'Quota unavailable (server unreachable or not configured).',
+    'settings.eclosion.quotaUnavailable':
+      'Quota unavailable (server unreachable or not configured).',
     'settings.eclosion.clearData': 'Clear eclosion data',
     'settings.eclosion.clearHint':
       'Deletes every generated app cached on this device; app data such as notes is unaffected.',
@@ -1159,7 +1184,8 @@ export const dictionaries = {
     'settings.eclosion.replay': 'Metamorphosis timeline',
     'settings.eclosion.replayHint':
       'One entry per day’s world (headline, palette, app list and wallpaper parameters, up to 60 days); “Revert” restores only the theme and wallpaper.',
-    'settings.eclosion.replayEmpty': 'No timeline entries yet; each day’s world leaves one here once it is ready.',
+    'settings.eclosion.replayEmpty':
+      'No timeline entries yet; each day’s world leaves one here once it is ready.',
     'settings.eclosion.replayRevert': 'Back to that day’s theme',
     'settings.reviewSource.all': 'All sources',
     'settings.reviewSource.eclosion': 'Eclosion apps',
@@ -1272,7 +1298,8 @@ export const dictionaries = {
     'wallpaper.field.copperNight': 'Copper Night',
     'settings.motionGlow': 'Pointer glow',
     'settings.motionGlowHint': 'A soft accent glow follows the pointer across the empty desktop',
-    'settings.motionGroupHint': 'Decorative effects use more battery the more you enable; applies to this device only',
+    'settings.motionGroupHint':
+      'Decorative effects use more battery the more you enable; applies to this device only',
     'settings.motionAurora': 'Aurora ambience',
     'settings.motionWindowTilt': 'Window switch transition',
     'settings.motionDockSheen': 'Dock sheen sweep',
@@ -1283,7 +1310,8 @@ export const dictionaries = {
     'settings.motionSpatial': 'Spatial motion',
     'settings.motionSpatialHint': 'Window depth and ambient floating motion',
     'settings.sounds': 'System sounds',
-    'settings.soundsHint': 'Synthesized chimes for notifications, snap and spaces (per-device, not synced)',
+    'settings.soundsHint':
+      'Synthesized chimes for notifications, snap and spaces (per-device, not synced)',
     'theme.light': 'Light',
     'theme.dark': 'Dark',
     'theme.system': 'System',
@@ -1352,7 +1380,8 @@ export const dictionaries = {
       'Syncs theme, font size, language and text files to your backend account and restores them on sign-in. Off by default.',
     'settings.account.syncToggle': 'Enable sync',
     'settings.sync.section': 'Sync',
-    'settings.sync.modeLocal': 'Local account mode: this installation is not connected to the cloud sync service.',
+    'settings.sync.modeLocal':
+      'Local account mode: this installation is not connected to the cloud sync service.',
     'settings.sync.signedOut': 'Signed out — cloud sync works per account.',
     'settings.sync.disabled': 'Cloud sync is off.',
     'settings.sync.disabledHint': 'Turn it on with the "Cloud sync" switch in the Account section.',
@@ -1427,7 +1456,8 @@ export const dictionaries = {
     'dynamicDesktop.historyEmpty': 'No history yet',
     'dynamicDesktop.rollback': 'Roll back & pin',
     'dynamicDesktop.clearData': 'Clear all AI data',
-    'dynamicDesktop.clearHint': 'Clears preferences, profile and history, restoring the factory look.',
+    'dynamicDesktop.clearHint':
+      'Clears preferences, profile and history, restoring the factory look.',
     'dynamicDesktop.hideBadge': 'Hide the "AI generated" badge',
     'dynamicDesktop.style.fluid-gradient': 'Fluid gradient',
     'dynamicDesktop.style.geometric': 'Geometric',

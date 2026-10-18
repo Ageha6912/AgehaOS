@@ -128,6 +128,8 @@ export function BrowserApp() {
   // 失败/超时 = 静默回退 query 兜底模式（v3Origin 保持 null）。仅挂载时一次。
   const [v3Origin, setV3Origin] = useState<string | null>(null)
   const [bootSrc, setBootSrc] = useState<string | null>(null)
+  /** 引导是否已终结（成功或失败）——起始页模式状态行（pending/增强/受限）。 */
+  const [bootDone, setBootDone] = useState(false)
   useEffect(() => {
     const origin = resolveBrowseOrigin()
     if (origin === '') return
@@ -139,6 +141,7 @@ export function BrowserApp() {
       if (timer !== undefined) window.clearTimeout(timer)
       setBootSrc(null)
       setV3Origin(ok ? origin : null)
+      setBootDone(true)
     }
     const onMessage = (event: MessageEvent): void => {
       const data = event.data as { type?: unknown; ok?: unknown } | null
@@ -262,7 +265,42 @@ export function BrowserApp() {
   const canForward =
     active !== undefined && active.index >= 0 && active.index < active.trail.length - 1
 
+  // 代理页的「新标签页打开」请求（点击守卫 postMessage）：真实浏览器顶层标签
+  // 零限制；回执让页面取消同帧兜底。
+  useEffect(() => {
+    const onMessage = (event: MessageEvent): void => {
+      const data = event.data as { type?: unknown; url?: unknown } | null
+      if (data === null || typeof data !== 'object') return
+      if (data.type !== 'agehaos:open-external' || typeof data.url !== 'string') return
+      let target: URL
+      try {
+        target = new URL(data.url)
+      } catch {
+        return
+      }
+      if (target.protocol !== 'http:' && target.protocol !== 'https:') return
+      window.open(target.toString(), '_blank', 'noopener,noreferrer')
+      try {
+        ;(event.source as Window | null)?.postMessage({ type: 'agehaos:browse-open-external' }, '*')
+      } catch {
+        /* 跨源回执失败不影响已打开的新标签 */
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [])
+
   const recentHistory = useMemo(() => history.slice(0, 8), [history])
+
+  // 模式状态行（起始页）：未配置增强源 → 不显示；配置了则 pending → 增强/受限。
+  const modeState: 'pending' | 'enhanced' | 'fallback' | null =
+    resolveBrowseOrigin() === ''
+      ? null
+      : v3Origin !== null
+        ? 'enhanced'
+        : bootDone
+          ? 'fallback'
+          : 'pending'
 
   return (
     <div
@@ -418,6 +456,17 @@ export function BrowserApp() {
       {/* 内容区：起始页（书签 + 最近访问）或保活 iframe 组。 */}
       {activeEntry === undefined && (
         <div data-testid="browser-home" className="min-h-0 flex-1 overflow-y-auto p-4">
+          {modeState !== null && (
+            <p data-testid="browser-mode" className="pb-2 text-[11px] text-text-muted">
+              {t(
+                modeState === 'enhanced'
+                  ? 'browser.mode.enhanced'
+                  : modeState === 'pending'
+                    ? 'browser.mode.pending'
+                    : 'browser.mode.fallback',
+              )}
+            </p>
+          )}
           <p className="pb-2 text-xs text-text-muted">{t('browser.homeHint')}</p>
           <h3 className="pb-1 pt-3 text-[11px] font-medium text-text-muted">
             {t('browser.bookmarks')}

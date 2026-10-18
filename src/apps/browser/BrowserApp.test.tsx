@@ -320,6 +320,86 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin')
   })
 
+  it('模式状态行：未配置增强源不显示；引导成功=增强；失败=受限', async () => {
+    // ① 未配置（本地默认）→ 无状态行。
+    vi.stubEnv('VITE_BROWSE_ORIGIN', '')
+    vi.stubEnv('VITE_AUTH_BACKEND', '')
+    const first = render(<BrowserApp />)
+    expect(screen.queryByTestId('browser-mode')).toBeNull()
+    first.unmount()
+
+    // ② 配置了源：引导期间 pending。
+    vi.stubEnv('VITE_BROWSE_ORIGIN', 'http://browse.local')
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('/api/browse/token')) {
+        return new Response(JSON.stringify({ token: 't' }), { status: 200 })
+      }
+      return new Response(JSON.stringify({ count: 0, origins: [] }), { status: 200 })
+    })
+    const second = render(<BrowserApp />)
+    expect(await screen.findByTestId('browser-mode')).toHaveTextContent('正在准备增强模式…')
+
+    // ③ 失败回执 → 受限模式提示（明确告知可用新标签页逃生）。
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', { data: { type: 'agehaos:browse-ready', ok: false } }),
+      )
+    })
+    await waitFor(() =>
+      expect(screen.getByTestId('browser-mode')).toHaveTextContent('增强模式不可用（受限模式）'),
+    )
+    second.unmount()
+
+    // ④ 成功回执 → 增强模式提示。
+    const third = render(<BrowserApp />)
+    await screen.findByTestId('browser-boot')
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', { data: { type: 'agehaos:browse-ready', ok: true } }),
+      )
+    })
+    await waitFor(() =>
+      expect(screen.getByTestId('browser-mode')).toHaveTextContent('增强模式已启用'),
+    )
+    third.unmount()
+  })
+
+  it('代理页请求新标签打开：window.open 真实 URL 并回执页面', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    render(<BrowserApp />)
+
+    const ack = vi.fn()
+    const fakeSource = { postMessage: ack } as unknown as Window
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'agehaos:open-external', url: 'https://www.bilibili.com/video/BV1' },
+          source: fakeSource,
+        }),
+      )
+    })
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://www.bilibili.com/video/BV1',
+      '_blank',
+      'noopener,noreferrer',
+    )
+    expect(ack).toHaveBeenCalledWith({ type: 'agehaos:browse-open-external' }, '*')
+
+    // 非 http(s) 目标一律忽略（防 javascript: 等注入面）。
+    openSpy.mockClear()
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'agehaos:open-external', url: 'javascript:alert(1)' },
+          source: fakeSource,
+        }),
+      )
+    })
+    expect(openSpy).not.toHaveBeenCalled()
+    openSpy.mockRestore()
+  })
+
   it('访问入历史：起始页最近访问列出并按序回访', () => {
     render(<BrowserApp />)
     navigate('a.example')

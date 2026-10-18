@@ -130,7 +130,9 @@ describe('browse url-policy（SSRF 闸）', () => {
         allowBenchmarkRange: true,
       }),
     ).rejects.toMatchObject({ status: 403, code: 'private-address' })
-    await expect(assertPublicUrl('http://198.18.0.9/', { allowBenchmarkRange: true })).resolves.toBeInstanceOf(URL)
+    await expect(
+      assertPublicUrl('http://198.18.0.9/', { allowBenchmarkRange: true }),
+    ).resolves.toBeInstanceOf(URL)
   })
 })
 
@@ -145,16 +147,19 @@ describe('rewriteHtml（base 注入 + 导航重写）', () => {
       FINAL,
     )
     expect(out).not.toContain('evil.test')
-    expect(out).toContain('<head><base href="https://example.com/a/b.html">')
+    // head 后先注入点击守卫脚本，再 base（顺序断言放宽，存在性 + 位置为准）。
+    expect(out).toContain('<base href="https://example.com/a/b.html">')
+    expect(out.indexOf('<base')).toBeGreaterThan(out.indexOf('<head>'))
   })
 
   it('无 head 时 base 挂在 html 后；两样都无则前置', () => {
-    expect(rewriteHtml('<html><body>x</body></html>', FINAL)).toContain(
-      '<html><base href="https://example.com/a/b.html">',
-    )
-    expect(rewriteHtml('<p>x</p>', FINAL)).toContain(
-      '<base href="https://example.com/a/b.html"><p>x</p>',
-    )
+    const noHead = rewriteHtml('<html><body>x</body></html>', FINAL)
+    expect(noHead).toContain('<base href="https://example.com/a/b.html">')
+    expect(noHead.indexOf('<base')).toBeGreaterThan(noHead.indexOf('<html>'))
+
+    const bare = rewriteHtml('<p>x</p>', FINAL)
+    expect(bare).toContain('<base href="https://example.com/a/b.html">')
+    expect(bare.indexOf('<base')).toBeLessThan(bare.indexOf('<p>x</p>'))
   })
 
   it('a/area 的 href 重写为代理路径：绝对、相对、协议相对都回流', () => {
@@ -171,6 +176,18 @@ describe('rewriteHtml（base 注入 + 导航重写）', () => {
     expect(out).toContain(
       `href="/api/browse?url=${encodeURIComponent('https://other.example.org/y')}"`,
     )
+  })
+
+  it('协议相对链接升级 https（混合内容防护）；显式 http 保持真实协议', () => {
+    // 2026-10-18 B 站实证：https 子域文档里 `//host/x` 会被解析成 http，
+    // 原样编码 /http/... 会被浏览器按混合内容拦成 chrome-error。
+    const out = rewriteHtml(
+      `<a href="//cdn.example.net/x">a</a><a href="http://plain.example.org/y">b</a>`,
+      FINAL,
+      { linkStyle: 'path' },
+    )
+    expect(out).toContain(`href="/https/cdn.example.net/x"`)
+    expect(out).toContain(`href="/http/plain.example.org/y"`)
   })
 
   it('锚点/邮件/脚本等非导航 href 原样', () => {
@@ -357,6 +374,8 @@ describe('/api/browse（会话门 + SSRF + 重写全链路）', () => {
     expect(response.headers['x-frame-options']).toBeUndefined()
     expect(response.headers['set-cookie']).toBeUndefined()
     expect(response.body).toContain(`<base href="${target()}/">`)
+    // 点击守卫在 query 兜底模式同样注入（_blank 拦成同帧导航）。
+    expect(response.body).toContain("addEventListener('click'")
     expect(response.body).toContain(
       `href="/api/browse?url=${encodeURIComponent(`${target()}/next`)}"`,
     )

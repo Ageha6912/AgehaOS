@@ -68,7 +68,8 @@ describe('browser-nav（地址栏解析）', () => {
   it('browsePathFor：路径态编码（与 server path-codec 同构）；非法输入 null', () => {
     expect(browsePathFor('https://example.com/')).toBe('/https/example.com/')
     expect(browsePathFor('https://example.com/a?b=1&c=%20')).toBe('/https/example.com/a?b=1&c=%20')
-    expect(browsePathFor('http://localhost:8787/x')).toBe('/http/localhost:8787/x')
+    // http 目标也统一写 https 段（https 子域下 http 段会被混合内容拦死）。
+    expect(browsePathFor('http://localhost:8787/x')).toBe('/https/localhost:8787/x')
     expect(browsePathFor('ftp://example.com/')).toBeNull()
     expect(browsePathFor('not a url')).toBeNull()
   })
