@@ -24,6 +24,8 @@ interface SerializedFile {
   eclosionDaily?: Record<string, Record<string, number>>
   /** 羽化 L1 全局 HTML 缓存（§9.2）：key → html。absent on older files. */
   eclosionCache?: Record<string, string>
+  /** 浏览器代理 Cookie 罐（2026-10-18 档 ②）：userId → jar JSON。 */
+  browseJars?: Record<string, string>
 }
 
 /** Distinguishes the legacy flat entry from the nested per-domain record. */
@@ -47,6 +49,8 @@ export class FileDataStore implements DataStore {
   private eclosionDaily = new Map<string, Map<string, number>>()
   private eclosionCache = new Map<string, string>()
   private eclosionLocks = new Map<string, { holder: string; expiresAt: number }>()
+  /** 浏览器代理 Cookie 罐：userId → jar JSON（值仅存服务端，永不回传）。 */
+  private browseJars = new Map<string, string>()
   private writing = Promise.resolve()
 
   constructor(private readonly filePath: string) {}
@@ -108,6 +112,11 @@ export class FileDataStore implements DataStore {
       if (typeof parsed.eclosionCache === 'object' && parsed.eclosionCache !== null) {
         for (const [key, html] of Object.entries(parsed.eclosionCache)) {
           if (typeof html === 'string') this.eclosionCache.set(key, html)
+        }
+      }
+      if (typeof parsed.browseJars === 'object' && parsed.browseJars !== null) {
+        for (const [userId, payload] of Object.entries(parsed.browseJars)) {
+          if (typeof payload === 'string') this.browseJars.set(userId, payload)
         }
       }
     } catch {
@@ -266,6 +275,19 @@ export class FileDataStore implements DataStore {
     if (existing && existing.holder === holder) this.eclosionLocks.delete(key)
   }
 
+  async getBrowseJar(userId: string): Promise<string | null> {
+    return this.browseJars.get(userId) ?? null
+  }
+
+  async putBrowseJar(userId: string, payload: string): Promise<void> {
+    this.browseJars.set(userId, payload)
+    await this.persist()
+  }
+
+  async clearBrowseJar(userId: string): Promise<void> {
+    if (this.browseJars.delete(userId)) await this.persist()
+  }
+
   /** Serializes writes so concurrent requests cannot clobber each other. */
   private persist(): Promise<void> {
     this.writing = this.writing.then(() => this.writeNow())
@@ -291,6 +313,7 @@ export class FileDataStore implements DataStore {
       ...(this.contentSamples.length > 0 ? { samples: this.contentSamples } : {}),
       ...(Object.keys(eclosionDaily).length > 0 ? { eclosionDaily } : {}),
       ...(this.eclosionCache.size > 0 ? { eclosionCache: Object.fromEntries(this.eclosionCache) } : {}),
+      ...(this.browseJars.size > 0 ? { browseJars: Object.fromEntries(this.browseJars) } : {}),
     }
     const tmpPath = `${this.filePath}.tmp`
     await writeFile(tmpPath, JSON.stringify(payload, null, 2), 'utf8')

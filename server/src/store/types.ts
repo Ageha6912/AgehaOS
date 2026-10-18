@@ -117,4 +117,12 @@ export interface DataStore {
   acquireEclosionLock(key: string, holder: string, ttlMs: number): Promise<boolean>
   /** 仅 holder 匹配时释放（不误删他人接手后的锁）。 */
   releaseEclosionLock(key: string, holder: string): Promise<void>
+  /**
+   * 浏览器代理的站点 Cookie 罐（2026-10-18 档 ②）：按用户隔离的单 JSON blob
+   * （结构由 browse/cookie-jar.ts 定义；键 = userId）。null = 从未保存。
+   * cookie 值仅存服务端——永不回传浏览器、永不进日志。
+   */
+  getBrowseJar(userId: string): Promise<string | null>
+  putBrowseJar(userId: string, payload: string): Promise<void>
+  clearBrowseJar(userId: string): Promise<void>
 }

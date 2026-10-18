@@ -339,6 +339,10 @@ export const dictionaries = {
     'browser.noBookmarks': '暂无书签：访问页面后点星标收藏。',
     'browser.noHistory': '暂无访问记录。',
     'browser.homeHint': '输入网址直接访问，输入关键词用搜索引擎；窗口内打不开的站点可经「在新标签页打开」真实浏览。',
+    'browser.siteData': '站点数据',
+    'browser.siteDataCount': '已保存 {count} 条站点登录数据（仅存于服务器）',
+    'browser.siteDataNone': '暂无已保存的站点数据',
+    'browser.siteDataClear': '清除',
     'terminal.input': '终端输入',
     'terminal.help.body':
       '可用命令：pwd / ls / cd / cat / echo / mkdir / touch / rm / date / whoami / clear / help。rm 移入回收站。',
@@ -1065,6 +1069,10 @@ export const dictionaries = {
     'browser.noHistory': 'No browsing history yet.',
     'browser.homeHint':
       'Enter an address to visit it, or type keywords to search; sites that refuse in-window display offer "Open in new tab".',
+    'browser.siteData': 'Site data',
+    'browser.siteDataCount': '{count} site sign-ins saved (server-side only)',
+    'browser.siteDataNone': 'No saved site data',
+    'browser.siteDataClear': 'Clear',
     'terminal.input': 'Terminal input',
     'terminal.help.body':
       'Commands: pwd / ls / cd / cat / echo / mkdir / touch / rm / date / whoami / clear / help. rm moves to the trash.',

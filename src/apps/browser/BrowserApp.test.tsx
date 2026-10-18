@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { proxyUrlFor, searchUrlFor } from './browser-nav'
 import { resetBrowserStore, useBrowserStore } from './browser-store'
@@ -14,6 +14,10 @@ import { BrowserApp } from './BrowserApp'
 
 beforeEach(() => {
   resetBrowserStore()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 function addressInput(): HTMLInputElement {
@@ -33,8 +37,7 @@ function frameFor(url: string): HTMLIFrameElement | undefined {
   return screen
     .getAllByTestId('browser-iframe')
     .find((candidate) => candidate.getAttribute('data-url') === url) as
-    | HTMLIFrameElement
-    | undefined
+    HTMLIFrameElement | undefined
 }
 
 function navigate(value: string): void {
@@ -196,6 +199,40 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     fireEvent.click(screen.getByTestId('browser-open-external'))
     expect(openSpy).toHaveBeenCalledWith('https://example.com', '_blank', 'noopener,noreferrer')
     openSpy.mockRestore()
+  })
+
+  it('站点数据：起始页展示服务端罐条目数并可清除（不回值）', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ count: 2, origins: ['https://a.example', 'https://b.example'] }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    )
+    render(<BrowserApp />)
+
+    const panel = await screen.findByTestId('browser-site-data')
+    expect(within(panel).getByText('已保存 2 条站点登录数据（仅存于服务器）')).toBeInTheDocument()
+    // 只回条目数——源与值都不上屏（隐私面最小化）。
+    expect(panel.textContent).not.toContain('a.example')
+
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ cleared: true }), { status: 200 }))
+    fireEvent.click(screen.getByTestId('browser-site-data-clear'))
+    await waitFor(() => expect(within(panel).getByText('暂无已保存的站点数据')).toBeInTheDocument())
+    expect(fetchSpy).toHaveBeenLastCalledWith('/api/browse/cookies/clear', {
+      method: 'POST',
+      credentials: 'same-origin',
+    })
+  })
+
+  it('站点数据不可用时（本地预览/未登录）区块整体隐藏', () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'))
+    render(<BrowserApp />)
+    expect(screen.queryByTestId('browser-site-data')).toBeNull()
+    fetchSpy.mockRestore()
   })
 
   it('访问入历史：起始页最近访问列出并按序回访', () => {

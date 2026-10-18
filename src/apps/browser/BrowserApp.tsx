@@ -10,11 +10,12 @@ import {
   X,
 } from '@phosphor-icons/react'
 
-import { useTranslation } from '@/core/i18n'
+import { formatMessage, useTranslation } from '@/core/i18n'
 import { isImeComposing } from '@/components/ime-guard'
 import { useNarrowContainer } from '@/apps/use-narrow-container'
 
 import { useBrowserStore } from './browser-store'
+import { clearSiteData, fetchSiteDataSummary, type SiteDataSummary } from './browser-cookies'
 import { displayForTarget, proxyUrlFor, targetForInput, titleForTarget } from './browser-nav'
 
 /**
@@ -86,9 +87,22 @@ export function BrowserApp() {
   const [activeId, setActiveId] = useState(() => tabs[0]?.id ?? '')
   const [address, setAddress] = useState('')
   const addressRef = useRef<HTMLInputElement>(null)
+  // 站点数据（服务端 Cookie 罐）元信息：null = 不可用（本地预览/未登录）→ 隐藏区块。
+  const [siteData, setSiteData] = useState<SiteDataSummary | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchSiteDataSummary().then((summary) => {
+      if (!cancelled) setSiteData(summary)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const active = tabs.find((tab) => tab.id === activeId) ?? tabs[0]
-  const activeEntry = active !== undefined && active.index >= 0 ? active.trail[active.index] : undefined
+  const activeEntry =
+    active !== undefined && active.index >= 0 ? active.trail[active.index] : undefined
   const currentUrl = activeEntry?.url ?? null
 
   // 切标签/导航/后退前进后地址栏跟随当前条目（起始页清空并聚焦）。
@@ -180,7 +194,11 @@ export function BrowserApp() {
   const recentHistory = useMemo(() => history.slice(0, 8), [history])
 
   return (
-    <div ref={rootRef} data-testid="browser-app" className="surface-panel flex h-full flex-col text-sm">
+    <div
+      ref={rootRef}
+      data-testid="browser-app"
+      className="surface-panel flex h-full flex-col text-sm"
+    >
       {/* 标签条：chips + 新建；关闭钮 44px 命中区在窄容器档。 */}
       <div
         data-testid="browser-tabs"
@@ -194,7 +212,9 @@ export function BrowserApp() {
               data-testid="browser-tab"
               data-active={isActive || undefined}
               className={`group flex shrink-0 items-center gap-1 rounded-md px-2 text-xs ${
-                isActive ? 'bg-surface-raised text-text' : 'text-text-muted hover:bg-surface-raised/60'
+                isActive
+                  ? 'bg-surface-raised text-text'
+                  : 'text-text-muted hover:bg-surface-raised/60'
               } ${narrow ? 'h-11' : 'h-7'}`}
             >
               <button
@@ -326,7 +346,12 @@ export function BrowserApp() {
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text hover:bg-surface-raised"
                     onClick={() => navigate(entry.url, entry.url)}
                   >
-                    <Star aria-hidden="true" size={12} weight="fill" className="shrink-0 text-primary" />
+                    <Star
+                      aria-hidden="true"
+                      size={12}
+                      weight="fill"
+                      className="shrink-0 text-primary"
+                    />
                     <span className="min-w-0 truncate">
                       {entry.title}
                       <span className="ml-2 text-text-tertiary">{entry.url}</span>
@@ -358,6 +383,36 @@ export function BrowserApp() {
                 </li>
               ))}
             </ul>
+          )}
+          {/* 站点数据（服务端 Cookie 罐）：只显示条目数，值永不离开服务端。 */}
+          {siteData !== null && (
+            <div className="pt-3" data-testid="browser-site-data">
+              <h3 className="pb-1 text-[11px] font-medium text-text-muted">
+                {t('browser.siteData')}
+              </h3>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-text-tertiary">
+                  {siteData.count === 0
+                    ? t('browser.siteDataNone')
+                    : formatMessage(t('browser.siteDataCount'), {
+                        count: String(siteData.count),
+                      })}
+                </p>
+                <button
+                  type="button"
+                  data-testid="browser-site-data-clear"
+                  disabled={siteData.count === 0}
+                  className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:bg-surface-raised hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+                  onClick={() => {
+                    void clearSiteData().then((cleared) => {
+                      if (cleared) setSiteData({ count: 0, origins: [] })
+                    })
+                  }}
+                >
+                  {t('browser.siteDataClear')}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

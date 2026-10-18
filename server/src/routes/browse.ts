@@ -1,5 +1,13 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 
+import {
+  capJarBytes,
+  cookiesForOrigin,
+  mergeSetCookies,
+  originOf,
+  parseJar,
+  serializeJar,
+} from '../browse/cookie-jar'
 import { assertPublicUrl, BrowsePolicyError, type ResolveHost } from '../browse/url-policy'
 import {
   browseErrorPage,
@@ -20,8 +28,9 @@ import { SESSION_COOKIE } from './auth'
  *   不经代理，所以网页浏览的文档请求量不大）；
  * - SSRF：目标与每一跳重定向都过 assertPublicUrl（公网 http/https、
  *   默认端口、域名全量 A/AAAA 必须公网）；
- * - 头消毒：不转发客户端 Cookie/Referer 到上游；上游 Set-Cookie 不回流给
- *   浏览器（② 起进服务端 Cookie 罐，按用户 × 目标源隔离）；
+ * - 头消毒：不转发**客户端** Cookie/Referer 到上游（AgehaOS 会话 cookie 永不
+ *   出站）；上游 Set-Cookie 不回流浏览器、进服务端 Cookie 罐（按用户 × 目标
+ *   源隔离，逐跳吸收/附加），窗口内解锁登录态；值仅存服务端、永不进日志；
  * - 资源上限：超时 12s 中止、响应体 5MB 封顶（超限 413 错误页）、POST
  *   请求体 12MB 封顶（表单上传）；
  * - HTML 一律按探测字符集解码后重编码 UTF-8 输出（gbk 中文站不再乱码），
@@ -104,18 +113,23 @@ export async function browseRoutes(
     resolveHost: options.resolveHost,
     allowedPorts: options.allowedPorts,
     // 生产无此环境变量 → 恒 false；本地 TUN（fake-IP）开发时置 1。
-    allowBenchmarkRange: options.allowBenchmarkRange ?? process.env.AGEHA_BROWSE_TRUST_FAKE_IP === '1',
+    allowBenchmarkRange:
+      options.allowBenchmarkRange ?? process.env.AGEHA_BROWSE_TRUST_FAKE_IP === '1',
   }
 
-  /** 会话门（sync/eclosion 同范式）：未登录给 HTML 错误页（iframe 里可读）。 */
-  const requireUser = async (request: FastifyRequest, reply: FastifyReply): Promise<boolean> => {
+  /** 会话门（sync/eclosion 同范式）：未登录给 HTML 错误页（iframe 里可读）；
+   *  通过时返回 userId（Cookie 罐按用户隔离需要）。 */
+  const requireUser = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<string | null> => {
     const token = request.cookies[SESSION_COOKIE]
     if (!token) {
       void reply
         .code(401)
         .type('text/html; charset=utf-8')
         .send(browseErrorPage({ title: '需要登录', message: '登录 AgehaOS 后才能使用浏览器。' }))
-      return false
+      return null
     }
     const session = await store.findSession(token)
     if (!session || session.expiresAt <= Date.now()) {
@@ -123,9 +137,9 @@ export async function browseRoutes(
         .code(401)
         .type('text/html; charset=utf-8')
         .send(browseErrorPage({ title: '需要登录', message: '会话已过期，请重新登录。' }))
-      return false
+      return null
     }
-    return true
+    return session.userId
   }
 
   const sendError = (
@@ -178,7 +192,17 @@ export async function browseRoutes(
     request: FastifyRequest<{ Querystring: { url?: string } }>,
     reply: FastifyReply,
   ): Promise<FastifyReply> => {
-    if (!(await requireUser(request, reply))) return reply
+    const userId = await requireUser(request, reply)
+    if (userId === null) return reply
+    // Cookie 罐：整个请求链（含重定向各跳）共享一份内存视图，逐跳吸收/附加；
+    // 有变更即落盘（值仅存服务端——绝不回传浏览器、绝不进日志）。
+    let jar = parseJar(await store.getBrowseJar(userId))
+    const absorbCookies = async (current: URL, setCookies: readonly string[]): Promise<void> => {
+      const origin = originOf(current.toString())
+      if (origin === null || setCookies.length === 0) return
+      jar = mergeSetCookies(jar, origin, setCookies, Date.now())
+      await store.putBrowseJar(userId, serializeJar(capJarBytes(jar))).catch(() => undefined)
+    }
     const raw = request.query.url
     if (typeof raw !== 'string' || raw.trim() === '') {
       return sendError(reply, 400, '缺少地址', '请求里没有要打开的目标地址。')
@@ -198,9 +222,7 @@ export async function browseRoutes(
           reply,
           cause.status,
           blocked ? '该地址不允许访问' : '地址无法解析',
-          blocked
-            ? '代理只允许访问公网 http/https 地址（默认端口）。'
-            : '请检查地址是否拼写正确。',
+          blocked ? '代理只允许访问公网 http/https 地址（默认端口）。' : '请检查地址是否拼写正确。',
           raw,
         )
       }
@@ -224,6 +246,12 @@ export async function browseRoutes(
         if (body !== undefined && requestContentType !== undefined) {
           headers['content-type'] = requestContentType
         }
+        // 罐附加：目标源有可用 cookie 时随行（登录态回放）。
+        const hopOrigin = originOf(current.toString())
+        if (hopOrigin !== null) {
+          const cookieHeader = cookiesForOrigin(jar, hopOrigin, Date.now())
+          if (cookieHeader !== null) headers.cookie = cookieHeader
+        }
         const hopResponse = await fetcher(current.toString(), {
           method,
           // undici 的 BodyInit 不吃 Node Buffer，转 Uint8Array（同一内存视图）。
@@ -232,6 +260,8 @@ export async function browseRoutes(
           signal: controller.signal,
           headers,
         })
+        // 罐吸收：含重定向各跳（登录 302 的 Set-Cookie 在跳转链上生效）。
+        await absorbCookies(current, hopResponse.headers.getSetCookie())
         if (!REDIRECT_STATUSES.has(hopResponse.status)) {
           return { response: hopResponse, finalUrl: current.toString() }
         }
@@ -332,4 +362,22 @@ export async function browseRoutes(
 
   app.get<{ Querystring: { url?: string } }>('/browse', routeOptions, handleBrowse)
   app.post<{ Querystring: { url?: string } }>('/browse', routeOptions, handleBrowse)
+
+  // ── 站点数据（Cookie 罐）管理：起始页「清除站点数据」消费 ────────────────
+  // 只回元信息（源列表 + 条目数），**绝不回 cookie 值**。
+  app.get('/browse/cookies', async (request, reply) => {
+    const userId = await requireUser(request, reply)
+    if (userId === null) return reply
+    const jar = parseJar(await store.getBrowseJar(userId))
+    const origins = Object.keys(jar.origins)
+    const count = origins.reduce((sum, origin) => sum + (jar.origins[origin]?.length ?? 0), 0)
+    return reply.code(200).send({ count, origins })
+  })
+
+  app.post('/browse/cookies/clear', async (request, reply) => {
+    const userId = await requireUser(request, reply)
+    if (userId === null) return reply
+    await store.clearBrowseJar(userId)
+    return reply.code(200).send({ cleared: true })
+  })
 }

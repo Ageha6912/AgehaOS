@@ -276,6 +276,8 @@ describe('/api/browse（会话门 + SSRF + 重写全链路）', () => {
   let upstreamPort = 0
   let requests: UpstreamHandle['requests'] = []
   let cookie = ''
+  /** 路由注册时捕获的放行端口集引用——同源隔离测试可追加第二 upstream 端口。 */
+  let allowedPorts = new Set<string>()
 
   afterEach(async () => {
     await app?.close()
@@ -292,13 +294,14 @@ describe('/api/browse（会话门 + SSRF + 重写全链路）', () => {
     upstream = handle.server
     upstreamPort = handle.port
     requests = handle.requests
+    allowedPorts = new Set(['', '80', '443', String(upstreamPort)])
     app = await buildApp({
       store: new MemoryDataStore(),
       config: { store: 'memory', rateLimit: { loginMax: 100, registerMax: 100, windowMs: 60_000 } },
       browse: {
         // 生产闸的严格默认由单测钉死；集成侧只需放行测试端口 + localhost 前缀。
         resolveHost: async () => ['93.184.216.34'],
-        allowedPorts: new Set(['', '80', '443', String(upstreamPort)]),
+        allowedPorts,
         ...browse,
       },
     })
@@ -532,6 +535,104 @@ describe('/api/browse（会话门 + SSRF + 重写全链路）', () => {
     expect(response.headers['content-type']).toBe('application/pdf')
     expect(response.headers['content-disposition']).toBe('attachment; filename="doc.pdf"')
     expect(response.rawPayload.toString('utf8')).toContain('%PDF-1.4')
+  })
+
+  it('登录闭环：302 的 Set-Cookie 逐跳生效；后续请求回放；响应不回流浏览器', async () => {
+    await setup((req, res) => {
+      if (req.url === '/login') {
+        res.writeHead(302, { location: '/home', 'set-cookie': 'sid=abc; Path=/' })
+        res.end()
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/html' })
+      res.end(`<html><body>cookie:${req.headers.cookie ?? 'none'}</body></html>`)
+    })
+
+    // 表单登录（POST 经代理）→ 302 跟随到 /home：罐在跳转链内已生效。
+    const login = await app!.inject({
+      method: 'POST',
+      url: `/api/browse?url=${encodeURIComponent(`${target()}/login`)}`,
+      headers: { cookie, origin: 'null', 'content-type': 'application/x-www-form-urlencoded' },
+      payload: 'u=a&p=b',
+    })
+    expect(login.statusCode).toBe(200)
+    expect(login.body).toContain('cookie:sid=abc')
+    expect(login.headers['set-cookie']).toBeUndefined() // 罐在服务端，不回流浏览器
+
+    // 独立请求回放（登录态可持续）。
+    const again = await browseGet(`${target()}/home`)
+    expect(again.body).toContain('cookie:sid=abc')
+
+    // 用户隔离：另一账号的请求不带这罐。
+    const registered = await app!.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'browse-user-2', password: 'secret1' },
+    })
+    const otherSetCookie = registered.headers['set-cookie']
+    const otherCookie = String(
+      Array.isArray(otherSetCookie) ? otherSetCookie[0] : otherSetCookie,
+    ).split(';')[0]
+    const other = await app!.inject({
+      method: 'GET',
+      url: `/api/browse?url=${encodeURIComponent(`${target()}/home`)}`,
+      headers: { cookie: otherCookie },
+    })
+    expect(other.body).toContain('cookie:none')
+
+    // 源隔离：另一 origin（不同端口）不带该罐。
+    const second = await startUpstream((_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html' })
+      res.end('<html><body>second-origin</body></html>')
+    })
+    allowedPorts.add(String(second.port))
+    const crossOrigin = await browseGet(`http://localhost:${second.port}/home`)
+    expect(crossOrigin.statusCode).toBe(200)
+    expect(second.requests[0]?.headers.cookie).toBeUndefined()
+    second.server.close()
+  })
+
+  it('站点数据管理：GET 摘要（不回值）与 clear 清空', async () => {
+    await setup((req, res) => {
+      if (req.url === '/set') {
+        res.writeHead(200, { 'content-type': 'text/html', 'set-cookie': 'a=1; Max-Age=3600' })
+        res.end('<html><body>set</body></html>')
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/html' })
+      res.end(`<html><body>cookie:${req.headers.cookie ?? 'none'}</body></html>`)
+    })
+    await browseGet(`${target()}/set`)
+
+    const summary = await app!.inject({
+      method: 'GET',
+      url: '/api/browse/cookies',
+      headers: { cookie },
+    })
+    expect(summary.statusCode).toBe(200)
+    const body = summary.json() as { count: number; origins: string[] }
+    expect(body.count).toBe(1)
+    expect(body.origins).toEqual([target()])
+    expect(summary.body).not.toContain('a=1') // 绝不回值
+
+    const cleared = await app!.inject({
+      method: 'POST',
+      url: '/api/browse/cookies/clear',
+      headers: { cookie },
+    })
+    expect(cleared.statusCode).toBe(200)
+    const after = await app!.inject({
+      method: 'GET',
+      url: '/api/browse/cookies',
+      headers: { cookie },
+    })
+    expect((after.json() as { count: number }).count).toBe(0)
+    const replay = await browseGet(`${target()}/home`)
+    expect(replay.body).toContain('cookie:none')
+
+    // 未登录不可见/不可清（摘要端点也过会话门）。
+    const anonymous = await app!.inject({ method: 'GET', url: '/api/browse/cookies' })
+    expect(anonymous.statusCode).toBe(401)
   })
 
   it('SSRF：私网字面量与超长跳转链在外层闸被拒', async () => {

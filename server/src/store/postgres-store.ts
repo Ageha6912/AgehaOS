@@ -78,6 +78,11 @@ const SCHEMA_MIGRATIONS = [
      holder TEXT NOT NULL,
      expires_at TIMESTAMPTZ NOT NULL
    )`,
+  `CREATE TABLE IF NOT EXISTS ageha_browse_jars (
+    user_id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
 ]
 
 const UNIQUE_VIOLATION = '23505'
@@ -303,6 +308,26 @@ export class PostgresDataStore implements DataStore {
       key,
       holder,
     ])
+  }
+
+  async getBrowseJar(userId: string): Promise<string | null> {
+    const result = await this.pool.query('SELECT data FROM ageha_browse_jars WHERE user_id = $1', [
+      userId,
+    ])
+    const row = result.rows[0]
+    return row ? String(row.data) : null
+  }
+
+  async putBrowseJar(userId: string, payload: string): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO ageha_browse_jars (user_id, data, updated_at) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) DO UPDATE SET data = $2, updated_at = $3`,
+      [userId, payload, new Date().toISOString()],
+    )
+  }
+
+  async clearBrowseJar(userId: string): Promise<void> {
+    await this.pool.query('DELETE FROM ageha_browse_jars WHERE user_id = $1', [userId])
   }
 }
 
