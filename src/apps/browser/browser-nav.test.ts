@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import {
   BROWSE_ENDPOINT,
+  browsePathFor,
   classifyAddressInput,
   displayForTarget,
   proxyUrlFor,
+  resolveBrowseOrigin,
   searchUrlFor,
   targetForInput,
   titleForTarget,
@@ -61,6 +63,21 @@ describe('browser-nav（地址栏解析）', () => {
     expect(proxyUrlFor('https://example.com/x?a=1&b=2')).toBe(
       `/api/browse?url=${encodeURIComponent('https://example.com/x?a=1&b=2')}`,
     )
+  })
+
+  it('browsePathFor：路径态编码（与 server path-codec 同构）；非法输入 null', () => {
+    expect(browsePathFor('https://example.com/')).toBe('/https/example.com/')
+    expect(browsePathFor('https://example.com/a?b=1&c=%20')).toBe('/https/example.com/a?b=1&c=%20')
+    expect(browsePathFor('http://localhost:8787/x')).toBe('/http/localhost:8787/x')
+    expect(browsePathFor('ftp://example.com/')).toBeNull()
+    expect(browsePathFor('not a url')).toBeNull()
+  })
+
+  it('resolveBrowseOrigin：显式优先 > 远程认证缺省子域 > 空（禁用 v3）', () => {
+    expect(resolveBrowseOrigin('http://browse.local', false)).toBe('http://browse.local')
+    expect(resolveBrowseOrigin(undefined, true)).toBe('https://browse.ageha.cn')
+    expect(resolveBrowseOrigin(undefined, false)).toBe('')
+    expect(resolveBrowseOrigin('', true)).toBe('https://browse.ageha.cn')
   })
 
   it('displayForTarget/titleForTarget：去协议压缩显示、取 host 作标题', () => {

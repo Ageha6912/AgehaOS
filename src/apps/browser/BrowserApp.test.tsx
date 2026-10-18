@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { proxyUrlFor, searchUrlFor } from './browser-nav'
@@ -18,6 +18,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
 })
 
 function addressInput(): HTMLInputElement {
@@ -258,6 +259,65 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     render(<BrowserApp />)
     expect(screen.queryByTestId('browser-site-data')).toBeNull()
     fetchSpy.mockRestore()
+  })
+
+  it('档 ③：引导成功 → iframe 用子域路径态 + allow-same-origin 沙箱', async () => {
+    vi.stubEnv('VITE_BROWSE_ORIGIN', 'http://browse.local')
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('/api/browse/token')) {
+        return new Response(JSON.stringify({ token: 'claim-token' }), { status: 200 })
+      }
+      if (url.includes('/api/browse/cookies')) {
+        return new Response(JSON.stringify({ count: 0, origins: [] }), { status: 200 })
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+    render(<BrowserApp />)
+
+    // 引导页挂载（带令牌 hash）。
+    const boot = await screen.findByTestId('browser-boot')
+    expect(boot.getAttribute('src')).toBe('http://browse.local/__bootstrap#t=claim-token')
+
+    // 子域回执：引导页卸载、进入 v3 模式。
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', { data: { type: 'agehaos:browse-ready', ok: true } }),
+      )
+    })
+    await waitFor(() => expect(screen.queryByTestId('browser-boot')).toBeNull())
+
+    navigate('example.com')
+    const frame = activeFrame()
+    expect(frame.getAttribute('src')).toBe('http://browse.local/https/example.com/')
+    expect(frame.getAttribute('data-mode')).toBe('path')
+    expect(frame.getAttribute('sandbox')).toContain('allow-same-origin')
+  })
+
+  it('档 ③：引导失败回执 → 静默回退 query 兜底模式（沙箱不含 allow-same-origin）', async () => {
+    vi.stubEnv('VITE_BROWSE_ORIGIN', 'http://browse.local')
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('/api/browse/token')) {
+        return new Response(JSON.stringify({ token: 't' }), { status: 200 })
+      }
+      return new Response(JSON.stringify({ count: 0, origins: [] }), { status: 200 })
+    })
+    render(<BrowserApp />)
+    await screen.findByTestId('browser-boot')
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', { data: { type: 'agehaos:browse-ready', ok: false } }),
+      )
+    })
+    await waitFor(() => expect(screen.queryByTestId('browser-boot')).toBeNull())
+
+    navigate('example.com')
+    const frame = activeFrame()
+    expect(frame.getAttribute('src')).toBe(proxyUrlFor('https://example.com'))
+    expect(frame.getAttribute('data-mode')).toBe('query')
+    expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin')
   })
 
   it('访问入历史：起始页最近访问列出并按序回访', () => {

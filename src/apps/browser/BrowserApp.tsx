@@ -16,7 +16,14 @@ import { useNarrowContainer } from '@/apps/use-narrow-container'
 
 import { useBrowserStore } from './browser-store'
 import { clearSiteData, fetchSiteDataSummary, type SiteDataSummary } from './browser-cookies'
-import { displayForTarget, proxyUrlFor, targetForInput, titleForTarget } from './browser-nav'
+import {
+  browsePathFor,
+  displayForTarget,
+  proxyUrlFor,
+  resolveBrowseOrigin,
+  targetForInput,
+  titleForTarget,
+} from './browser-nav'
 
 /**
  * 浏览器应用（档 C：窗口内浏览 + 真实浏览兜底）。
@@ -60,6 +67,17 @@ export interface BrowserAppProps {
 const KEEP_ALIVE_BACK = 5
 const KEEP_ALIVE_AHEAD = 5
 
+/** 档 ③ 引导时限（拿令牌+注册 SW+接管）；超时静默回退 query 兜底模式。 */
+const V3_BOOTSTRAP_TIMEOUT_MS = 6000
+
+/** 子域模式沙箱：origin 已隔离到 browse 子域，可安全开 allow-same-origin
+ *  （页面获得真实 localStorage/SW 接管能力，但仍摸不到 OS 主域）。 */
+const SANDBOX_V3 =
+  'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads'
+/** 兜底模式沙箱（不透明 origin，现状）。 */
+const SANDBOX_FALLBACK =
+  'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads'
+
 let tabSeq = 0
 let trailSeq = 0
 
@@ -102,6 +120,48 @@ export function BrowserApp() {
     })
     return () => {
       cancelled = true
+    }
+  }, [])
+
+  // 档 ③ 引导：主域取短期令牌 → 子域引导页 claim + 注册 SW → postMessage 回执。
+  // 成功 = 子域路径态模式（iframe 用 /https/host/path + allow-same-origin）；
+  // 失败/超时 = 静默回退 query 兜底模式（v3Origin 保持 null）。仅挂载时一次。
+  const [v3Origin, setV3Origin] = useState<string | null>(null)
+  const [bootSrc, setBootSrc] = useState<string | null>(null)
+  useEffect(() => {
+    const origin = resolveBrowseOrigin()
+    if (origin === '') return
+    let cancelled = false
+    let timer: number | undefined
+    const finish = (ok: boolean): void => {
+      if (cancelled) return
+      cancelled = true
+      if (timer !== undefined) window.clearTimeout(timer)
+      setBootSrc(null)
+      setV3Origin(ok ? origin : null)
+    }
+    const onMessage = (event: MessageEvent): void => {
+      const data = event.data as { type?: unknown; ok?: unknown } | null
+      if (data === null || typeof data !== 'object' || data.type !== 'agehaos:browse-ready') return
+      finish(data.ok === true)
+    }
+    window.addEventListener('message', onMessage)
+    void (async () => {
+      try {
+        const response = await fetch('/api/browse/token', { credentials: 'same-origin' })
+        if (!response.ok) return
+        const payload = (await response.json()) as { token?: unknown }
+        if (cancelled || typeof payload.token !== 'string') return
+        setBootSrc(`${origin}/__bootstrap#t=${encodeURIComponent(payload.token)}`)
+        timer = window.setTimeout(() => finish(false), V3_BOOTSTRAP_TIMEOUT_MS)
+      } catch {
+        /* 静默回退兜底模式 */
+      }
+    })()
+    return () => {
+      cancelled = true
+      if (timer !== undefined) window.clearTimeout(timer)
+      window.removeEventListener('message', onMessage)
     }
   }, [])
 
@@ -453,25 +513,41 @@ export function BrowserApp() {
         const end = Math.min(tab.trail.length, tab.index + 1 + KEEP_ALIVE_AHEAD)
         return tab.trail.slice(start, end).map((entry) => {
           const visible = isActiveTab && entry.id === activeEntry?.id
+          const path = v3Origin === null ? null : browsePathFor(entry.url)
           return (
             <iframe
               key={`${tab.id}:${entry.id}:${entry.reloadSeq}`}
               data-testid="browser-iframe"
               data-url={entry.url}
               data-active={visible || undefined}
-              src={proxyUrlFor(entry.url)}
+              data-mode={v3Origin === null ? 'query' : 'path'}
+              src={
+                v3Origin !== null && path !== null ? `${v3Origin}${path}` : proxyUrlFor(entry.url)
+              }
               title={titleForTarget(entry.url)}
-              // 代理文档是不透明 origin（无 allow-same-origin）：脚本可跑但拿不到
-              // 宿主存储；allow-popups(-to-escape-sandbox) 让错误页「在新标签页
-              // 打开」逃逸沙箱顶层浏览；allow-forms 支持站点表单（action 已重写）；
-              // allow-downloads 让附件（content-disposition）直达下载。
-              sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+              // 兜底模式=不透明 origin（脚本可跑但拿不到宿主存储）；档 ③ 子域
+              // 模式 origin 已隔离到 browse 子域 → 开 allow-same-origin（真实
+              // 存储 + SW 接管），仍摸不到 OS 主域。allow-popups(-to-escape-
+              // sandbox) 让错误页「在新标签页打开」逃逸沙箱顶层浏览；allow-forms
+              // 支持站点表单；allow-downloads 让附件直达下载。
+              sandbox={v3Origin === null ? SANDBOX_FALLBACK : SANDBOX_V3}
               referrerPolicy="no-referrer"
               className={visible ? 'min-h-0 w-full flex-1 border-0 bg-white' : 'hidden'}
             />
           )
         })
       })}
+
+      {/* 档 ③ 引导页（隐藏；子域 origin）：claim + SW 注册 + 回执后自卸载。 */}
+      {bootSrc !== null && (
+        <iframe
+          data-testid="browser-boot"
+          src={bootSrc}
+          title="浏览引导"
+          aria-hidden="true"
+          className="hidden"
+        />
+      )}
     </div>
   )
 }

@@ -15,9 +15,39 @@ export const BROWSE_ENDPOINT = '/api/browse'
  */
 export const SEARCH_ENDPOINT = 'https://www.sogou.com/web'
 
-/** 窗口内 iframe 的代理地址。 */
+/** 窗口内 iframe 的代理地址（query 兜底模式）。 */
 export function proxyUrlFor(target: string): string {
   return `${BROWSE_ENDPOINT}?url=${encodeURIComponent(target)}`
+}
+
+/**
+ * 路径态编码（档 ③ 客户端半场；与 server/src/browse/path-codec.ts 同构，
+ * 两侧各自测试钉死）：`https://example.com/a?b=1` → `/https/example.com/a?b=1`。
+ * 非法输入返回 null（调用方回退 query 模式）。
+ */
+export function browsePathFor(target: string): string | null {
+  let url: URL
+  try {
+    url = new URL(target)
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+  const path = url.pathname === '' ? '/' : url.pathname
+  return `/${url.protocol.slice(0, -1)}/${url.host}${path}${url.search}`
+}
+
+/**
+ * 子域浏览源（档 ③ 开关）：显式环境优先；生产构建（远程认证）缺省
+ * https://browse.ageha.cn；本地开发缺省空串（=禁用 v3，用 query 兜底模式）。
+ * 引导失败会自动回退，故 DNS/Caddy 未就绪时该缺省是安全的。
+ */
+export function resolveBrowseOrigin(
+  explicit: string | undefined = import.meta.env.VITE_BROWSE_ORIGIN as string | undefined,
+  remoteAuth: boolean = Boolean(import.meta.env.VITE_AUTH_BACKEND),
+): string {
+  if (typeof explicit === 'string' && explicit !== '') return explicit
+  return remoteAuth ? 'https://browse.ageha.cn' : ''
 }
 
 export function searchUrlFor(query: string): string {

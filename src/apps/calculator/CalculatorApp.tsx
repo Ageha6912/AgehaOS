@@ -171,7 +171,7 @@ const KEYBOARD_MAP: Record<string, string> = {
 /** 可编辑元素（输入字段/文本域/下拉/富文本）：物理键盘的按键属于它们。 */
 const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
-export function isEditableTarget(target: EventTarget | null): boolean {
+function isEditableTarget(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
     (target.isContentEditable || EDITABLE_TAGS.has(target.tagName))
