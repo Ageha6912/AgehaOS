@@ -12,6 +12,11 @@ export interface OriginCheckOptions {
  * without an Origin header (curl, server-to-server) pass — the cookie's
  * SameSite=Lax remains the primary guard. Same-host origins and the
  * configured allowlist are accepted.
+ *
+ * 路由级豁免（config.skipOriginCheck）：浏览器代理的沙箱 iframe（不透明
+ * origin）提交表单时 Origin 序列化为 `null`——无法解析会被本钩子判为敌意。
+ * 豁免只对显式声明的路由生效；这些路由仍受会话门 + SameSite=Lax 双保（跨站
+ * POST 不带会话 cookie，拿不到放行资格）。
  */
 export async function originCheck(
   app: FastifyInstance,
@@ -20,6 +25,8 @@ export async function originCheck(
   const allowed = new Set(options.allowedOrigins ?? [])
   app.addHook('onRequest', async (request, reply) => {
     if (!MUTATING_METHODS.has(request.method)) return
+    const config = (request.routeOptions?.config ?? {}) as { skipOriginCheck?: boolean }
+    if (config.skipOriginCheck === true) return
     const origin = request.headers.origin
     if (!origin) return
     const host = request.headers.host

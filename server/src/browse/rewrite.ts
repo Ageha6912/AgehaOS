@@ -1,11 +1,12 @@
 /**
  * 浏览代理的 HTML 重写（无解析器依赖的正则档）：
  * - 注入 `<base href="最终URL">`（资产/CSS url() 仍从原站加载，文档本体走代理）；
- * - 把 `<a>/<area>` 的 href 与 GET `<form>` 的 action 重写为代理路径——站内
- *   跳转也经代理回流，否则 iframe 一跳回真站就撞 X-Frame-Options；
+ * - 把 `<a>/<area>` 的 href 与 `<form>` 的 action（GET 与 POST 一视同仁）
+ *   重写为代理路径——站内跳转与表单提交都经代理回流，否则 iframe 一跳回
+ *   真站就撞 X-Frame-Options；POST 的 method/enctype 原样保留（代理路由
+ *   按原始字节转发，multipart 边界不破坏）。
  * - 既有的 `<base>` 一律移除（防重定向到未经闸的地址）。
- * 已知取舍：POST 表单不重写（登录/搜索提交直接跳真站，属「SPA/登录态退化档」）；
- * 属性值里含 `>` 的畸形标签不覆盖（正则档被接受的上限）。
+ * 已知取舍：属性值里含 `>` 的畸形标签不覆盖（正则档被接受的上限）。
  */
 
 /** 代理文档路径（客户端 iframe 与重写共用同一字面量，两侧测试各自钉死）。 */
@@ -39,7 +40,6 @@ function rewriteHrefValue(value: string, base: URL): string | null {
 const URL_ATTRIBUTE = /\b(href|action)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi
 const ANCHOR_TAGS = /<(a|area)\b([^>]*)>/gi
 const FORM_TAGS = /<form\b([^>]*)>/gi
-const METHOD_ATTRIBUTE = /\bmethod\s*=\s*(?:"([^"]*)"|'([^']*)'|([a-z]+))/i
 const BASE_TAG = /<base\b[^>]*>/gi
 const HEAD_OPEN = /<head[^>]*>/i
 const HTML_OPEN = /<html[^>]*>/i
@@ -58,10 +58,9 @@ export function rewriteHtml(html: string, finalUrl: string): string {
     )
     return `<${tag}${replaced}>`
   })
-  out = out.replace(FORM_TAGS, (whole: string, attrs: string) => {
-    const methodMatch = METHOD_ATTRIBUTE.exec(attrs)
-    const method = (methodMatch?.[1] ?? methodMatch?.[2] ?? methodMatch?.[3] ?? 'get').toLowerCase()
-    if (method === 'post') return whole
+  out = out.replace(FORM_TAGS, (_whole: string, attrs: string) => {
+    // GET 与 POST 的 action 都改写（代理支持原始体转发）；method/enctype
+    // 保持原样——浏览器会按原方法把表单提交到代理路径。
     const replaced = attrs.replace(
       URL_ATTRIBUTE,
       (match: string, attr: string, dq?: string, sq?: string) => {

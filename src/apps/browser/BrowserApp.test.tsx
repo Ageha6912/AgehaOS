@@ -6,9 +6,10 @@ import { resetBrowserStore, useBrowserStore } from './browser-store'
 import { BrowserApp } from './BrowserApp'
 
 /**
- * 浏览器应用（档 C）：地址栏（域名直访 / 关键词搜索）、标签页、后退/前进、
- * 星标收藏、新标签打开、起始页书签与最近访问。iframe 的 src = 代理地址是
- * 全链路契约的客户端半场（服务端半场在 server/test/browse.test.ts）。
+ * 浏览器应用（档 C）：地址栏（域名直访 / 关键词搜索）、标签页、后退/前进
+ * （iframe 保活组）、刷新（仅重挂当前条目）、星标收藏、新标签打开、起始页
+ * 书签与最近访问。iframe 的 src = 代理地址是全链路契约的客户端半场（服务端
+ * 半场在 server/test/browse.test.ts）。
  */
 
 beforeEach(() => {
@@ -19,8 +20,26 @@ function addressInput(): HTMLInputElement {
   return screen.getByTestId('browser-address') as HTMLInputElement
 }
 
-function iframeSrc(): string | null {
-  return screen.getByTestId('browser-iframe').getAttribute('src')
+/** 当前可见（活动）的 iframe；保活组里其余条目 display:none。 */
+function activeFrame(): HTMLIFrameElement {
+  const frame = screen
+    .getAllByTestId('browser-iframe')
+    .find((candidate) => candidate.hasAttribute('data-active'))
+  if (frame === undefined) throw new Error('no active browser-iframe')
+  return frame as HTMLIFrameElement
+}
+
+function frameFor(url: string): HTMLIFrameElement | undefined {
+  return screen
+    .getAllByTestId('browser-iframe')
+    .find((candidate) => candidate.getAttribute('data-url') === url) as
+    | HTMLIFrameElement
+    | undefined
+}
+
+function navigate(value: string): void {
+  fireEvent.change(addressInput(), { target: { value } })
+  fireEvent.keyDown(addressInput(), { key: 'Enter' })
 }
 
 describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
@@ -36,13 +55,11 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
   it('地址栏域名直访 → iframe 指向代理地址；关键词 → 搜索引擎（经代理）', () => {
     render(<BrowserApp />)
 
-    fireEvent.change(addressInput(), { target: { value: 'example.com/a' } })
-    fireEvent.keyDown(addressInput(), { key: 'Enter' })
-    expect(iframeSrc()).toBe(proxyUrlFor('https://example.com/a'))
+    navigate('example.com/a')
+    expect(activeFrame().getAttribute('src')).toBe(proxyUrlFor('https://example.com/a'))
 
-    fireEvent.change(addressInput(), { target: { value: '北京 天气' } })
-    fireEvent.keyDown(addressInput(), { key: 'Enter' })
-    expect(iframeSrc()).toBe(proxyUrlFor(searchUrlFor('北京 天气')))
+    navigate('北京 天气')
+    expect(activeFrame().getAttribute('src')).toBe(proxyUrlFor(searchUrlFor('北京 天气')))
   })
 
   it('输入法组合期 Enter 不导航（ime-guard 双重互锁）', () => {
@@ -61,33 +78,67 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     expect(screen.queryByTestId('browser-iframe')).toBeNull()
   })
 
-  it('后退/前进沿 trail 移动；刷新换 iframe key 重载', () => {
+  it('后退/前进秒开（iframe 保活，零重挂）；刷新仅重挂当前条目；新导航卸载前向', () => {
     render(<BrowserApp />)
-    const navigate = (value: string): void => {
-      fireEvent.change(addressInput(), { target: { value } })
-      fireEvent.keyDown(addressInput(), { key: 'Enter' })
-    }
-
     navigate('a.example')
     navigate('b.example')
-    expect(iframeSrc()).toBe(proxyUrlFor('https://b.example'))
+    navigate('c.example')
 
+    const frameA = frameFor('https://a.example')!
+    const frameB = frameFor('https://b.example')!
+    const frameC = frameFor('https://c.example')!
+    expect(activeFrame()).toBe(frameC)
+
+    // 后退两步：活动帧就地切换为既有元素（保活=同一 DOM 节点，无重挂）。
     fireEvent.click(screen.getByTestId('browser-back'))
-    expect(iframeSrc()).toBe(proxyUrlFor('https://a.example'))
-    fireEvent.click(screen.getByTestId('browser-forward'))
-    expect(iframeSrc()).toBe(proxyUrlFor('https://b.example'))
+    expect(activeFrame()).toBe(frameB)
+    fireEvent.click(screen.getByTestId('browser-back'))
+    expect(activeFrame()).toBe(frameA)
+    expect(document.body.contains(frameB)).toBe(true)
+    expect(document.body.contains(frameC)).toBe(true)
 
-    // 刷新：relabel key（同 src 不重载的 React 语义）——key 变化即重挂。
-    const before = screen.getByTestId('browser-iframe')
+    // 前进：同样复用既有节点。
+    fireEvent.click(screen.getByTestId('browser-forward'))
+    expect(activeFrame()).toBe(frameB)
+
+    // 刷新：只重挂当前条目（元素替换 = key 变化），其余保活节点不动。
     fireEvent.click(screen.getByTestId('browser-reload'))
-    expect(screen.getByTestId('browser-iframe')).not.toBe(before)
-    expect(iframeSrc()).toBe(proxyUrlFor('https://b.example'))
+    const reloadedB = activeFrame()
+    expect(reloadedB).not.toBe(frameB)
+    expect(reloadedB.getAttribute('src')).toBe(proxyUrlFor('https://b.example'))
+    expect(document.body.contains(frameA)).toBe(true)
+
+    // 从 B 处新导航：前向条目（C）被截断卸载。
+    navigate('d.example')
+    expect(frameFor('https://c.example')).toBeUndefined()
+    expect(frameFor('https://d.example')).toBeDefined()
+    expect(document.body.contains(frameA)).toBe(true)
+  })
+
+  it('保活窗口有界（双向 ±5）：越窗条目卸载、回窗重挂', () => {
+    render(<BrowserApp />)
+    for (let index = 0; index < 8; index += 1) {
+      navigate(`s${index}.example`)
+    }
+    // 8 次导航后：窗口 = 后方 5 + 当前 = index 7..2（6 个条目），s0/s1 已淘汰。
+    expect(screen.getAllByTestId('browser-iframe')).toHaveLength(6)
+    expect(frameFor('https://s0.example')).toBeUndefined()
+    expect(frameFor('https://s2.example')).toBeDefined()
+    expect(frameFor('https://s7.example')).toBeDefined()
+
+    // 一路后退到 s0：前向侧窗口 ±5 → 仅 s0..s5 常驻（s6/s7 越前向窗卸载）。
+    for (let index = 0; index < 7; index += 1) {
+      fireEvent.click(screen.getByTestId('browser-back'))
+    }
+    expect(activeFrame().getAttribute('data-url')).toBe('https://s0.example')
+    expect(screen.getAllByTestId('browser-iframe')).toHaveLength(6)
+    expect(frameFor('https://s6.example')).toBeUndefined()
+    expect(frameFor('https://s5.example')).toBeDefined()
   })
 
   it('星标收藏/取消 + 起始页书签列表可回访', () => {
     render(<BrowserApp />)
-    fireEvent.change(addressInput(), { target: { value: 'example.com' } })
-    fireEvent.keyDown(addressInput(), { key: 'Enter' })
+    navigate('example.com')
 
     const star = screen.getByTestId('browser-bookmark')
     expect(star).toHaveAttribute('aria-pressed', 'false')
@@ -100,7 +151,7 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     expect(screen.getByTestId('browser-home')).toBeInTheDocument()
     const bookmarkList = screen.getByTestId('browser-bookmark-list')
     fireEvent.click(within(bookmarkList).getByText('example.com'))
-    expect(iframeSrc()).toBe(proxyUrlFor('https://example.com'))
+    expect(activeFrame().getAttribute('src')).toBe(proxyUrlFor('https://example.com'))
 
     fireEvent.click(star)
     expect(star).toHaveAttribute('aria-pressed', 'false')
@@ -122,11 +173,25 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     expect(screen.getByTestId('browser-home')).toBeInTheDocument()
   })
 
+  it('切标签保活：另一标签的 iframe 常驻（隐藏），切回零重载', () => {
+    render(<BrowserApp />)
+    navigate('a.example')
+    const frameA = frameFor('https://a.example')!
+
+    fireEvent.click(screen.getByTestId('browser-new-tab'))
+    expect(screen.getByTestId('browser-home')).toBeInTheDocument()
+    expect(document.body.contains(frameA)).toBe(true) // 旧标签页保活
+
+    // 切回第一个标签：同一节点重新可见。
+    const firstTab = screen.getAllByTestId('browser-tab')[0]!
+    fireEvent.click(within(firstTab).getByRole('button', { name: /a\.example/ }))
+    expect(activeFrame()).toBe(frameA)
+  })
+
   it('在新标签页打开：window.open 真实地址（非代理地址）+ noopener', () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     render(<BrowserApp />)
-    fireEvent.change(addressInput(), { target: { value: 'example.com' } })
-    fireEvent.keyDown(addressInput(), { key: 'Enter' })
+    navigate('example.com')
 
     fireEvent.click(screen.getByTestId('browser-open-external'))
     expect(openSpy).toHaveBeenCalledWith('https://example.com', '_blank', 'noopener,noreferrer')
@@ -135,10 +200,6 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
 
   it('访问入历史：起始页最近访问列出并按序回访', () => {
     render(<BrowserApp />)
-    const navigate = (value: string): void => {
-      fireEvent.change(addressInput(), { target: { value } })
-      fireEvent.keyDown(addressInput(), { key: 'Enter' })
-    }
     navigate('a.example')
     navigate('b.example')
     fireEvent.click(screen.getByTestId('browser-new-tab'))

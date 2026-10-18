@@ -183,16 +183,21 @@ describe('rewriteHtml（base 注入 + 导航重写）', () => {
     expect(out).toContain('href="javascript:void(0)"')
   })
 
-  it('GET 表单 action 重写；POST 表单整条不动（登录/提交属退化档）', () => {
+  it('表单 action 重写（GET 与 POST 同规则），method/enctype 原样保留', () => {
     const out = rewriteHtml(
       `<form action="/search" method="get"><input name="q"></form>` +
-        `<form action="/login" method="post"><input name="p"></form>`,
+        `<form action="/login" method="post" enctype="multipart/form-data"><input name="p"></form>`,
       FINAL,
     )
     expect(out).toContain(
       `action="/api/browse?url=${encodeURIComponent('https://example.com/search')}"`,
     )
-    expect(out).toContain('action="/login"')
+    // POST 提交走代理原始体转发；方法与环境属性不动。
+    expect(out).toContain(
+      `action="/api/browse?url=${encodeURIComponent('https://example.com/login')}"`,
+    )
+    expect(out).toContain('method="post"')
+    expect(out).toContain('enctype="multipart/form-data"')
   })
 
   it('大写标签与单引号属性同样处理', () => {
@@ -225,23 +230,37 @@ describe('detectCharset / browseErrorPage', () => {
 
 // ── 路由集成（真 http fake upstream + 真 fetch） ─────────────────────────────
 
+interface RecordedUpstreamRequest {
+  headers: IncomingHttpHeaders
+  url: string
+  method: string
+  /** 原始请求体（POST 转发测试用；GET 为空 Buffer）。 */
+  body: Buffer
+}
+
 interface UpstreamHandle {
   server: Server
   port: number
-  requests: Array<{ headers: IncomingHttpHeaders; url: string }>
+  requests: RecordedUpstreamRequest[]
 }
 
-type UpstreamRespond = (
-  req: { headers: IncomingHttpHeaders; url: string },
-  res: ServerResponse,
-) => void
+type UpstreamRespond = (req: RecordedUpstreamRequest, res: ServerResponse) => void
 
 function startUpstream(respond: UpstreamRespond): Promise<UpstreamHandle> {
-  const requests: UpstreamHandle['requests'] = []
+  const requests: RecordedUpstreamRequest[] = []
   const server = createServer((incoming, res) => {
-    const record = { headers: incoming.headers, url: incoming.url ?? '' }
-    requests.push(record)
-    respond(record, res)
+    const chunks: Buffer[] = []
+    incoming.on('data', (chunk: Buffer) => chunks.push(chunk))
+    incoming.on('end', () => {
+      const record: RecordedUpstreamRequest = {
+        headers: incoming.headers,
+        url: incoming.url ?? '',
+        method: incoming.method ?? 'GET',
+        body: Buffer.concat(chunks),
+      }
+      requests.push(record)
+      respond(record, res)
+    })
   })
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
@@ -425,6 +444,94 @@ describe('/api/browse（会话门 + SSRF + 重写全链路）', () => {
     expect(response.statusCode).toBe(502)
     expect(response.body).toContain('HTTP 404')
     expect(response.body).toContain('在新标签页打开')
+  })
+
+  it('POST 表单转发：原始体逐字节到上游；Origin: null（沙箱 iframe）不被 CSRF 门拦', async () => {
+    await setup((req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html' })
+      res.end(`<html><body>got:${req.body.toString('utf8')}</body></html>`)
+    })
+    const response = await app!.inject({
+      method: 'POST',
+      url: `/api/browse?url=${encodeURIComponent(`${target()}/form`)}`,
+      headers: {
+        cookie,
+        origin: 'null',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      payload: 'a=1&b=%E4%B8%AD',
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(requests[0]?.method).toBe('POST')
+    expect(requests[0]?.body.toString('utf8')).toBe('a=1&b=%E4%B8%AD')
+    expect(requests[0]?.headers['content-type']).toBe('application/x-www-form-urlencoded')
+    // 上游只见白名单头：客户端 Origin/Cookie 一律不转发。
+    expect(requests[0]?.headers.origin).toBeUndefined()
+    expect(requests[0]?.headers.cookie).toBeUndefined()
+    expect(response.body).toContain('got:a=1&b=%E4%B8%AD')
+  })
+
+  it('POST 未登录：即便路由豁免 origin 检查也 401（会话门 + SameSite 仍是主保）', async () => {
+    await setup((_req, res) => res.end('unused'))
+    const response = await app!.inject({
+      method: 'POST',
+      url: `/api/browse?url=${encodeURIComponent(`${target()}/x`)}`,
+      headers: { origin: 'null', 'content-type': 'text/plain' },
+      payload: 'x',
+    })
+    expect(response.statusCode).toBe(401)
+    expect(requests).toHaveLength(0)
+  })
+
+  it('重定向方法规则：301/302-on-POST 与 303 转 GET，307 保方法保体', async () => {
+    await setup((req, res) => {
+      if (req.url === '/p302') {
+        res.writeHead(302, { location: '/after' })
+        res.end()
+        return
+      }
+      if (req.url === '/p307') {
+        res.writeHead(307, { location: '/keep' })
+        res.end()
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/html' })
+      res.end(`<html><body>${req.method}:${req.body.toString('utf8')}</body></html>`)
+    })
+
+    const via302 = await app!.inject({
+      method: 'POST',
+      url: `/api/browse?url=${encodeURIComponent(`${target()}/p302`)}`,
+      headers: { cookie, 'content-type': 'text/plain' },
+      payload: 'x=1',
+    })
+    expect(via302.statusCode).toBe(200)
+    expect(via302.body).toContain('GET:')
+
+    const via307 = await app!.inject({
+      method: 'POST',
+      url: `/api/browse?url=${encodeURIComponent(`${target()}/p307`)}`,
+      headers: { cookie, 'content-type': 'text/plain' },
+      payload: 'x=1',
+    })
+    expect(via307.statusCode).toBe(200)
+    expect(via307.body).toContain('POST:x=1')
+  })
+
+  it('content-disposition 透传：附件声明直达浏览器（下载直通）', async () => {
+    await setup((_req, res) => {
+      res.writeHead(200, {
+        'content-type': 'application/pdf',
+        'content-disposition': 'attachment; filename="doc.pdf"',
+      })
+      res.end(Buffer.from('%PDF-1.4 minimal'))
+    })
+    const response = await browseGet(`${target()}/doc.pdf`)
+    expect(response.statusCode).toBe(200)
+    expect(response.headers['content-type']).toBe('application/pdf')
+    expect(response.headers['content-disposition']).toBe('attachment; filename="doc.pdf"')
+    expect(response.rawPayload.toString('utf8')).toContain('%PDF-1.4')
   })
 
   it('SSRF：私网字面量与超长跳转链在外层闸被拒', async () => {

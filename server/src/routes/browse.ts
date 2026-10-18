@@ -20,18 +20,24 @@ import { SESSION_COOKIE } from './auth'
  *   不经代理，所以网页浏览的文档请求量不大）；
  * - SSRF：目标与每一跳重定向都过 assertPublicUrl（公网 http/https、
  *   默认端口、域名全量 A/AAAA 必须公网）；
- * - 头消毒：不转发客户端 Cookie/Referer 到上游；上游 Set-Cookie/CSP/
- *   X-Frame-Options 一律不回流（自己渲染的响应头由 helmet 兜底）；
- * - 资源上限：超时 12s 中止、响应体 5MB 封顶（超限 413 错误页）；
+ * - 头消毒：不转发客户端 Cookie/Referer 到上游；上游 Set-Cookie 不回流给
+ *   浏览器（② 起进服务端 Cookie 罐，按用户 × 目标源隔离）；
+ * - 资源上限：超时 12s 中止、响应体 5MB 封顶（超限 413 错误页）、POST
+ *   请求体 12MB 封顶（表单上传）；
  * - HTML 一律按探测字符集解码后重编码 UTF-8 输出（gbk 中文站不再乱码），
- *   并被注入 <base> + 链接重写；非 HTML（图片/PDF 等）按字节透传。
+ *   并被注入 <base> + 链接重写；非 HTML（图片/PDF 等）按字节透传；
+ * - POST（表单向代理提交，沙箱 iframe 的 `Origin: null` 经路由级豁免放行，
+ *   会话门 + SameSite=Lax 双保）以原始字节转发上游；重定向方法规则按
+ *   HTTP 语义（303 与 301/302-on-POST 转 GET，307/308 保方法保体）。
  *
- * 退化预期（档 C 口径）：静态/半静态站点体验良好；SPA、POST 表单提交、
- * 依赖登录态的站点会在错误页给出「在新标签页打开」的真实浏览兜底。
+ * 退化预期（档 C 口径）：静态/半静态站点体验良好；SPA 交互、强风控站点
+ * 会在错误页给出「在新标签页打开」的真实浏览兜底。
  */
 
 const BROWSE_TIMEOUT_MS = 12_000
 const BROWSE_MAX_BYTES = 5 * 1024 * 1024
+/** POST 请求体（表单/文件上传）上限。 */
+const BROWSE_UPLOAD_MAX_BYTES = 12 * 1024 * 1024
 const BROWSE_MAX_REDIRECTS = 5
 
 const UPSTREAM_HEADERS: Readonly<Record<string, string>> = {
@@ -141,143 +147,189 @@ export async function browseRoutes(
         }),
       )
 
-  // helmet 路由级覆盖：CSP 全关（代理文档要能加载原站资产与脚本）；
-  // XFO/COOP/nosniff 等其余头盔头保留（XFO SAMEORIGIN = 同源窗口可嵌）。
-  app.get<{ Querystring: { url?: string } }>(
-    '/browse',
-    {
-      helmet: { contentSecurityPolicy: false },
-      config: {
-        rateLimit: {
-          max: 120,
-          timeWindow: options.rateLimitWindowMs,
-          keyGenerator: (request: FastifyRequest) => request.cookies[SESSION_COOKIE] ?? request.ip,
-        },
+  // 路由级原始体解析（插件作用域内覆盖默认）：POST 的表单/JSON 体必须按
+  // 原始字节转发上游，绝不解析成对象再序列化（boundary 与编码都会被破坏）。
+  app.addContentTypeParser(
+    ['application/x-www-form-urlencoded', 'multipart/form-data', 'application/json', 'text/plain'],
+    { parseAs: 'buffer' },
+    (_request, body, done) => done(null, body),
+  )
+
+  const routeOptions = {
+    // helmet 路由级覆盖：CSP 全关（代理文档要能加载原站资产与脚本）；
+    // XFO/COOP/nosniff 等其余头盔头保留（XFO SAMEORIGIN = 同源窗口可嵌）。
+    helmet: { contentSecurityPolicy: false },
+    // 表单上传上限（默认全局 1MB 不够用）。
+    bodyLimit: BROWSE_UPLOAD_MAX_BYTES,
+    config: {
+      // 沙箱 iframe 的表单 POST 带 `Origin: null`（不透明 origin 的序列化），
+      // 无法被 origin-check 解析——本路由显式豁免；会话门 + SameSite=Lax
+      // 仍是主保（跨站 POST 不带会话 cookie，到不了这里）。
+      skipOriginCheck: true,
+      rateLimit: {
+        max: 120,
+        timeWindow: options.rateLimitWindowMs,
+        keyGenerator: (request: FastifyRequest) => request.cookies[SESSION_COOKIE] ?? request.ip,
       },
     },
-    async (request, reply) => {
-      if (!(await requireUser(request, reply))) return reply
-      const raw = request.query.url
-      if (typeof raw !== 'string' || raw.trim() === '') {
-        return sendError(reply, 400, '缺少地址', '请求里没有要打开的目标地址。')
-      }
+  }
 
-      let current: URL
-      try {
-        current = await assertPublicUrl(raw, policyOptions)
-      } catch (cause) {
-        if (cause instanceof BrowsePolicyError) {
-          const blocked = cause.code === 'private-address' || cause.code === 'port-not-allowed'
-          return sendError(
-            reply,
-            cause.status,
-            blocked ? '该地址不允许访问' : '地址无法解析',
-            blocked
-              ? '代理只允许访问公网 http/https 地址（默认端口）。'
-              : '请检查地址是否拼写正确。',
-            raw,
-          )
-        }
-        throw cause
-      }
+  const handleBrowse = async (
+    request: FastifyRequest<{ Querystring: { url?: string } }>,
+    reply: FastifyReply,
+  ): Promise<FastifyReply> => {
+    if (!(await requireUser(request, reply))) return reply
+    const raw = request.query.url
+    if (typeof raw !== 'string' || raw.trim() === '') {
+      return sendError(reply, 400, '缺少地址', '请求里没有要打开的目标地址。')
+    }
 
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), timeoutMs)
+    // POST 原始体与来源 content-type（透传上游；缺省无体）。
+    const requestBody = Buffer.isBuffer(request.body) ? request.body : undefined
+    const requestContentType = request.headers['content-type']
 
-      /** 手动跟随重定向（每跳过 SSRF 闸）；返回终响应与最终 URL（重写 base 用）。 */
-      const followRedirects = async (
-        initial: URL,
-      ): Promise<{ response: Response; finalUrl: string }> => {
-        let current = initial
-        for (let hop = 0; ; hop++) {
-          const hopResponse = await fetcher(current.toString(), {
-            redirect: 'manual',
-            signal: controller.signal,
-            headers: UPSTREAM_HEADERS,
-          })
-          if (!REDIRECT_STATUSES.has(hopResponse.status)) {
-            return { response: hopResponse, finalUrl: current.toString() }
-          }
-          const location = hopResponse.headers.get('location')
-          await hopResponse.body?.cancel().catch(() => undefined)
-          if (location === null) return { response: hopResponse, finalUrl: current.toString() }
-          if (hop >= BROWSE_MAX_REDIRECTS) {
-            throw new BrowsePolicyError(502, 'too-many-redirects')
-          }
-          let next: URL
-          try {
-            next = new URL(location, current)
-          } catch {
-            throw new BrowsePolicyError(502, 'bad-redirect')
-          }
-          // 每一跳都重新过闸：跳转向私网地址同样按策略拒绝。
-          current = await assertPublicUrl(next.toString(), policyOptions)
-        }
-      }
-
-      let response: Response
-      let finalUrl: string
-      try {
-        ;({ response, finalUrl } = await followRedirects(current))
-      } catch (cause) {
-        if (cause instanceof BrowsePolicyError) {
-          if (cause.code === 'too-many-redirects') {
-            return sendError(reply, 502, '重定向过多', '目标站点的跳转次数超出上限。', raw)
-          }
-          if (cause.code === 'bad-redirect') {
-            return sendError(reply, 502, '重定向异常', '目标站点返回了无法解析的跳转地址。', raw)
-          }
-          return sendError(
-            reply,
-            cause.status,
-            '该地址不允许访问',
-            '跳转后的地址未通过代理策略。',
-            raw,
-          )
-        }
-        if (cause instanceof Error && cause.name === 'AbortError') {
-          return sendError(reply, 504, '请求超时', '目标站点响应太慢，已中止。', raw)
-        }
-        return sendError(reply, 502, '无法连接', '目标站点当前不可达。', raw)
-      } finally {
-        clearTimeout(timer)
-      }
-
-      if (response.status >= 300) {
-        await response.body?.cancel().catch(() => undefined)
+    let current: URL
+    try {
+      current = await assertPublicUrl(raw, policyOptions)
+    } catch (cause) {
+      if (cause instanceof BrowsePolicyError) {
+        const blocked = cause.code === 'private-address' || cause.code === 'port-not-allowed'
         return sendError(
           reply,
-          502,
-          '目标站点返回了错误',
-          `上游返回 HTTP ${response.status}（页面可能不存在或需要登录）。`,
+          cause.status,
+          blocked ? '该地址不允许访问' : '地址无法解析',
+          blocked
+            ? '代理只允许访问公网 http/https 地址（默认端口）。'
+            : '请检查地址是否拼写正确。',
           raw,
         )
       }
+      throw cause
+    }
 
-      const contentType = response.headers.get('content-type')
-      const rawBytes = await readCapped(response, maxBytes)
-      if (rawBytes === null) {
-        return sendError(reply, 413, '页面过大', '目标页面超出代理的大小上限（5MB）。', raw)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+    /** 手动跟随重定向（每跳过 SSRF 闸）；返回终响应与最终 URL（重写 base 用）。 */
+    const followRedirects = async (
+      initial: URL,
+      initialMethod: string,
+      initialBody: Buffer | undefined,
+    ): Promise<{ response: Response; finalUrl: string }> => {
+      let current = initial
+      let method = initialMethod
+      let body = initialBody
+      for (let hop = 0; ; hop++) {
+        const headers: Record<string, string> = { ...UPSTREAM_HEADERS }
+        if (body !== undefined && requestContentType !== undefined) {
+          headers['content-type'] = requestContentType
+        }
+        const hopResponse = await fetcher(current.toString(), {
+          method,
+          // undici 的 BodyInit 不吃 Node Buffer，转 Uint8Array（同一内存视图）。
+          body: body === undefined ? undefined : new Uint8Array(body),
+          redirect: 'manual',
+          signal: controller.signal,
+          headers,
+        })
+        if (!REDIRECT_STATUSES.has(hopResponse.status)) {
+          return { response: hopResponse, finalUrl: current.toString() }
+        }
+        const location = hopResponse.headers.get('location')
+        await hopResponse.body?.cancel().catch(() => undefined)
+        if (location === null) return { response: hopResponse, finalUrl: current.toString() }
+        if (hop >= BROWSE_MAX_REDIRECTS) {
+          throw new BrowsePolicyError(502, 'too-many-redirects')
+        }
+        let next: URL
+        try {
+          next = new URL(location, current)
+        } catch {
+          throw new BrowsePolicyError(502, 'bad-redirect')
+        }
+        // HTTP 重定向方法规则：303 恒转 GET；301/302 对 POST 转 GET（历史
+        // 语义，登录成功后的跳转靠它）；307/308 保方法保体。
+        const status = hopResponse.status
+        if (status === 303 || ((status === 301 || status === 302) && method === 'POST')) {
+          method = 'GET'
+          body = undefined
+        }
+        // 每一跳都重新过闸：跳转向私网地址同样按策略拒绝。
+        current = await assertPublicUrl(next.toString(), policyOptions)
       }
+    }
 
-      const isHtml = contentType === null || /text\/html|application\/xhtml\+xml/i.test(contentType)
-      if (!isHtml) {
-        // 图片/PDF 等直通字节；content-type 原样，但绝不放行上游的缓存/凭据头。
-        return reply
-          .code(200)
-          .type(contentType ?? 'application/octet-stream')
-          .header('cache-control', 'private, max-age=0, no-store')
-          .send(Buffer.from(rawBytes))
+    let response: Response
+    let finalUrl: string
+    try {
+      ;({ response, finalUrl } = await followRedirects(current, request.method, requestBody))
+    } catch (cause) {
+      if (cause instanceof BrowsePolicyError) {
+        if (cause.code === 'too-many-redirects') {
+          return sendError(reply, 502, '重定向过多', '目标站点的跳转次数超出上限。', raw)
+        }
+        if (cause.code === 'bad-redirect') {
+          return sendError(reply, 502, '重定向异常', '目标站点返回了无法解析的跳转地址。', raw)
+        }
+        return sendError(
+          reply,
+          cause.status,
+          '该地址不允许访问',
+          '跳转后的地址未通过代理策略。',
+          raw,
+        )
       }
+      if (cause instanceof Error && cause.name === 'AbortError') {
+        return sendError(reply, 504, '请求超时', '目标站点响应太慢，已中止。', raw)
+      }
+      return sendError(reply, 502, '无法连接', '目标站点当前不可达。', raw)
+    } finally {
+      clearTimeout(timer)
+    }
 
-      const charset = detectCharset(rawBytes, contentType)
-      const decoded = decodeWithCharset(rawBytes, charset)
-      const rewritten = rewriteHtml(decoded, finalUrl)
-      return reply
+    if (response.status >= 300) {
+      await response.body?.cancel().catch(() => undefined)
+      return sendError(
+        reply,
+        502,
+        '目标站点返回了错误',
+        `上游返回 HTTP ${response.status}（页面可能不存在或需要登录）。`,
+        raw,
+      )
+    }
+
+    const contentType = response.headers.get('content-type')
+    // content-disposition 透传（下载直通）：上游声明为附件时浏览器直接下载
+    // （iframe 沙箱已开 allow-downloads）；未声明则照常内嵌展示。
+    const disposition = response.headers.get('content-disposition')
+    const rawBytes = await readCapped(response, maxBytes)
+    if (rawBytes === null) {
+      return sendError(reply, 413, '页面过大', '目标页面超出代理的大小上限（5MB）。', raw)
+    }
+
+    const isHtml = contentType === null || /text\/html|application\/xhtml\+xml/i.test(contentType)
+    if (!isHtml) {
+      // 图片/PDF/附件等直通字节；content-type/disposition 原样，但不放行
+      // 上游的缓存/凭据头。
+      const passthrough = reply
         .code(200)
-        .type('text/html; charset=utf-8')
+        .type(contentType ?? 'application/octet-stream')
         .header('cache-control', 'private, max-age=0, no-store')
-        .send(rewritten)
-    },
-  )
+      if (disposition !== null) passthrough.header('content-disposition', disposition)
+      return passthrough.send(Buffer.from(rawBytes))
+    }
+
+    const charset = detectCharset(rawBytes, contentType)
+    const decoded = decodeWithCharset(rawBytes, charset)
+    const rewritten = rewriteHtml(decoded, finalUrl)
+    const html = reply
+      .code(200)
+      .type('text/html; charset=utf-8')
+      .header('cache-control', 'private, max-age=0, no-store')
+    if (disposition !== null) html.header('content-disposition', disposition)
+    return html.send(rewritten)
+  }
+
+  app.get<{ Querystring: { url?: string } }>('/browse', routeOptions, handleBrowse)
+  app.post<{ Querystring: { url?: string } }>('/browse', routeOptions, handleBrowse)
 }

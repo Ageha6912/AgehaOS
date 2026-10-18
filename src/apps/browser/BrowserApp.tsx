@@ -20,37 +20,56 @@ import { displayForTarget, proxyUrlFor, targetForInput, titleForTarget } from '.
 /**
  * 浏览器应用（档 C：窗口内浏览 + 真实浏览兜底）。
  *
- * 内容经 /api/browse 服务端代理回流（SSRF 闸 + HTML 重写），窗口内呈现；
- * 代理拒绝/上游失败的页面由代理侧错误页兜底「在新标签页打开」——顶层标签
- * 不受任何嵌入限制，真实网站 100% 可用。搜索默认走 DuckDuckGo HTML 端点
- * （无 JS 依赖，结果链接经代理重写后窗口内直接可达）。
+ * 内容经 /api/browse 服务端代理回流（SSRF 闸 + HTML 重写，含 POST 表单原始
+ * 体转发与附件直通），窗口内呈现；代理拒绝/上游失败的页面由代理侧错误页兜底
+ * 「在新标签页打开」——顶层标签不受任何嵌入限制。搜索走搜狗 Web 端点
+ * （中文优先；结果链接经代理重写后窗口内直接可达）。
  *
  * 交互面：标签页（新建/关闭）+ 地址栏（域名直访 / 关键词搜索）+
  * 后退/前进/刷新 + 星标收藏 + 新标签打开；起始页 = 书签 + 最近访问
  * （browser-store，设备本地持久化）。
+ *
+ * **保活（2026-10-18）**：历史项条目化（TrailEntry 带稳定 id），iframe 按
+ * 条目渲染、切前方标签/非活动标签用 display:none 掩藏而非卸载——后退/前进
+ * 秒开、切标签不重载；仅刷新（reloadSeq）重挂当前条目、新导航截断卸载前向
+ * 条目。保活窗口 = 最近 KEEP_ALIVE_BACK 个后方条目 + 当前条目（内存有界）。
  */
+
+export interface TrailEntry {
+  /** 稳定条目 id（iframe key 用；同 URL 两次入栈也不撞）。 */
+  id: string
+  url: string
+  /** 刷新计数：+1 即重挂该条目的 iframe（同 src 不重载的 React 语义）。 */
+  reloadSeq: number
+}
 
 export interface BrowserTab {
   id: string
-  /** null = 起始页（应用内自绘：书签 + 最近访问）。 */
-  target: string | null
-  title: string
-  /** 目标 URL 栈（后退/前进）。 */
-  trail: string[]
+  /** 目标 URL 栈（后退/前进）；空栈 = 起始页。 */
+  trail: TrailEntry[]
+  /** 当前条目下标；-1 = 起始页。 */
   index: number
-  /** 刷新计数（同名 src 不重载，进 iframe key）。 */
-  reloadSeq: number
 }
 
 export interface BrowserAppProps {
   windowId: string
 }
 
+/** 保活窗口：当前条目前后各 N 个条目常驻 iframe（双向秒开、内存有界）。 */
+const KEEP_ALIVE_BACK = 5
+const KEEP_ALIVE_AHEAD = 5
+
 let tabSeq = 0
+let trailSeq = 0
 
 function newTab(): BrowserTab {
   tabSeq += 1
-  return { id: `tab-${tabSeq}`, target: null, title: '', trail: [], index: -1, reloadSeq: 0 }
+  return { id: `tab-${tabSeq}`, trail: [], index: -1 }
+}
+
+function newTrailEntry(url: string): TrailEntry {
+  trailSeq += 1
+  return { id: `e-${trailSeq}`, url, reloadSeq: 0 }
 }
 
 /** 宿主 props 只有 windowId（本应用不使用）——签名收窄为零参以满足 lint。 */
@@ -69,69 +88,58 @@ export function BrowserApp() {
   const addressRef = useRef<HTMLInputElement>(null)
 
   const active = tabs.find((tab) => tab.id === activeId) ?? tabs[0]
+  const activeEntry = active !== undefined && active.index >= 0 ? active.trail[active.index] : undefined
+  const currentUrl = activeEntry?.url ?? null
 
-  // 切标签/导航后地址栏跟随活动标签的目标（起始页清空并聚焦）。
+  // 切标签/导航/后退前进后地址栏跟随当前条目（起始页清空并聚焦）。
   useEffect(() => {
-    if (active === undefined) return
-    setAddress(active.target === null ? '' : displayForTarget(active.target))
-    if (active.target === null) addressRef.current?.focus()
-  }, [active])
+    setAddress(currentUrl === null ? '' : displayForTarget(currentUrl))
+    if (currentUrl === null) addressRef.current?.focus()
+  }, [activeId, currentUrl])
 
   const updateTab = (id: string, patch: Partial<BrowserTab>): void =>
     setTabs((current) => current.map((tab) => (tab.id === id ? { ...tab, ...patch } : tab)))
 
-  /** 导航入口：地址栏输入/起始页点击都收敛到这里。 */
+  /** 导航入口：地址栏输入/起始页点击都收敛到这里（新条目截断前向栈）。 */
   const navigate = (raw: string, explicitTarget?: string): void => {
     if (active === undefined) return
     const target = explicitTarget ?? targetForInput(raw)
     if (target === null) return
-    const trail = [...active.trail.slice(0, active.index + 1), target]
+    const entry = newTrailEntry(target)
     updateTab(active.id, {
-      target,
-      title: titleForTarget(target),
-      trail,
-      index: trail.length - 1,
+      trail: [...active.trail.slice(0, active.index + 1), entry],
+      index: active.index + 1,
     })
     recordVisit(target, titleForTarget(target))
   }
 
-  const goBack = (): void => {
-    if (active === undefined || active.index <= 0) return
-    const index = active.index - 1
-    const target = active.trail[index]
-    if (target === undefined) return
-    updateTab(active.id, { index, target, title: titleForTarget(target) })
-  }
-
-  const goForward = (): void => {
-    if (active === undefined || active.index >= active.trail.length - 1) return
-    const index = active.index + 1
-    const target = active.trail[index]
-    if (target === undefined) return
-    updateTab(active.id, { index, target, title: titleForTarget(target) })
+  /** 后退/前进：只挪 index——目标条目在保活窗口内即秒开（iframe 不重挂）。 */
+  const step = (delta: 1 | -1): void => {
+    if (active === undefined) return
+    const next = active.index + delta
+    if (next < 0 || next >= active.trail.length) return
+    updateTab(active.id, { index: next })
   }
 
   const reload = (): void => {
-    if (active !== undefined && active.target !== null) {
-      updateTab(active.id, { reloadSeq: active.reloadSeq + 1 })
-    }
+    if (active === undefined || activeEntry === undefined) return
+    updateTab(active.id, {
+      trail: active.trail.map((entry) =>
+        entry.id === activeEntry.id ? { ...entry, reloadSeq: entry.reloadSeq + 1 } : entry,
+      ),
+    })
   }
 
   const openExternal = (): void => {
-    if (active?.target !== null && active?.target !== undefined) {
-      window.open(active.target, '_blank', 'noopener,noreferrer')
-    }
+    if (currentUrl !== null) window.open(currentUrl, '_blank', 'noopener,noreferrer')
   }
 
-  const bookmarked =
-    active?.target !== null && active?.target !== undefined
-      ? bookmarks.some((entry) => entry.url === active.target)
-      : false
+  const bookmarked = currentUrl !== null && bookmarks.some((entry) => entry.url === currentUrl)
 
   const toggleBookmark = (): void => {
-    if (active === undefined || active.target === null) return
-    if (bookmarked) removeBookmark(active.target)
-    else addBookmark(active.target, titleForTarget(active.target))
+    if (currentUrl === null) return
+    if (bookmarked) removeBookmark(currentUrl)
+    else addBookmark(currentUrl, titleForTarget(currentUrl))
   }
 
   const addTab = (): void => {
@@ -160,20 +168,19 @@ export function BrowserApp() {
     narrow ? 'h-11 w-11' : 'h-7 w-7'
   }`
 
+  const tabTitle = (tab: BrowserTab): string => {
+    const entry = tab.index >= 0 ? tab.trail[tab.index] : undefined
+    return entry === undefined ? t('browser.newTab') : titleForTarget(entry.url)
+  }
+
   const canBack = active !== undefined && active.index > 0
-  const canForward = active !== undefined && active.index < active.trail.length - 1
-  const iframeKey =
-    active === undefined ? 'none' : `${active.id}-${active.index}-${active.reloadSeq}`
-  const iframeSrc = active?.target != null ? proxyUrlFor(active.target) : null
+  const canForward =
+    active !== undefined && active.index >= 0 && active.index < active.trail.length - 1
 
   const recentHistory = useMemo(() => history.slice(0, 8), [history])
 
   return (
-    <div
-      ref={rootRef}
-      data-testid="browser-app"
-      className="surface-panel flex h-full flex-col text-sm"
-    >
+    <div ref={rootRef} data-testid="browser-app" className="surface-panel flex h-full flex-col text-sm">
       {/* 标签条：chips + 新建；关闭钮 44px 命中区在窄容器档。 */}
       <div
         data-testid="browser-tabs"
@@ -187,9 +194,7 @@ export function BrowserApp() {
               data-testid="browser-tab"
               data-active={isActive || undefined}
               className={`group flex shrink-0 items-center gap-1 rounded-md px-2 text-xs ${
-                isActive
-                  ? 'bg-surface-raised text-text'
-                  : 'text-text-muted hover:bg-surface-raised/60'
+                isActive ? 'bg-surface-raised text-text' : 'text-text-muted hover:bg-surface-raised/60'
               } ${narrow ? 'h-11' : 'h-7'}`}
             >
               <button
@@ -197,7 +202,7 @@ export function BrowserApp() {
                 className="max-w-36 truncate"
                 onClick={() => setActiveId(tab.id)}
               >
-                {tab.target === null ? t('browser.newTab') : tab.title}
+                {tabTitle(tab)}
               </button>
               <button
                 type="button"
@@ -237,7 +242,7 @@ export function BrowserApp() {
           aria-label={t('browser.back')}
           className={toolbarButtonClass}
           disabled={!canBack}
-          onClick={goBack}
+          onClick={() => step(-1)}
         >
           <ArrowLeft aria-hidden="true" size={15} />
         </button>
@@ -247,7 +252,7 @@ export function BrowserApp() {
           aria-label={t('browser.forward')}
           className={toolbarButtonClass}
           disabled={!canForward}
-          onClick={goForward}
+          onClick={() => step(1)}
         >
           <ArrowRight aria-hidden="true" size={15} />
         </button>
@@ -256,7 +261,7 @@ export function BrowserApp() {
           data-testid="browser-reload"
           aria-label={t('browser.reload')}
           className={toolbarButtonClass}
-          disabled={active?.target == null}
+          disabled={currentUrl === null}
           onClick={reload}
         >
           <ArrowsClockwise aria-hidden="true" size={14} />
@@ -286,7 +291,7 @@ export function BrowserApp() {
           aria-label={bookmarked ? t('browser.bookmarkRemove') : t('browser.bookmarkAdd')}
           aria-pressed={bookmarked}
           className={`${toolbarButtonClass} ${bookmarked ? 'text-primary' : ''}`}
-          disabled={active?.target == null}
+          disabled={currentUrl === null}
           onClick={toggleBookmark}
         >
           <Star aria-hidden="true" size={15} weight={bookmarked ? 'fill' : 'regular'} />
@@ -296,15 +301,15 @@ export function BrowserApp() {
           data-testid="browser-open-external"
           aria-label={t('browser.openExternal')}
           className={toolbarButtonClass}
-          disabled={active?.target == null}
+          disabled={currentUrl === null}
           onClick={openExternal}
         >
           <ArrowSquareOut aria-hidden="true" size={15} />
         </button>
       </div>
 
-      {/* 内容区：起始页（书签 + 最近访问）或代理 iframe。 */}
-      {iframeSrc === null ? (
+      {/* 内容区：起始页（书签 + 最近访问）或保活 iframe 组。 */}
+      {activeEntry === undefined && (
         <div data-testid="browser-home" className="min-h-0 flex-1 overflow-y-auto p-4">
           <p className="pb-2 text-xs text-text-muted">{t('browser.homeHint')}</p>
           <h3 className="pb-1 pt-3 text-[11px] font-medium text-text-muted">
@@ -321,12 +326,7 @@ export function BrowserApp() {
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text hover:bg-surface-raised"
                     onClick={() => navigate(entry.url, entry.url)}
                   >
-                    <Star
-                      aria-hidden="true"
-                      size={12}
-                      weight="fill"
-                      className="shrink-0 text-primary"
-                    />
+                    <Star aria-hidden="true" size={12} weight="fill" className="shrink-0 text-primary" />
                     <span className="min-w-0 truncate">
                       {entry.title}
                       <span className="ml-2 text-text-tertiary">{entry.url}</span>
@@ -360,20 +360,36 @@ export function BrowserApp() {
             </ul>
           )}
         </div>
-      ) : (
-        <iframe
-          key={iframeKey}
-          data-testid="browser-iframe"
-          src={iframeSrc}
-          title={active?.title ?? t('app.browser.title')}
-          // 代理文档是不透明 origin（无 allow-same-origin）：脚本可跑但拿不到
-          // 宿主存储；allow-popups(-to-escape-sandbox) 让错误页「在新标签页
-          // 打开」逃逸沙箱顶层浏览；allow-forms 支持站点自绘表单（GET 已重写）。
-          sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-          referrerPolicy="no-referrer"
-          className="min-h-0 w-full flex-1 border-0 bg-white"
-        />
       )}
+
+      {/* 保活 iframe 组：活动标签当前条目可见，其余（当前条目 ±5 窗口内 +
+        非活动标签全部在窗条目）display:none 常驻——后退/前进/切标签零重载。 */}
+      {tabs.map((tab) => {
+        const isActiveTab = tab.id === active?.id
+        if (tab.index < 0) return null
+        const start = Math.max(0, tab.index - KEEP_ALIVE_BACK)
+        const end = Math.min(tab.trail.length, tab.index + 1 + KEEP_ALIVE_AHEAD)
+        return tab.trail.slice(start, end).map((entry) => {
+          const visible = isActiveTab && entry.id === activeEntry?.id
+          return (
+            <iframe
+              key={`${tab.id}:${entry.id}:${entry.reloadSeq}`}
+              data-testid="browser-iframe"
+              data-url={entry.url}
+              data-active={visible || undefined}
+              src={proxyUrlFor(entry.url)}
+              title={titleForTarget(entry.url)}
+              // 代理文档是不透明 origin（无 allow-same-origin）：脚本可跑但拿不到
+              // 宿主存储；allow-popups(-to-escape-sandbox) 让错误页「在新标签页
+              // 打开」逃逸沙箱顶层浏览；allow-forms 支持站点表单（action 已重写）；
+              // allow-downloads 让附件（content-disposition）直达下载。
+              sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+              referrerPolicy="no-referrer"
+              className={visible ? 'min-h-0 w-full flex-1 border-0 bg-white' : 'hidden'}
+            />
+          )
+        })
+      })}
     </div>
   )
 }
