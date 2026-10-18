@@ -306,7 +306,7 @@ describe('PostgresDataStore', () => {
     const store = new PostgresDataStore(pool)
     await store.init()
     const initTexts = pool.queries.map((query) => query.text)
-    expect(initTexts).toHaveLength(20)
+    expect(initTexts).toHaveLength(21)
     expect(
       initTexts.every(
         (text) =>
