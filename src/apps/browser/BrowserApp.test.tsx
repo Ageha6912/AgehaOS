@@ -65,6 +65,17 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     expect(activeFrame().getAttribute('src')).toBe(proxyUrlFor(searchUrlFor('北京 天气')))
   })
 
+  it('聚焦地址栏即全选（浏览器惯例：直接打字 = 替换旧地址）', () => {
+    render(<BrowserApp />)
+    navigate('example.com')
+    const input = addressInput()
+    expect(input.value).toBe('example.com')
+
+    fireEvent.focus(input)
+    expect(input.selectionStart).toBe(0)
+    expect(input.selectionEnd).toBe('example.com'.length)
+  })
+
   it('输入法组合期 Enter 不导航（ime-guard 双重互锁）', () => {
     render(<BrowserApp />)
     const input = addressInput()

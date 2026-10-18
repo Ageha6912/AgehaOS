@@ -297,6 +297,9 @@ export function BrowserApp() {
             narrow ? 'h-11' : 'h-7'
           }`}
           onChange={(event) => setAddress(event.target.value)}
+          // 浏览器惯例：聚焦即全选——点地址栏直接打字 = 替换旧地址（而非
+          // 追加；光标落点由再点一次决定）。2026-10-18 生产验证抓到的缺口。
+          onFocus={(event) => event.currentTarget.select()}
           onKeyDown={(event) => {
             // 输入法组合期的 Enter 是选词确认（ime-guard 双重互锁）。
             if (event.key === 'Enter' && !isImeComposing(event.nativeEvent)) {
