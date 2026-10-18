@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## [0.6.0] · 浏览器限制路线的档 ①②：POST/下载/保活 + 服务端 Cookie 罐（2026-10-18）
+
+按「浏览器限制解除」排序推进的两档：① 小改动包（POST 表单转发 / 附件下载透传 / iframe 前进后退保活）；② 服务端 Cookie 罐（窗口内解锁表单登录）。测试 +21（前端 2165 + 后端 199 全绿）。
+
+- **① POST 表单转发**：`/api/browse` 接受 POST，原始体逐字节转发上游（插件作用域 buffer 解析器：form-urlencoded / multipart / json，12MB 封顶，content-type 保真）；重写器对 GET/POST 表单 action 一视同仁；沙箱 iframe 表单 POST 的 `Origin: null` 经**路由级 origin-check 豁免**放行（会话门 + SameSite=Lax 双保仍是主防线）
+- **① 重定向方法规则**：301/302-on-POST 与 303 转 GET、307/308 保方法保体（登录成功后的 302 跳转由此打通）
+- **① 附件直通**：上游 `content-disposition` 透传 + iframe 沙箱开 `allow-downloads`——下载链接直达浏览器
+- **① iframe 保活**：历史项条目化（稳定 id），前进/后退/切标签在 ±5 窗口内以 display:none 复用既有 iframe（零重挂秒开）；刷新仅重挂当前条目；新导航截断卸载前向条目
+- **② 服务端 Cookie 罐**：上游 Set-Cookie 逐跳吸收（登录 302 链路上即生效）、后续请求按「用户 × 目标源」隔离回放；**值仅存服务端**（永不回传浏览器、永不进日志）；三级容量封顶（单值 4KB / 单源 40 条 / 单用户 64KB）；Domain/Path 属性不解释（源分桶回放，跨子域 SSO 为已知边界）；DataStore 三实现扩展（memory/file/postgres）
+- **② 站点数据管理**：`GET /api/browse/cookies` 只回元信息（条目数 + 源列表，绝不回值）、`POST /api/browse/cookies/clear`；起始页新增「站点数据」区块（条数 + 清除按钮，后端不可用时整体隐藏）
+- 已知边界延续：SPA 的 JS 驱动请求仍不经代理（档 ③ 子域 + Service Worker 重写引擎待单独立项）；风控站点（Cloudflare 验证码等）不受本帖影响
+
 ## [0.5.1] · 修复：计算器的物理键盘监听吞掉全系统输入（2026-10-18）
 
 用户 bug（浏览器地址栏「打不进数字和标点、退格也失效」）根因定位：**CalculatorApp 的 window 级 keydown 无任何作用域守卫**——计算器一旦被打开过（组件保持挂载，即使窗口失焦/被盖住），0-9、运算符标点、Backspace 全被 `preventDefault`，波及**所有**输入框（浏览器地址栏/搜索面板/笔记/设置……字母不在其键表里所以正常）。复现→修复→回归全链路：
