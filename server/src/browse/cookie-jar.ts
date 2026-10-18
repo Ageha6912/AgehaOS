@@ -83,7 +83,11 @@ export interface ParsedSetCookie {
 }
 
 const INVALID_NAME = /[\s;,=]/
-const INVALID_VALUE = /[\r\n\u0000]/
+
+/** 值中不允许的字符（行分隔/空字节——头部注入面）。 */
+function hasInvalidValueChars(value: string): boolean {
+  return value.includes('\r') || value.includes('\n') || value.includes('\u0000')
+}
 
 /** 单条 Set-Cookie 解析：首个 `;` 前是 name=value；Max-Age 优先于 Expires。
  *  畸形（缺 name/非法字符/超长值）返回 null——整条不收。 */
@@ -95,7 +99,7 @@ export function parseSetCookie(header: string, now: number): ParsedSetCookie | n
   const name = first.slice(0, eq).trim()
   const value = first.slice(eq + 1).trim()
   if (name === '' || INVALID_NAME.test(name)) return null
-  if (INVALID_VALUE.test(value) || value.length > JAR_MAX_VALUE_CHARS) return null
+  if (hasInvalidValueChars(value) || value.length > JAR_MAX_VALUE_CHARS) return null
 
   let expiresAt: number | null = null
   let remove = false

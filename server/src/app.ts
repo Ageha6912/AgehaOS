@@ -2,7 +2,12 @@ import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
-import type { FastifyBaseLogger, FastifyError, FastifyInstance, FastifyLoggerOptions } from 'fastify'
+import type {
+  FastifyBaseLogger,
+  FastifyError,
+  FastifyInstance,
+  FastifyLoggerOptions,
+} from 'fastify'
 
 import { loadConfig } from './config'
 import type { ServerConfig } from './config'
@@ -17,7 +22,11 @@ import { storeRoutes } from './routes/store'
 import { syncRoutes } from './routes/sync'
 import type { BrowseRoutesOptions } from './routes/browse'
 import { startWorldScheduler, type WorldSchedulerHandle } from './eclosion/scheduler'
-import { GitHubTrendingRssSource, createTrendingService, type TrendingSource } from './eclosion/trending'
+import {
+  GitHubTrendingRssSource,
+  createTrendingService,
+  type TrendingSource,
+} from './eclosion/trending'
 import { loadOrCreateSigningKey } from './store-keys'
 import { createStore } from './store'
 import type { DataStore } from './store'
@@ -40,7 +49,14 @@ export interface BuildAppOptions {
   /** 测试注入的浏览器代理出口（fetcher/resolveHost/上限；缺省真 fetch + 真 DNS）。 */
   browse?: Pick<
     BrowseRoutesOptions,
-    'fetcher' | 'resolveHost' | 'timeoutMs' | 'maxBytes' | 'allowedPorts' | 'allowBenchmarkRange'
+    | 'fetcher'
+    | 'resolveHost'
+    | 'timeoutMs'
+    | 'maxBytes'
+    | 'allowedPorts'
+    | 'allowBenchmarkRange'
+    | 'tokenSecret'
+    | 'cookieSecure'
   >
 }
 
@@ -48,7 +64,10 @@ export interface BuildAppOptions {
  * Normalizes every error response to `{ error: code }` so the frontend client
  * can map codes to AuthError values (PRD §30.5 input validation + audit).
  */
-function normalizeError(error: FastifyError | Error): { code: number; body: Record<string, string> } {
+function normalizeError(error: FastifyError | Error): {
+  code: number
+  body: Record<string, string>
+} {
   const fastifyError = error as FastifyError
   if (fastifyError.validation || fastifyError.code?.startsWith('FST_ERR_CTP')) {
     return { code: 400, body: { error: 'invalid-body' } }
@@ -87,8 +106,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   if (options.redis ?? config.redisUrl) {
     // 多实例共享限流计数（ADR 21 附注）：AGEHA_REDIS_URL 或测试注入的 Redis 客户端。
     const { default: Redis } = await import('ioredis')
-    const redis =
-      options.redis ?? (new Redis(config.redisUrl as string) as unknown as RedisLike)
+    const redis = options.redis ?? (new Redis(config.redisUrl as string) as unknown as RedisLike)
     const { redisRateLimitStoreCtor } = await import('./rate-limit-redis')
     await app.register(rateLimit, { global: false, store: redisRateLimitStoreCtor(redis) })
   } else {
@@ -152,15 +170,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     rateLimitWindowMs: config.rateLimit.windowMs,
   })
 
-  // 浏览器代理（档 C 窗口内浏览）：会话门 + SSRF 闸 + 头消毒 + HTML 重写；
-  // 路由级关 CSP（代理文档要加载原站资产），其余头盔头保留。
-  await app.register(browseRoutes, {
-    prefix: '/api',
-    store,
-    rateLimitWindowMs: config.rateLimit.windowMs,
-    ...options.browse,
-  })
-
   // 举报样本上传（DDS §8.6）：匿名上报 + 服务端分类器，复审清单仅 admin。
   await app.register(sampleRoutes, {
     prefix: '/api',
@@ -169,9 +178,24 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   // 远端应用目录（PRD §47 前置切片）：Ed25519 签名密钥落在数据目录，重启不变。
-  const signingKey =
-    options.signingKey ?? (await loadOrCreateSigningKey(config.dataDir))
+  const signingKey = options.signingKey ?? (await loadOrCreateSigningKey(config.dataDir))
   await app.register(storeRoutes, { prefix: '/api', signingKey, store })
+
+  // 浏览器代理（档 C 窗口内浏览 + 档 ③ 子域）：会话门 + SSRF 闸 + 头消毒 +
+  // HTML 重写；`/browse*` 挂 /api 前缀（根注册插件内显式写全路径），而
+  // `/https`、`/raw`、`/sw.js`、`/__*` 为子域根路径（Service Worker 作用域）。
+  await app.register(browseRoutes, {
+    store,
+    rateLimitWindowMs: config.rateLimit.windowMs,
+    tokenSecret: `${signingKey.keyId}:${signingKey.publicKeyBase64}`,
+    cookieSecure: config.cookieSecure,
+    // 嵌入白名单：配置 allowlist（若有）+ 主域缺省（AGEHA_PUBLIC_ORIGIN 覆盖）。
+    frameAncestors: [
+      ...config.allowedOrigins,
+      process.env.AGEHA_PUBLIC_ORIGIN ?? 'https://os.ageha.cn',
+    ],
+    ...options.browse,
+  })
 
   // ADR 20（评审 2026-10-02 P0-1 修订）：admin 角色的唯一授权路径——启动时
   // 对 AGEHA_ADMIN_USERNAME 同名的既有用户幂等提升。注册时不再授予（防

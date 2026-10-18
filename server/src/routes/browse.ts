@@ -8,6 +8,14 @@ import {
   parseJar,
   serializeJar,
 } from '../browse/cookie-jar'
+import {
+  BROWSE_COOKIE,
+  BROWSE_GRANT_TTL_MS,
+  CLAIM_TOKEN_TTL_MS,
+  signGrant,
+  verifyGrant,
+} from '../browse/grant'
+import { decodeBrowsePath, encodeBrowsePath } from '../browse/path-codec'
 import { assertPublicUrl, BrowsePolicyError, type ResolveHost } from '../browse/url-policy'
 import {
   browseErrorPage,
@@ -15,7 +23,9 @@ import {
   detectCharset,
   rewriteHtml,
   buildBrowseUrl,
+  type LinkStyle,
 } from '../browse/rewrite'
+import { browseSwSource } from '../browse/sw-source'
 import type { DataStore } from '../store/types'
 import { SESSION_COOKIE } from './auth'
 
@@ -39,6 +49,14 @@ import { SESSION_COOKIE } from './auth'
  *   会话门 + SameSite=Lax 双保）以原始字节转发上游；重定向方法规则按
  *   HTTP 语义（303 与 301/302-on-POST 转 GET，307/308 保方法保体）。
  *
+ * 档 ③（子域 + Service Worker，2026-10-18）：三条入口共用同一代理主体——
+ * `/api/browse?url=`（query 兜底模式）、`/https/*` `/http/*`（路径态文档，SW
+ * 缺席时直连也可渲染）、`/raw/*`（SW 数据通道，SW 把子域内一切请求换算至此）。
+ * 路径态重写产出相对链接（`/https/host/path`）并注入存储命名空间前奏；
+ * 子域鉴权：主域会话 cookie（os 域）或子域 browse grant（由 `/__claim`
+ * 以主域签发的短期令牌换取，httpOnly、值仅承载 userId 与过期时间）；
+ * `/sw.js` 与 `/__bootstrap` 为子域自举资源（SW 源码薄层，逻辑全在服务端）。
+ *
  * 退化预期（档 C 口径）：静态/半静态站点体验良好；SPA 交互、强风控站点
  * 会在错误页给出「在新标签页打开」的真实浏览兜底。
  */
@@ -59,6 +77,52 @@ const UPSTREAM_HEADERS: Readonly<Record<string, string>> = {
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 
+/**
+ * 子域引导页（档 ③）：读 hash 令牌 → /__claim 换取子域 httpOnly cookie →
+ * 注册 /sw.js 并等接管（controllerchange，3s 兜底）→ postMessage 通知主域
+ * 外壳（只含 ok 布尔）。内联脚本依赖路由级 CSP 关闭（routeOptions）。
+ */
+const BOOTSTRAP_HTML = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>AgehaOS 浏览器引导</title></head><body>
+<p style="font:13px/1.6 system-ui,sans-serif;color:#64748b;padding:12px">正在准备窗口内浏览…</p>
+<script>
+(async function () {
+  function notify(ok) {
+    try { parent.postMessage({ type: 'agehaos:browse-ready', ok: ok }, '*') } catch (e) {}
+  }
+  try {
+    var token = decodeURIComponent((location.hash || '').replace(/^#t=/, ''));
+    if (token) {
+      var claimed = await fetch('/__claim', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: token })
+      });
+      if (!claimed.ok) { notify(false); return; }
+    }
+    if (!('serviceWorker' in navigator)) { notify(false); return; }
+    await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    // 等注册进入 active（serviceWorker.ready）再放行——否则外壳立即导航时
+    // SW 可能仍在 activating，首个文档不受控（相对请求不进 /raw）。
+    var ready = false;
+    await Promise.race([
+      navigator.serviceWorker.ready.then(function () { ready = true; }),
+      new Promise(function (resolve) { setTimeout(resolve, 5000); })
+    ]);
+    if (!ready) { notify(false); return; }
+    if (!navigator.serviceWorker.controller) {
+      await new Promise(function (resolve) {
+        var timer = setTimeout(resolve, 3000);
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          clearTimeout(timer); resolve();
+        }, { once: true });
+      });
+    }
+    notify(true);
+  } catch (e) { notify(false); }
+})();
+</script></body></html>`
+
 export interface BrowseRoutesOptions {
   store: DataStore
   rateLimitWindowMs: number
@@ -73,6 +137,12 @@ export interface BrowseRoutesOptions {
    * AGEHA_BROWSE_TRUST_FAKE_IP=1；生产不设该变量即恒关。
    */
   allowBenchmarkRange?: boolean
+  /** 子域授权令牌签名密钥（app 装配从目录签名钥派生；测试可直接给常量）。 */
+  tokenSecret?: string
+  /** 子域 browse cookie 的 Secure 标志（生产 true；本地 http 为 false）。 */
+  cookieSecure?: boolean
+  /** 允许嵌入子域文档的站点源（frame-ancestors 追加项；app 装配注入主域）。 */
+  frameAncestors?: readonly string[]
 }
 
 async function readCapped(response: Response, maxBytes: number): Promise<Uint8Array | null> {
@@ -117,27 +187,61 @@ export async function browseRoutes(
       options.allowBenchmarkRange ?? process.env.AGEHA_BROWSE_TRUST_FAKE_IP === '1',
   }
 
-  /** 会话门（sync/eclosion 同范式）：未登录给 HTML 错误页（iframe 里可读）；
-   *  通过时返回 userId（Cookie 罐按用户隔离需要）。 */
+  const tokenSecret = options.tokenSecret ?? 'dev-browse-secret'
+  const cookieSecure = options.cookieSecure ?? true
+  /** 子域文档的嵌入白名单（替代 XFO）：'self' + 本地回环 + 配置来源。 */
+  const frameAncestorsPolicy = [
+    'frame-ancestors',
+    "'self'",
+    'http://localhost:*',
+    'http://127.0.0.1:*',
+    ...(options.frameAncestors ?? []),
+  ].join(' ')
+
+  const unauthorized = (reply: FastifyReply, message: string): null => {
+    void reply
+      .code(401)
+      .type('text/html; charset=utf-8')
+      .send(browseErrorPage({ title: '需要登录', message }))
+    return null
+  }
+
+  /**
+   * 会话门（双通道，档 ③）：
+   * ① 主域会话 cookie（os 域请求；sync/eclosion 同范式）；
+   * ② 子域 browse grant（browse 域请求；由 /__claim 换取，HMAC 验签）。
+   * 未登录给 HTML 错误页（iframe 里可读）；通过返回 userId（Cookie 罐隔离）。
+   */
   const requireUser = async (
     request: FastifyRequest,
     reply: FastifyReply,
   ): Promise<string | null> => {
     const token = request.cookies[SESSION_COOKIE]
-    if (!token) {
-      void reply
-        .code(401)
-        .type('text/html; charset=utf-8')
-        .send(browseErrorPage({ title: '需要登录', message: '登录 AgehaOS 后才能使用浏览器。' }))
-      return null
+    if (token !== undefined) {
+      const session = await store.findSession(token)
+      if (!session || session.expiresAt <= Date.now()) {
+        return unauthorized(reply, '会话已过期，请重新登录。')
+      }
+      return session.userId
     }
-    const session = await store.findSession(token)
+    const grant = request.cookies[BROWSE_COOKIE]
+    if (grant !== undefined) {
+      const userId = verifyGrant(tokenSecret, grant, Date.now())
+      if (userId !== null) return userId
+      return unauthorized(reply, '浏览会话已过期，请重新打开浏览器。')
+    }
+    return unauthorized(reply, '登录 AgehaOS 后才能使用浏览器。')
+  }
+
+  /** 仅主域会话（令牌签发专用：grant 不该再换 grant，防无界续期链）。 */
+  const requireSessionUser = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<string | null> => {
+    const token = request.cookies[SESSION_COOKIE]
+    const session = token === undefined ? null : await store.findSession(token)
     if (!session || session.expiresAt <= Date.now()) {
-      void reply
-        .code(401)
-        .type('text/html; charset=utf-8')
-        .send(browseErrorPage({ title: '需要登录', message: '会话已过期，请重新登录。' }))
-      return null
+      return unauthorized(reply, '登录 AgehaOS 后才能使用浏览器。')
     }
     return session.userId
   }
@@ -148,6 +252,7 @@ export async function browseRoutes(
     title: string,
     message: string,
     target?: string,
+    linkStyle: LinkStyle = 'query',
   ): FastifyReply =>
     reply
       .code(status)
@@ -157,7 +262,11 @@ export async function browseRoutes(
           title,
           message,
           targetUrl: target,
-          retryHref: target === undefined ? undefined : buildBrowseUrl(target),
+          retryHref:
+            target === undefined
+              ? undefined
+              : ((linkStyle === 'path' ? encodeBrowsePath(target) : null) ??
+                buildBrowseUrl(target)),
         }),
       )
 
@@ -171,8 +280,10 @@ export async function browseRoutes(
 
   const routeOptions = {
     // helmet 路由级覆盖：CSP 全关（代理文档要能加载原站资产与脚本）；
-    // XFO/COOP/nosniff 等其余头盔头保留（XFO SAMEORIGIN = 同源窗口可嵌）。
-    helmet: { contentSecurityPolicy: false },
+    // XFO 关停——子域文档要被主域（os 域）跨源 iframe 嵌入，SAMEORIGIN 会
+    // 直接挡死；防点击劫持由统一的 frame-ancestors 头接管（'self' + 本地
+    // 回环 + 配置来源）。COOP/nosniff 等其余头盔头保留。
+    helmet: { contentSecurityPolicy: false, xFrameOptions: false },
     // 表单上传上限（默认全局 1MB 不够用）。
     bodyLimit: BROWSE_UPLOAD_MAX_BYTES,
     config: {
@@ -188,10 +299,19 @@ export async function browseRoutes(
     },
   }
 
-  const handleBrowse = async (
-    request: FastifyRequest<{ Querystring: { url?: string } }>,
+  /** 代理主体（三入口共用）：raw=目标 URL（已解码），linkStyle=重写产出形态。 */
+  const runProxy = async (
+    request: FastifyRequest,
     reply: FastifyReply,
+    raw: string,
+    linkStyle: LinkStyle,
   ): Promise<FastifyReply> => {
+    // 统一的嵌入策略（含 401/错误页——任何出口都不得留 XFO 语义的残缺口）。
+    reply.header('content-security-policy', frameAncestorsPolicy)
+    /** 本入口的错误页（重试链接按入口形态产出）。 */
+    const fail = (status: number, title: string, message: string, target?: string): FastifyReply =>
+      sendError(reply, status, title, message, target, linkStyle)
+
     const userId = await requireUser(request, reply)
     if (userId === null) return reply
     // Cookie 罐：整个请求链（含重定向各跳）共享一份内存视图，逐跳吸收/附加；
@@ -203,11 +323,6 @@ export async function browseRoutes(
       jar = mergeSetCookies(jar, origin, setCookies, Date.now())
       await store.putBrowseJar(userId, serializeJar(capJarBytes(jar))).catch(() => undefined)
     }
-    const raw = request.query.url
-    if (typeof raw !== 'string' || raw.trim() === '') {
-      return sendError(reply, 400, '缺少地址', '请求里没有要打开的目标地址。')
-    }
-
     // POST 原始体与来源 content-type（透传上游；缺省无体）。
     const requestBody = Buffer.isBuffer(request.body) ? request.body : undefined
     const requestContentType = request.headers['content-type']
@@ -218,8 +333,7 @@ export async function browseRoutes(
     } catch (cause) {
       if (cause instanceof BrowsePolicyError) {
         const blocked = cause.code === 'private-address' || cause.code === 'port-not-allowed'
-        return sendError(
-          reply,
+        return fail(
           cause.status,
           blocked ? '该地址不允许访问' : '地址无法解析',
           blocked ? '代理只允许访问公网 http/https 地址（默认端口）。' : '请检查地址是否拼写正确。',
@@ -296,31 +410,24 @@ export async function browseRoutes(
     } catch (cause) {
       if (cause instanceof BrowsePolicyError) {
         if (cause.code === 'too-many-redirects') {
-          return sendError(reply, 502, '重定向过多', '目标站点的跳转次数超出上限。', raw)
+          return fail(502, '重定向过多', '目标站点的跳转次数超出上限。', raw)
         }
         if (cause.code === 'bad-redirect') {
-          return sendError(reply, 502, '重定向异常', '目标站点返回了无法解析的跳转地址。', raw)
+          return fail(502, '重定向异常', '目标站点返回了无法解析的跳转地址。', raw)
         }
-        return sendError(
-          reply,
-          cause.status,
-          '该地址不允许访问',
-          '跳转后的地址未通过代理策略。',
-          raw,
-        )
+        return fail(cause.status, '该地址不允许访问', '跳转后的地址未通过代理策略。', raw)
       }
       if (cause instanceof Error && cause.name === 'AbortError') {
-        return sendError(reply, 504, '请求超时', '目标站点响应太慢，已中止。', raw)
+        return fail(504, '请求超时', '目标站点响应太慢，已中止。', raw)
       }
-      return sendError(reply, 502, '无法连接', '目标站点当前不可达。', raw)
+      return fail(502, '无法连接', '目标站点当前不可达。', raw)
     } finally {
       clearTimeout(timer)
     }
 
     if (response.status >= 300) {
       await response.body?.cancel().catch(() => undefined)
-      return sendError(
-        reply,
+      return fail(
         502,
         '目标站点返回了错误',
         `上游返回 HTTP ${response.status}（页面可能不存在或需要登录）。`,
@@ -334,7 +441,7 @@ export async function browseRoutes(
     const disposition = response.headers.get('content-disposition')
     const rawBytes = await readCapped(response, maxBytes)
     if (rawBytes === null) {
-      return sendError(reply, 413, '页面过大', '目标页面超出代理的大小上限（5MB）。', raw)
+      return fail(413, '页面过大', '目标页面超出代理的大小上限（5MB）。', raw)
     }
 
     const isHtml = contentType === null || /text\/html|application\/xhtml\+xml/i.test(contentType)
@@ -351,7 +458,7 @@ export async function browseRoutes(
 
     const charset = detectCharset(rawBytes, contentType)
     const decoded = decodeWithCharset(rawBytes, charset)
-    const rewritten = rewriteHtml(decoded, finalUrl)
+    const rewritten = rewriteHtml(decoded, finalUrl, { linkStyle })
     const html = reply
       .code(200)
       .type('text/html; charset=utf-8')
@@ -360,12 +467,114 @@ export async function browseRoutes(
     return html.send(rewritten)
   }
 
-  app.get<{ Querystring: { url?: string } }>('/browse', routeOptions, handleBrowse)
-  app.post<{ Querystring: { url?: string } }>('/browse', routeOptions, handleBrowse)
+  // ── 三入口（共用 runProxy）────────────────────────────────────────────────
+  // ① query 兜底模式（原契约）；② 路径态文档（SW 缺席时直连也可渲染）；
+  // ③ /raw 数据通道（SW 把子域内一切请求换算至此）。
+  const parsePathTarget = (request: FastifyRequest): string | null => {
+    // 手工解析原始 URL：保留 percent 编码原样（query 对象重拼会破坏编码）。
+    const rawUrl = request.raw.url ?? ''
+    const q = rawUrl.indexOf('?')
+    const pathname = q === -1 ? rawUrl : rawUrl.slice(0, q)
+    const search = q === -1 ? '' : rawUrl.slice(q)
+    return decodeBrowsePath(pathname, search)
+  }
+  const parseRawTarget = (request: FastifyRequest): string | null => {
+    const rawUrl = request.raw.url ?? ''
+    const q = rawUrl.indexOf('?')
+    const pathname = q === -1 ? rawUrl : rawUrl.slice(0, q)
+    const search = q === -1 ? '' : rawUrl.slice(q)
+    if (!pathname.startsWith('/raw/')) return null
+    return decodeBrowsePath(pathname.slice('/raw'.length), search)
+  }
+  const missingTarget = (reply: FastifyReply, linkStyle: LinkStyle): FastifyReply =>
+    sendError(reply, 400, '缺少地址', '请求里没有要打开的目标地址。', undefined, linkStyle)
+
+  app.get('/api/browse', routeOptions, async (request, reply) => {
+    const raw = (request.query as { url?: string }).url
+    if (typeof raw !== 'string' || raw.trim() === '') return missingTarget(reply, 'query')
+    return runProxy(request, reply, raw, 'query')
+  })
+  app.post('/api/browse', routeOptions, async (request, reply) => {
+    const raw = (request.query as { url?: string }).url
+    if (typeof raw !== 'string' || raw.trim() === '') return missingTarget(reply, 'query')
+    return runProxy(request, reply, raw, 'query')
+  })
+  for (const method of ['get', 'post'] as const) {
+    app[method]('/https/*', routeOptions, async (request, reply) => {
+      const target = parsePathTarget(request)
+      if (target === null) return missingTarget(reply, 'path')
+      return runProxy(request, reply, target, 'path')
+    })
+    app[method]('/http/*', routeOptions, async (request, reply) => {
+      const target = parsePathTarget(request)
+      if (target === null) return missingTarget(reply, 'path')
+      return runProxy(request, reply, target, 'path')
+    })
+    app[method]('/raw/*', routeOptions, async (request, reply) => {
+      const target = parseRawTarget(request)
+      if (target === null) return missingTarget(reply, 'path')
+      return runProxy(request, reply, target, 'path')
+    })
+  }
+
+  // ── 子域自举（档 ③）──────────────────────────────────────────────────────
+  // sw.js：SW 源码（薄层；无敏感内容，公开可取）。scope=/ 使子域全域受控。
+  app.get('/sw.js', async (_request, reply) =>
+    reply
+      .code(200)
+      .type('text/javascript; charset=utf-8')
+      .header('service-worker-allowed', '/')
+      .header('cache-control', 'no-cache')
+      .send(browseSwSource()),
+  )
+
+  // __bootstrap：子域引导页——以 hash 令牌换取子域 browse cookie，注册 SW 并
+  // 等待接管，随后 postMessage 通知主域外壳（消息只含 ok 布尔）。
+  app.get('/__bootstrap', routeOptions, async (_request, reply) =>
+    reply
+      .code(200)
+      .type('text/html; charset=utf-8')
+      .header('cache-control', 'no-store')
+      .header('content-security-policy', frameAncestorsPolicy)
+      .send(BOOTSTRAP_HTML),
+  )
+
+  // __claim：令牌（主域签发）→ 子域 httpOnly browse cookie（HMAC grant）。
+  app.post('/__claim', routeOptions, async (request, reply) => {
+    let token: string | null = null
+    try {
+      const parsed = JSON.parse(
+        Buffer.isBuffer(request.body) ? request.body.toString('utf8') : '',
+      ) as { token?: unknown }
+      if (typeof parsed.token === 'string') token = parsed.token
+    } catch {
+      token = null
+    }
+    const userId = token === null ? null : verifyGrant(tokenSecret, token, Date.now())
+    if (userId === null) return reply.code(400).send({ error: 'invalid-token' })
+    const grant = signGrant(tokenSecret, userId, BROWSE_GRANT_TTL_MS, Date.now())
+    reply.setCookie(BROWSE_COOKIE, grant, {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: cookieSecure,
+      maxAge: Math.floor(BROWSE_GRANT_TTL_MS / 1000),
+    })
+    return reply.code(200).send({ ok: true })
+  })
+
+  // token：主域（会话门）签发短期领取令牌——供外壳引导子域使用。
+  app.get('/api/browse/token', async (request, reply) => {
+    const userId = await requireSessionUser(request, reply)
+    if (userId === null) return reply
+    return reply
+      .code(200)
+      .send({ token: signGrant(tokenSecret, userId, CLAIM_TOKEN_TTL_MS, Date.now()) })
+  })
 
   // ── 站点数据（Cookie 罐）管理：起始页「清除站点数据」消费 ────────────────
   // 只回元信息（源列表 + 条目数），**绝不回 cookie 值**。
-  app.get('/browse/cookies', async (request, reply) => {
+  app.get('/api/browse/cookies', async (request, reply) => {
     const userId = await requireUser(request, reply)
     if (userId === null) return reply
     const jar = parseJar(await store.getBrowseJar(userId))
@@ -374,7 +583,7 @@ export async function browseRoutes(
     return reply.code(200).send({ count, origins })
   })
 
-  app.post('/browse/cookies/clear', async (request, reply) => {
+  app.post('/api/browse/cookies/clear', async (request, reply) => {
     const userId = await requireUser(request, reply)
     if (userId === null) return reply
     await store.clearBrowseJar(userId)

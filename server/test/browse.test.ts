@@ -350,9 +350,11 @@ describe('/api/browse（会话门 + SSRF + 重写全链路）', () => {
     expect(response.statusCode).toBe(200)
     expect(response.headers['content-type']).toContain('text/html; charset=utf-8')
     expect(response.headers['cache-control']).toContain('no-store')
-    // 上游禁止嵌入的头不回流；helmet 的 SAMEORIGIN 兜底在同源窗口内可嵌。
-    expect(response.headers['content-security-policy']).toBeUndefined()
-    expect(response.headers['x-frame-options']).toBe('SAMEORIGIN')
+    // 上游禁止嵌入的头不回流；防劫持改由统一 frame-ancestors 策略接管
+    // （'self' + 本地回环 + 主域——子域文档需被主域跨源嵌入，见档 ③）。
+    expect(response.headers['content-security-policy']).toContain("frame-ancestors 'self'")
+    expect(response.headers['content-security-policy']).not.toContain("'none'")
+    expect(response.headers['x-frame-options']).toBeUndefined()
     expect(response.headers['set-cookie']).toBeUndefined()
     expect(response.body).toContain(`<base href="${target()}/">`)
     expect(response.body).toContain(

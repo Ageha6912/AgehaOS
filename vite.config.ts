@@ -13,22 +13,32 @@ import { defineConfig, type Plugin } from 'vite'
  * same policy as a real header (see docs/SECURITY.md).
  */
 function contentSecurityPolicy(): Plugin {
-  const policy = [
-    "default-src 'self'",
-    "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
-    "font-src 'self'",
-    "connect-src 'self'",
-    "frame-src 'self'",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-  ].join('; ')
   return {
     name: 'agehaos:csp',
     apply: 'build',
     transformIndexHtml(html) {
+      // 档 ③（子域浏览）：browse 源需列入 frame-src，否则窗口内跨源 iframe
+      // 被自身 CSP 挡死。缺省判断与 src/apps/browser/browser-nav.ts 的
+      // resolveBrowseOrigin 保持同步（两行逻辑，勿漂移）。
+      const explicit = process.env.VITE_BROWSE_ORIGIN
+      const browseOrigin =
+        explicit !== undefined && explicit !== ''
+          ? explicit
+          : process.env.VITE_AUTH_BACKEND
+            ? 'https://browse.ageha.cn'
+            : ''
+      const policy = [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data:",
+        "font-src 'self'",
+        "connect-src 'self'",
+        `frame-src 'self'${browseOrigin === '' ? '' : ` ${browseOrigin}`}`,
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ].join('; ')
       return html.replace(
         '<head>',
         `<head>\n    <meta http-equiv="Content-Security-Policy" content="${policy}" />`,
