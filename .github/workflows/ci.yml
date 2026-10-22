@@ -9,6 +9,13 @@ on:
     branches: [main]
   pull_request:
 
+# A new push supersedes the previous run on the same ref. Without this, rapid
+# pushes queue full CI runs (install + build + 19 Playwright specs) and bill
+# for both the stale and the current attempt.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   gates:
     runs-on: ubuntu-latest

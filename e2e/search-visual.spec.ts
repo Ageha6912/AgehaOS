@@ -82,6 +82,12 @@ test('search: centered Raycast panel, three domains in one view, keyboard-only (
   await expect(palette.getByTestId('search-result-recent').first()).toBeVisible()
   await expect(page.getByTestId('search-recent-list')).toContainText('记事')
 
+  // 入场关键帧带弹簧回弹（os-pop-in 的 easing 会短暂超过 1），可见 ≠ 动画
+  // 结束；等所有入场动画 finished 后再量静止几何，否则会读到 640 × 1.02。
+  await palette.evaluate((el) =>
+    Promise.all(el.getAnimations().map((animation) => animation.finished)),
+  )
+
   // 几何：宽 640（600-720 Raycast 档）；水平中心 = 视口中心（±2px）；
   // 面板整体落在菜单栏带（32px）之下、Dock 带（顶 = 1080 − 68 − 20 = 992）之上。
   const box = (await palette.boundingBox())!

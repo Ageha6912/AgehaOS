@@ -43,11 +43,11 @@ test('window resize: free edge/corner drag grows and shrinks with west compensat
   const before = (await region.boundingBox())!
   expect(before.width).toBeGreaterThan(400)
 
-
-  // SE 角向内拖 (-120, -80)：精确收缩。抓柄内侧点（避开圆角裁剪死区）。
-  await page.mouse.move(before.x + before.width - 10, before.y + before.height - 10)
+  // SE 角向内拖 (-120, -80)：精确收缩。抓柄内侧点，避开 32px 圆角 +
+  // overflow-hidden 的裁剪死区（10px 内缩仍会被裁掉，12px 才落在柄上）。
+  await page.mouse.move(before.x + before.width - 12, before.y + before.height - 12)
   await page.mouse.down()
-  await page.mouse.move(before.x + before.width - 130, before.y + before.height - 90, { steps: 8 })
+  await page.mouse.move(before.x + before.width - 132, before.y + before.height - 92, { steps: 8 })
   await page.mouse.up()
   await page.waitForTimeout(200)
   const shrunk = (await region.boundingBox())!
@@ -55,9 +55,9 @@ test('window resize: free edge/corner drag grows and shrinks with west compensat
   expect(Math.abs(shrunk.height - (before.height - 80))).toBeLessThanOrEqual(2)
 
   // SE 角向外拖 (+200, +120)：宽度/高度增大（可能撞工作区上限，只断增大）。
-  await page.mouse.move(shrunk.x + shrunk.width - 10, shrunk.y + shrunk.height - 10)
+  await page.mouse.move(shrunk.x + shrunk.width - 12, shrunk.y + shrunk.height - 12)
   await page.mouse.down()
-  await page.mouse.move(shrunk.x + shrunk.width + 190, shrunk.y + shrunk.height + 110, { steps: 8 })
+  await page.mouse.move(shrunk.x + shrunk.width + 188, shrunk.y + shrunk.height + 108, { steps: 8 })
   await page.mouse.up()
   await page.waitForTimeout(200)
   const grown = (await region.boundingBox())!
