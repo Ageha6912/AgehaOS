@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MobileInstallBar } from './MobileInstallBar'
 import { INSTALL_DISMISS_STORAGE_KEY } from './install-prompt-decision'
 
+import { useLocaleStore } from '@/core/i18n'
 import { resetDeviceStore } from '@/store/device-store'
+import { resetInstallPromptStore } from '@/store/install-prompt-store'
 import { resetSettingsStore, useSettingsStore } from '@/store/settings-store'
 
 /**
@@ -60,12 +62,15 @@ function dispatchInstallPrompt(userChoice: 'accepted' | 'dismissed' = 'accepted'
 
 beforeEach(() => {
   localStorage.clear()
+  resetInstallPromptStore()
   resetSettingsStore()
 })
 
 afterEach(() => {
   vi.unstubAllGlobals()
   resetDeviceStore()
+  // locale 是全局 i18n store（en 词典用例会切到 en），显式复位避免串测。
+  useLocaleStore.setState(useLocaleStore.getInitialState())
 })
 
 describe('MobileInstallBar', () => {
@@ -152,5 +157,45 @@ describe('MobileInstallBar', () => {
     render(<MobileInstallBar />)
     expect(screen.getByText('Add AgehaOS to your Home Screen')).toBeInTheDocument()
     expect(screen.getByText('1. Tap the Share button in the toolbar at the bottom of the screen')).toBeInTheDocument()
+  })
+
+  it('进应用再回 Home（安装条卸载重挂）：deferred prompt 仍在，条继续在场', () => {
+    setup()
+    const first = render(<MobileInstallBar />)
+    dispatchInstallPrompt()
+    expect(screen.getByTestId('mobile-pwa-install')).toHaveAttribute('data-branch', 'chromium')
+
+    // Home 卸载（进应用视图）再挂载：采集归常驻 store，deferred prompt 不丢。
+    first.unmount()
+    render(<MobileInstallBar />)
+    expect(screen.getByTestId('mobile-pwa-install')).toHaveAttribute('data-branch', 'chromium')
+    expect(screen.getByTestId('mobile-pwa-install-action')).toHaveTextContent('安装')
+  })
+
+  it('对话框取消后新事件：反馈行退回安装钮（新一次安装机会可点）', async () => {
+    setup()
+    render(<MobileInstallBar />)
+    dispatchInstallPrompt('dismissed')
+
+    fireEvent.click(screen.getByTestId('mobile-pwa-install-action'))
+    await waitFor(() => expect(screen.queryByTestId('mobile-pwa-install-action')).toBeNull())
+    expect(screen.getByTestId('mobile-pwa-install-outcome')).toBeInTheDocument()
+
+    // 新一次 beforeinstallprompt：相位复位 idle，安装钮重新出现。
+    dispatchInstallPrompt('accepted')
+    expect(screen.queryByTestId('mobile-pwa-install-outcome')).toBeNull()
+    expect(screen.getByTestId('mobile-pwa-install-action')).toHaveAttribute('data-state', 'idle')
+  })
+})
+
+describe('结果行读屏可及（F2 审查）', () => {
+  it('取消后的结果行带 role=status + aria-live（F2 审查：读屏可及）', async () => {
+    setup()
+    render(<MobileInstallBar />)
+    dispatchInstallPrompt('dismissed')
+    fireEvent.click(screen.getByTestId('mobile-pwa-install-action'))
+    const outcome = await screen.findByTestId('mobile-pwa-install-outcome')
+    expect(outcome).toHaveAttribute('role', 'status')
+    expect(outcome).toHaveAttribute('aria-live', 'polite')
   })
 })

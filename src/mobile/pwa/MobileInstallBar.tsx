@@ -67,6 +67,8 @@ export function MobileInstallBar() {
             data-testid="mobile-pwa-install-outcome"
             className="mt-3 text-xs leading-snug"
             style={{ color: 'var(--ag-text-muted)' }}
+            role="status"
+            aria-live="polite"
           >
             {t('mobile.pwa.install.dismissedOutcome')}
           </p>

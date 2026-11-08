@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
 import { resetMotionPrefsStore } from '@/store/motion-prefs-store'
+import { resetMobileSheetStore } from '@/store/mobile-sheet-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 
 import { MobileStatusBar } from './MobileStatusBar'
@@ -39,6 +40,7 @@ afterEach(() => {
   resetSessionStore()
   resetNotificationStore()
   resetMotionPrefsStore()
+  resetMobileSheetStore()
   localStorage.clear()
 })
 

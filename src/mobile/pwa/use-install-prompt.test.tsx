@@ -6,6 +6,7 @@ import { useInstallPrompt } from './use-install-prompt'
 import { INSTALL_DISMISS_STORAGE_KEY } from './install-prompt-decision'
 
 import { resetDeviceStore } from '@/store/device-store'
+import { resetInstallPromptStore } from '@/store/install-prompt-store'
 
 /**
  * useInstallPrompt 契约（M3-3）：beforeinstallprompt 捕获（preventDefault
@@ -99,6 +100,7 @@ function deferredChoice(): {
 
 beforeEach(() => {
   localStorage.clear()
+  resetInstallPromptStore()
 })
 
 afterEach(() => {
@@ -149,6 +151,26 @@ describe('beforeinstallprompt 事件捕获', () => {
       window.dispatchEvent(new Event('appinstalled'))
     })
     expect(result.current.branch).toBe('hidden')
+  })
+
+  it('模块级采集：无 hook 挂载时派发的事件也被接住（登录前/应用视图窗口期）', () => {
+    // 不先挂 hook：事件由 store 的常驻监听捕获（F2 审查修复）。
+    dispatchInstallPrompt()
+
+    stubProbe()
+    resetDeviceStore()
+    const { result } = renderHook(() => useInstallPrompt())
+    expect(result.current.branch).toBe('chromium')
+  })
+
+  it('hook 卸载再挂载（进应用再回 Home）：deferred prompt 仍在册', () => {
+    const first = setup()
+    dispatchInstallPrompt()
+    expect(first.result.current.branch).toBe('chromium')
+    first.unmount()
+
+    const second = renderHook(() => useInstallPrompt())
+    expect(second.result.current.branch).toBe('chromium')
   })
 })
 
@@ -290,6 +312,38 @@ describe('prompt() 交互相位机', () => {
       await result.current.promptInstall()
     })
     expect(result.current.phase).toBe('idle')
+    expect(result.current.branch).toBe('hidden')
+  })
+
+  it('浏览器对话框取消后新事件 → 相位复位 idle，新安装机会重新可点', async () => {
+    const { result } = setup()
+    const { event, controls } = deferredChoice()
+    act(() => {
+      window.dispatchEvent(event)
+    })
+
+    let installPromise: Promise<void> | null = null
+    act(() => {
+      installPromise = result.current.promptInstall()
+    })
+    await act(async () => {
+      controls.resolvePrompt()
+      controls.resolveChoice({ outcome: 'dismissed' })
+      await installPromise
+    })
+    expect(result.current.phase).toBe('dismissed')
+
+    // 新一次 beforeinstallprompt：相位复位，安装钮重新可用（旧实现新事件
+    // 没有可点按钮，同会话第二次安装机会被浪费）。
+    const secondPrompt = vi.fn(async () => undefined)
+    dispatchInstallPrompt({ prompt: secondPrompt })
+    expect(result.current.phase).toBe('idle')
+    expect(result.current.branch).toBe('chromium')
+
+    await act(async () => {
+      await result.current.promptInstall()
+    })
+    expect(secondPrompt).toHaveBeenCalledTimes(1)
     expect(result.current.branch).toBe('hidden')
   })
 })

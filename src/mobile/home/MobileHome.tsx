@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 import { useTranslation } from '@/core/i18n'
 import { useSessionStore } from '@/store/session-store'
 
@@ -26,11 +28,21 @@ import { TodayWorldCard } from './TodayWorldCard'
  * PWA 安装条（M3-3）坐 Home 尾部非侵入位（分支门控在 MobileInstallBar
  * 内部，hidden 整条缺席，只存在于 MobileShell 的 Home 视图）。
  */
-export function MobileHome({ now = new Date() }: { now?: Date }) {
+export function MobileHome({ now }: { now?: Date }) {
   const { t } = useTranslation()
   const user = useSessionStore((state) => state.user)
   const displayName = user ? (user.displayName ?? user.username) : null
-  const phase = mobileGreetingPhase(now.getHours())
+  // 分钟级时钟（F1 审查：长时间停留跨 11:00/17:00 问候语跟随切换；注入
+  // now 的测试路径保持确定性——注入值变化时同步）。
+  const [clock, setClock] = useState<Date>(() => now ?? new Date())
+  useEffect(() => {
+    if (now !== undefined) setClock(now)
+  }, [now])
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(new Date()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const phase = mobileGreetingPhase(clock.getHours())
 
   return (
     <section data-testid="mobile-home" aria-label={t('mobile.shell.heading')}>

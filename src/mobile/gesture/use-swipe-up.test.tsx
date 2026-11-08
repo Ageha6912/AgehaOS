@@ -412,4 +412,35 @@ describe('useSwipeUp 动效降级（直开）', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1)
     expect(matchMediaMock).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)')
   })
+
+  it('指针移出宿主后仍在 window 上完成手势（pen 无隐式捕获）', () => {
+    const onConfirm = vi.fn()
+    render(<Harness onConfirm={onConfirm} />)
+    const zone = screen.getByTestId('dock-zone')
+
+    pointer(zone, 'pointerdown', { x: 180, y: 770, pointerType: 'pen', pointerId: 9 })
+    act(() => {
+      window.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          pointerId: 9,
+          pointerType: 'pen',
+          clientX: 180,
+          clientY: 600,
+        }),
+      )
+      vi.advanceTimersByTime(16)
+      window.dispatchEvent(
+        new PointerEvent('pointerup', {
+          bubbles: true,
+          pointerId: 9,
+          pointerType: 'pen',
+          clientX: 180,
+          clientY: 600,
+        }),
+      )
+    })
+
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+  })
 })

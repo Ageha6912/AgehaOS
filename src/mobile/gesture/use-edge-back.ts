@@ -105,6 +105,9 @@ interface GestureState {
   axis: 'undecided' | 'inward' | 'reject'
   /** 本轮是否允许跟手动画（followMotion && !reduced-motion，落下时定死）。 */
   follow: boolean
+  /** 视口（落下时定死，F2 审查：rAF 每帧 getBoundingClientRect 与面板
+   *  transform 写操作互逼同步刷新——读-写抖动）。 */
+  viewport: ViewportAxis
   /** pointermove 事件轨迹（时间升序，速度窗口的数据源；定长截尾）。 */
   moves: Array<{ t: number; point: Point }>
   /** 已写入面板样式（结束时要还原）。 */
@@ -122,8 +125,12 @@ export function useEdgeBack(options: UseEdgeBackOptions): void {
   const rafRef = useRef<number | null>(null)
   /** 退出/回弹 WAAPI 动画（新一轮 pointerdown 或清理时要撤掉）。 */
   const animRef = useRef<Animation | null>(null)
+  /** 滑出动画挂起中的「确认回 home」：动画被新一轮手势取消时不能丢。 */
+  const pendingConfirmRef = useRef<(() => void) | null>(null)
   /** 激活后挂的一次性 click 抑制器（document 捕获段）。 */
   const clickSuppressRef = useRef<((event: MouseEvent) => void) | null>(null)
+  /** 到期自拆计时器句柄（F2 审查：快速 re-arm 时旧定时器不得拆掉新一轮抑制器）。 */
+  const suppressTeardownRef = useRef<number | null>(null)
 
   const clearPanelStyles = (): void => {
     const el = targetRef.current
@@ -134,6 +141,10 @@ export function useEdgeBack(options: UseEdgeBackOptions): void {
   }
 
   const stopClickSuppression = (): void => {
+    if (suppressTeardownRef.current !== null) {
+      window.clearTimeout(suppressTeardownRef.current)
+      suppressTeardownRef.current = null
+    }
     const suppress = clickSuppressRef.current
     if (suppress) {
       document.removeEventListener('click', suppress, true)
@@ -158,7 +169,11 @@ export function useEdgeBack(options: UseEdgeBackOptions): void {
   /** 抑制器只覆盖「释放后紧随的那枚 click」窗口；没等到 click（手指移出
    * 起点元素等，浏览器不派发）也要到期自拆，防止吞掉用户下一次点击。 */
   const scheduleClickSuppressionTeardown = (): void => {
-    window.setTimeout(stopClickSuppression, CLICK_SUPPRESS_TEARDOWN_MS)
+    if (suppressTeardownRef.current !== null) window.clearTimeout(suppressTeardownRef.current)
+    suppressTeardownRef.current = window.setTimeout(() => {
+      suppressTeardownRef.current = null
+      stopClickSuppression()
+    }, CLICK_SUPPRESS_TEARDOWN_MS)
   }
 
   const cancelScheduledSample = (): void => {
@@ -172,18 +187,23 @@ export function useEdgeBack(options: UseEdgeBackOptions): void {
   const endGesture = (): void => {
     cancelScheduledSample()
     stopClickSuppression()
-    if (gestureRef.current?.styled) clearPanelStyles()
+    // 无条件还原：styled 记账只用于优化，漏还原会让面板永久偏移。
+    clearPanelStyles()
     gestureRef.current = null
   }
 
-  /** 终止进行中的 WAAPI 动画（新一轮手势 / effect 清理）。 */
-  const cancelExitAnimation = (): void => {
+  /** 终止进行中的 WAAPI 动画（新一轮手势 / effect 清理）。
+   *  `flush=true`：已确认的回 home 不能因动画被取消而丢失（新按压取消滑出）。 */
+  const cancelExitAnimation = (flush = false): void => {
     const anim = animRef.current
+    const pending = pendingConfirmRef.current
+    pendingConfirmRef.current = null
     if (anim) {
       anim.onfinish = null
       anim.cancel()
       animRef.current = null
     }
+    if (flush) pending?.()
   }
 
   const sampleNow = (): void => {
@@ -192,7 +212,7 @@ export function useEdgeBack(options: UseEdgeBackOptions): void {
     const el = targetRef.current
     if (!state || !el) return
     const config = { ...DEFAULT_EDGE_BACK_CONFIG, ...optionsRef.current.config }
-    const viewport = resolveViewport(el, optionsRef.current.getViewport)
+    const viewport = state.viewport
 
     if (state.axis === 'undecided') {
       state.axis = classifyDrag(state.start, state.latest, config)
@@ -237,7 +257,8 @@ export function useEdgeBack(options: UseEdgeBackOptions): void {
       const target = event.target
       if (target instanceof Element && target.closest('[data-no-edge-back]') !== null) return
 
-      cancelExitAnimation()
+      cancelExitAnimation(true)
+      clearPanelStyles()
       gestureRef.current = {
         pointerId: event.pointerId,
         start,
@@ -246,6 +267,8 @@ export function useEdgeBack(options: UseEdgeBackOptions): void {
         axis: 'undecided',
         // reduced-motion 在落下时实时探测（系统档中途开启也能即刻生效）。
         follow: opts.followMotion && !prefersReducedMotion(),
+        // viewport 落下时定死（旋转/resize 期间的新手势会重新落下取新值）。
+        viewport: resolveViewport(el, opts.getViewport),
         moves: [],
         styled: false,
       }
@@ -277,7 +300,7 @@ export function useEdgeBack(options: UseEdgeBackOptions): void {
         return
       }
       const config = { ...DEFAULT_EDGE_BACK_CONFIG, ...optionsRef.current.config }
-      const viewport = resolveViewport(el, optionsRef.current.getViewport)
+      const viewport = settled.viewport
       const inward = inwardDisplacement(settled.start, settled.latest, config)
       // 速度 = 速度窗口内「最老轨迹点 → 当前位置」的位移差 ÷ 时差。轨迹点
       // 含 pointerdown 起点（若在窗内，它天然是最老点）与全部 move 事件——
@@ -314,7 +337,7 @@ export function useEdgeBack(options: UseEdgeBackOptions): void {
       }
       const tx = edgeBackTranslation(inward, viewport, config)
       if (confirmed) {
-        exitWithSlide(el, tx, onConfirm, animRef, clearPanelStyles)
+        exitWithSlide(el, tx, onConfirm, animRef, clearPanelStyles, pendingConfirmRef)
       } else {
         settleBack(el, tx, animRef, clearPanelStyles)
       }
@@ -328,16 +351,19 @@ export function useEdgeBack(options: UseEdgeBackOptions): void {
     }
 
     el.addEventListener('pointerdown', onPointerDown)
-    el.addEventListener('pointermove', onPointerMove)
-    el.addEventListener('pointerup', finish)
-    el.addEventListener('pointercancel', onPointerCancel)
+    // move/up/cancel 挂 window：笔/鼠标拖出面板（或 pointerup 落在子节点外）
+    // 时仍能完成/取消手势，避免 gestureRef 永久悬挂。
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', onPointerCancel)
     return () => {
       el.removeEventListener('pointerdown', onPointerDown)
-      el.removeEventListener('pointermove', onPointerMove)
-      el.removeEventListener('pointerup', finish)
-      el.removeEventListener('pointercancel', onPointerCancel)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', onPointerCancel)
       endGesture()
       cancelExitAnimation()
+      clearPanelStyles()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sampleNow/endGesture 为组件级稳定闭包，选项经 optionsRef 透读
   }, [targetRef, enabled])
@@ -362,6 +388,7 @@ function exitWithSlide(
   onConfirm: () => void,
   animRef: RefObject<Animation | null>,
   clearStyles: () => void,
+  pendingRef: RefObject<(() => void) | null>,
 ): void {
   clearStyles()
   if (!hasMotionRuntime()) {
@@ -373,10 +400,13 @@ function exitWithSlide(
     { duration: EDGE_BACK_EXIT_MS, easing: EDGE_BACK_EXIT_EASING, fill: 'forwards' },
   )
   animRef.current = anim
+  pendingRef.current = onConfirm
   anim.onfinish = () => {
     if (animRef.current !== anim) return
     animRef.current = null
-    onConfirm()
+    const pending = pendingRef.current
+    pendingRef.current = null
+    pending?.()
   }
 }
 

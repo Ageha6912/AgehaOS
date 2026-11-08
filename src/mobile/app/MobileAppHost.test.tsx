@@ -2,16 +2,20 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setLocale, useLocaleStore } from '@/core/i18n'
+import { systemBus } from '@/core/events'
 import { installApp, resetAppStore } from '@/store/app-store'
 import { permissionManager } from '@/core/permissions'
 import { resetDeviceStore, useDeviceStore } from '@/store/device-store'
+import { resetMobileLauncherStore, useMobileLauncherStore } from '@/store/mobile-launcher-store'
 import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
 import { resetMobileRecentsStore, useMobileRecentsStore } from '@/store/mobile-recents-store'
+import { resetMobileSheetStore, useMobileSheetStore } from '@/store/mobile-sheet-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetUsageStore, useUsageStore } from '@/store/usage-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
 import { MobileAppHost } from './MobileAppHost'
+import { resetMobileHistoryForTests } from './mobile-history'
 
 /**
  * M1-6 移动应用宿主契约（jsdom 单测；几何语义的真实视口归 E2E
@@ -25,8 +29,8 @@ import { MobileAppHost } from './MobileAppHost'
  *   launchApp；外部关窗（僵尸哨兵）宿主位回 home、后台位剪记录；
  * - 拒绝路径：launchApp 返回 null（权限门禁）自动回 home，不开窗；
  * - 浏览器返回键：进应用 pushState 一条同文档栈位，popstate → backToHome
- *   （不退出 AgehaOS）；最近任务覆盖层打开时先关覆盖层（popstate 消费者
- *   唯一 = 本组件）；home 态 popstate no-op；
+ *   （不退出 AgehaOS）；覆盖层（启动器/通知/控制中心/最近任务）打开时先关
+ *   覆盖层（popstate 消费者唯一 = 本组件）；home 态 popstate no-op；
  * - 内容路由与桌面 WindowFrame 同序：APP_UI_META → 羽化前缀 → Type B
  *   allowlist → MissingApp（EclosionAppFrame/WebAppFrame 以 stub 替身参与
  *   路由断言，重型 iframe 机制各有自有单测）；
@@ -72,8 +76,11 @@ beforeEach(() => {
   resetAppStore()
   resetMobileNavStore()
   resetMobileRecentsStore()
+  resetMobileLauncherStore()
+  resetMobileSheetStore()
   resetUsageStore()
   resetDeviceStore()
+  resetMobileHistoryForTests()
 })
 
 afterEach(() => {
@@ -145,6 +152,8 @@ describe('MobileAppHost', () => {
     const leaving = screen.getByTestId('mobile-app-host')
     expect(leaving).toHaveAttribute('data-state', 'leaving')
     expect(leaving).toHaveAttribute('aria-hidden', 'true')
+    // 退场帧不挡交互：Home 可见但点击必须穿透到下层。
+    expect(leaving).toHaveClass('pointer-events-none')
     expect(screen.queryByTestId('mobile-app-body')).toBeEmptyDOMElement()
     await waitFor(
       () => expect(screen.queryByTestId('mobile-app-host')).not.toBeInTheDocument(),
@@ -152,8 +161,36 @@ describe('MobileAppHost', () => {
     )
   })
 
-  it('launchApp 拒绝（权限门禁）→ 自动回 home，不开窗', async () => {
-    permissionManager.revoke('com.ageha.notes', 'storage')
+  it('UI 返回消费 history 栈位（残留条目不会留给 Android 返回键）', () => {
+    const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {})
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+
+    fireEvent.click(screen.getByTestId('mobile-app-back'))
+
+    expect(backSpy).toHaveBeenCalledTimes(1)
+    backSpy.mockRestore()
+  })
+
+  it('登出复位 nav/窗口：换账号不恢复上一会话视图', () => {
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+    expect(useMobileNavStore.getState().apps).toHaveLength(1)
+
+    act(() => {
+      systemBus.emit('user.logout', { userId: 'u1' })
+    })
+
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+    expect(useMobileNavStore.getState().apps).toEqual([])
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+  })
+
+  it('launchApp 拒绝（权限门禁）→ 自动回 home，不开窗', async () => {    permissionManager.revoke('com.ageha.notes', 'storage')
     render(<MobileAppHost />)
     act(() => {
       useMobileNavStore.getState().openApp('com.ageha.notes')
@@ -320,6 +357,20 @@ describe('MobileAppHost', () => {
     })
 
     expect(screen.getByTestId('mobile-app-host')).toHaveClass('mobile-app-static')
+  })
+
+  it('转场关档：回 Home 直接卸载，不保留 200ms 退场帧', () => {
+    act(() => {
+      useMotionPrefsStore.setState({ windowTilt: false })
+    })
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+
+    fireEvent.click(screen.getByTestId('mobile-app-back'))
+
+    expect(screen.queryByTestId('mobile-app-host')).not.toBeInTheDocument()
   })
 
   it('en 档：返回键可访问名走 en 词典（双词典类型对齐）', () => {
@@ -610,7 +661,7 @@ describe('MobileAppHost 最近任务（M3-2）', () => {
     })
     // 覆盖层压自己的栈位，应用栈位原样。
     expect(window.history.length).toBe(lengthAfterApp + 1)
-    expect(window.history.state?.agehaMobileRecents).toBe(true)
+    expect(window.history.state?.agehaMobileOverlay).toBe('recents')
 
     act(() => {
       window.dispatchEvent(new PopStateEvent('popstate'))
@@ -657,5 +708,150 @@ describe('MobileAppHost 最近任务（M3-2）', () => {
     })
     expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
     expect(useWindowStore.getState().windows).toHaveLength(1)
+  })
+})
+
+/**
+ * F1/F2 覆盖层返回层级：启动器 / 通知中心 / 控制中心与最近任务同走一条
+ * history 分层栈——Home 下打开覆盖层按返回键只关覆盖层（不离开 AgehaOS），
+ * app 视图下打开覆盖层按返回键不把应用退回 Home；UI 关闭主动消费栈位。
+ */
+describe('MobileAppHost 覆盖层返回层级（F1/F2）', () => {
+  function enterApp(): void {
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+    expect(useMobileNavStore.getState().nav.view).toBe('app')
+  }
+
+  it('Home + 启动器：打开压栈位，返回键只关启动器，nav 保持 home（不退出 AgehaOS）', () => {
+    render(<MobileAppHost />)
+    const lengthBefore = window.history.length
+    act(() => {
+      useMobileLauncherStore.getState().openLauncher()
+    })
+    expect(window.history.length).toBe(lengthBefore + 1)
+    expect(window.history.state?.agehaMobileOverlay).toBe('launcher')
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileLauncherStore.getState().open).toBe(false)
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+    // 栈位已被本次返回消化：再按返回不再有关层副作用。
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileLauncherStore.getState().open).toBe(false)
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+  })
+
+  it('Home + 通知中心：返回键只关 sheet，nav 保持 home', () => {
+    render(<MobileAppHost />)
+    act(() => {
+      useMobileSheetStore.getState().openNotifications()
+    })
+    expect(window.history.state?.agehaMobileOverlay).toBe('notifications')
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileSheetStore.getState().notificationsOpen).toBe(false)
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+  })
+
+  it('app 视图 + 通知中心：返回键只关 sheet，应用栈位不被花掉（下一次返回才回 home）', () => {
+    render(<MobileAppHost />)
+    enterApp()
+    const lengthAfterApp = window.history.length
+    act(() => {
+      useMobileSheetStore.getState().openNotifications()
+    })
+    expect(window.history.length).toBe(lengthAfterApp + 1)
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileSheetStore.getState().notificationsOpen).toBe(false)
+    expect(useMobileNavStore.getState().nav).toEqual({
+      view: 'app',
+      appId: 'com.ageha.calculator',
+      windowId: useWindowStore.getState().windows[0]?.id,
+    })
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+  })
+
+  it('app 视图 + 控制中心：返回键只关 sheet，应用视图保留', () => {
+    render(<MobileAppHost />)
+    enterApp()
+    act(() => {
+      useMobileSheetStore.getState().openControlCenter()
+    })
+    expect(window.history.state?.agehaMobileOverlay).toBe('controlcenter')
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileSheetStore.getState().controlCenterOpen).toBe(false)
+    expect(useMobileNavStore.getState().nav.view).toBe('app')
+  })
+
+  it('UI 关闭覆盖层消费自己的栈位（back 一次；不把应用栈位花掉）', () => {
+    const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {})
+    render(<MobileAppHost />)
+    enterApp()
+    act(() => {
+      useMobileSheetStore.getState().openNotifications()
+    })
+
+    act(() => {
+      useMobileSheetStore.getState().closeNotifications()
+    })
+    expect(backSpy).toHaveBeenCalledTimes(1)
+    // popstate 抑制器吃掉自己触发的返回，应用视图不动。
+    expect(useMobileNavStore.getState().nav.view).toBe('app')
+    backSpy.mockRestore()
+  })
+
+  it('从启动器选中应用：覆盖层栈位改写为应用栈位，不额外叠条', () => {
+    render(<MobileAppHost />)
+    const lengthBefore = window.history.length
+    act(() => {
+      useMobileLauncherStore.getState().openLauncher()
+    })
+    expect(window.history.length).toBe(lengthBefore + 1)
+
+    // 启动器 select 的同一批事件：openApp + closeLauncher。
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+      useMobileLauncherStore.getState().closeLauncher()
+    })
+    expect(window.history.length).toBe(lengthBefore + 1)
+    expect(window.history.state?.agehaMobileApp).toBe('com.ageha.calculator')
+
+    // 应用视图的返回仍只退出应用视图（未被覆盖层残位抢先消费）。
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
+  })
+
+  it('应用间切换不逐次叠栈：历史长度不变，返回键一次回 home', () => {
+    render(<MobileAppHost />)
+    enterApp()
+    const lengthAfterFirstApp = window.history.length
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.notes')
+    })
+    expect(window.history.length).toBe(lengthAfterFirstApp)
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileNavStore.getState().nav).toEqual({ view: 'home' })
   })
 })

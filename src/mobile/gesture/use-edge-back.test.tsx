@@ -438,3 +438,34 @@ describe('useEdgeBack 动效降级（直切）', () => {
     expect(matchMediaMock).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)')
   })
 })
+
+describe('抑制器到期句柄与 viewport 缓存（F2 审查）', () => {
+  it('到期自拆不再误拆 re-arm 的新抑制器：第二轮手势后的 click 仍被吞', () => {
+    const onConfirm = vi.fn()
+    render(<Harness onConfirm={onConfirm} />)
+    const panel = screen.getByTestId('panel')
+
+    // 第一轮：落下→位移激活→释放（调度 50ms 到期自拆）。
+    pointer(panel, 'pointerdown', { x: 10, y: 300 })
+    pointer(panel, 'pointermove', { x: 340, y: 300 })
+    pointer(panel, 'pointerup', { x: 340, y: 300 })
+    act(() => {
+      vi.advanceTimersByTime(49)
+    })
+
+    // 50ms 窗口内立即再拖拽（re-arm 新抑制器）。
+    pointer(panel, 'pointerdown', { x: 10, y: 300 })
+    pointer(panel, 'pointermove', { x: 340, y: 300 })
+    // 旧定时器到点：不得拆掉第二轮刚挂的抑制器。
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    pointer(panel, 'pointerup', { x: 340, y: 300 })
+
+    // 第二轮释放后的合成 click 被第二轮抑制器吞掉（激活路径消费，不冒泡）。
+    const child = screen.getByTestId('child')
+    child.addEventListener('click', (event) => event.stopPropagation())
+    fireEvent.click(panel)
+    expect(onConfirm).toHaveBeenCalledTimes(2) // 两轮 edge-back 确认各一次
+  })
+})

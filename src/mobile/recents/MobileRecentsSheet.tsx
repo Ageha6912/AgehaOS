@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { X } from '@phosphor-icons/react'
 
 import { AppIcon } from '@/apps/app-icon'
+import { prefersReducedMotion } from '@/components/pop-motion'
 import { appDisplayName } from '@/apps/launch'
 import { formatMessage, useLocaleStore, useTranslation } from '@/core/i18n'
 import { useMobileNavStore } from '@/store/mobile-nav-store'
@@ -33,9 +34,10 @@ import { useRecentsCardDismiss } from './use-recents-card-dismiss'
  * mobile-recents-store），关闭回焦 Dock Home 位触发器（回焦接线在持有方，
  * 桌面弹层关闭契约 §0.4 的移动口径）。
  *
- * 浏览器返回键与切换卡的层级（popstate 消费者唯一 = MobileAppHost）：覆盖
- * 层打开时 AppHost 压自己的栈位，返回键先关覆盖层；点卡片关闭属 UI 关闭，
- * 不调 history.back（双跳禁令），残留栈位只在同文档内移动（M1-6 口径）。
+ * 浏览器返回键与切换卡的层级（popstate 消费者唯一 = MobileAppHost，四张
+ * 覆盖层同走 history 分层栈）：覆盖层打开时 AppHost 压自己的栈位，返回键
+ * 先关覆盖层；点卡片/删除/全部关闭属 UI 关闭经 store 收敛，AppHost 同步
+ * 时主动消费自己的栈位（back + 抑制器，不留残位给 Android 返回键）。
  *
  * 过渡动效（DESIGN.md §35.5）：进出场 200ms 只动 transform/opacity（既有
  * token --ag-motion-base）；prefers-reduced-motion 由全局 0.01ms 塌缩承接；
@@ -146,7 +148,12 @@ export function MobileRecentsSheet({ open, onClose }: { open: boolean; onClose: 
 
   useEffect(() => {
     if (phase !== 'leaving') return
-    const timer = window.setTimeout(() => setPhase('closed'), SHEET_TRANSITION_MS)
+    // 减弱动效/静态档：退场立即收尾（F1 审查——旧实现仍等 200ms，
+    // 用户看到静止遮罩且 pointer-events-none 期点击穿透 Home）。
+    const timer = window.setTimeout(
+      () => setPhase('closed'),
+      prefersReducedMotion() ? 0 : SHEET_TRANSITION_MS,
+    )
     return () => window.clearTimeout(timer)
   }, [phase])
 

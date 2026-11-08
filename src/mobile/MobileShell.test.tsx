@@ -6,8 +6,11 @@ import { resetAppStore } from '@/store/app-store'
 import { resetMobileLauncherStore, useMobileLauncherStore } from '@/store/mobile-launcher-store'
 import { resetMobileNavStore, useMobileNavStore } from '@/store/mobile-nav-store'
 import { resetMobileRecentsStore, useMobileRecentsStore } from '@/store/mobile-recents-store'
+import { resetMobileSheetStore, useMobileSheetStore } from '@/store/mobile-sheet-store'
 import { resetSessionStore, seedSessionForTests } from '@/store/session-store'
 import { resetWindowStore } from '@/store/window-store'
+
+import { resetMobileHistoryForTests } from './app/mobile-history'
 
 /**
  * M0-4 Safe Area + M1-1 + M1-2：移动 Shell 三段骨架的 DOM 契约。safe-area
@@ -25,6 +28,8 @@ describe('MobileShell', () => {
     resetMobileNavStore()
     resetMobileLauncherStore()
     resetMobileRecentsStore()
+    resetMobileSheetStore()
+    resetMobileHistoryForTests()
     resetWindowStore()
   })
 
@@ -258,5 +263,51 @@ describe('MobileShell', () => {
     fireEvent.click(screen.getByTestId('mobile-recents-backdrop'))
     expect(useMobileRecentsStore.getState().open).toBe(false)
     expect(document.activeElement).toBe(screen.getByTestId('mobile-dock-home'))
+  })
+
+  // F1/F2 覆盖层返回层级（Shell 全装配）：Home 下打开启动器，Android 返回
+  // 键只关覆盖层，不离开 AgehaOS；app 视图下打开通知中心，返回键只关
+  // sheet，应用视图保留（读者 = MobileAppHost 的分层栈）。
+  it('Home + 启动器：popstate 只关启动器，Shell 仍停在 home', () => {
+    localStorage.clear()
+    resetAppStore()
+    render(<MobileShell />)
+
+    fireEvent.click(screen.getByTestId('mobile-launcher-open'))
+    expect(useMobileLauncherStore.getState().open).toBe(true)
+    expect(screen.getByTestId('mobile-launcher')).toHaveAttribute('data-state', 'open')
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileLauncherStore.getState().open).toBe(false)
+    expect(screen.getByTestId('mobile-shell')).toHaveAttribute('data-nav-view', 'home')
+  })
+
+  it('app 视图 + 通知中心：popstate 只关 sheet，应用宿主仍在', () => {
+    localStorage.clear()
+    resetAppStore()
+    render(<MobileShell />)
+
+    act(() => {
+      useMobileNavStore.getState().openApp('com.ageha.calculator')
+    })
+    expect(screen.getByTestId('mobile-app-host')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('mobile-notification-bell'))
+    expect(useMobileSheetStore.getState().notificationsOpen).toBe(true)
+    expect(screen.getByTestId('mobile-notification-sheet')).toBeInTheDocument()
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    expect(useMobileSheetStore.getState().notificationsOpen).toBe(false)
+    expect(screen.getByTestId('mobile-notification-bell')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    // 应用视图没被返回键退回 Home（覆盖层栈位被消化，应用栈位保留）。
+    expect(screen.getByTestId('mobile-app-host')).toBeInTheDocument()
+    expect(screen.getByTestId('mobile-shell')).toHaveAttribute('data-nav-view', 'app')
   })
 })

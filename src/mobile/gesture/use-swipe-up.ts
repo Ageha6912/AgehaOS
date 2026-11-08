@@ -124,6 +124,8 @@ export function useSwipeUp(options: UseSwipeUpOptions): void {
   const animRef = useRef<Animation | null>(null)
   /** 激活后挂的一次性 click 抑制器（document 捕获段）。 */
   const clickSuppressRef = useRef<((event: MouseEvent) => void) | null>(null)
+  /** 到期自拆计时器句柄（F2 审查：快速 re-arm 时旧定时器不得拆掉新一轮抑制器）。 */
+  const suppressTeardownRef = useRef<number | null>(null)
 
   const clearHostStyles = (): void => {
     const el = targetRef.current
@@ -134,6 +136,10 @@ export function useSwipeUp(options: UseSwipeUpOptions): void {
   }
 
   const stopClickSuppression = (): void => {
+    if (suppressTeardownRef.current !== null) {
+      window.clearTimeout(suppressTeardownRef.current)
+      suppressTeardownRef.current = null
+    }
     const suppress = clickSuppressRef.current
     if (suppress) {
       document.removeEventListener('click', suppress, true)
@@ -158,7 +164,11 @@ export function useSwipeUp(options: UseSwipeUpOptions): void {
   /** 抑制器只覆盖「释放后紧随的那枚 click」窗口；没等到 click（手指移出
       起点元素等，浏览器不派发）也要到期自拆。 */
   const scheduleClickSuppressionTeardown = (): void => {
-    window.setTimeout(stopClickSuppression, CLICK_SUPPRESS_TEARDOWN_MS)
+    if (suppressTeardownRef.current !== null) window.clearTimeout(suppressTeardownRef.current)
+    suppressTeardownRef.current = window.setTimeout(() => {
+      suppressTeardownRef.current = null
+      stopClickSuppression()
+    }, CLICK_SUPPRESS_TEARDOWN_MS)
   }
 
   const cancelScheduledSample = (): void => {
@@ -321,14 +331,16 @@ export function useSwipeUp(options: UseSwipeUpOptions): void {
     }
 
     el.addEventListener('pointerdown', onPointerDown)
-    el.addEventListener('pointermove', onPointerMove)
-    el.addEventListener('pointerup', finish)
-    el.addEventListener('pointercancel', onPointerCancel)
+    // move/up/cancel 挂在 window：pen/鼠标拖出宿主（Dock 区仅 ~90px 高）后
+    // 仍能收到序列，否则 pointerup 落在兄弟节点、手势永久悬挂拒后续输入。
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', onPointerCancel)
     return () => {
       el.removeEventListener('pointerdown', onPointerDown)
-      el.removeEventListener('pointermove', onPointerMove)
-      el.removeEventListener('pointerup', finish)
-      el.removeEventListener('pointercancel', onPointerCancel)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', onPointerCancel)
       endGesture()
       cancelSettleAnimation()
     }

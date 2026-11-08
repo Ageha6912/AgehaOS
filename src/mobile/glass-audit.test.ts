@@ -94,8 +94,9 @@ function glassMaterialMap(): Map<string, Set<string>> {
  * - Dock 位：MobileDock（surface-glass + glass-raise，§35.7）
  * - Bottom Sheet 位：启动器/通知/控制中心/最近任务/Files 长按操作单五张同构
  *   sheet（surface-glass + glass-raise，§35.8/§35.9）
- * - Dialog 位：三张共享弹层（backdrop = backdrop-blur-sm，面板 = surface-glass；
- *   M3-4 起经 .mobile-shell [role='dialog'] 壳作用域进移动）
+ * - Dialog 位：三张共享弹层（背板 blur 载体收敛到 components/dialog-shell.tsx
+ *   一处——三张弹层只是内容；面板 = surface-glass；portal 到 body 后由
+ *   `[role='dialog']` 壳作用域承接移动命中区抬升）
  * - Header 位（状态栏）与 Today 卡位：白名单允许 blur，现状实色零 blur
  *   （MobileStatusBar/TodayWorldCard 的实色口径由各自组件测试钉扎）。
  */
@@ -120,11 +121,9 @@ const ALLOWED_GLASS_RAISE = [
   'apps/files/FileActionSheet.tsx',
 ].sort()
 
-/** Dialog 席位：backdrop-blur-sm 只允许这三张共享弹层的遮罩各带一处。 */
+/** Dialog 席位：backdrop-blur-sm 只允许共享弹层壳（DialogShell）的遮罩带一处。 */
 const ALLOWED_BACKDROP_BLUR: Record<string, number> = {
-  'components/confirm-dialog.tsx': 1,
-  'components/permission-consent-dialog.tsx': 1,
-  'components/prompt-dialog.tsx': 1,
+  'components/dialog-shell.tsx': 1,
 }
 
 describe('mobile glass whitelist audit (DESIGN.md §35.1, M4-5)', () => {

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { FileText, FolderOpen } from '@phosphor-icons/react'
 
 import { AppIcon } from '@/apps/app-icon'
+import { prefersReducedMotion } from '@/components/pop-motion'
 import { appDisplayName } from '@/apps/launch'
 import { dirname } from '@/core/filesystem'
 import { formatMessage, useTranslation } from '@/core/i18n'
@@ -110,7 +111,11 @@ export function MobileLauncher({ open, onClose }: { open: boolean; onClose: () =
   // 域结果原样保留（退场动画内容不塌陷），重开时才复位。
   useEffect(() => {
     if (phase !== 'leaving') return
-    const timer = window.setTimeout(() => setPhase('closed'), LAUNCHER_TRANSITION_MS)
+    // 减弱动效/静态档退场立即收尾（F1 审查：不再看 200ms 静止遮罩）。
+    const timer = window.setTimeout(
+      () => setPhase('closed'),
+      prefersReducedMotion() ? 0 : LAUNCHER_TRANSITION_MS,
+    )
     return () => window.clearTimeout(timer)
   }, [phase])
 
@@ -123,6 +128,10 @@ export function MobileLauncher({ open, onClose }: { open: boolean; onClose: () =
   //    或已退场的迟到结果不入 state，后发搜索覆盖先发）。搜索失败 = 安全
   //    回退空文件域（能力不可用不摆假结果）。 ──────────────────────────
   useEffect(() => {
+    // leaving 帧不清空（与本 effect 上方注释一致：退场动画内容不塌陷）；
+    // 清空只发生在 open 相位内的非搜索态（F1 审查：旧实现 leaving 也清，
+    // 关闭抽屉 200ms 退场里文件组塌陷、sheet 高度收缩）。
+    if (phase === 'leaving') return
     if (phase !== 'open' || !isSearching || searchNeedle === '') {
       setFileMatches((current) => (current.length === 0 ? current : []))
       return

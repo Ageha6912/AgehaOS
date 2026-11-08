@@ -96,12 +96,18 @@ export function useLongPress(options: UseLongPressOptions): void {
   const pressRef = useRef<PressState | null>(null)
   /** 确认后挂的一次性 click 抑制器（document 捕获段）。 */
   const clickSuppressRef = useRef<((event: MouseEvent) => void) | null>(null)
+  /** 到期自拆计时器句柄（F2 审查：快速 re-arm 时旧定时器不得拆掉新一轮抑制器）。 */
+  const suppressTeardownRef = useRef<number | null>(null)
 
   useEffect(() => {
     const el = targetRef.current
     if (!el || !enabled) return
 
     const stopClickSuppression = (): void => {
+      if (suppressTeardownRef.current !== null) {
+        window.clearTimeout(suppressTeardownRef.current)
+        suppressTeardownRef.current = null
+      }
       const suppress = clickSuppressRef.current
       if (suppress) {
         document.removeEventListener('click', suppress, true)
@@ -126,7 +132,11 @@ export function useLongPress(options: UseLongPressOptions): void {
     /** 抑制器只覆盖「确认后抬起紧随的那枚 click」窗口；没等到 click（手指
      * 移出起点元素等，浏览器不派发）也要到期自拆，防止吞掉下一次点击。 */
     const scheduleClickSuppressionTeardown = (): void => {
-      window.setTimeout(stopClickSuppression, CLICK_SUPPRESS_TEARDOWN_MS)
+      if (suppressTeardownRef.current !== null) window.clearTimeout(suppressTeardownRef.current)
+    suppressTeardownRef.current = window.setTimeout(() => {
+      suppressTeardownRef.current = null
+      stopClickSuppression()
+    }, CLICK_SUPPRESS_TEARDOWN_MS)
     }
 
     /** 结束按压：撤计时器；已消费确认的轮次还要开 click 窗口兜底拆除。 */
@@ -203,15 +213,16 @@ export function useLongPress(options: UseLongPressOptions): void {
     }
 
     el.addEventListener('pointerdown', onPointerDown)
-    el.addEventListener('pointermove', onPointerMove)
-    el.addEventListener('pointerup', onFinish)
-    el.addEventListener('pointercancel', onFinish)
+    // move/up/cancel 挂 window：笔/鼠标移出宿主后仍能收尾（否则 pressRef 悬挂）。
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onFinish)
+    window.addEventListener('pointercancel', onFinish)
     el.addEventListener('contextmenu', onContextMenu)
     return () => {
       el.removeEventListener('pointerdown', onPointerDown)
-      el.removeEventListener('pointermove', onPointerMove)
-      el.removeEventListener('pointerup', onFinish)
-      el.removeEventListener('pointercancel', onFinish)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onFinish)
+      window.removeEventListener('pointercancel', onFinish)
       el.removeEventListener('contextmenu', onContextMenu)
       endPress()
       stopClickSuppression()

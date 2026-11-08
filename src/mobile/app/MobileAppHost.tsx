@@ -12,12 +12,24 @@ import { AppErrorBoundary } from '@/components/app-error-boundary'
 import { EclosionAppFrame } from '@/components/eclosion-app-frame'
 import { WebAppFrame } from '@/components/web-app-frame'
 import { useDeviceStore } from '@/store/device-store'
+import { useMobileLauncherStore } from '@/store/mobile-launcher-store'
 import { useMobileNavStore } from '@/store/mobile-nav-store'
 import { useMobileRecentsStore } from '@/store/mobile-recents-store'
+import { useMobileSheetStore } from '@/store/mobile-sheet-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useWindowStore } from '@/store/window-store'
 import { getAppManifest } from '@/store/app-store'
+import { systemBus } from '@/core/events'
 import { useEdgeBack } from '@/mobile/gesture/use-edge-back'
+import {
+  closeAppHistoryEntry,
+  consumeMobileHistoryLayer,
+  consumeSuppressedPop,
+  pushAppHistoryEntry,
+  resetAppHistoryEntry,
+  syncOverlayHistory,
+  type MobileOverlay,
+} from './mobile-history'
 
 /**
  * 移动应用宿主（M1-6 MobileAppHost / M3-2 最近任务重推演，HANDOFF §4.0）：
@@ -54,14 +66,19 @@ import { useEdgeBack } from '@/mobile/gesture/use-edge-back'
  *   后台窗等）→ 最近任务卡片不显示死窗。closeApp 是纯状态，剪枝路径里
  *   窗口已不在，关窗订阅对缺失窗口 engine.close 幂等无害。
  *
- * 浏览器返回键（PRD §24.2 移动导航 + M3-2 覆盖层层级）：进入应用视图
- * pushState 一条同文档栈位，popstate 触发 backToHome——返回键落在我们的
- * 栈位上消化掉，**不把用户退出 AgehaOS**；最近任务覆盖层打开时再压一条
- * 自己的栈位，popstate **先关覆盖层**（覆盖层栈位被消化，应用栈位不受
- * 影响——否则会把应用的栈位花在关层上，应用视图失去返回保护）；UI 关闭
- * 不调 history.back（避免双跳），残留栈位只会在同文档内移动，不会退出
- * 页面（M1-6 同款口径）。popstate 消费者唯一 = 本组件（依赖 nav +
- * recentsOpen 双档激活），不与覆盖层组件各挂各的监听。
+ * 浏览器返回键（PRD §24.2 移动导航 + M3-2 覆盖层层级 + F1/F2 补全）：同文档
+ * history 分层栈归 `./mobile-history` 记账，本组件是唯一消费者——
+ * - 进入应用视图压一条应用栈位（应用间切换只更新标记，不逐次叠栈）；
+ * - 四张覆盖层（启动器/通知中心/控制中心/最近任务）打开时各自压一条栈位，
+ *   按打开序叠在应用栈位之上；从覆盖层直接进入应用（选中/跳转/切卡）时栈
+ *   顶覆盖层栈位被改写为应用栈位（replaceState，不额外叠条）；
+ * - popstate 先消费栈顶层：覆盖层在场 → 只关覆盖层（应用栈位不被花掉，
+ *   应用视图不退回 Home）；否则应用栈位 → backToHome；栈空（Home）无副作用
+ *   ——绝不把用户退出 AgehaOS；
+ * - UI 关闭（返回键/边缘手势/backdrop/Esc/选中跳转）主动消费自己的栈位
+ *   （仅栈顶时 history.back()，`consumeSuppressedPop` 吞掉自己触发的
+ *   popstate），不留残位给 Android 返回键「静默无响应」。
+ * 覆盖层开合状态读 store（本组件同步记账），不与各 sheet 各挂各的监听。
  *
  * 过渡动效（DESIGN.md §35.5）：进出 200ms transform/opacity（既有 token
  * --ag-motion-base，档带 160–220ms 内）；prefers-reduced-motion 由全局
@@ -100,20 +117,28 @@ export function MobileAppHost() {
   const backToHome = useMobileNavStore((state) => state.backToHome)
   // 窗口切换转场档（motion-prefs）：关档 = 视图直切（见模块注释动效段）。
   const transitionsOn = useMotionPrefsStore((state) => state.windowTilt)
-  // 最近任务覆盖层开合（M3-2）：popstate 层级的第二激活档（见下）。
+  // 最近任务覆盖层开合（M3-2）+ 状态栏两张 sheet（M2-2/M2-3）+ 启动器
+  // （M3-1）：四张覆盖层全部纳入 history 分层栈（见下「浏览器返回键」段）。
   const recentsOpen = useMobileRecentsStore((state) => state.open)
+  const launcherOpen = useMobileLauncherStore((state) => state.open)
+  const notificationsOpen = useMobileSheetStore((state) => state.notificationsOpen)
+  const controlCenterOpen = useMobileSheetStore((state) => state.controlCenterOpen)
 
   const inApp = nav.view === 'app'
 
   // ── 边缘返回手势（M2-4）：挂在宿主面板元素上，view='app' 时启用 ────────
-  //    确认 = backToHome（与返回键/popstate 同一出口）；跟手动画跟随转场
-  //    档（windowTilt），reduced-motion 由 hook 落下时实时探测。
+  //    确认 = 消费 history 栈位后回 home（与返回键/popstate 同一出口）；
+  //    跟手动画跟随转场档（windowTilt），reduced-motion 由 hook 落下时实时探测。
   const hostRef = useRef<HTMLElement | null>(null)
+  const closeAppView = (): void => {
+    closeAppHistoryEntry()
+    backToHome()
+  }
   useEdgeBack({
     targetRef: hostRef,
     enabled: inApp,
     followMotion: transitionsOn,
-    onConfirm: backToHome,
+    onConfirm: closeAppView,
   })
 
   // ── 窗口生命周期绑定 ①：记录移除 → 关窗（M3-2）────────────────────
@@ -157,10 +182,15 @@ export function MobileAppHost() {
       return
     }
     if (prev.view !== 'app') return
+    // 转场关档：直切，不保留 200ms 退场帧（也不给 Home 叠一层不可穿透的面板）。
+    if (!transitionsOn) {
+      setLeaving(null)
+      return
+    }
     setLeaving({ appId: prev.appId, windowId: prev.windowId })
     const timer = window.setTimeout(() => setLeaving(null), APP_TRANSITION_MS)
     return () => window.clearTimeout(timer)
-  }, [nav])
+  }, [nav, transitionsOn])
 
   // ── 真实启动：view = 'app' 且 windowId 尚未落地 → launchApp ────────────
   useEffect(() => {
@@ -178,52 +208,76 @@ export function MobileAppHost() {
       'user',
     )
     if (launched === null) {
-      // 权限门禁拒绝 / manifest 缺席：直接回 home（permission.denied 已由
-      // notification-bridge 消费，不造新机制）。
+      // 权限门禁拒绝 / manifest 缺席：消费已压的栈位并回 home（permission.denied
+      // 已由 notification-bridge 消费，不造新机制）。
+      closeAppHistoryEntry()
       useMobileNavStore.getState().backToHome()
       return
     }
     useMobileNavStore.getState().setAppWindow(launched)
   }, [nav])
 
-  // ── 浏览器返回键：popstate 消费者唯一，双档激活（app 视图 / 覆盖层打开）─
-  const pushedAppRef = useRef<string | null>(null)
-  const pushedRecentsRef = useRef(false)
+  // ── history 分层栈同步：应用栈位 + 四张覆盖层栈位（消费者唯一 = 本组件）─
+  //    应用入栈先于覆盖层摘除（syncOverlayHistory 内部顺序），保证「从覆盖层
+  //    进入应用」走 replaceState 改写而不是 back + push 的同 tick 竞态。
   useEffect(() => {
-    if (nav.view !== 'app' && !recentsOpen) {
-      pushedAppRef.current = null
-      pushedRecentsRef.current = false
-      return
-    }
-    // 每次进入应用视图压一条同文档栈位；同一应用在栈上的连续帧（补记
-    // windowId 等）不重复压。StrictMode 双跑由 ref 挡住（同一实例）。
-    if (nav.view === 'app' && pushedAppRef.current !== nav.appId) {
-      pushedAppRef.current = nav.appId
-      window.history.pushState({ agehaMobileApp: nav.appId }, '')
-    }
-    // 最近任务覆盖层（M3-2）：打开时压自己的栈位——返回键先关覆盖层，
-    // 应用自身的栈位不被花掉（层级见模块注释）。
-    if (recentsOpen && !pushedRecentsRef.current) {
-      pushedRecentsRef.current = true
-      window.history.pushState({ agehaMobileRecents: true }, '')
-    }
-    if (!recentsOpen) pushedRecentsRef.current = false
+    const overlays: MobileOverlay[] = []
+    if (launcherOpen) overlays.push('launcher')
+    if (notificationsOpen) overlays.push('notifications')
+    if (controlCenterOpen) overlays.push('controlcenter')
+    if (recentsOpen) overlays.push('recents')
+    if (nav.view === 'app') pushAppHistoryEntry(nav.appId)
+    else if (overlays.length === 0) resetAppHistoryEntry()
+    syncOverlayHistory(overlays)
+  }, [nav, launcherOpen, notificationsOpen, controlCenterOpen, recentsOpen])
+
+  // ── 浏览器返回键：popstate 消费者唯一（挂载一次，处理时读 live 状态）────
+  useEffect(() => {
     const onPopState = (): void => {
-      // 层级 ①：覆盖层在场上 → 返回键只关覆盖层（栈位已被本次返回消化，
-      // 不再 history.back——双跳禁令，M1-6 同款）。
-      if (useMobileRecentsStore.getState().open) {
-        useMobileRecentsStore.getState().closeRecents()
+      // UI 关闭自己触发的 back()：已消费，不再走层级。
+      if (consumeSuppressedPop()) return
+      // 消费栈顶层：返回键先关覆盖层（应用栈位不被花掉），覆盖层全部关掉
+      // 后才退出应用视图；栈空（Home 无覆盖层）无副作用，不退出 AgehaOS。
+      const layer = consumeMobileHistoryLayer()
+      if (layer === null) return
+      if (layer.kind === 'overlay') {
+        switch (layer.overlay) {
+          case 'launcher':
+            useMobileLauncherStore.getState().closeLauncher()
+            break
+          case 'notifications':
+            useMobileSheetStore.getState().closeNotifications()
+            break
+          case 'controlcenter':
+            useMobileSheetStore.getState().closeControlCenter()
+            break
+          case 'recents':
+            useMobileRecentsStore.getState().closeRecents()
+            // 硬件返回关闭也回焦 Dock Home 触发器（F1 审查：与 MobileShell
+            // 的 closeRecentsAndRefocus 同一契约——焦点不停在已卸载卡片）。
+            document
+              .querySelector<HTMLButtonElement>('[data-testid="mobile-dock-home"]')
+              ?.focus()
+            break
+        }
         return
       }
-      // 层级 ②：返回键只消化「退出应用视图」——回 home，不退出 AgehaOS；
-      // 窗口常驻（M3-2），app 仍在最近任务里可切回。
-      if (useMobileNavStore.getState().nav.view === 'app') {
-        useMobileNavStore.getState().backToHome()
-      }
+      useMobileNavStore.getState().backToHome()
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [nav, recentsOpen])
+  }, [])
+
+  // ── 登出复位：nav/apps 与移动窗口一并清空，换账号不恢复上一会话的视图 ──
+  useEffect(
+    () =>
+      systemBus.on('user.logout', () => {
+        const { apps } = useMobileNavStore.getState()
+        useMobileNavStore.getState().closeAllApps()
+        for (const app of apps) useWindowStore.getState().close(app.windowId)
+      }),
+    [],
+  )
 
   // ── 渲染：home 态退场滞后已结束 → 不渲染；否则渲染当前/退场面板 ────────
   const panel =
@@ -250,8 +304,8 @@ export function MobileAppHost() {
       aria-label={displayName}
       aria-hidden={inApp ? undefined : true}
       className={`mobile-app-host absolute inset-0 z-10 flex flex-col ${
-        transitionsOn ? '' : 'mobile-app-static'
-      }`}
+        inApp ? '' : 'pointer-events-none'
+      } ${transitionsOn ? '' : 'mobile-app-static'}`}
     >
       {/* 应用 header：返回 + 图标 + 应用名（appDisplayName 本地化展示名，
           与桌面窗口标题同源）。返回键命中区 44×44（DESIGN.md §35.3）。
@@ -266,7 +320,7 @@ export function MobileAppHost() {
           type="button"
           data-testid="mobile-app-back"
           aria-label={t('mobile.apphost.back')}
-          onClick={backToHome}
+          onClick={closeAppView}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-opacity active:opacity-80"
         >
           <CaretLeft size={22} weight="bold" aria-hidden="true" style={{ color: 'var(--ag-text)' }} />
@@ -284,7 +338,7 @@ export function MobileAppHost() {
           窗口体 overflow-auto，移动是本容器），纵向超出在此滚动。 */}
       <div data-testid="mobile-app-body" className="mobile-app-body flex-1">
         {liveWindowId !== null && (
-          <AppErrorBoundary appId={panel.appId} windowId={liveWindowId}>
+          <AppErrorBoundary key={`${panel.appId}:${liveWindowId}`} appId={panel.appId} windowId={liveWindowId}>
             {meta ? (
               <meta.Component windowId={liveWindowId} />
             ) : isEclosionAppId(panel.appId) ? (

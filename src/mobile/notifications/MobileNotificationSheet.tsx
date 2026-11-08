@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Bell, CaretRight, X } from '@phosphor-icons/react'
 
 import { useLocaleStore, useTranslation } from '@/core/i18n'
+import { prefersReducedMotion } from '@/components/pop-motion'
 import { getAppManifest } from '@/store/app-store'
 import { useMobileNavStore } from '@/store/mobile-nav-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
@@ -156,7 +157,12 @@ export function MobileNotificationSheet({ open, onClose }: { open: boolean; onCl
 
   useEffect(() => {
     if (phase !== 'leaving') return
-    const timer = window.setTimeout(() => setPhase('closed'), SHEET_TRANSITION_MS)
+    // 减弱动效/静态档：退场立即收尾（F1 审查——旧实现仍等 200ms，
+    // 用户看到静止遮罩且 pointer-events-none 期点击穿透 Home）。
+    const timer = window.setTimeout(
+      () => setPhase('closed'),
+      prefersReducedMotion() ? 0 : SHEET_TRANSITION_MS,
+    )
     return () => window.clearTimeout(timer)
   }, [phase])
 

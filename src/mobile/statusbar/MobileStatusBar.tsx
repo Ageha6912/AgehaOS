@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 
 import { Bell, SlidersHorizontal } from '@phosphor-icons/react'
 
 import { useTranslation } from '@/core/i18n'
 import { unreadCount, useNotificationStore } from '@/store/notification-store'
+import { useMobileSheetStore } from '@/store/mobile-sheet-store'
 import { useSessionStore } from '@/store/session-store'
 
 import { useClock } from '@/components/use-clock'
@@ -30,9 +31,11 @@ import { useBatteryLevel, useNetworkState } from './use-statusbar-sources'
  * 事件流）。
  *
  * M2-3 控制中心入口：铃铛旁调节图标按钮（最右位，iOS 控制中心同角）+ 点按
- * 开 Bottom Sheet（../controlcenter/MobileControlCenterSheet）——开关状态
- * 归本组件，与通知中心互斥天然成立（sheet 的全屏 backdrop 盖住状态栏，另
- * 一个入口不可点）。
+ * 开 Bottom Sheet（../controlcenter/MobileControlCenterSheet）——开合状态与
+ * 通知中心同归 mobile-sheet-store（F1/F2 审查：状态提升到 store 后
+ * MobileAppHost 才能把两张 sheet 纳入 history 分层栈，Android 返回键先关
+ * sheet 而不是退出应用/离开 AgehaOS），与通知中心互斥天然成立（sheet 的
+ * 全屏 backdrop 盖住状态栏，另一个入口不可点）。
  *
  * §35.3 触控纪律：铃铛/调节按钮命中区 44×44——占位带最小 24px 高（M0-4
  * 契约），44px 盒居中必然上溢视口被裁，故用 ::after 把命中区自盒中心向下
@@ -48,20 +51,25 @@ export function MobileStatusBar() {
   const user = useSessionStore((state) => state.user)
   const displayName = user ? (user.displayName ?? user.username) : null
   // M2-2 通知中心：未读数直接订阅 store（unreadCount 纯函数，原始类型
-  // 选择器无引用相等问题）；开关状态归本组件（MobileAppGrid 持启动器同款），
-  // 关闭回焦铃铛（桌面弹层关闭契约 §0.4 的移动口径）。
+  // 选择器无引用相等问题）；开合归 mobile-sheet-store（history 分层栈的
+  // 接线口在 AppHost，见模块注释），关闭回焦铃铛（桌面弹层关闭契约 §0.4
+  // 的移动口径）。
   const unread = useNotificationStore((state) => unreadCount(state.items))
-  const [centerOpen, setCenterOpen] = useState(false)
+  const centerOpen = useMobileSheetStore((state) => state.notificationsOpen)
+  const openCenter = useMobileSheetStore((state) => state.openNotifications)
+  const closeNotifications = useMobileSheetStore((state) => state.closeNotifications)
   const bellRef = useRef<HTMLButtonElement>(null)
   const closeCenter = (): void => {
-    setCenterOpen(false)
+    closeNotifications()
     bellRef.current?.focus()
   }
-  // M2-3 控制中心：开关状态同款归本组件，关闭回焦调节按钮。
-  const [controlOpen, setControlOpen] = useState(false)
+  // M2-3 控制中心：开合同归 mobile-sheet-store，关闭回焦调节按钮。
+  const controlOpen = useMobileSheetStore((state) => state.controlCenterOpen)
+  const openControl = useMobileSheetStore((state) => state.openControlCenter)
+  const closeControlCenter = useMobileSheetStore((state) => state.closeControlCenter)
   const controlRef = useRef<HTMLButtonElement>(null)
   const closeControl = (): void => {
-    setControlOpen(false)
+    closeControlCenter()
     controlRef.current?.focus()
   }
 
@@ -116,7 +124,7 @@ export function MobileStatusBar() {
           aria-label={t('notification.center')}
           aria-haspopup="dialog"
           aria-expanded={centerOpen}
-          onClick={() => setCenterOpen(true)}
+          onClick={openCenter}
           className="relative z-20 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-opacity after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:content-[''] active:opacity-80"
         >
           <span className="relative">
@@ -141,7 +149,7 @@ export function MobileStatusBar() {
           aria-label={t('mobile.controlcenter.open')}
           aria-haspopup="dialog"
           aria-expanded={controlOpen}
-          onClick={() => setControlOpen(true)}
+          onClick={openControl}
           className="relative z-20 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-opacity after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:content-[''] active:opacity-80"
         >
           <SlidersHorizontal

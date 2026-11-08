@@ -46,3 +46,11 @@ describe('filterAppsForLauncher', () => {
     expect(filterAppsForLauncher(APPS, 'n').map((app) => app.id)).toEqual(['b', 'c'])
   })
 })
+
+describe('NFKC 归一（F1 审查）', () => {
+  it('全角查询命中 ASCII 名；名字含全角字符同样命中半角查询', () => {
+    expect(filterAppsForLauncher(APPS, 'ｆｉｌｅｓ').map((app) => app.id)).toEqual(['a'])
+    const wide = [{ id: 'w', name: 'Ｆｉｌｅｓ' }]
+    expect(filterAppsForLauncher(wide, 'files').map((app) => app.id)).toEqual(['w'])
+  })
+})

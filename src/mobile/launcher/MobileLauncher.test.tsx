@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { RenderResult } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { VfsNode, VfsSearchResult } from '@/core/filesystem'
@@ -278,15 +279,17 @@ describe('MobileLauncher 全域搜索（M4-1 文件域，fake timers 驱动防�
     useLocaleStore.setState(useLocaleStore.getInitialState())
   })
 
-  /** 打开抽屉后输入查询并推进防抖窗口（结果 promise 随 microtask 落地）。 */
-  async function openAndSearch(query: string): Promise<void> {
-    render(<MobileLauncher open onClose={vi.fn()} />)
+  /** 打开抽屉后输入查询并推进防抖窗口（结果 promise 随 microtask 落地）；
+   *  返回 render 工具（rerender 等给退场类断言复用）。 */
+  async function openAndSearch(query: string): Promise<RenderResult> {
+    const utils = render(<MobileLauncher open onClose={vi.fn()} />)
     fireEvent.change(screen.getByTestId('mobile-launcher-search'), {
       target: { value: query },
     })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(200)
     })
+    return utils
   }
 
   it('空查询 = 仅应用列表（现状不变）：零 VFS 调用、无分组标题', () => {
@@ -336,6 +339,44 @@ describe('MobileLauncher 全域搜索（M4-1 文件域，fake timers 驱动防�
     expect(fileRow).toHaveAttribute('data-file-path', '/Documents/note.txt')
     expect(within(fileRow).getByText('note.txt')).toBeInTheDocument()
     expect(within(fileRow).getByText('/Documents/note.txt')).toBeInTheDocument()
+  })
+
+  it('退场帧保留文件域结果（F1 审查：退场动画内容不塌陷）', async () => {
+    searchMock.mockResolvedValue([searchResult('note.txt', '/Documents/note.txt')])
+    const { rerender } = await openAndSearch('note')
+    expect(screen.getByTestId('mobile-launcher-group-files')).toBeInTheDocument()
+
+    rerender(<MobileLauncher open={false} onClose={vi.fn()} />)
+    // leaving 相位内文件组原样保留（旧实现退场即清空、sheet 高度收缩）。
+    expect(screen.getByTestId('mobile-launcher')).toHaveAttribute('data-state', 'leaving')
+    expect(screen.getByTestId('mobile-launcher-group-files')).toBeInTheDocument()
+  })
+
+  it('reduced-motion 退场立即收尾（F1 审查：不再看 200ms 静止遮罩）', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query.includes('prefers-reduced-motion'),
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    )
+    try {
+      const utils = render(<MobileLauncher open onClose={vi.fn()} />)
+      utils.rerender(<MobileLauncher open={false} onClose={vi.fn()} />)
+      // 关档退场 0ms：fake timers 推进一拍即卸载。
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(50)
+      })
+      expect(screen.queryByTestId('mobile-launcher')).not.toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('截断：文件域 11 条只渲染 8 行 + 静态提示（共 11 条、上限 8）；应用组不缺席标题', async () => {

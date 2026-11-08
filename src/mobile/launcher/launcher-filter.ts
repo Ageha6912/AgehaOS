@@ -14,7 +14,8 @@ export function filterAppsForLauncher<T extends { name: string }>(
   apps: readonly T[],
   query: string,
 ): T[] {
-  const needle = query.trim().toLowerCase()
+  // NFKC 归一（F1 审查：中文输入法全角「ｆｉｌｅｓ」也要命中 ASCII 名）。
+  const needle = query.trim().toLowerCase().normalize('NFKC')
   if (needle === '') return [...apps]
-  return apps.filter((app) => app.name.toLowerCase().includes(needle))
+  return apps.filter((app) => app.name.normalize('NFKC').toLowerCase().includes(needle))
 }
