@@ -29,13 +29,15 @@ function wrap(storage){
     clear:function(){var ks=keys();for(var i=0;i<ks.length;i++)rem(ks[i])}
   };
 }
-var localProxy=null;var sessionProxy=null;
+var localProxy=null;var sessionProxy=null;var realLocal=null;var realSession=null;
 try{
-  var realLocal=window.localStorage;var realSession=window.sessionStorage;
+  realLocal=window.localStorage;realSession=window.sessionStorage;
   localProxy=wrap(realLocal);sessionProxy=wrap(realSession);
 }catch(e){}
-try{Object.defineProperty(window,'localStorage',{configurable:true,get:function(){return localProxy||window.__agehaRealLocal}})}catch(e){}
-try{Object.defineProperty(window,'sessionStorage',{configurable:true,get:function(){return sessionProxy||window.__agehaRealSession}})}catch(e){}
+/* 某一侧 wrap 抛错（部分 Storage 方法缺失等）时，该侧回退到真实 Storage，
+ * 而不是 undefined——页面调用 getItem 不再直接 TypeError（A2 审查）。 */
+try{Object.defineProperty(window,'localStorage',{configurable:true,get:function(){return localProxy||realLocal}})}catch(e){}
+try{Object.defineProperty(window,'sessionStorage',{configurable:true,get:function(){return sessionProxy||realSession}})}catch(e){}
 }catch(e){}})();`
 
 /** 注入用标签（head 首位；prelude 不依赖 DOM，位置只为尽早生效）。 */
@@ -91,4 +93,28 @@ document.addEventListener('click',function(e){
 /** 点击守卫注入标签。 */
 export function browseClickGuardTag(): string {
   return `<script>${BROWSE_CLICK_GUARD_SCRIPT}</script>`
+}
+
+/**
+ * iframe 内导航回报（D1 审查）：站内链接/SPA 跳转后宿主需要知道当前位置
+ * （地址栏/书签/刷新/标题否则一直指向入栈时的旧 URL）。两种模式都注入；
+ * 上报的是代理地址，宿主解码回真实 URL 并做 origin+iframe 来源校验。
+ */
+export const BROWSE_NAV_REPORT_SCRIPT = `(function(){try{
+function report(){try{parent.postMessage({type:'agehaos:browse-location',url:location.href},'*')}catch(e){}}
+function ready(){
+  report();
+  try{window.addEventListener('popstate',report);window.addEventListener('hashchange',report)}catch(e){}
+  try{
+    var push=history.pushState,replace=history.replaceState;
+    history.pushState=function(){var out=push.apply(this,arguments);report();return out};
+    history.replaceState=function(){var out=replace.apply(this,arguments);report();return out};
+  }catch(e){}
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',ready,{once:true})}else{ready()}
+}catch(e){}})();`
+
+/** 导航回报注入标签。 */
+export function browseNavReportTag(): string {
+  return `<script>${BROWSE_NAV_REPORT_SCRIPT}</script>`
 }

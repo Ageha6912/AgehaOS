@@ -40,6 +40,24 @@ describe('parseSetCookie（Set-Cookie 解析）', () => {
     expect(reversed?.expiresAt).toBe(NOW + 120_000)
   })
 
+  it('冲突时 Max-Age 赢过已过期的 Expires（A2 审查，两种顺序都不误删）', () => {
+    const pastExpires = new Date(NOW - 60_000).toUTCString()
+    // 旧实现在增量赋值下两种顺序都会被 Expires=过去 置成 remove。
+    const expiresFirst = parseSetCookie(`s=1; Expires=${pastExpires}; Max-Age=120`, NOW)
+    expect(expiresFirst?.remove).toBe(false)
+    expect(expiresFirst?.expiresAt).toBe(NOW + 120_000)
+    const maxAgeFirst = parseSetCookie(`s=1; Max-Age=120; Expires=${pastExpires}`, NOW)
+    expect(maxAgeFirst?.remove).toBe(false)
+    expect(maxAgeFirst?.expiresAt).toBe(NOW + 120_000)
+    // Max-Age 非法时回退到 Expires（未来值保留）。
+    const invalidMaxAge = parseSetCookie(
+      `s=1; Max-Age=abc; Expires=${new Date(NOW + 60_000).toUTCString()}`,
+      NOW,
+    )
+    expect(invalidMaxAge?.remove).toBe(false)
+    expect(invalidMaxAge?.expiresAt).toBe(NOW + 60_000)
+  })
+
   it('删除标记：Max-Age<=0 与已过 Expires', () => {
     expect(parseSetCookie('s=; Max-Age=0', NOW)?.remove).toBe(true)
     expect(parseSetCookie('s=; Max-Age=-1', NOW)?.remove).toBe(true)

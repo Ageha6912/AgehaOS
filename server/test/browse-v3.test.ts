@@ -120,6 +120,7 @@ describe('/https · /raw · 子域自举（档 ③）', () => {
     expect(response.body).not.toContain('<base')
     expect(response.body).toContain('__agehaBrowseSite') // 存储命名空间前奏
     expect(response.body).toContain("addEventListener('click'") // 点击守卫（两模式都注入）
+    expect(response.body).toContain('agehaos:browse-location') // iframe 内导航回报（D1 审查）
     expect(response.body).toContain('method="post"') // 方法原样
   })
 
@@ -216,7 +217,7 @@ describe('/https · /raw · 子域自举（档 ③）', () => {
     expect(forged.statusCode).toBe(401)
 
     // ⑤ 过期令牌 claim 400；坏体 400。
-    const expired = signGrant(TOKEN_SECRET, 'u1', -1000, Date.now() - 2000)
+    const expired = signGrant(TOKEN_SECRET, 'u1', -1000, Date.now() - 2000, 'claim')
     expect(
       (
         await app!.inject({

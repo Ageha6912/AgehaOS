@@ -77,8 +77,19 @@ self.addEventListener('fetch', function (event) {
         return fetch(request)
       }
       var init = { method: request.method, redirect: 'follow', credentials: 'same-origin' }
+      // 头透传白名单（A2 审查）：content-type 之外补 accept-language（内容
+      // 语言协商）与 range（视频/音频拖动进度条）。if-* 条件头**有意不转**：
+      // 代理管道无缓存语义（响应恒 no-store），上游 304 会让 HTML 重写拿到
+      // 空 body；authorization/cookie 绝不转发（凭据由服务端 Cookie 罐管理）。
+      var headers = {}
       var contentType = request.headers.get('content-type')
-      if (contentType) init.headers = { 'content-type': contentType }
+      if (contentType) headers['content-type'] = contentType
+      var FORWARD_HEADERS = ['accept-language', 'range']
+      for (var i = 0; i < FORWARD_HEADERS.length; i++) {
+        var value = request.headers.get(FORWARD_HEADERS[i])
+        if (value) headers[FORWARD_HEADERS[i]] = value
+      }
+      if (Object.keys(headers).length > 0) init.headers = headers
       if (request.method !== 'GET' && request.method !== 'HEAD') {
         init.body = await request.arrayBuffer()
       }

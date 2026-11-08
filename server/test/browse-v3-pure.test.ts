@@ -1,8 +1,10 @@
+import { createHmac } from 'node:crypto'
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { BROWSE_CLICK_GUARD_SCRIPT, BROWSE_PRELUDE_SCRIPT } from '../src/browse/prelude'
 import { decodeBrowsePath, encodeBrowsePath, isBrowsePath } from '../src/browse/path-codec'
-import { signGrant, verifyGrant } from '../src/browse/grant'
+import { BROWSE_GRANT_TTL_MS, CLAIM_TOKEN_TTL_MS, signGrant, verifyGrant } from '../src/browse/grant'
 import { browseSwSource } from '../src/browse/sw-source'
 
 /**
@@ -64,23 +66,36 @@ describe('grant（子域授权令牌）', () => {
   const NOW = 1_700_000_000_000
 
   it('签验往返；载荷只含 userId 与过期时间', () => {
-    const token = signGrant(SECRET, 'user-1', 60_000, NOW)
-    expect(verifyGrant(SECRET, token, NOW + 1)).toBe('user-1')
+    const token = signGrant(SECRET, 'user-1', 60_000, NOW, 'browse')
+    expect(verifyGrant(SECRET, token, NOW + 1, 'browse')).toBe('user-1')
     const payload = JSON.parse(
       Buffer.from(token.split('.')[0] as string, 'base64url').toString('utf8'),
     ) as Record<string, unknown>
-    expect(Object.keys(payload).sort()).toEqual(['exp', 'u'])
+    expect(Object.keys(payload).sort()).toEqual(['exp', 's', 'u'])
   })
 
   it('篡改/过期/畸形/换密钥一律 null', () => {
-    const token = signGrant(SECRET, 'user-1', 60_000, NOW)
-    expect(verifyGrant(SECRET, token, NOW + 60_001)).toBeNull() // 过期
-    expect(verifyGrant('other', token, NOW)).toBeNull() // 换密钥
-    expect(verifyGrant(SECRET, `${token}x`, NOW)).toBeNull() // 签名篡改
-    expect(verifyGrant(SECRET, 'garbage', NOW)).toBeNull()
-    expect(verifyGrant(SECRET, 'a.b', NOW)).toBeNull()
+    const token = signGrant(SECRET, 'user-1', 60_000, NOW, 'browse')
+    expect(verifyGrant(SECRET, token, NOW + 60_001, 'browse')).toBeNull() // 过期
+    expect(verifyGrant('other', token, NOW, 'browse')).toBeNull() // 换密钥
+    expect(verifyGrant(SECRET, `${token}x`, NOW, 'browse')).toBeNull() // 签名篡改
+    expect(verifyGrant(SECRET, 'garbage', NOW, 'browse')).toBeNull()
+    expect(verifyGrant(SECRET, 'a.b', NOW, 'browse')).toBeNull()
     const forged = Buffer.from(JSON.stringify({ u: 'x', exp: NOW + 1 })).toString('base64url')
-    expect(verifyGrant(SECRET, `${forged}.AAAA`, NOW)).toBeNull() // 伪造载荷无签名
+    expect(verifyGrant(SECRET, `${forged}.AAAA`, NOW, 'browse')).toBeNull() // 伪造载荷无签名
+  })
+
+  it('用途域互斥：claim 令牌当 browse cookie 用（或反之）一律 null（A2 审查）', () => {
+    const claim = signGrant(SECRET, 'user-1', CLAIM_TOKEN_TTL_MS, NOW, 'claim')
+    const browse = signGrant(SECRET, 'user-1', BROWSE_GRANT_TTL_MS, NOW, 'browse')
+    expect(verifyGrant(SECRET, claim, NOW, 'browse')).toBeNull()
+    expect(verifyGrant(SECRET, browse, NOW, 'claim')).toBeNull()
+    expect(verifyGrant(SECRET, claim, NOW, 'claim')).toBe('user-1')
+    expect(verifyGrant(SECRET, browse, NOW, 'browse')).toBe('user-1')
+    // 旧版载荷（无 s 字段）拒绝——升级后历史 grant 全部失效，浏览器重新引导即可。
+    const legacyPayload = Buffer.from(JSON.stringify({ u: 'user-1', exp: NOW + 1 })).toString('base64url')
+    const legacySig = createHmac('sha256', SECRET).update(legacyPayload).digest().toString('base64url')
+    expect(verifyGrant(SECRET, `${legacyPayload}.${legacySig}`, NOW, 'browse')).toBeNull()
   })
 })
 
@@ -111,7 +126,6 @@ describe('BROWSE_PRELUDE_SCRIPT（存储命名空间前奏，真实求值）', (
     }
     const locationStub = { pathname }
     // 真实求值下发的字节（prelude 通过 defineProperty 覆盖两个存储）。
-    // eslint-disable-next-line no-new-func
     new Function('window', 'location', BROWSE_PRELUDE_SCRIPT)(windowStub, locationStub)
     return {
       window: windowStub as never,
@@ -146,6 +160,30 @@ describe('BROWSE_PRELUDE_SCRIPT（存储命名空间前奏，真实求值）', (
     storage.clear()
     expect(storage.length).toBe(0)
     expect(siteA.realLocal.getItem('ax:https:b.example:secret')).toBe('b-data') // 未误删
+  })
+
+  it('单侧 wrap 抛错时该侧回退真实 Storage，页面调用不再 TypeError（A2 审查）', () => {
+    const realLocal = makeStorage()
+    // sessionStorage 缺 removeItem：wrap(sessionStorage) 抛 TypeError。
+    const brokenSession = makeStorage() as unknown as Record<string, unknown>
+    delete brokenSession.removeItem
+    const windowStub: Record<string, unknown> = {
+      localStorage: realLocal,
+      sessionStorage: brokenSession,
+    }
+    new Function('window', 'location', BROWSE_PRELUDE_SCRIPT)(windowStub, { pathname: '/https/example.com/a' })
+    // localStorage 侧仍被命名空间化。
+    const local = windowStub.localStorage as Storage
+    local.setItem('k', 'v')
+    expect(realLocal.getItem('ax:https:example.com:k')).toBe('v')
+    // sessionStorage 侧回退真实对象（旧实现返回 undefined.__agehaRealSession）。
+    const session = windowStub.sessionStorage as {
+      getItem: (key: string) => string | null
+      setItem: (key: string, value: string) => void
+    }
+    expect(typeof session.getItem).toBe('function')
+    session.setItem('s', '1')
+    expect(session.getItem('s')).toBe('1')
   })
 })
 
@@ -243,13 +281,17 @@ describe('browseSwSource（SW 源码真实求值）', () => {
   function makeRequest(
     url: string,
     method = 'GET',
-    options: { contentType?: string; bytes?: number[] } = {},
+    options: { contentType?: string; bytes?: number[]; headers?: Record<string, string> } = {},
   ): FakeRequest {
+    const headerMap = new Map<string, string>(
+      Object.entries(options.headers ?? {}).map(([name, value]) => [name.toLowerCase(), value]),
+    )
+    if (options.contentType !== undefined) headerMap.set('content-type', options.contentType)
     return {
       url,
       method,
       headers: {
-        get: (name: string) => (name === 'content-type' ? (options.contentType ?? null) : null),
+        get: (name: string) => headerMap.get(name.toLowerCase()) ?? null,
       },
       arrayBuffer: async () => new Uint8Array(options.bytes ?? []).buffer as ArrayBuffer,
       tag: `${method} ${url}`,
@@ -269,7 +311,6 @@ describe('browseSwSource（SW 源码真实求值）', () => {
         listeners.set(type, handler)
       },
     }
-    // eslint-disable-next-line no-new-func
     new Function('self', browseSwSource())(swSelf)
     return { listeners, swSelf }
   }
@@ -351,6 +392,37 @@ describe('browseSwSource（SW 源码真实求值）', () => {
     expect(url).toBe('/raw/https/example.com/assets/app.js?q=1')
     expect(init.method).toBe('GET')
     expect(init.credentials).toBe('same-origin')
+  })
+
+  it('头透传白名单：range/accept-language/content-type 转发，凭据头绝不转发（A2 审查）', async () => {
+    const fetchStub = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => new Response('ok'),
+    )
+    vi.stubGlobal('fetch', fetchStub)
+    const clients = new Map([['c1', { url: 'https://browse.local/https/example.com/a' }]])
+    const scoped = loadWorker(clients)
+    await runFetch(
+      scoped.listeners,
+      makeRequest('https://browse.local/video.mp4', 'GET', {
+        contentType: 'video/mp4',
+        headers: {
+          range: 'bytes=100-199',
+          'accept-language': 'fr-FR,fr;q=0.9',
+          authorization: 'Bearer secret',
+          'if-none-match': '"etag-1"',
+        },
+      }),
+      'c1',
+    )
+    expect(fetchStub).toHaveBeenCalledTimes(1)
+    const [, init] = fetchStub.mock.calls[0] as [string, RequestInit]
+    const headers = init.headers as Record<string, string>
+    expect(headers['content-type']).toBe('video/mp4')
+    expect(headers.range).toBe('bytes=100-199')
+    expect(headers['accept-language']).toBe('fr-FR,fr;q=0.9')
+    expect(headers.authorization).toBeUndefined()
+    // if-* 有意不转：代理管道恒 no-store，304 会让 HTML 重写拿到空 body。
+    expect(headers['if-none-match']).toBeUndefined()
   })
 
   it('页面内相对请求：按客户端当前文档的目标解析基准', async () => {

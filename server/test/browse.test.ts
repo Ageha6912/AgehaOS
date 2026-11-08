@@ -13,7 +13,7 @@ import {
   isPrivateIPv4,
   isPrivateIPv6,
 } from '../src/browse/url-policy'
-import { browseErrorPage, detectCharset, rewriteHtml } from '../src/browse/rewrite'
+import { browseErrorPage, detectCharset, rewriteHtml, BROWSE_FORM_TARGET_FIELD } from '../src/browse/rewrite'
 import { MemoryDataStore } from '../src/store/memory-store'
 
 /**
@@ -57,6 +57,36 @@ describe('browse url-policy（SSRF 闸）', () => {
     expect(isPrivateIPv6('2001:4860:4860::8888')).toBe(false)
     expect(isPrivateAddress('2001:4860:4860::8888')).toBe(false)
     expect(isPrivateAddress('127.0.0.1')).toBe(true)
+  })
+
+  it('isPrivateIPv6：十六进制 mapped / compatible / NAT64 / 6to4 内嵌私网全拒', () => {
+    for (const ip of [
+      '::ffff:7f00:1', // [::ffff:127.0.0.1] 经 URL 规范化后的形式
+      '::ffff:a9fe:a9fe', // [::ffff:169.254.169.254]
+      '::7f00:1', // IPv4-compatible（已废弃但可被规范化）
+      '64:ff9b::7f00:1', // NAT64 well-known prefix 内嵌 127.0.0.1
+      '64:ff9b:1::1', // RFC 8215 local-use NAT64（可映射私网）
+      '2002:7f00:1::', // 6to4 内嵌 127.0.0.1
+      'ff02::1', // multicast
+    ]) {
+      expect(isPrivateIPv6(ip), ip).toBe(true)
+    }
+    // 内嵌公网地址不能被误杀。
+    expect(isPrivateIPv6('::ffff:808:808')).toBe(false)
+    expect(isPrivateIPv6('64:ff9b::808:808')).toBe(false)
+    expect(isPrivateIPv6('2002:808:808::')).toBe(false)
+  })
+
+  it('assertPublicUrl：十六进制 v4-mapped 字面量同样按私网拒绝', async () => {
+    await expect(assertPublicUrl('http://[::ffff:127.0.0.1]/')).rejects.toMatchObject({
+      status: 403,
+      code: 'private-address',
+    })
+    await expect(assertPublicUrl('http://[::ffff:169.254.169.254]/')).rejects.toMatchObject({
+      status: 403,
+      code: 'private-address',
+    })
+    await expect(assertPublicUrl('http://[::ffff:8.8.8.8]/')).resolves.toBeInstanceOf(URL)
   })
 
   it('assertPublicUrl：协议/凭据/端口/私网字面量逐项拒绝', async () => {
@@ -141,15 +171,37 @@ describe('browse url-policy（SSRF 闸）', () => {
 describe('rewriteHtml（base 注入 + 导航重写）', () => {
   const FINAL = 'https://example.com/a/b.html'
 
-  it('注入 base 到 head、移除既有 base', () => {
+  it('原页 base 作为解析基准：相对链接按 base 解析，注入等价 base（只保留一份）', () => {
     const out = rewriteHtml(
-      '<html><head><base href="https://evil.test/"><title>t</title></head><body>x</body></html>',
+      '<html><head><base href="https://example.org/app/"><title>t</title></head><body><a href="page">x</a></body></html>',
       FINAL,
     )
-    expect(out).not.toContain('evil.test')
-    // head 后先注入点击守卫脚本，再 base（顺序断言放宽，存在性 + 位置为准）。
-    expect(out).toContain('<base href="https://example.com/a/b.html">')
-    expect(out.indexOf('<base')).toBeGreaterThan(out.indexOf('<head>'))
+    // 既有 base 被移除后按原语义重注入（相对 URL 的解析基准不能丢）。
+    expect(out.match(/<base /g)).toHaveLength(1)
+    expect(out).toContain('<base href="https://example.org/app/">')
+    expect(out).toContain(
+      `href="/api/browse?url=${encodeURIComponent('https://example.org/app/page')}"`,
+    )
+  })
+
+  it('相对 base href 按文档最终地址解析；路径模式注入代理路径形态（不跨到真站）', () => {
+    const html = '<head><base href="/app/"><title>t</title></head>'
+    const query = rewriteHtml(html, FINAL)
+    expect(query).toContain('<base href="https://example.com/app/">')
+
+    const path = rewriteHtml(html, FINAL, { linkStyle: 'path' })
+    expect(path).toContain('<base href="/https/example.com/app/">')
+    expect(path).not.toContain('href="https://example.com/app/"')
+  })
+
+  it('<base target> 保留：query 模式并入注入 base，路径模式单独注入 target', () => {
+    const html = '<head><base target="_blank"><title>t</title></head>'
+    const query = rewriteHtml(html, FINAL)
+    expect(query).toContain(`<base href="${FINAL}" target="_blank">`)
+
+    const path = rewriteHtml(html, FINAL, { linkStyle: 'path' })
+    expect(path).toContain('<base target="_blank">')
+    expect(path).not.toContain('<base href=')
   })
 
   it('无 head 时 base 挂在 html 后；两样都无则前置', () => {
@@ -200,26 +252,125 @@ describe('rewriteHtml（base 注入 + 导航重写）', () => {
     expect(out).toContain('href="javascript:void(0)"')
   })
 
-  it('表单 action 重写（GET 与 POST 同规则），method/enctype 原样保留', () => {
+  it('data-href 与属性值内的 href 字样不被误改写（词边界/值内扫描修复）', () => {
     const out = rewriteHtml(
-      `<form action="/search" method="get"><input name="q"></form>` +
-        `<form action="/login" method="post" enctype="multipart/form-data"><input name="p"></form>`,
+      `<a data-href="/spa" title='x href="/inside"'>a</a><area data-action="/y">`,
       FINAL,
     )
+    expect(out).toContain('data-href="/spa"')
+    expect(out).toContain(`title='x href="/inside"'`)
+    expect(out).not.toContain('data-href="/api/browse')
+  })
+
+  it('无引号 href 同样改写（不直连真站）', () => {
+    const out = rewriteHtml(`<a href=/up>x</a>`, FINAL)
     expect(out).toContain(
-      `action="/api/browse?url=${encodeURIComponent('https://example.com/search')}"`,
+      `href="/api/browse?url=${encodeURIComponent('https://example.com/up')}"`,
     )
-    // POST 提交走代理原始体转发；方法与环境属性不动。
+  })
+
+  it('query 模式给定 proxyOrigin：链接与 GET 表单 action 产出绝对代理 URL', () => {
+    const out = rewriteHtml(
+      `<a href="/next">n</a><form action="/search" method="get"><input name="q"></form>`,
+      FINAL,
+      { proxyOrigin: 'https://os.ageha.cn' },
+    )
+    // 注入的真实站 base 不会再把绝对路径解析到真站 origin。
+    expect(out).toContain(
+      `href="https://os.ageha.cn/api/browse?url=${encodeURIComponent('https://example.com/next')}"`,
+    )
+    expect(out).toContain('action="https://os.ageha.cn/api/browse"')
+  })
+
+  it('GET 表单（query 模式）：目标注入隐藏域，action 指向裸 /api/browse', () => {
+    const out = rewriteHtml(
+      `<form action="/search?cat=1" method="get"><input name="q"></form>`,
+      FINAL,
+    )
+    // action 的 query 会被浏览器用表单数据整体替换——目标只能走隐藏域。
+    expect(out).toContain('<form action="/api/browse" method="get">')
+    expect(out).toContain(
+      `<input type="hidden" name="${BROWSE_FORM_TARGET_FIELD}" value="https://example.com/search?cat=1">`,
+    )
+    expect(out).toContain('<input name="q">')
+  })
+
+  it('GET 表单：无 action 时目标 = 当前文档，同样注入隐藏域', () => {
+    const out = rewriteHtml(`<form method="get"><input name="q"></form>`, FINAL)
+    expect(out).toContain('action="/api/browse"')
+    expect(out).toContain(
+      `<input type="hidden" name="${BROWSE_FORM_TARGET_FIELD}" value="${FINAL}">`,
+    )
+  })
+
+  it('GET 表单（路径模式）：action 保留目标路径，无需隐藏域', () => {
+    const out = rewriteHtml(
+      `<form action="/search" method="get"><input name="q"></form>`,
+      FINAL,
+      { linkStyle: 'path' },
+    )
+    expect(out).toContain('action="/https/example.com/search"')
+    expect(out).not.toContain(BROWSE_FORM_TARGET_FIELD)
+  })
+
+  it('POST 表单 action 保持“改写为代理 URL”口径，method/enctype 原样', () => {
+    const out = rewriteHtml(
+      `<form action="/login" method="post" enctype="multipart/form-data"><input name="p"></form>`,
+      FINAL,
+    )
     expect(out).toContain(
       `action="/api/browse?url=${encodeURIComponent('https://example.com/login')}"`,
     )
     expect(out).toContain('method="post"')
     expect(out).toContain('enctype="multipart/form-data"')
+    expect(out).not.toContain(BROWSE_FORM_TARGET_FIELD)
   })
 
   it('大写标签与单引号属性同样处理', () => {
     const out = rewriteHtml(`<A HREF='/up'>x</A>`, FINAL)
     expect(out).toContain(`href="/api/browse?url=${encodeURIComponent('https://example.com/up')}"`)
+  })
+
+  it('script/style/注释区段原样保留：JS 字符串里的 href= 不再被改写（A2 审查实测）', () => {
+    const html =
+      `<a href="/real">go</a>` +
+      `<script>var t='<a href="/x">'; if (1) { }</` + `script>` +
+      `<style>.a { content: '<a href="/y">' }</style>` +
+      `<!-- <a href="/z">comment</a> -->` +
+      `<a href="/real2">go2</a>`
+    const out = rewriteHtml(html, FINAL)
+    // 区段外的真链接照常改写。
+    expect(out).toContain(`href="/api/browse?url=${encodeURIComponent('https://example.com/real')}"`)
+    expect(out).toContain(`href="/api/browse?url=${encodeURIComponent('https://example.com/real2')}"`)
+    // 区段内一字不动（改写会把 JS/样式/注释改残）。
+    expect(out).toContain(`var t='<a href="/x">'`)
+    expect(out).toContain(`content: '<a href="/y">'`)
+    expect(out).toContain('<!-- <a href="/z">comment</a> -->')
+  })
+
+  it('未闭合 script：开标签到 EOF 全部原样（浏览器 rawtext 语义）', () => {
+    const html = `<a href="/real">go</a><script>var s = "</a> <a href='/x'>";`
+    const out = rewriteHtml(html, FINAL)
+    expect(out).toContain(`href="/api/browse?url=${encodeURIComponent('https://example.com/real')}"`)
+    expect(out).toContain(`var s = "</a> <a href='/x'>";`)
+    expect(out).not.toContain(`href="/api/browse?url=${encodeURIComponent('https://example.com/x')}"`)
+  })
+
+  it('JS 字符串里的 <base> 不再污染解析基准（遮蔽后解析）', () => {
+    const html = `<script>var b = '<base href="https://evil.example/">';</` + `script><a href="/rel">x</a>`
+    const out = rewriteHtml(html, FINAL)
+    expect(out).toContain(`href="/api/browse?url=${encodeURIComponent('https://example.com/rel')}"`)
+    expect(out).toContain(`'<base href="https://evil.example/">';`)
+  })
+
+  it('button/input 的 formaction 与 action 同口径重写（A2 审查）', () => {
+    const html = `<form action="/submit"><button formaction="/other">go</button>` +
+      `<input type="image" formaction="/third"></form>`
+    const out = rewriteHtml(html, FINAL)
+    expect(out).toContain(`formaction="/api/browse?url=${encodeURIComponent('https://example.com/other')}"`)
+    expect(out).toContain(`formaction="/api/browse?url=${encodeURIComponent('https://example.com/third')}"`)
+    const pathOut = rewriteHtml(html, FINAL, { linkStyle: 'path' })
+    expect(pathOut).toContain('formaction="/https/example.com/other"')
   })
 })
 
@@ -242,6 +393,18 @@ describe('detectCharset / browseErrorPage', () => {
     expect(html).toContain('rel="noopener noreferrer"')
     expect(html).toContain('href="https://example.com/x?a=1&amp;b=2"')
     expect(html).toContain('重试')
+  })
+
+  it('文本位完整转义尖括号与引号（防反射 XSS）', () => {
+    const payload = `<img src=x onerror=alert(1)>'"`
+    const html = browseErrorPage({
+      title: payload,
+      message: payload,
+      targetUrl: payload,
+      retryHref: `/api/browse?url=${encodeURIComponent(payload)}`,
+    })
+    expect(html).not.toContain('<img')
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;&#39;&quot;')
   })
 })
 
@@ -368,17 +531,58 @@ describe('/api/browse（会话门 + SSRF + 重写全链路）', () => {
     expect(response.headers['content-type']).toContain('text/html; charset=utf-8')
     expect(response.headers['cache-control']).toContain('no-store')
     // 上游禁止嵌入的头不回流；防劫持改由统一 frame-ancestors 策略接管
-    // （'self' + 本地回环 + 主域——子域文档需被主域跨源嵌入，见档 ③）。
-    expect(response.headers['content-security-policy']).toContain("frame-ancestors 'self'")
-    expect(response.headers['content-security-policy']).not.toContain("'none'")
+    // （主域 + 本地回环——子域文档需被主域跨源嵌入，见档 ③）。
+    expect(response.headers['content-security-policy']).toContain('frame-ancestors')
+    expect(response.headers['content-security-policy']).toContain('https://os.ageha.cn')
+    // 不含 'self'：被代理页不得再嵌套另一个被代理页（单 origin 下会同源读 DOM）。
+    expect(response.headers['content-security-policy']).not.toContain("'self'")
     expect(response.headers['x-frame-options']).toBeUndefined()
     expect(response.headers['set-cookie']).toBeUndefined()
     expect(response.body).toContain(`<base href="${target()}/">`)
     // 点击守卫在 query 兜底模式同样注入（_blank 拦成同帧导航）。
     expect(response.body).toContain("addEventListener('click'")
+    // iframe 内导航回报（D1 审查）：地址栏/书签/刷新跟随页内跳转。
+    expect(response.body).toContain('agehaos:browse-location')
+    // 注入的 base 指向真实站 → 链接必须是**绝对代理 URL**，否则会被 base
+    // 的 origin 劫持到真实站（A2 审查连带实证）。
     expect(response.body).toContain(
-      `href="/api/browse?url=${encodeURIComponent(`${target()}/next`)}"`,
+      `href="http://localhost:80/api/browse?url=${encodeURIComponent(`${target()}/next`)}"`,
     )
+    // query 兜底模式与客户端 SANDBOX_FALLBACK 同口径：无 allow-same-origin。
+    expect(response.headers['content-security-policy']).toContain('sandbox')
+    expect(response.headers['content-security-policy']).not.toContain('allow-same-origin')
+  })
+
+  it('错误响应：目标 URL 完整转义 + 错误页 CSP 禁脚本', async () => {
+    await setup((_req, res) => res.end('unused'))
+    const response = await browseGet('x:<img src=x onerror=alert(1)>')
+    expect(response.statusCode).toBe(400)
+    expect(response.body).not.toContain('<img src=x')
+    expect(response.body).toContain('&lt;img')
+    expect(response.headers['content-security-policy']).toContain("script-src 'none'")
+  })
+
+  it('主域 query 入口拒绝顶层导航（恶意链接/地址栏直达）', async () => {
+    await setup((_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      res.end('<html><body>ok</body></html>')
+    })
+    const url = `/api/browse?url=${encodeURIComponent(`${target()}/`)}`
+    const topLevel = await app!.inject({
+      method: 'GET',
+      url,
+      headers: { cookie, 'sec-fetch-dest': 'document' },
+    })
+    expect(topLevel.statusCode).toBe(403)
+    expect(topLevel.headers['content-security-policy']).toContain("script-src 'none'")
+
+    const embedded = await app!.inject({
+      method: 'GET',
+      url,
+      headers: { cookie, 'sec-fetch-dest': 'iframe' },
+    })
+    expect(embedded.statusCode).toBe(200)
+    expect(embedded.headers['content-security-policy']).toContain('sandbox')
   })
 
   it('头消毒：不向上游转发 Cookie/Referer；上游 Set-Cookie 不回流', async () => {
@@ -459,6 +663,22 @@ describe('/api/browse（会话门 + SSRF + 重写全链路）', () => {
     expect(response.body).toContain('请求超时')
   })
 
+  it('响应头已到但 body 慢滴超过截止时间 → 504（超时覆盖 body 读取）', async () => {
+    await setup(
+      (_req, res) => {
+        // 头部与首个分片立即到达，body 拖到超时之后才结束——此前超时定时器
+        // 在拿到响应头后就被清掉，慢滴响应体会无限挂住服务端连接。
+        res.writeHead(200, { 'content-type': 'text/html' })
+        res.write('<html><body>')
+        setTimeout(() => res.end('</html>'), 400)
+      },
+      { timeoutMs: 80 },
+    )
+    const response = await browseGet(`${target()}/slow-body`)
+    expect(response.statusCode).toBe(504)
+    expect(response.body).toContain('请求超时')
+  })
+
   it('上游 404 → 502 错误页并注明上游状态', async () => {
     await setup((_req, res) => {
       res.writeHead(404, { 'content-type': 'text/html' })
@@ -494,6 +714,24 @@ describe('/api/browse（会话门 + SSRF + 重写全链路）', () => {
     expect(requests[0]?.headers.origin).toBeUndefined()
     expect(requests[0]?.headers.cookie).toBeUndefined()
     expect(response.body).toContain('got:a=1&b=%E4%B8%AD')
+  })
+
+  it('GET 表单（隐藏域目标）：表单字段追加到目标 query 后转发上游', async () => {
+    await setup((_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' })
+      res.end('ok')
+    })
+    // 浏览器提交 GET 表单时 action 的 query 会被表单数据整体替换——重写侧
+    // 把目标放进 __ageha_url 隐藏域，这里断言表单字段被追加回目标 URL。
+    const destination = `${target()}/search?cat=1`
+    const response = await app!.inject({
+      method: 'GET',
+      url: `/api/browse?${BROWSE_FORM_TARGET_FIELD}=${encodeURIComponent(destination)}&q=hello&lang=zh`,
+      headers: { cookie },
+    })
+    expect(response.statusCode).toBe(200)
+    expect(requests[0]?.method).toBe('GET')
+    expect(requests[0]?.url).toBe('/search?cat=1&q=hello&lang=zh')
   })
 
   it('POST 未登录：即便路由豁免 origin 检查也 401（会话门 + SameSite 仍是主保）', async () => {
@@ -656,11 +894,79 @@ describe('/api/browse（会话门 + SSRF + 重写全链路）', () => {
     expect(anonymous.statusCode).toBe(401)
   })
 
+  it('站点数据管理只接受主域会话：browse grant 不能枚举/清空罐', async () => {
+    await setup((_req, res) => res.end('unused'))
+
+    // 走真实令牌链拿到 browse grant（子域 cookie）。
+    const tokenResponse = await app!.inject({
+      method: 'GET',
+      url: '/api/browse/token',
+      headers: { cookie },
+    })
+    expect(tokenResponse.statusCode).toBe(200)
+    const token = (tokenResponse.json() as { token: string }).token
+    const claim = await app!.inject({ method: 'POST', url: '/__claim', payload: { token } })
+    expect(claim.statusCode).toBe(200)
+    const grantCookie = String(claim.headers['set-cookie']).split(';')[0] ?? ''
+    expect(grantCookie).toContain('agehaos_browse=')
+
+    // grant 只能浏览，不能管理整罐（防止被代理页面一键清空全部站点登录态）。
+    const withGrant = await app!.inject({
+      method: 'GET',
+      url: '/api/browse/cookies',
+      headers: { cookie: grantCookie },
+    })
+    expect(withGrant.statusCode).toBe(401)
+    const clearWithGrant = await app!.inject({
+      method: 'POST',
+      url: '/api/browse/cookies/clear',
+      headers: { cookie: grantCookie },
+    })
+    expect(clearWithGrant.statusCode).toBe(401)
+
+    // 主域会话仍然可用。
+    const withSession = await app!.inject({
+      method: 'GET',
+      url: '/api/browse/cookies',
+      headers: { cookie },
+    })
+    expect(withSession.statusCode).toBe(200)
+  })
+
   it('SSRF：私网字面量与超长跳转链在外层闸被拒', async () => {
     await setup((_req, res) => res.end('unused'))
     const privateTarget = await browseGet('http://127.0.0.1:9999/')
     expect(privateTarget.statusCode).toBe(403)
     expect(privateTarget.body).toContain('该地址不允许访问')
+  })
+
+  it('Range/accept-language 透传：206 与 content-range 保留（A2 审查）', async () => {
+    await setup((req, res) => {
+      if (req.headers.range === 'bytes=0-99') {
+        res.writeHead(206, {
+          'content-type': 'video/mp4',
+          'content-range': 'bytes 0-99/1000',
+          'accept-ranges': 'bytes',
+        })
+        res.end(Buffer.alloc(100, 7))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'video/mp4' })
+      res.end(Buffer.alloc(1000, 1))
+    })
+    const ranged = await app!.inject({
+      method: 'GET',
+      url: `/api/browse?url=${encodeURIComponent(`${target()}/video`)}`,
+      headers: { cookie, range: 'bytes=0-99', 'accept-language': 'fr-FR,fr;q=0.9' },
+    })
+    expect(ranged.statusCode).toBe(206)
+    expect(ranged.headers['content-range']).toBe('bytes 0-99/1000')
+    expect(ranged.headers['accept-ranges']).toBe('bytes')
+    expect(ranged.rawPayload).toHaveLength(100)
+    // 上游确实收到了客户端的 range 与 accept-language（缺省 UA 头被覆盖）。
+    const last = requests.at(-1)
+    expect(last?.headers['range']).toBe('bytes=0-99')
+    expect(last?.headers['accept-language']).toBe('fr-FR,fr;q=0.9')
   })
 })
 

@@ -48,13 +48,57 @@ export function isPrivateIPv4(ip: string): boolean {
   return false
 }
 
+function ipv4FromEmbeddedHex(hiText: string, loText: string): string {
+  const hi = Number.parseInt(hiText, 16)
+  const lo = Number.parseInt(loText, 16)
+  return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`
+}
+
+/**
+ * 提取 IPv6 地址里内嵌的 IPv4：IPv4-mapped（::ffff:0:0/96，含点分与十六进制
+ * 两种写法）、IPv4-compatible（::/96，已废弃但浏览器仍会规范化）、NAT64
+ * （64:ff9b::/96）与 6to4（2002::/16 的 32 位嵌入）。URL 规范化会把
+ * `[::ffff:127.0.0.1]` 写成 `[::ffff:7f00:1]`——只认点分形式是此前的绕过点。
+ */
+function embeddedIPv4(addr: string): string | null {
+  const mappedDotted = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(addr)
+  if (mappedDotted?.[1] !== undefined) return mappedDotted[1]
+  const mappedHex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(addr)
+  if (mappedHex?.[1] !== undefined && mappedHex[2] !== undefined) {
+    return ipv4FromEmbeddedHex(mappedHex[1], mappedHex[2])
+  }
+  const translatedHex = /^::ffff:0:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(addr)
+  if (translatedHex?.[1] !== undefined && translatedHex[2] !== undefined) {
+    return ipv4FromEmbeddedHex(translatedHex[1], translatedHex[2])
+  }
+  const compatDotted = /^::(\d{1,3}(?:\.\d{1,3}){3})$/.exec(addr)
+  if (compatDotted?.[1] !== undefined) return compatDotted[1]
+  const compatHex = /^::([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(addr)
+  if (compatHex?.[1] !== undefined && compatHex[2] !== undefined) {
+    return ipv4FromEmbeddedHex(compatHex[1], compatHex[2])
+  }
+  const nat64Dotted = /^64:ff9b::(\d{1,3}(?:\.\d{1,3}){3})$/.exec(addr)
+  if (nat64Dotted?.[1] !== undefined) return nat64Dotted[1]
+  const nat64Hex = /^64:ff9b::([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(addr)
+  if (nat64Hex?.[1] !== undefined && nat64Hex[2] !== undefined) {
+    return ipv4FromEmbeddedHex(nat64Hex[1], nat64Hex[2])
+  }
+  const sixToFour = /^2002:([0-9a-f]{1,4}):([0-9a-f]{1,4})(?::|$)/.exec(addr)
+  if (sixToFour?.[1] !== undefined && sixToFour[2] !== undefined) {
+    return ipv4FromEmbeddedHex(sixToFour[1], sixToFour[2])
+  }
+  return null
+}
+
 export function isPrivateIPv6(ip: string): boolean {
   const addr = ip.toLowerCase()
   if (addr === '::' || addr === '::1') return true
   if (addr.startsWith('fc') || addr.startsWith('fd')) return true // fc00::/7 ULA
   if (/^fe[89ab]/.test(addr)) return true // fe80::/10 link-local
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(addr)
-  if (mapped?.[1] !== undefined) return isPrivateIPv4(mapped[1])
+  if (addr.startsWith('ff')) return true // ff00::/8 multicast
+  if (addr.startsWith('64:ff9b:1:')) return true // RFC 8215 local-use NAT64
+  const embedded = embeddedIPv4(addr)
+  if (embedded !== null) return isPrivateIPv4(embedded)
   return false
 }
 

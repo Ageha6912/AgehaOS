@@ -23,6 +23,7 @@ import {
   detectCharset,
   rewriteHtml,
   buildBrowseUrl,
+  BROWSE_FORM_TARGET_FIELD,
   type LinkStyle,
 } from '../browse/rewrite'
 import { browseSwSource } from '../browse/sw-source'
@@ -137,7 +138,7 @@ export interface BrowseRoutesOptions {
    * AGEHA_BROWSE_TRUST_FAKE_IP=1；生产不设该变量即恒关。
    */
   allowBenchmarkRange?: boolean
-  /** 子域授权令牌签名密钥（app 装配从目录签名钥派生；测试可直接给常量）。 */
+  /** 子域授权令牌签名密钥（app 装配使用独立随机 browseSecret；测试可直接给常量）。 */
   tokenSecret?: string
   /** 子域 browse cookie 的 Secure 标志（生产 true；本地 http 为 false）。 */
   cookieSecure?: boolean
@@ -189,19 +190,37 @@ export async function browseRoutes(
 
   const tokenSecret = options.tokenSecret ?? 'dev-browse-secret'
   const cookieSecure = options.cookieSecure ?? true
-  /** 子域文档的嵌入白名单（替代 XFO）：'self' + 本地回环 + 配置来源。 */
+  /** 子域文档的嵌入白名单（替代 XFO）：仅允许 OS 主域/本地回环嵌入。
+   *  刻意不含 'self'——档 ③ 是单一 browse origin，若允许自嵌，任何被代理
+   *  页面都能 `<iframe src="/https/victim/">` 后同源读 DOM（跨站窃取）。
+   *  合法嵌入方只有 OS 主域（os.ageha.cn / localhost / 配置来源）。 */
   const frameAncestorsPolicy = [
     'frame-ancestors',
-    "'self'",
     'http://localhost:*',
     'http://127.0.0.1:*',
     ...(options.frameAncestors ?? []),
   ].join(' ')
 
+  /**
+   * 错误页专用 CSP：代理错误页只含静态文案与链接，禁止一切脚本/插件；
+   * 内联样式由页面自带，需 style-src 'unsafe-inline'。错误响应里可能反射
+   * 用户可控的目标 URL，脚本闸是转义之外的第二道防线。
+   */
+  const ERROR_PAGE_CSP = `${frameAncestorsPolicy}; script-src 'none'; object-src 'none'; style-src 'unsafe-inline'`
+
+  /**
+   * query 兜底模式（主域 /api/browse）的文档 CSP：追加 sandbox（不含
+   * allow-same-origin）——与客户端兜底 iframe 的 SANDBOX_FALLBACK 同口径。
+   * 即使该 URL 被顶层打开，文档也落不透明 origin，拿不到主域会话凭据与
+   * 同源 /api 读取能力；路径态（browse 子域）依赖 allow-same-origin，不能加。
+   */
+  const QUERY_SANDBOX_CSP = `${frameAncestorsPolicy}; sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads`
+
   const unauthorized = (reply: FastifyReply, message: string): null => {
     void reply
       .code(401)
       .type('text/html; charset=utf-8')
+      .header('content-security-policy', ERROR_PAGE_CSP)
       .send(browseErrorPage({ title: '需要登录', message }))
     return null
   }
@@ -226,7 +245,7 @@ export async function browseRoutes(
     }
     const grant = request.cookies[BROWSE_COOKIE]
     if (grant !== undefined) {
-      const userId = verifyGrant(tokenSecret, grant, Date.now())
+      const userId = verifyGrant(tokenSecret, grant, Date.now(), 'browse')
       if (userId !== null) return userId
       return unauthorized(reply, '浏览会话已过期，请重新打开浏览器。')
     }
@@ -257,6 +276,7 @@ export async function browseRoutes(
     reply
       .code(status)
       .type('text/html; charset=utf-8')
+      .header('content-security-policy', ERROR_PAGE_CSP)
       .send(
         browseErrorPage({
           title,
@@ -355,10 +375,19 @@ export async function browseRoutes(
       let current = initial
       let method = initialMethod
       let body = initialBody
+      // 客户端显式头透传白名单（A2 审查）：range（媒体拖动进度条；SW 与页面
+      // fetch 都会带）+ accept-language（页面语言协商，覆盖缺省 UA 头）。
+      // if-* 条件头不转：响应恒 no-store 的代理管道没有 304 语义。
+      const clientRange = request.headers.range
+      const clientAcceptLanguage = request.headers['accept-language']
       for (let hop = 0; ; hop++) {
         const headers: Record<string, string> = { ...UPSTREAM_HEADERS }
         if (body !== undefined && requestContentType !== undefined) {
           headers['content-type'] = requestContentType
+        }
+        if (typeof clientRange === 'string' && clientRange !== '') headers.range = clientRange
+        if (typeof clientAcceptLanguage === 'string' && clientAcceptLanguage !== '') {
+          headers['accept-language'] = clientAcceptLanguage
         }
         // 罐附加：目标源有可用 cookie 时随行（登录态回放）。
         const hopOrigin = originOf(current.toString())
@@ -421,11 +450,10 @@ export async function browseRoutes(
         return fail(504, '请求超时', '目标站点响应太慢，已中止。', raw)
       }
       return fail(502, '无法连接', '目标站点当前不可达。', raw)
-    } finally {
-      clearTimeout(timer)
     }
 
     if (response.status >= 300) {
+      clearTimeout(timer)
       await response.body?.cancel().catch(() => undefined)
       return fail(
         502,
@@ -439,30 +467,53 @@ export async function browseRoutes(
     // content-disposition 透传（下载直通）：上游声明为附件时浏览器直接下载
     // （iframe 沙箱已开 allow-downloads）；未声明则照常内嵌展示。
     const disposition = response.headers.get('content-disposition')
-    const rawBytes = await readCapped(response, maxBytes)
+    // 超时只护到响应头是不够的：慢滴响应体会让 readCapped 无限挂起。
+    // 把 body 读取纳入同一截止时间，AbortError 映射为 504。
+    let rawBytes: Uint8Array | null
+    try {
+      rawBytes = await readCapped(response, maxBytes)
+    } catch (cause) {
+      if (cause instanceof Error && cause.name === 'AbortError') {
+        return fail(504, '请求超时', '目标站点响应太慢，已中止。', raw)
+      }
+      return fail(502, '无法连接', '目标站点当前不可达。', raw)
+    } finally {
+      clearTimeout(timer)
+    }
     if (rawBytes === null) {
       return fail(413, '页面过大', '目标页面超出代理的大小上限（5MB）。', raw)
     }
 
     const isHtml = contentType === null || /text\/html|application\/xhtml\+xml/i.test(contentType)
     if (!isHtml) {
-      // 图片/PDF/附件等直通字节；content-type/disposition 原样，但不放行
-      // 上游的缓存/凭据头。
+      // 图片/PDF/附件/媒体直通字节；content-type/disposition 原样，但不放行
+      // 上游的缓存/凭据头。Range 请求保留上游 206 与 content-range/accept-ranges
+      // （A2 审查：视频/音频 seek 依赖分段响应；上游 206 时 rawBytes 即分段字节）。
       const passthrough = reply
-        .code(200)
+        .code(response.status)
         .type(contentType ?? 'application/octet-stream')
         .header('cache-control', 'private, max-age=0, no-store')
+      const contentRange = response.headers.get('content-range')
+      if (contentRange !== null) passthrough.header('content-range', contentRange)
+      const acceptRanges = response.headers.get('accept-ranges')
+      if (acceptRanges !== null) passthrough.header('accept-ranges', acceptRanges)
       if (disposition !== null) passthrough.header('content-disposition', disposition)
       return passthrough.send(Buffer.from(rawBytes))
     }
 
     const charset = detectCharset(rawBytes, contentType)
     const decoded = decodeWithCharset(rawBytes, charset)
-    const rewritten = rewriteHtml(decoded, finalUrl, { linkStyle })
+    const rewritten = rewriteHtml(decoded, finalUrl, {
+      linkStyle,
+      // query 模式注入的真实站 base 会把路径绝对链接解析到真站 origin；
+      // 链接/表单 action 产出绝对代理 URL 才能稳定回流（A2 审查连带实证）。
+      proxyOrigin: `${request.protocol}://${request.host}`,
+    })
     const html = reply
       .code(200)
       .type('text/html; charset=utf-8')
       .header('cache-control', 'private, max-age=0, no-store')
+    if (linkStyle === 'query') html.header('content-security-policy', QUERY_SANDBOX_CSP)
     if (disposition !== null) html.header('content-disposition', disposition)
     return html.send(rewritten)
   }
@@ -489,12 +540,64 @@ export async function browseRoutes(
   const missingTarget = (reply: FastifyReply, linkStyle: LinkStyle): FastifyReply =>
     sendError(reply, 400, '缺少地址', '请求里没有要打开的目标地址。', undefined, linkStyle)
 
+  /**
+   * 主域 query 兜底入口只服务 iframe 嵌入。顶层导航（恶意链接/地址栏直达）
+   * 会让第三方页面在 os 主域顶层执行，必须拒绝；Sec-Fetch-Dest 仅真实浏览器
+   * 导航会发送，inject/curl 无此头，测试与脚本调用不受影响。
+   */
+  const rejectTopLevelNavigation = (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): FastifyReply | null =>
+    request.headers['sec-fetch-dest'] === 'document'
+      ? sendError(
+          reply,
+          403,
+          '请通过应用打开',
+          '该地址仅支持在 AgehaOS 浏览器窗口内使用。',
+          undefined,
+          'query',
+        )
+      : null
+
+  /**
+   * GET 表单目标（query 兜底模式）：重写侧把目标注入隐藏域
+   * `__ageha_url`、action 指向裸 /api/browse——浏览器提交时 query 被表单
+   * 数据整体替换，本函数把除标记外的查询参数（= 表单字段）追加回目标 URL，
+   * 还原「GET 到原站 action」的语义。返回 null 表示不是表单提交。
+   */
+  const readFormTarget = (query: Record<string, unknown>): string | null => {
+    const marker = query[BROWSE_FORM_TARGET_FIELD]
+    if (typeof marker !== 'string' || marker.trim() === '') return null
+    let target: URL
+    try {
+      target = new URL(marker)
+    } catch {
+      return marker
+    }
+    for (const [key, value] of Object.entries(query)) {
+      if (key === BROWSE_FORM_TARGET_FIELD) continue
+      const values = Array.isArray(value) ? value : [value]
+      for (const item of values) {
+        if (typeof item === 'string') target.searchParams.append(key, item)
+      }
+    }
+    return target.toString()
+  }
+
   app.get('/api/browse', routeOptions, async (request, reply) => {
+    const blocked = rejectTopLevelNavigation(request, reply)
+    if (blocked !== null) return blocked
+    // GET 表单（隐藏域目标 + 表单字段）优先；普通链接/地址栏走 url 参数。
+    const formTarget = readFormTarget(request.query as Record<string, unknown>)
+    if (formTarget !== null) return runProxy(request, reply, formTarget, 'query')
     const raw = (request.query as { url?: string }).url
     if (typeof raw !== 'string' || raw.trim() === '') return missingTarget(reply, 'query')
     return runProxy(request, reply, raw, 'query')
   })
   app.post('/api/browse', routeOptions, async (request, reply) => {
+    const blocked = rejectTopLevelNavigation(request, reply)
+    if (blocked !== null) return blocked
     const raw = (request.query as { url?: string }).url
     if (typeof raw !== 'string' || raw.trim() === '') return missingTarget(reply, 'query')
     return runProxy(request, reply, raw, 'query')
@@ -550,9 +653,9 @@ export async function browseRoutes(
     } catch {
       token = null
     }
-    const userId = token === null ? null : verifyGrant(tokenSecret, token, Date.now())
+    const userId = token === null ? null : verifyGrant(tokenSecret, token, Date.now(), 'claim')
     if (userId === null) return reply.code(400).send({ error: 'invalid-token' })
-    const grant = signGrant(tokenSecret, userId, BROWSE_GRANT_TTL_MS, Date.now())
+    const grant = signGrant(tokenSecret, userId, BROWSE_GRANT_TTL_MS, Date.now(), 'browse')
     reply.setCookie(BROWSE_COOKIE, grant, {
       path: '/',
       httpOnly: true,
@@ -569,13 +672,15 @@ export async function browseRoutes(
     if (userId === null) return reply
     return reply
       .code(200)
-      .send({ token: signGrant(tokenSecret, userId, CLAIM_TOKEN_TTL_MS, Date.now()) })
+      .send({ token: signGrant(tokenSecret, userId, CLAIM_TOKEN_TTL_MS, Date.now(), 'claim') })
   })
 
   // ── 站点数据（Cookie 罐）管理：起始页「清除站点数据」消费 ────────────────
   // 只回元信息（源列表 + 条目数），**绝不回 cookie 值**。
+  // 仅主域会话可用：grant 只代表「某用户在某窗口里浏览」，不能把整罐的
+  // 枚举/清空能力交给被代理页面（否则任意恶意站点可一键清掉全部登录态）。
   app.get('/api/browse/cookies', async (request, reply) => {
-    const userId = await requireUser(request, reply)
+    const userId = await requireSessionUser(request, reply)
     if (userId === null) return reply
     const jar = parseJar(await store.getBrowseJar(userId))
     const origins = Object.keys(jar.origins)
@@ -584,7 +689,7 @@ export async function browseRoutes(
   })
 
   app.post('/api/browse/cookies/clear', async (request, reply) => {
-    const userId = await requireUser(request, reply)
+    const userId = await requireSessionUser(request, reply)
     if (userId === null) return reply
     await store.clearBrowseJar(userId)
     return reply.code(200).send({ cleared: true })

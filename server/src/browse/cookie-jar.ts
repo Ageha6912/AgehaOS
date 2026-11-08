@@ -101,27 +101,31 @@ export function parseSetCookie(header: string, now: number): ParsedSetCookie | n
   if (name === '' || INVALID_NAME.test(name)) return null
   if (hasInvalidValueChars(value) || value.length > JAR_MAX_VALUE_CHARS) return null
 
-  let expiresAt: number | null = null
-  let remove = false
-  let maxAgeSeen = false
+  // RFC 6265 §5.3：Max-Age 在则优先（与 Expires 出现顺序无关），Max-Age
+  // 非法/缺席才看 Expires——先收集两个属性再统一裁决，避免增量赋值把先出现
+  // 的 Expires=过去 误判成 remove（A2 审查轻微项）。
+  let maxAgeSeconds: number | null = null
+  let expiresTime: number | null = null
   for (const segment of segments.slice(1)) {
     const eqIndex = segment.indexOf('=')
     const key = (eqIndex >= 0 ? segment.slice(0, eqIndex) : segment).trim().toLowerCase()
     const attrValue = (eqIndex >= 0 ? segment.slice(eqIndex + 1) : '').trim()
     if (key === 'max-age') {
       const seconds = Number.parseInt(attrValue, 10)
-      if (!Number.isNaN(seconds)) {
-        maxAgeSeen = true
-        if (seconds <= 0) remove = true
-        else expiresAt = now + seconds * 1000
-      }
+      if (!Number.isNaN(seconds)) maxAgeSeconds = seconds
     } else if (key === 'expires') {
       const time = Date.parse(attrValue)
-      if (!Number.isNaN(time)) {
-        if (time <= now) remove = true
-        else if (!maxAgeSeen) expiresAt = time
-      }
+      if (!Number.isNaN(time)) expiresTime = time
     }
+  }
+  let expiresAt: number | null = null
+  let remove = false
+  if (maxAgeSeconds !== null) {
+    if (maxAgeSeconds <= 0) remove = true
+    else expiresAt = now + maxAgeSeconds * 1000
+  } else if (expiresTime !== null) {
+    if (expiresTime <= now) remove = true
+    else expiresAt = expiresTime
   }
   return { name, value, expiresAt, remove }
 }
