@@ -386,6 +386,17 @@ describe('file-sync status reporting (M4-3 sync-status-store)', () => {
     expect(useSyncStatusStore.getState().lastErrorAt).not.toBeNull()
   })
 
+  it('reports failure and never pushes when the GET returns a non-2xx (错误≠空快照)', async () => {
+    enableSyncFlag()
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) } as Response)
+
+    await syncNow()
+
+    // 关键回归：GET 失败绝不能被当成「云端还没有快照」而用本机树覆盖。
+    expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'PUT')).toHaveLength(0)
+    expect(useSyncStatusStore.getState().phase).toBe('error')
+  })
+
   it('reports failure when the PUT is rejected', async () => {
     enableSyncFlag()
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: null }))

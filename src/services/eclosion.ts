@@ -22,6 +22,7 @@ import {
   eclosionAppKind,
   findEclosionSpecByAppId,
   imagineAppIdForQuery,
+  isEclosionAppId,
   type EclosionSpec,
 } from '@/core/eclosion/spec'
 import { utcDayKey, validateEclosionWorld, type EclosionWorld } from '@/core/eclosion/world'
@@ -29,17 +30,23 @@ import { ECLOSION_RUNNER_ENTRY } from '@/core/apps/web-app'
 import { filterContentText } from '@/core/dynamic/content/filter'
 import { getAppManifest, registerRuntimeApp, unregisterRuntimeApp } from '@/store/app-store'
 import { useEclosionStore } from '@/store/eclosion-store'
-import type { EclosionQuotaState, EclosionWorldSummary } from '@/store/eclosion-store'
+import type { EclosionWorldSummary } from '@/store/eclosion-store'
 import { useSessionStore } from '@/store/session-store'
 import { useWindowStore } from '@/store/window-store'
 import { createEclosionCache, type EclosionCache, type EclosionReplayEntry } from './eclosion-cache'
 
 /** 同一用户并发生成流上限（§5.4）。 */
 export const ECLOSION_MAX_CONCURRENT_STREAMS = 2
+/** 会话表容量上限（C2 审查）：超限时淘汰 done 且无 attach 的会话。 */
+const ECLOSION_SESSION_MAX = 24
 /** 质量回退（§5.2）：自动重试一次，共两轮尝试。 */
 export const ECLOSION_MAX_ATTEMPTS = 3  // GLM 系语法笔误率较高（坑 78 同源）：3 次内两次自动重试，成功率 ~87%+
 /** 破茧后等待 eclosion:rendered 的宿主侧时限（§5.2 五秒）。 */
 export const ECLOSION_RENDER_TIMEOUT_MS = 5_000
+/** 流空闲看门狗：这么久没收到任何帧即中止（按可重试的 ai-timeout 收尾）。 */
+export const ECLOSION_STREAM_IDLE_TIMEOUT_MS = 30_000
+/** 举报上传超时（E3 审查）：确认框 busy 时取消键虽可用，fetch 也不能无限挂起。 */
+export const ECLOSION_REPORT_TIMEOUT_MS = 15_000
 
 /** 重试有意义的错误码；其余（未配置/超额/未登录/中止）直接回落。 */
 const RETRYABLE_ERROR_CODES: ReadonlySet<string> = new Set([
@@ -152,6 +159,12 @@ interface PipelineOptions {
   regenerate: boolean
 }
 
+/** 并发等待凭据：granted=true 表示释放槽位时把名额移交给了本等待者。 */
+interface QueueTicket {
+  resolve: () => void
+  granted: boolean
+}
+
 /** 注入式传输（测试换假实现）；签名比 typeof fetch 窄——编排器只按 URL 字符串调用。 */
 export type EclosionFetcher = (url: string, init?: RequestInit) => Promise<Response>
 
@@ -159,6 +172,8 @@ export interface EclosionOrchestratorOptions {
   fetcher?: EclosionFetcher
   cache?: EclosionCache
   concurrency?: number
+  /** 流空闲看门狗（测试注入短值；缺省 ECLOSION_STREAM_IDLE_TIMEOUT_MS）。 */
+  streamIdleTimeoutMs?: number
   /** 测试注入的生成端点（缺省 /api/eclosion/generate）。 */
   generateUrl?: string
   quotaUrl?: string
@@ -166,6 +181,8 @@ export interface EclosionOrchestratorOptions {
   worldRegenerateUrl?: string
   /** 测试注入的举报样本端点（缺省 /api/dynamic/samples）。 */
   sampleReportUrl?: string
+  /** 举报上传超时（测试注入短值；缺省 ECLOSION_REPORT_TIMEOUT_MS）。 */
+  reportTimeoutMs?: number
 }
 
 interface GenerateRequestBody {
@@ -197,7 +214,15 @@ export class EclosionOrchestrator {
   private readonly gaveUp = new Set<string>()
   /** 每应用关注者计数（宿主容器挂载/卸载、预取持有）：归零且仍在生成即中止。 */
   private readonly attachments = new Map<string, number>()
-  private readonly waiting: Array<() => void> = []
+  private readonly waiting: QueueTicket[] = []
+  /**
+   * 每应用「尝试代际」（C2 审查）：startAttempt/重试/重羽化递增。旧尝试的
+   * 迟到终态提交（aborted/network）与 controller 释放必须校验代际——否则
+   * 重羽化时旧流的 failSession 会把新一轮覆盖成 error，旧 finally 还会删掉
+   * 新 controller（之后关窗无法中止）。
+   */
+  private readonly attemptTokens = new Map<string, number>()
+  private attemptSeq = 0
   private active = 0
   private started = false
   private unsubscribes: Array<() => void> = []
@@ -208,6 +233,8 @@ export class EclosionOrchestrator {
   private fetcher: EclosionFetcher
   private cache: EclosionCache
   private readonly concurrency: number
+  private readonly streamIdleTimeoutMs: number
+  private readonly reportTimeoutMs: number
   private readonly generateUrl: string
   private readonly quotaUrl: string
   private readonly worldUrl: string
@@ -237,6 +264,8 @@ export class EclosionOrchestrator {
     this.fetcher = options.fetcher ?? fetch.bind(globalThis)
     this.cache = options.cache ?? createEclosionCache()
     this.concurrency = options.concurrency ?? ECLOSION_MAX_CONCURRENT_STREAMS
+    this.streamIdleTimeoutMs = options.streamIdleTimeoutMs ?? ECLOSION_STREAM_IDLE_TIMEOUT_MS
+    this.reportTimeoutMs = options.reportTimeoutMs ?? ECLOSION_REPORT_TIMEOUT_MS
     this.generateUrl = options.generateUrl ?? '/api/eclosion/generate'
     this.quotaUrl = options.quotaUrl ?? '/api/eclosion/quota'
     this.worldUrl = options.worldUrl ?? '/api/eclosion/world'
@@ -249,7 +278,6 @@ export class EclosionOrchestrator {
     if (options.fetcher !== undefined) this.fetcher = options.fetcher
     if (options.cache !== undefined) this.cache = options.cache
   }
-
   // ── 装配（main.tsx 装配链尾追加；照 systemDynamicDesktop 先例） ──────────
 
   start(): void {
@@ -294,6 +322,8 @@ export class EclosionOrchestrator {
    */
   private async prepareUserData(userId: string): Promise<void> {
     await this.cache.pruneTodayBefore(userId, utcDayKey())
+    // 登出/换号发生在 await 期间：不再恢复上一账号的留存清单。
+    if (useEclosionStore.getState().userId !== userId) return
     await this.restoreKeptApps(userId)
   }
 
@@ -377,9 +407,34 @@ export class EclosionOrchestrator {
           : target.slug,
     )
     this.sessions.set(appId, session)
+    this.pruneSessions()
     this.mirror(session)
-    void this.runPipeline(session, target, { skipLocalCache: false, regenerate: false })
+    this.launchPipeline(session, target, { skipLocalCache: false, regenerate: false })
     return session
+  }
+
+  /**
+   * 会话容量上限（C2 审查轻微项）：长登录每次想象搜索都新增会话（≥60KB
+   * HTML 分片 + 全文），无界增长只随登出释放。超上限时优先淘汰 done 且
+   * 无宿主 attach 的会话（正在生成/error/attach 的不逐出）。
+   */
+  private pruneSessions(): void {
+    while (this.sessions.size > ECLOSION_SESSION_MAX) {
+      let evictable: string | null = null
+      for (const [appId, candidate] of this.sessions) {
+        const snapshot = candidate.getSnapshot()
+        if (
+          snapshot.phase === 'done' &&
+          (this.attachments.get(appId) ?? 0) === 0 &&
+          !this.bannedAppIds.has(appId)
+        ) {
+          evictable = appId
+          break
+        }
+      }
+      if (evictable === null) break
+      this.sessions.delete(evictable)
+    }
   }
 
   // ── 想象搜索（§7：L3 自由文本入口，SearchPalette 唯一调用方） ───────────
@@ -453,6 +508,8 @@ export class EclosionOrchestrator {
    * 全局缓存不回写）。留存（kept）应用没有网络真身——管线回落快照重放。
    */
   regenerate(appId: string): EclosionSession | null {
+    // 已举报封禁（E3 审查）：重生成入口同样封闭，避免白烧额度/上游。
+    if (this.bannedAppIds.has(appId)) return null
     const session = this.sessions.get(appId)
     const target = this.resolveTarget(appId)
     if (!session || target === null) return this.ensureSession(appId)
@@ -474,6 +531,10 @@ export class EclosionOrchestrator {
     if (!session || target === null) return false
     const snapshot = session.getSnapshot()
     if (snapshot.fellBack) return false
+    // 已有新一轮在排队（startAttempt 同步提交 queued）：连续 runner error /
+    // 渲染超时重复触发时不再叠尝试。注意**不能**把 generating 也算作去重档：
+    // runner 在生成期报错（生成代码 power-on 崩溃）必须换新一轮重试。
+    if (snapshot.phase === 'queued') return true
     const generationFailed = snapshot.phase === 'error'
     // 主动取消（关窗）不是失败：不发事件、不重试、不回落。
     if (generationFailed && snapshot.errorCode === 'aborted') return false
@@ -508,19 +569,55 @@ export class EclosionOrchestrator {
 
   /** 关窗即取消（§5.3：客户端断开即中止，不空烧 token）。 */
   cancel(appId: string): void {
+    const session = this.sessions.get(appId)
+    const snapshot = session?.getSnapshot()
+    // 排队中的会话没有在跑的流可 catch abort：直接落 aborted 终态；排队唤醒
+    // 点会看到 abort/token 失效而不再发请求（C2 审查）。
+    if (session && snapshot?.phase === 'queued') this.failSession(session, 'aborted')
     this.controllers.get(appId)?.abort()
   }
 
   private cancelAll(): void {
+    // 代际先失效：所有 in-flight 管线的迟到提交/释放都不得再落地。
+    this.attemptTokens.clear()
     for (const controller of this.controllers.values()) controller.abort()
     this.controllers.clear()
+    // 排空等待队列（ticket.granted=false：没有拿到槽位，无需 releaseSlot）。
+    for (const ticket of this.waiting.splice(0)) ticket.resolve()
+    // 会话级终态：queued/generating 都由这里落 aborted（在跑流的 catch 因
+    // 代际失效不再提交，但 settled() 等待者必须被唤醒）。
+    for (const session of this.sessions.values()) {
+      const phase = session.getSnapshot().phase
+      if (phase === 'queued' || phase === 'generating') {
+        session.commit({ phase: 'error', errorCode: 'aborted' })
+        this.mirror(session)
+      }
+    }
   }
 
-  /** Settings「清除羽化数据」：清当前用户名下全部生成产物。 */
+  /** Settings「清除羽化数据」：清当前用户名下全部生成产物（缓存 + 内存 + 注册面）。 */
   async clearData(): Promise<void> {
     const userId = useEclosionStore.getState().userId
     if (!userId) return
+    // 先中止在跑生成：清完再让迟到结果/新一轮把内容写回 = 假清除。
+    this.cancelAll()
     await this.cache.clearUserData(userId)
+    // 内存面（C2 审查）：会话分片/脚本、想象全文与 query、留存清单全部清空；
+    // 运行时注册同步注销——否则「我的羽化」仍列着缓存已删的幽灵应用
+    // （打开落 unknown-app），想象应用还能把 imagineHtml 写回 IDB。
+    this.sessions.clear()
+    this.gaveUp.clear()
+    this.imagineQueries.clear()
+    this.imagineHtml.clear()
+    this.unregisterKeptApps()
+    this.unregisterImagineApps()
+    this.unregisterWorldApps()
+    useEclosionStore.getState().clearStatuses()
+    // 已打开的生成窗口仍持有旧 session 快照（清缓存不会让它消失）——关闭。
+    // 仅限 eclosion 前缀：内置经典应用与 Settings 窗口不受影响。
+    for (const win of useWindowStore.getState().windows) {
+      if (isEclosionAppId(win.appId)) useWindowStore.getState().close(win.id)
+    }
   }
 
   // ── 今日世界（§6.2/§6.3：拉取、当日缓存、蝶谱、就绪事件） ────────────────
@@ -533,6 +630,7 @@ export class EclosionOrchestrator {
   async refreshWorld(): Promise<boolean> {
     const store = useEclosionStore.getState()
     if (!store.enabled || store.userId === null) return false
+    const userId = store.userId
     const today = utcDayKey()
     if (store.world?.worldDate === today) {
       // 当日缓存命中（重登录/开关重开）：重播就绪事件，并补运行时清单注册
@@ -547,11 +645,16 @@ export class EclosionOrchestrator {
       if (!response.ok) return false
       const world = validateEclosionWorld(await response.json())
       if (world === null || world.worldDate !== today) return false
+      // 请求期间登出/换号/关羽化：上一账号的世界不得落地（C2 审查）。
+      const live = useEclosionStore.getState()
+      if (live.userId !== userId || !live.enabled) return false
       const summary = toWorldSummary(world)
       useEclosionStore.getState().applyWorld(summary)
       this.syncWorldApps(summary)
       this.scheduleTodayPrefetch()
-      await this.recordReplay(store.userId, summary)
+      await this.recordReplay(userId, summary)
+      // 蝶谱 await 期间也可能登出：不再重播事件/注册清单。
+      if (useEclosionStore.getState().userId !== userId) return false
       this.announceWorld(summary, 'llm')
       return true
     } catch {
@@ -566,6 +669,7 @@ export class EclosionOrchestrator {
   async regenerateWorld(): Promise<boolean> {
     const store = useEclosionStore.getState()
     if (!store.enabled || store.userId === null) return false
+    const userId = store.userId
     try {
       const response = await this.fetcher(this.worldRegenerateUrl, {
         method: 'POST',
@@ -576,11 +680,14 @@ export class EclosionOrchestrator {
       if (!response.ok) return false
       const world = validateEclosionWorld(await response.json())
       if (world === null || world.worldDate !== utcDayKey()) return false
+      const live = useEclosionStore.getState()
+      if (live.userId !== userId || !live.enabled) return false
       const summary = toWorldSummary(world)
       useEclosionStore.getState().applyWorld(summary)
       this.syncWorldApps(summary)
       this.scheduleTodayPrefetch()
-      await this.recordReplay(store.userId, summary)
+      await this.recordReplay(userId, summary)
+      if (useEclosionStore.getState().userId !== userId) return false
       this.announceWorld(summary, 'llm')
       void this.refreshQuota()
       return true
@@ -707,6 +814,8 @@ export class EclosionOrchestrator {
   private async restoreKeptApps(userId: string): Promise<void> {
     try {
       const kept = await this.cache.listKept(userId)
+      // 读取期间登出/换号：不得把上一账号的留存重新注册回清单。
+      if (useEclosionStore.getState().userId !== userId) return
       const ids: string[] = []
       for (const entry of kept) {
         // 已作为今日应用在册（同 id 双源）时注册会撞——清单照收，注册留世界侧。
@@ -748,6 +857,8 @@ export class EclosionOrchestrator {
   async keepApp(appId: string): Promise<boolean> {
     const store = useEclosionStore.getState()
     if (store.userId === null) return false
+    // 封禁内容不得写入 kept 缓存（E3 审查：「获取」绕过封禁）。
+    if (this.bannedAppIds.has(appId)) return false
     if (this.keptAppIds.has(appId)) return true
     if (eclosionAppKind(appId) === 'imagine') {
       const html = this.imagineHtml.get(appId)
@@ -888,16 +999,23 @@ export class EclosionOrchestrator {
     if (this.bannedAppIds.has(appId)) return true
     const payload = await this.buildReportPayload(appId)
     if (payload === null) return false
+    // 超时（E3 审查）：悬挂的 fetch 会让确认框长期 busy（虽可取消，但状态
+    // 不复位）；15s 后按失败返回，样本留在本机可重试。
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), this.reportTimeoutMs)
     try {
       const response = await this.fetcher(this.sampleReportUrl, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       })
       if (!response.ok) return false
     } catch {
       return false // 上传失败：样本没进复审队列，保持现状可重试
+    } finally {
+      clearTimeout(timer)
     }
     this.cancel(appId) // 仍在生成则中止（不空烧 token）
     this.bannedAppIds.add(appId)
@@ -915,6 +1033,8 @@ export class EclosionOrchestrator {
     attempt: number,
     options: PipelineOptions,
   ): void {
+    // 先中止旧 controller，再推进代际：旧流的 abort 处理在微任务里跑，代际
+    // 校验会把它迟到的终态提交/controller 释放全部判为过期。
     this.controllers.get(session.appId)?.abort()
     session.commit({
       phase: 'queued',
@@ -930,17 +1050,74 @@ export class EclosionOrchestrator {
     })
     this.gaveUp.delete(session.appId)
     this.mirror(session)
-    void this.runPipeline(session, target, options)
+    this.launchPipeline(session, target, options)
+  }
+
+  /**
+   * 启动一次尝试：推进代际 + **在排队前**登记 AbortController（C2 审查：
+   * 此前 controller 只在真正开流时创建，queued 阶段关窗 cancel() 是空操作，
+   * 槽位释放后照样发请求）。管线内部所有异步落地点都校验 token/abort。
+   */
+  private launchPipeline(
+    session: EclosionSession,
+    target: EclosionTarget,
+    options: PipelineOptions,
+  ): void {
+    const token = ++this.attemptSeq
+    this.attemptTokens.set(session.appId, token)
+    const controller = new AbortController()
+    this.controllers.set(session.appId, controller)
+    void this.runPipeline(session, target, options, token, controller)
+  }
+
+  /** 本尝试仍是当前尝试且未被取消（过期/中止 → 迟到结果一律丢弃）。 */
+  private isAttemptActive(appId: string, token: number, controller: AbortController): boolean {
+    return this.attemptTokens.get(appId) === token && !controller.signal.aborted
+  }
+
+  /**
+   * 取消兜底：仍是当前代际但 controller 已 abort（fetch 无视 abort 信号、
+   * 读循环正常返回的极端档）→ 补 aborted 终态，避免会话永远停在 generating。
+   */
+  private settleCancelledAttempt(
+    session: EclosionSession,
+    token: number,
+    controller: AbortController,
+  ): void {
+    if (this.attemptTokens.get(session.appId) === token && controller.signal.aborted) {
+      this.failSession(session, 'aborted', token)
+    }
   }
 
   private async runPipeline(
     session: EclosionSession,
     target: EclosionTarget,
     options: PipelineOptions,
+    token: number,
+    controller: AbortController,
   ): Promise<void> {
+    try {
+      await this.runPipelineBody(session, target, options, token, controller)
+    } finally {
+      // controller 在排队前登记（见 launchPipeline）：缓存秒开/排队排空/过期
+      // 返回等所有非流式出口也要释放；身份校验避免删掉新一轮的 controller。
+      if (this.controllers.get(session.appId) === controller) {
+        this.controllers.delete(session.appId)
+      }
+    }
+  }
+
+  private async runPipelineBody(
+    session: EclosionSession,
+    target: EclosionTarget,
+    options: PipelineOptions,
+    token: number,
+    controller: AbortController,
+  ): Promise<void> {
+    if (!this.isAttemptActive(session.appId, token, controller)) return
     const store = useEclosionStore.getState()
     if (!store.enabled || store.userId === null) {
-      this.failSession(session, 'not-authenticated')
+      this.failSession(session, 'not-authenticated', token)
       return
     }
     const userId = store.userId
@@ -954,8 +1131,10 @@ export class EclosionOrchestrator {
             target.spec.specId,
             target.spec.specVersion,
           )
+          // 读缓存期间被重羽化/取消：旧尝试的结果不得落地。
+          if (!this.isAttemptActive(session.appId, token, controller)) return
           if (entry !== null) {
-            this.serveFromCache(session, entry.html)
+            this.serveFromCache(session, entry.html, token)
             return
           }
         } catch {
@@ -969,8 +1148,9 @@ export class EclosionOrchestrator {
         const entry = await this.cache
           .readToday(userId, target.worldDate, target.slug)
           .catch(() => null)
+        if (!this.isAttemptActive(session.appId, token, controller)) return
         if (entry !== null) {
-          this.serveFromCache(session, entry.html)
+          this.serveFromCache(session, entry.html, token)
           return
         }
       }
@@ -981,27 +1161,39 @@ export class EclosionOrchestrator {
       // 留存快照是唯一真身：只读 kept 缓存，绝不走网络（§8）。skipLocalCache
       // 对它无意义（重新羽化 = 重放快照）。
       const entry = await this.cache.readKept(userId, target.appId).catch(() => null)
+      if (!this.isAttemptActive(session.appId, token, controller)) return
       if (entry !== null) {
-        this.serveFromCache(session, entry.html)
+        this.serveFromCache(session, entry.html, token)
       } else {
-        this.failSession(session, 'unknown-app')
+        this.failSession(session, 'unknown-app', token)
       }
       return
     }
 
     // 并发闸（§5.4：同一用户最多 2 个流，超出排队）。
     if (this.active >= this.concurrency) {
+      if (!this.isAttemptActive(session.appId, token, controller)) return
       session.commit({ phase: 'queued' })
       this.mirror(session)
+      const ticket: QueueTicket = { resolve: () => undefined, granted: false }
       await new Promise<void>((resolve) => {
-        this.waiting.push(resolve)
+        ticket.resolve = resolve
+        this.waiting.push(ticket)
       })
+      // 被 cancelAll 排空（登出/stop）：没有拿到槽位，会话已由调用方标记终态。
+      if (!ticket.granted) return
+      // 唤醒后复核：被取消/被新尝试顶替/登出换号 → 归还槽位，绝不发请求。
+      const live = useEclosionStore.getState()
+      if (!this.isAttemptActive(session.appId, token, controller) || !live.enabled || live.userId !== userId) {
+        this.releaseSlot()
+        return
+      }
     } else {
       this.active += 1
     }
 
     try {
-      await this.streamGeneration(session, target, userId, options)
+      await this.streamGeneration(session, target, userId, options, token, controller)
     } finally {
       this.releaseSlot()
     }
@@ -1009,11 +1201,17 @@ export class EclosionOrchestrator {
 
   private releaseSlot(): void {
     const next = this.waiting.shift()
-    if (next) next() // 槽位直接移交给队首
-    else this.active = Math.max(0, this.active - 1)
+    if (next) {
+      // 槽位直接移交给队首（granted=true：唤醒者拥有该名额）。
+      next.granted = true
+      next.resolve()
+    } else {
+      this.active = Math.max(0, this.active - 1)
+    }
   }
 
-  private serveFromCache(session: EclosionSession, html: string): void {
+  private serveFromCache(session: EclosionSession, html: string, token: number): void {
+    if (this.attemptTokens.get(session.appId) !== token) return
     const splitter = createHtmlStreamSplitter()
     const chunks = [...splitter.push(html), ...splitter.flush()]
     session.commit({
@@ -1035,9 +1233,10 @@ export class EclosionOrchestrator {
     target: EclosionTarget,
     userId: string,
     options: PipelineOptions,
+    token: number,
+    controller: AbortController,
   ): Promise<void> {
-    const controller = new AbortController()
-    this.controllers.set(session.appId, controller)
+    if (!this.isAttemptActive(session.appId, token, controller)) return
     session.commit({ phase: 'generating' })
     this.mirror(session)
     systemBus.emit('eclosion.app.generating', { appId: target.appId, specId: session.specId })
@@ -1079,15 +1278,41 @@ export class EclosionOrchestrator {
                 regenerate: options.regenerate,
               }
 
-    const splitter = createHtmlStreamSplitter()
+    // replace 帧（服务端整文替换，A3 审查）会换掉 splitter——let 以便重绑。
+    let splitter = createHtmlStreamSplitter()
     const parser: SseParser = createSseParser()
     let rawHtml = ''
     let thinkChars = 0
     let thinkTail = ''
     let finished = false
     let aborted = false
+    let idleTimedOut = false
+    let idleTimer: ReturnType<typeof setTimeout> | null = null
+
+    const clearIdleTimer = (): void => {
+      if (idleTimer !== null) {
+        clearTimeout(idleTimer)
+        idleTimer = null
+      }
+    }
+    /**
+     * 空闲看门狗（C2 审查）：半开连接/僵死上游下 reader.read() 永不 settle，
+     * 并发槽会被永久占用。收到任何数据即重置；超时中止并按可重试的
+     * ai-timeout 收尾（与用户主动取消的 aborted 语义区分——后者不重试）。
+     */
+    const armIdleTimer = (): void => {
+      clearIdleTimer()
+      idleTimer = setTimeout(() => {
+        idleTimer = null
+        if (!controller.signal.aborted) {
+          idleTimedOut = true
+          controller.abort()
+        }
+      }, this.streamIdleTimeoutMs)
+    }
 
     const consumeDelta = (text: string): void => {
+      if (!this.isAttemptActive(session.appId, token, controller)) return
       rawHtml += text
       session.commit({
         chunks: [...session.getSnapshot().chunks, ...splitter.push(text)],
@@ -1095,6 +1320,7 @@ export class EclosionOrchestrator {
       })
     }
 
+    armIdleTimer()
     try {
       const response = await this.fetcher(this.generateUrl, {
         method: 'POST',
@@ -1104,6 +1330,12 @@ export class EclosionOrchestrator {
         signal: controller.signal,
       })
 
+      // 取消/重羽化发生在 fetch 期间：响应直接丢弃（旧尝试不得落地）。
+      if (!this.isAttemptActive(session.appId, token, controller)) {
+        this.settleCancelledAttempt(session, token, controller)
+        return
+      }
+
       if (!response.ok) {
         let code = `http-${response.status}`
         try {
@@ -1112,15 +1344,18 @@ export class EclosionOrchestrator {
         } catch {
           /* 非 JSON 错误体：保留 http-<status> */
         }
-        this.failSession(session, code)
+        this.failSession(session, code, token)
         return
       }
       if (!response.body) {
-        this.failSession(session, 'ai-upstream')
+        this.failSession(session, 'ai-upstream', token)
         return
       }
+      // 响应头已到：看门狗从现在起盯 body 空闲（此前盯的是连接/首包）。
+      armIdleTimer()
 
       const handleFrame = (frame: { event: string; data: string }): void => {
+        if (!this.isAttemptActive(session.appId, token, controller)) return
         if (frame.event === 'think') {
           const chars = readNumber(frame.data, 'chars')
           if (chars !== null) thinkChars = chars
@@ -1139,6 +1374,20 @@ export class EclosionOrchestrator {
           if (text !== null && text !== '') consumeDelta(text)
           return
         }
+        if (frame.event === 'replace') {
+          // 服务端剥掉了已流式下发的尾部（Markdown 围栏/</html> 后垃圾），
+          // 纯增量无法撤回——用整文重建切片与截留脚本（A3 审查轻微项）。
+          const html = readString(frame.data, 'html')
+          if (html !== null) {
+            rawHtml = html
+            splitter = createHtmlStreamSplitter()
+            session.commit({
+              chunks: [...splitter.push(html), ...splitter.flush()],
+              passwordInputSeen: PASSWORD_INPUT_PATTERN.test(html),
+            })
+          }
+          return
+        }
         if (frame.event === 'done') {
           // 服务端已在 done 前冲净 holdback；截流侧再 flush 一次兜底。
           session.commit({ chunks: [...session.getSnapshot().chunks, ...splitter.flush()] })
@@ -1148,7 +1397,7 @@ export class EclosionOrchestrator {
         if (frame.event === 'error') {
           const code = readString(frame.data, 'code') ?? 'ai-upstream'
           finished = true
-          this.failSession(session, code)
+          this.failSession(session, code, token)
           return
         }
         // meta： requestId/model 不消费。
@@ -1158,7 +1407,13 @@ export class EclosionOrchestrator {
       const decoder = new TextDecoder()
       for (;;) {
         const { done, value } = await reader.read()
+        armIdleTimer()
         if (done) break
+        // 读循环中途被取消/重羽化：停读并释放连接（迟到帧不提交）。
+        if (!this.isAttemptActive(session.appId, token, controller)) {
+          await reader.cancel().catch(() => undefined)
+          break
+        }
         for (const frame of parser.push(decoder.decode(value, { stream: true }))) {
           handleFrame(frame)
         }
@@ -1168,29 +1423,47 @@ export class EclosionOrchestrator {
           break
         }
       }
+      // 旧尝试（已重羽化/取消）：终态提交全部作废。
+      if (!this.isAttemptActive(session.appId, token, controller)) {
+        this.settleCancelledAttempt(session, token, controller)
+        return
+      }
       if (!finished && session.getSnapshot().phase === 'generating') {
         for (const frame of parser.close()) handleFrame(frame)
       }
       if (!finished) {
         // 流断在半途（无 done/error 帧）。
-        this.failSession(session, 'network')
+        this.failSession(session, 'network', token)
         return
       }
       if (session.getSnapshot().phase !== 'done' && session.getSnapshot().phase !== 'error') {
-        this.succeedSession(session, target, userId, rawHtml, splitter)
+        this.succeedSession(session, target, userId, rawHtml, splitter, token)
       }
     } catch (cause) {
       if (cause instanceof Error && cause.name === 'AbortError') {
+        // 看门狗中止 ≠ 用户取消：按可重试超时收尾（宿主会自动回炉）。
+        if (idleTimedOut) {
+          this.failSession(session, 'ai-timeout', token)
+          return
+        }
         aborted = true
-        this.failSession(session, 'aborted')
+        this.failSession(session, 'aborted', token)
         return
       }
-      this.failSession(session, 'network')
+      this.failSession(session, 'network', token)
       return
     } finally {
-      this.controllers.delete(session.appId)
-      // 主动取消（关窗）不刷额度；其余终态刷新快照供 Settings 展示。
-      if (!aborted) void this.refreshQuota()
+      clearIdleTimer()
+      // 身份校验（C2 审查）：旧尝试的 finally 不得删掉新一轮的 controller
+      // （否则关窗再 cancel() 无 controller 可中止）。
+      if (this.controllers.get(session.appId) === controller) {
+        this.controllers.delete(session.appId)
+      }
+      // 主动取消（关窗）不刷额度；其余终态（含看门狗超时）刷新快照。
+      // 代际校验：被重羽化顶替的旧尝试不发多余请求。
+      if (!aborted && this.attemptTokens.get(session.appId) === token) {
+        void this.refreshQuota()
+      }
     }
   }
 
@@ -1200,7 +1473,9 @@ export class EclosionOrchestrator {
     userId: string,
     rawHtml: string,
     splitter: { scripts(): string[] },
+    token: number,
   ): void {
+    if (this.attemptTokens.get(session.appId) !== token) return
     session.commit({
       phase: 'done',
       scripts: splitter.scripts(),
@@ -1232,7 +1507,9 @@ export class EclosionOrchestrator {
     }
   }
 
-  private failSession(session: EclosionSession, code: string): void {
+  private failSession(session: EclosionSession, code: string, token?: number): void {
+    // 代际校验（C2 审查）：被重羽化/重试顶替的旧尝试不得把新一轮覆盖成 error。
+    if (token !== undefined && this.attemptTokens.get(session.appId) !== token) return
     session.commit({ phase: 'error', errorCode: code })
     this.mirror(session)
     if (code !== 'aborted') void this.refreshQuota()
@@ -1275,19 +1552,9 @@ export class EclosionOrchestrator {
   async refreshQuota(): Promise<void> {
     const userId = useEclosionStore.getState().userId
     if (!userId) return
-    const unconfigured: EclosionQuotaState = {
-      configured: false,
-      basic: { used: 0, limit: 10 },
-      today: { used: 0, limit: 30 },
-      imagine: { used: 0, limit: 20 },
-      resetAtIso: null,
-    }
     try {
       const response = await this.fetcher(this.quotaUrl, { credentials: 'same-origin' })
-      if (!response.ok) {
-        useEclosionStore.getState().applyQuota(unconfigured)
-        return
-      }
+      if (!response.ok) return
       const payload = (await response.json()) as {
         configured?: unknown
         quotas?: Record<'basic' | 'today' | 'imagine', { used?: unknown; limit?: unknown } | undefined>
@@ -1301,10 +1568,10 @@ export class EclosionOrchestrator {
       const basic = readTier('basic')
       const today = readTier('today')
       const imagine = readTier('imagine')
-      if (typeof payload.configured !== 'boolean' || !basic || !today || !imagine) {
-        useEclosionStore.getState().applyQuota(unconfigured)
-        return
-      }
+      if (typeof payload.configured !== 'boolean' || !basic || !today || !imagine) return
+      // 仅 200 且结构合法时写入——网关 502/网络抖动保留上次快照（C2 审查：
+      // 旧实现失败分支一律 applyQuota(unconfigured)，一次 502 就让设置区
+      // 显示「LLM 未配置」并跳过会话空闲预取）。
       useEclosionStore.getState().applyQuota({
         configured: payload.configured,
         basic,
@@ -1313,7 +1580,7 @@ export class EclosionOrchestrator {
         resetAtIso: typeof payload.resetAtIso === 'string' ? payload.resetAtIso : null,
       })
     } catch {
-      useEclosionStore.getState().applyQuota(unconfigured)
+      return
     }
   }
 

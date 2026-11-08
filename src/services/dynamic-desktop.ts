@@ -1,6 +1,7 @@
 import { systemBus } from '@/core/events'
 import { utcDayKey } from '@/core/eclosion/world'
 import { buildContextSnapshot, resetContextVersion } from '@/core/dynamic/context/snapshot'
+import { resetAiSessionState } from '@/core/dynamic/llm/client'
 import { sliderBand } from '@/core/dynamic/decision/engine'
 import type { Emit } from '@/core/dynamic/generative/pipeline'
 import { generateWallpaper } from '@/core/dynamic/generative/pipeline'
@@ -103,6 +104,9 @@ async function generate(trigger: 'login' | 'timer' | 'manual'): Promise<Generati
     useDynamicDesktopStore.setState({ currentPlan: state.prefs.pinned, currentLevel: 'L0' })
     return null
   }
+  // 随机度固定档（0）同样不生成新结果（B3 审查）：保留当前计划（没有则照片
+  // 基底），不再让决策器产出已退役 landscape / 无视屏蔽域。
+  if (sliderBand(state.prefs.randomness).band === 'fixed') return null
   if (trigger === 'manual' && Date.now() - state.lastGenerateAt < MANUAL_REFRESH_THROTTLE_MS) {
     return null
   }
@@ -151,6 +155,8 @@ async function generate(trigger: 'login' | 'timer' | 'manual'): Promise<Generati
 
 async function clearAllData(): Promise<void> {
   clearWorldAccent()
+  // AI 会话态一并清空（B3 审查：尝试计数/缓存槽位/封禁词表跨账号残留）。
+  resetAiSessionState()
   useDynamicDesktopStore.getState().clearAllData()
   try {
     await systemVfs.ready()
@@ -218,7 +224,13 @@ export const systemDynamicDesktop = {
         void handleLogin(userId)
       }),
     )
-    unsubscribes.push(systemBus.on('user.logout', () => useDynamicDesktopStore.getState().handleLogout()))
+    unsubscribes.push(
+      systemBus.on('user.logout', () => {
+        useDynamicDesktopStore.getState().handleLogout()
+        // 同上：登出即重置 AI 尝试预算/槽位缓存/封禁词表。
+        resetAiSessionState()
+      }),
+    )
     // 今日世界主题接线（§3.2/§6.3）：编排器发 eclosion.world.ready（载荷仅
     // worldDate）→ 世界在 store 里且用户开着「主题跟随」才应用；关闭跟随 =
     // 不改主题、只保留今日应用。

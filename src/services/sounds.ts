@@ -177,7 +177,9 @@ class SystemSounds {
     const context = this.ensureContext()
     if (context === null) return
     if (this.isSuspended(context)) {
-      void this.resume(context)
+      // iOS/Safari 非手势路径 resume() 会 NotAllowedError reject——unhandled
+      // rejection 消掉（C2 审查），下一声再试。
+      void this.resume(context).catch(() => undefined)
       return // 等下一声再试：suspended 图上调度的事件会积压到 resume 后齐响
     }
     scheduleSound(SOUND_SPECS[name], context)

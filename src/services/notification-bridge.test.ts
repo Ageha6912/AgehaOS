@@ -5,9 +5,12 @@ import { resetAppStore } from '@/store/app-store'
 import { resetEclosionStore } from '@/store/eclosion-store'
 import { resetNotificationStore, useNotificationStore } from '@/store/notification-store'
 
-import { startNotificationBridge } from './notification-bridge'
+import { startNotificationBridge, stopNotificationBridge } from './notification-bridge'
 
 beforeEach(() => {
+  // stopNotificationBridge：测试间解除上一条用例的订阅（start 幂等位复位，
+  // C2 审查——桥现在有卸载面）。
+  stopNotificationBridge()
   vi.clearAllMocks()
   resetAppStore()
   resetEclosionStore()
@@ -122,5 +125,17 @@ describe('notification bridge (PRD §16)', () => {
     // 跨日换新：新的一条。
     systemBus.emit('eclosion.world.ready', { worldDate: '2026-10-04' })
     expect(useNotificationStore.getState().items).toHaveLength(2)
+  })
+})
+
+describe('stopNotificationBridge（C2 审查：卸载面）', () => {
+  it('stop 后事件不再产生通知；可重新 start', () => {
+    startNotificationBridge()
+    stopNotificationBridge()
+    systemBus.emit('desktop.generation.failed', { seed: 's', stage: 'gate', reason: 'x' })
+    expect(useNotificationStore.getState().items).toHaveLength(0)
+    startNotificationBridge()
+    systemBus.emit('desktop.generation.failed', { seed: 's2', stage: 'gate', reason: 'x' })
+    expect(useNotificationStore.getState().items).toHaveLength(1)
   })
 })

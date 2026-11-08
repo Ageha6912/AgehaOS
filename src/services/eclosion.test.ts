@@ -175,6 +175,29 @@ describe('EclosionOrchestrator：缓存命中秒开（§4.2/§5.2）', () => {
 })
 
 describe('EclosionOrchestrator：SSE 流式生成（§5.3）', () => {
+  it('replace 帧整文重建：已流式下发的尾部被服务端剥除时拼流回到缓存全文（A3 审查）', async () => {
+    const clean = '<!doctype html><html><body><div>x</div></body></html>'
+    const { fetcher } = makeTransport([
+      streamingResponse([
+        frame('meta', {}),
+        frame('delta', { text: clean }),
+        // 服务端在 finalize 发现已下发的围栏/垃圾被剥除 → 发整文替换帧。
+        frame('replace', { html: clean }),
+        frame('done', { bytes: clean.length, ms: 1 }),
+      ]),
+    ])
+    const orchestrator = makeOrchestrator(fetcher)
+    const session = orchestrator.ensureSession(CALCULATOR)!
+    await session.settled()
+
+    const snapshot = session.getSnapshot()
+    expect(snapshot.phase).toBe('done')
+    const joined = snapshot.chunks.map((chunk) => chunk.html).join('')
+    // 拼流 = 缓存全文：replace 之后的分片与脚本来自全新 splitter。
+    expect(joined).toContain('<div>x</div>')
+    expect(snapshot.scripts).toEqual([])
+  })
+
   it('streams chunks split by html-stream, counts thinking chars, caches the document', async () => {
     const { fetcher, calls } = makeTransport([
       streamingResponse([
@@ -459,6 +482,220 @@ describe('EclosionOrchestrator：并发上限与取消（§5.4/§5.3）', () => 
   })
 })
 
+describe('EclosionOrchestrator：并发竞态与流生命周期（C2 审查）', () => {
+  /** 可中止的挂起响应（模拟半开连接：signal abort 时以 AbortError 拒绝）。 */
+  function pendingAbortable(init: RequestInit | undefined): Promise<Response> {
+    return new Promise<Response>((_, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        const error = new Error('aborted')
+        error.name = 'AbortError'
+        reject(error)
+      })
+    })
+  }
+
+  it('生成中重新羽化：旧尝试的 aborted/controller 释放不覆盖新一轮', async () => {
+    let firstSignal: AbortSignal | undefined
+    let secondSignal: AbortSignal | undefined
+    let generationCalls = 0
+    const fetcher = vi.fn(async (url: string, init?: RequestInit): Promise<Response> => {
+      if (String(url).endsWith('/quota')) return quotaOk()
+      generationCalls += 1
+      if (generationCalls === 1) {
+        firstSignal = init?.signal ?? undefined
+        return pendingAbortable(init)
+      }
+      secondSignal = init?.signal ?? undefined
+      return pendingAbortable(init)
+    })
+    const orchestrator = new EclosionOrchestrator({ fetcher, cache: createEclosionCache() })
+    const session = orchestrator.ensureSession(CALCULATOR)!
+    await vi.waitFor(() => expect(firstSignal).toBeDefined())
+
+    orchestrator.regenerate(CALCULATOR)
+    await vi.waitFor(() => expect(secondSignal).toBeDefined())
+    // 旧尝试的 abort 处理在微任务里跑完后，新一轮仍是 generating（未被
+    // 旧 failSession('aborted') 覆盖）。
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(session.getSnapshot()).toMatchObject({ phase: 'generating', attempt: 2 })
+
+    // 旧 finally 没有删掉新 controller：cancel 仍能中止新一轮。
+    orchestrator.cancel(CALCULATOR)
+    await session.settled()
+    expect(session.getSnapshot()).toMatchObject({ phase: 'error', errorCode: 'aborted' })
+  })
+
+  it('排队中的会话也能取消：槽位释放后不再发请求', async () => {
+    const gates: Array<() => void> = []
+    let generationCalls = 0
+    const fetcher = vi.fn(async (url: string): Promise<Response> => {
+      if (String(url).endsWith('/quota')) return quotaOk()
+      generationCalls += 1
+      if (generationCalls > 1) throw new Error('queued generation must not start')
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            const encoder = new TextEncoder()
+            controller.enqueue(encoder.encode(frame('meta', {})))
+            gates.push(() => {
+              controller.enqueue(encoder.encode(frame('done', { bytes: 1, ms: 1 })))
+              controller.close()
+            })
+          },
+        }),
+        { headers: { 'content-type': 'text/event-stream' } },
+      )
+    })
+    const orchestrator = new EclosionOrchestrator({
+      fetcher,
+      cache: createEclosionCache(),
+      concurrency: 1,
+    })
+    const first = orchestrator.ensureSession(CALCULATOR)!
+    const queued = orchestrator.ensureSession(NOTES)!
+    await vi.waitFor(() => expect(generationCalls).toBe(1))
+    await vi.waitFor(() => expect(queued.getSnapshot().phase).toBe('queued'))
+
+    // 排队阶段关窗：直接落 aborted（此前没有 controller，cancel 是空操作）。
+    orchestrator.cancel(NOTES)
+    expect(queued.getSnapshot()).toMatchObject({ phase: 'error', errorCode: 'aborted' })
+
+    gates[0]!()
+    await first.settled()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    // 槽位移交后排队唤醒点看到 abort → 归还槽位，绝不发第二次请求。
+    expect(generationCalls).toBe(1)
+  })
+
+  it('登出排空等待队列：旧账号的排队会话不再发请求', async () => {
+    const gates: Array<() => void> = []
+    let generationCalls = 0
+    const fetcher = vi.fn(async (url: string): Promise<Response> => {
+      if (String(url).endsWith('/quota')) return quotaOk()
+      generationCalls += 1
+      if (generationCalls > 1) throw new Error('queued generation must not start')
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            const encoder = new TextEncoder()
+            controller.enqueue(encoder.encode(frame('meta', {})))
+            gates.push(() => {
+              controller.enqueue(encoder.encode(frame('done', { bytes: 1, ms: 1 })))
+              controller.close()
+            })
+          },
+        }),
+        { headers: { 'content-type': 'text/event-stream' } },
+      )
+    })
+    const orchestrator = new EclosionOrchestrator({
+      fetcher,
+      cache: createEclosionCache(),
+      concurrency: 1,
+    })
+    orchestrator.start()
+    try {
+      const running = orchestrator.ensureSession(CALCULATOR)!
+      const queued = orchestrator.ensureSession(NOTES)!
+      await vi.waitFor(() => expect(generationCalls).toBe(1))
+      await vi.waitFor(() => expect(queued.getSnapshot().phase).toBe('queued'))
+
+      systemBus.emit('user.logout', { userId: user })
+      // 排队/在跑会话都落 aborted 终态（settled 等待者被唤醒）。
+      expect(queued.getSnapshot()).toMatchObject({ phase: 'error', errorCode: 'aborted' })
+
+      gates[0]!()
+      await running.settled()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(generationCalls).toBe(1)
+    } finally {
+      orchestrator.stop()
+    }
+  })
+
+  it('流空闲看门狗：长时间无帧 → 可重试的 ai-timeout', async () => {
+    const fetcher = vi.fn(async (url: string, init?: RequestInit): Promise<Response> => {
+      if (String(url).endsWith('/quota')) return quotaOk()
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: () =>
+              new Promise<{ done: boolean; value?: Uint8Array }>((_, reject) => {
+                init?.signal?.addEventListener('abort', () => {
+                  const error = new Error('aborted')
+                  error.name = 'AbortError'
+                  reject(error)
+                })
+              }),
+            cancel: async () => undefined,
+          }),
+        },
+      } as unknown as Response
+    })
+    const orchestrator = new EclosionOrchestrator({
+      fetcher,
+      cache: createEclosionCache(),
+      streamIdleTimeoutMs: 25,
+    })
+    const session = orchestrator.ensureSession(CALCULATOR)!
+
+    await session.settled()
+    // 看门狗中止 ≠ 用户取消：ai-timeout 在可重试集合内（宿主会自动回炉）。
+    expect(session.getSnapshot()).toMatchObject({ phase: 'error', errorCode: 'ai-timeout' })
+  })
+
+  it('生成中 runner 报错：requestRetry 仍换新一轮（generating 不是去重档）', async () => {
+    let generationCalls = 0
+    const signals: AbortSignal[] = []
+    const fetcher = vi.fn(async (url: string, init?: RequestInit): Promise<Response> => {
+      if (String(url).endsWith('/quota')) return quotaOk()
+      generationCalls += 1
+      if (init?.signal) signals.push(init.signal)
+      return pendingAbortable(init)
+    })
+    const orchestrator = new EclosionOrchestrator({ fetcher, cache: createEclosionCache() })
+    const session = orchestrator.ensureSession(CALCULATOR)!
+    await vi.waitFor(() => expect(generationCalls).toBe(1))
+    expect(session.getSnapshot().phase).toBe('generating')
+
+    // 生成代码 power-on 崩溃时宿主调 requestRetry：此时 phase 仍是 generating，
+    // 必须真的开新一轮（此前收窄成 queued|generating 会让它静默不重试）。
+    expect(orchestrator.requestRetry(CALCULATOR, 'runner-error')).toBe(true)
+    await vi.waitFor(() => expect(generationCalls).toBe(2))
+    expect(session.getSnapshot().attempt).toBe(2)
+    expect(signals[0]?.aborted).toBe(true)
+
+    orchestrator.cancel(CALCULATOR)
+    await session.settled()
+  })
+
+  it('refreshWorld 在登出后丢弃晚到的世界响应', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    let resolveWorld: ((response: Response) => void) | undefined
+    const fetcher = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveWorld = resolve
+        }),
+    )
+    const orchestrator = new EclosionOrchestrator({ fetcher, cache: createEclosionCache() })
+    const ready = vi.fn()
+    systemBus.on('eclosion.world.ready', ready)
+
+    const pending = orchestrator.refreshWorld()
+    // 请求期间登出（store 侧 userId 清空）：晚到的世界不得落地/播事件。
+    useEclosionStore.getState().handleLogout()
+    resolveWorld?.(jsonResponse(worldPayload(today)))
+
+    await expect(pending).resolves.toBe(false)
+    expect(useEclosionStore.getState().world).toBeNull()
+    expect(ready).not.toHaveBeenCalled()
+  })
+})
+
 describe('EclosionOrchestrator：预取与额度（§5.2/§9）', () => {
   it('prefetches missing specs sequentially and skips cached ones', async () => {
     const cache = createEclosionCache()
@@ -506,7 +743,9 @@ describe('EclosionOrchestrator：预取与额度（§5.2/§9）', () => {
       resetAtIso: '2026-10-03T00:00:00.000Z',
     })
 
-    // 非 JSON/失败 → configured:false（开关置灰依据）。
+    // 网络/5xx 等瞬时失败保留上次快照（C2 审查：不再把失败当「未配置」——
+    // 一次网关 502 不再让设置区显示 LLM 未配置、不再跳过会话空闲预取）。
+    const snapshot = useEclosionStore.getState().quota
     const broken = new EclosionOrchestrator({
       fetcher: vi.fn(async () => {
         throw new Error('offline')
@@ -514,7 +753,14 @@ describe('EclosionOrchestrator：预取与额度（§5.2/§9）', () => {
       cache: createEclosionCache(),
     })
     await broken.refreshQuota()
-    expect(useEclosionStore.getState().quota?.configured).toBe(false)
+    expect(useEclosionStore.getState().quota).toEqual(snapshot)
+
+    const gateway = new EclosionOrchestrator({
+      fetcher: vi.fn(async () => new Response('{}', { status: 502 })),
+      cache: createEclosionCache(),
+    })
+    await gateway.refreshQuota()
+    expect(useEclosionStore.getState().quota).toEqual(snapshot)
   })
 })
 
@@ -531,6 +777,35 @@ describe('systemEclosion 单例与 clearData', () => {
     systemEclosion.configureForTests({ cache })
     await systemEclosion.clearData()
     expect(await cache.readBasic(user, 'calculator', 5)).toBeNull()
+  })
+
+  it('clears memory sessions, imagine HTML, kept registrations and open windows (C2 审查)', async () => {
+    const cache = createEclosionCache()
+    const { fetcher } = makeTransport([sseDoc(DOC_HTML)])
+    const orchestrator = makeOrchestrator(fetcher, cache)
+
+    // 想象应用：生成完成 → imagineHtml 在册 → 「获取」留存并注册运行时清单。
+    const appId = orchestrator.ensureImagineSession(IMAGINE_QUERY)!
+    const first = orchestrator.ensureSession(appId)!
+    await first.settled()
+    await expect(orchestrator.keepApp(appId)).resolves.toBe(true)
+    expect(getAppManifest(appId)).not.toBeNull()
+    expect(useEclosionStore.getState().keptAppIds).toContain(appId)
+    const windowId = useWindowStore.getState().open({ appId, title: '想象应用' })
+
+    await orchestrator.clearData()
+
+    // 内存会话/状态镜像/留存清单/运行时注册全部清空。
+    expect(useEclosionStore.getState().statuses).toEqual({})
+    expect(useEclosionStore.getState().keptAppIds).toEqual([])
+    expect(getAppManifest(appId)).toBeNull()
+    // 已打开的生成窗口关闭（旧 session 快照不再显示）。
+    expect(useWindowStore.getState().windows.some((win) => win.id === windowId)).toBe(false)
+    // 想象全文已清：再点「获取」不会把数据写回 IDB。
+    await expect(orchestrator.keepApp(appId)).resolves.toBe(false)
+    // 重新打开 = 新会话（旧分片/脚本不残留）。
+    const next = orchestrator.ensureSession(appId)
+    expect(next).not.toBe(first)
   })
 
   it('wires login/logout through start(): hydrate + quota, then session cleanup', async () => {
@@ -1155,6 +1430,41 @@ describe('EclosionOrchestrator × 举报与会话封禁（§10）', () => {
     // 幂等：已封禁再举报直接成功且不再发请求。
     await expect(orchestrator.reportApp(TODAY_APP('app-01'), windowId)).resolves.toBe(true)
     expect(calls).toHaveLength(1)
+    // 封禁后生成/留存入口一并封闭（E3 审查：「获取/重新羽化」不得绕过）。
+    expect(orchestrator.regenerate(TODAY_APP('app-01'))).toBeNull()
+    await expect(orchestrator.keepApp(TODAY_APP('app-01'))).resolves.toBe(false)
+  })
+
+  it('times out a hung report upload instead of leaving the consent flow busy (E3 审查)', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    seedTodayWorld(today)
+    const cache = createEclosionCache()
+    await cache.writeToday(user, {
+      appId: TODAY_APP('app-01'),
+      worldDate: today,
+      slug: 'app-01',
+      html: DOC_HTML,
+      createdAt: '',
+    })
+    const fetcher = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+        }),
+    )
+    const orchestrator = new EclosionOrchestrator({
+      fetcher: fetcher as never,
+      cache,
+      reportTimeoutMs: 10,
+    })
+    const windowId = useWindowStore
+      .getState()
+      .open({ appId: TODAY_APP('app-01'), title: '应用零0' })
+
+    await expect(orchestrator.reportApp(TODAY_APP('app-01'), windowId)).resolves.toBe(false)
+    // 超时按失败处理：不封禁、不关窗，样本可重试。
+    expect(useEclosionStore.getState().bannedAppIds).not.toContain(TODAY_APP('app-01'))
+    expect(useWindowStore.getState().windows.some((win) => win.id === windowId)).toBe(true)
   })
 
   it('truncates the combined summary at 512 and the detail at 2048 (摘要截断)', async () => {
@@ -1292,5 +1602,36 @@ describe('EclosionOrchestrator × 举报与会话封禁（§10）', () => {
     orchestrator.stop() // 与 handleLogout 同一清理路径（clearBans）
     expect(useEclosionStore.getState().bannedAppIds).toEqual([])
     expect(orchestrator.ensureSession(TODAY_APP('app-03'))).not.toBeNull()
+  })
+})
+
+describe('sessions 容量封顶（C2 审查）', () => {
+  it('第 25 个 done 会话淘汰最早的；存活会话复用、已逐出的重新生成', async () => {
+    seedEclosionForTests('u-lru', true)
+    const responses = Array.from({ length: 26 }, () =>
+      streamingResponse([
+        frame('meta', {}),
+        frame('delta', { text: DOC_HTML }),
+        frame('done', { bytes: 10, ms: 1 }),
+      ]),
+    )
+    const { fetcher, calls } = makeTransport(responses)
+    const orchestrator = makeOrchestrator(fetcher)
+
+    const appIds: string[] = []
+    for (let i = 0; i < 25; i += 1) {
+      const appId = orchestrator.ensureImagineSession('想象查询' + String(i).padStart(2, '0'))
+      expect(appId).not.toBeNull()
+      appIds.push(appId!)
+      await orchestrator.ensureSession(appId!)!.settled()
+    }
+    // 逐出后表里没有最早的两个会话（重入即新流）。
+    const before = calls.length
+    // 存活会话复用：不发新请求。
+    orchestrator.ensureImagineSession('想象查询24')
+    expect(calls.length).toBe(before)
+    // 已逐出的会话重新进入：发起新一轮流。
+    orchestrator.ensureImagineSession('想象查询00')
+    await vi.waitFor(() => expect(calls.length).toBe(before + 1))
   })
 })

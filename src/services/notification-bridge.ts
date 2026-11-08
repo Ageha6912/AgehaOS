@@ -22,13 +22,17 @@ import { useNotificationStore } from '@/store/notification-store'
  */
 
 let started = false
+/** 四条订阅的解除句柄（C2 审查：只注册不撤销无法卸载）。 */
+let offs: Array<() => void> = []
 
 /** 幂等启动：重复调用不重复订阅（main.tsx 只会调一次；测试兜底）。 */
 export function startNotificationBridge(): void {
   if (started) return
   started = true
 
-  systemBus.on('app.crashed', ({ appId }) => {
+  const on = systemBus.on.bind(systemBus) as typeof systemBus.on
+  offs = [
+    on('app.crashed', ({ appId }) => {
     const app = useAppStore.getState().apps.find((candidate) => candidate.id === appId)
     useNotificationStore.getState().push({
       appId: 'system',
@@ -38,7 +42,7 @@ export function startNotificationBridge(): void {
       bodyParams: { app: app?.name ?? appId },
       priority: 'critical',
     })
-  })
+  }),
 
   systemBus.on('desktop.generation.failed', () => {
     useNotificationStore.getState().push({
@@ -46,7 +50,7 @@ export function startNotificationBridge(): void {
       titleKey: 'notification.title.wallpaperFailed',
       bodyKey: 'notification.body.wallpaperFailed',
     })
-  })
+  }),
 
   // 羽化应用终态失败（重试后仍失败）：应用名优先取规格标题键（三件套
   // manifest.name 是非本地化回落，仅兜底）。L1 已回落原生（「已回落经典版」）；
@@ -65,7 +69,7 @@ export function startNotificationBridge(): void {
         : 'notification.body.eclosionAppFailedNoFallback',
       bodyParams: { app },
     })
-  })
+  }),
 
   // 今日世界就绪（§3.2 通知中心）：每 worldDate 至多一条（跨日/个人重生成
   // 的重播事件不重复打扰；去重态由 eclosion-store 持有，登出清空）。
@@ -77,5 +81,13 @@ export function startNotificationBridge(): void {
       titleKey: 'notification.title.worldReady',
       bodyKey: 'notification.body.worldReady',
     })
-  })
+  }),
+  ]
+}
+
+/** 测试/热更新卸载：解除四条订阅并复位幂等位（C2 审查）。 */
+export function stopNotificationBridge(): void {
+  for (const off of offs) off()
+  offs = []
+  started = false
 }

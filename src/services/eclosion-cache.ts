@@ -145,6 +145,9 @@ export function createEclosionCache(factory: IDBFactory = globalThis.indexedDB):
         request.onerror = () => reject(request.error ?? new Error('IndexedDB open failed'))
       })
     : null
+  // open 拒绝（Firefox 隐私模式等）挂空 catch 保留原因：消费方 await db 时
+  // 各自 try/catch 处理，这里不能留 unhandledrejection（C2 审查）。
+  db?.catch(() => undefined)
 
   /** 任何存储层失败都静默降级（null / [] / void），不上抛。 */
   async function withStore<T>(
@@ -156,13 +159,17 @@ export function createEclosionCache(factory: IDBFactory = globalThis.indexedDB):
     if (db === null) return fallback
     try {
       const database = await db
-      return await new Promise<T>((resolve, reject) => {
-        const tx = database.transaction(storeName, mode)
-        const store = tx.objectStore(storeName)
-        run(store).then(resolve, reject)
+      const tx = database.transaction(storeName, mode)
+      const store = tx.objectStore(storeName)
+      const result = await run(store)
+      // 等 tx.oncomplete 再返回（C2 审查：旧实现 run() resolve 即返回——
+      // put/delete 请求未提交，页面立刻关闭可能丢写）。
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve()
         tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'))
         tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'))
       })
+      return result
     } catch {
       return fallback
     }

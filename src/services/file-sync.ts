@@ -198,7 +198,11 @@ function schedulePush(): void {
 
 async function fetchServerBlob(): Promise<SyncBlob | null> {
   const response = await fetch('/api/sync/data/files', { credentials: 'same-origin' })
-  if (!response.ok) return null
+  // 关键：HTTP 错误必须与「服务端还没有快照」区分开——把 5xx/401 当空快照会
+  // 让 syncNow 用本机（可能为空）的树覆盖云端，造成整树数据丢失。
+  if (!response.ok) {
+    throw Object.assign(new Error(`sync-get-${response.status}`), { code: 'sync-get-failed' })
+  }
   const body = (await response.json()) as { data: string | null }
   if (!body.data) return null
   const parsed = JSON.parse(body.data) as SyncBlob
