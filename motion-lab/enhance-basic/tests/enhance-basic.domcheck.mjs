@@ -34,7 +34,6 @@ function makeDom({ reduced = false } = {}) {
     scriptErrors.push(msg);
   });
   const dom = new JSDOM(html, {
-    // eslint-disable-next-line no-undef
     url: 'file:///' + htmlPath.replace(/\\/g, '/'),
     runScripts: 'dangerously',
     resources: 'usable',

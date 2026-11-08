@@ -37,7 +37,9 @@ export default defineConfig({
   webServer: {
     command: 'npm run preview -- --port 5180 --strictPort',
     url: 'http://localhost:5180',
-    reuseExistingServer: !process.env.CI,
+    // 本机也 false（C2 审查）：复用旧 preview 会让 test:e2e 先 build 的
+    // 新产物不被服务，E2E 实际验的是上一次构建。
+    reuseExistingServer: false,
     timeout: 30_000,
   },
 })

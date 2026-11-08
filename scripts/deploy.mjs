@@ -29,6 +29,9 @@ import {
   loadEnvProduction,
   missingBundleMarkers,
   pickPreviousRelease,
+  rollbackScript,
+  runtimeRestoreScript,
+  runtimeSyncScript,
   tarFileArgs,
 } from './deploy-lib.mjs'
 
@@ -85,10 +88,7 @@ if (hasFlag('--rollback')) {
   const target = pickPreviousRelease(current, releases)
   if (target === null) fail(`没有可回滚的更早 release（当前 ${current}）`)
   log(`回滚 ${current} → ${target}`)
-  const rollback = ssh(
-    `set -e; ln -sfn "${REMOTE}/releases/${target}/dist" "${REMOTE}/.dist-switch" && mv -Tf "${REMOTE}/.dist-switch" "${REMOTE}/dist"` +
-      ` && curl -s -o /dev/null -w "%{http_code}" --resolve os.ageha.cn:443:127.0.0.1 https://os.ageha.cn/`,
-  )
+  const rollback = ssh(rollbackScript(REMOTE, target))
   const httpOk = rollback.stdout.trim().endsWith('200')
   if (rollback.code !== 0 || !httpOk) fail(`回滚后核验未过（HTTP ${rollback.stdout.trim()}）`)
   log(`回滚完成，HTTPS 200。当前 release = ${target}`)
@@ -114,14 +114,27 @@ log('清洁构建（rm dist && npm run build，带 pin）…')
 rmSync(path.join(ROOT, 'dist'), { recursive: true, force: true })
 const build = sh('npm', ['run', 'build'], {
   shell: true, // Windows 上 npm 是 npm.cmd，node spawn 需经 shell 解析（world.run 同款坑）
-  env: { ...process.env, VITE_AUTH_BACKEND: env.VITE_AUTH_BACKEND, VITE_STORE_CATALOG_PUBLIC_KEY: env.VITE_STORE_CATALOG_PUBLIC_KEY },
+  // VITE_ 前缀键统一透传（C2 审查：此前只传两个——.env.deploy 里的
+  // VITE_BROWSE_ORIGIN 等写入不生效，自建/改域部署退化默认值）。
+  env: {
+    ...process.env,
+    ...Object.fromEntries(Object.entries(env).filter(([key]) => key.startsWith('VITE_'))),
+  },
 })
 if (build.code !== 0) fail(`构建失败：\n${(build.stdout + build.stderr).slice(-1500)}`)
 
 // 2. 上传前本地断言：pin + 特征标记必须在 bundle 内（手抄错 pin 在这里被拦）。
-const indexHtml = readFileSync(path.join(ROOT, 'dist', 'index.html'), 'utf8')
-const assets = extractAssetNames(indexHtml)
-const bundleJs = readFileSync(path.join(ROOT, 'dist', 'assets', assets.js), 'utf8')
+let indexHtml
+let assets
+let bundleJs
+try {
+  // 上传前断言统一走 fail() 出口（C2 审查：裸异常抛栈对运维不友好）。
+  indexHtml = readFileSync(path.join(ROOT, 'dist', 'index.html'), 'utf8')
+  assets = extractAssetNames(indexHtml)
+  bundleJs = readFileSync(path.join(ROOT, 'dist', 'assets', assets.js), 'utf8')
+} catch (e) {
+  fail(`dist 产物不完整：${e instanceof Error ? e.message : String(e)}`)
+}
 const localMissing = missingBundleMarkers(bundleJs, [env.VITE_STORE_CATALOG_PUBLIC_KEY, ...markers])
 if (localMissing.length > 0) fail(`bundle 缺少标记，已在上传前拦截：${localMissing.join(', ')}`)
 log(`本地断言过：${assets.js} / ${assets.css}`)
@@ -182,15 +195,15 @@ if (upload.code !== 0) fail(`上传失败：${upload.stderr.slice(-500)}`)
 
 // 5. 依赖与后端运行时同步。⚠️ 铁律（09-27 事故同款地雷）：只替换 server/src 与
 //    server/test，绝不 rm 整个 server/ —— server/data（账号+签名私钥）在 server/ 下。
-const syncRuntime = ssh(
-  `set -e; cd ${REMOTE} && cp releases/${release}/package.json releases/${release}/package-lock.json . && ` +
-    `rm -rf src server/src server/test && ` +
-    `cp -r releases/${release}/src . && ` +
-    `cp -r releases/${release}/server/src releases/${release}/server/test server/ && ` +
-    `find releases/${release}/server -maxdepth 1 -type f -exec cp {} server/ \\; && ` +
-    `chown -R agehaos:agehaos src server package.json package-lock.json`,
-)
-if (syncRuntime.code !== 0) fail(`运行时文件同步失败：${syncRuntime.stderr.slice(-500)}`)
+//    先备份到 .deploy-backup/<release>，失败时恢复并重启（半完成态不可重启）。
+const syncRuntime = ssh(runtimeSyncScript(REMOTE, release))
+if (syncRuntime.code !== 0) {
+  const restored = ssh(runtimeRestoreScript(REMOTE, release))
+  fail(
+    `运行时文件同步失败：${syncRuntime.stderr.slice(-500)}` +
+      (restored.code === 0 ? '（已恢复上一版运行时并重启）' : '（自动恢复失败，请人工处理）'),
+  )
+}
 if (lockChanged) {
   log('远端完整 npm install（坑 65：严禁 --omit=dev）…')
   const install = ssh(`set -e; cd ${REMOTE} && npm install 2>&1 | tail -3`)

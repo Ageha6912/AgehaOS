@@ -3,10 +3,12 @@
 
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import path from 'node:path'
 
 /** 解析 .env.production（KEY=VALUE 行，# 注释）；缺失必填键时抛出带指引的错误。 */
-export function loadEnvProduction(envFile, requiredKeys = ['VITE_AUTH_BACKEND', 'VITE_STORE_CATALOG_PUBLIC_KEY']) {
+export function loadEnvProduction(
+  envFile,
+  requiredKeys = ['VITE_AUTH_BACKEND', 'VITE_STORE_CATALOG_PUBLIC_KEY'],
+) {
   let text
   try {
     text = readFileSync(envFile, 'utf8')
@@ -77,11 +79,65 @@ export function pickPreviousRelease(current, names) {
   return sorted[idx - 1]
 }
 
-/** Caddyfile 是否仍含 os.ageha.cn 站点块且首页带 no-cache（坑 70 核验口径）。 */
-export function caddyOsBlockHealthy(caddyfileText) {
-  const hasBlock = /^[\s\S]*?os\.ageha\.cn\s*\{/m.test(caddyfileText)
-  const osBlock = /os\.ageha\.cn\s*\{[\s\S]*?(?=\n\s*[\w.*-]+\s*\{|\s*$)/.exec(caddyfileText)?.[0] ?? ''
-  return hasBlock && osBlock.includes('no-cache')
+/** 运行时备份目录（按 release 隔离；只含 src / server/src / server/test 与 manifests）。 */
+function runtimeBackupDir(remote, release) {
+  return `${remote}/.deploy-backup/${release}`
+}
+
+/**
+ * 运行时同步脚本：**先备份再删除**——`rm -rf src server/src server/test` 之后
+ * 任一步失败（缺文件/磁盘满/权限）都会留下不可重启的后端；调用方在非 0 时
+ * 必须跑 runtimeRestoreScript。
+ */
+export function runtimeSyncScript(remote, release) {
+  const backup = runtimeBackupDir(remote, release)
+  return (
+    `set -e; cd ${remote} && mkdir -p ${backup}/server && ` +
+    `cp -a src ${backup}/ && ` +
+    `cp -a server/src server/test ${backup}/server/ && ` +
+    `cp -a package.json package-lock.json ${backup}/ && ` +
+    `cp releases/${release}/package.json releases/${release}/package-lock.json . && ` +
+    `rm -rf src server/src server/test && ` +
+    `cp -r releases/${release}/src . && ` +
+    `cp -r releases/${release}/server/src releases/${release}/server/test server/ && ` +
+    `find releases/${release}/server -maxdepth 1 -type f -exec cp {} server/ \\; && ` +
+    `chown -R agehaos:agehaos src server package.json package-lock.json`
+  )
+}
+
+/** 同步失败后的恢复脚本：回滚运行时文件并重启后端（备份缺失时 set -e 直接失败）。 */
+export function runtimeRestoreScript(remote, release) {
+  const backup = runtimeBackupDir(remote, release)
+  return (
+    `set -e; cd ${remote} && ` +
+    `rm -rf src server/src server/test && ` +
+    `cp -a ${backup}/src . && ` +
+    `cp -a ${backup}/server/src ${backup}/server/test server/ && ` +
+    `cp -a ${backup}/package.json ${backup}/package-lock.json . && ` +
+    `chown -R agehaos:agehaos src server package.json package-lock.json && ` +
+    `systemctl restart agehaos`
+  )
+}
+
+/**
+ * 回滚脚本：切 dist 符号链接，并在目标 release 带运行时快照时一并恢复
+ * server/src（旧版回滚工具只切前端，修不了「后端可运行但不可重启」）。
+ */
+export function rollbackScript(remote, target) {
+  return (
+    `set -e; cd ${remote} && ` +
+    `ln -sfn "${remote}/releases/${target}/dist" "${remote}/.dist-switch" && mv -Tf "${remote}/.dist-switch" "${remote}/dist" && ` +
+    `if [ -d releases/${target}/server/src ]; then ` +
+    `rm -rf src server/src server/test && ` +
+    `cp -r releases/${target}/src . && ` +
+    `cp -r releases/${target}/server/src releases/${target}/server/test server/ && ` +
+    `find releases/${target}/server -maxdepth 1 -type f -exec cp {} server/ \\; && ` +
+    `cp releases/${target}/package.json releases/${target}/package-lock.json . && ` +
+    `chown -R agehaos:agehaos src server package.json package-lock.json && ` +
+    `systemctl restart agehaos; ` +
+    `fi && ` +
+    `curl -s -o /dev/null -w "%{http_code}" --resolve os.ageha.cn:443:127.0.0.1 https://os.ageha.cn/`
+  )
 }
 
 /** 把目录清单 {相对路径: sha256} 的差集算出来；返回有差异的路径列表。 */
@@ -92,7 +148,16 @@ export function changedPaths(prev, next) {
 
 /** 供编排层拼 tar 文件清单：exclude 必须前置（坑 64）。 */
 export function tarFileArgs() {
-  return ['--exclude=server/data', 'dist', 'src', 'server', 'public', 'package.json', 'package-lock.json', 'index.html', 'vite.config.ts', 'tsconfig.json']
+  return [
+    '--exclude=server/data',
+    'dist',
+    'src',
+    'server',
+    'public',
+    'package.json',
+    'package-lock.json',
+    'index.html',
+    'vite.config.ts',
+    'tsconfig.json',
+  ]
 }
-
-export const PROJECT_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')

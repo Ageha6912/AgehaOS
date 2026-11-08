@@ -3,10 +3,11 @@
 # 每日由 Windows 计划任务调用；也可手动运行：bash scripts/backup-pull.sh
 # 数据流：ssh ageha-hk tar server/data -> 本机 E:\agehaos-backups\（保留最近 14 份）。
 # 恢复命令与口令位置见 E:\agehaos-backups\BACKUP-PASSPHRASE.txt 同级说明。
-set -o pipefail
+set -euo pipefail
 DEST="${AGEHA_BACKUP_DIR:-/e/agehaos-backups}"
 KEEP=14
-STAMP=$(date +%Y%m%d-%H%M)
+# 到秒级（C2 审查：到分钟时同一分钟内两次运行会互相覆盖）。
+STAMP=$(date +%Y%m%d-%H%M%S)
 mkdir -p "$DEST"
 if ssh -o ConnectTimeout=15 ageha-hk 'tar -C /opt/agehaos -czf - server/data' > "$DEST/.pull-$STAMP.tar.gz"; then
   mv "$DEST/.pull-$STAMP.tar.gz" "$DEST/ageha-local-$STAMP.tar.gz"

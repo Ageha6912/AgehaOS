@@ -9,7 +9,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist', 'coverage', 'node_modules', '.zcode/**', '.tmp/**']),
   {
-    files: ['**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', 'e2e/**/*.ts'],
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
@@ -33,6 +33,25 @@ export default defineConfig([
   {
     files: ['vite.config.ts', 'playwright.config.ts', 'eslint.config.js'],
     extends: [js.configs.recommended, tseslint.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.node,
+    },
+  },
+  {
+    // 服务端 TS：node globals + 推荐 JS 规则（此前混入浏览器 globals，
+    // 服务端误用 window 可通过 lint）。
+    files: ['server/src/**/*.ts', 'server/test/**/*.ts'],
+    extends: [js.configs.recommended, tseslint.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.node,
+    },
+  },
+  {
+    // 部署编排脚本此前完全在 lint 外（--print-config rules 为空）。
+    files: ['scripts/**/*.mjs'],
+    extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.node,
