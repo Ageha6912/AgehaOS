@@ -98,23 +98,44 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const app = Fastify({
     logger: options.loggerInstance === undefined ? (options.logger ?? false) : undefined,
     loggerInstance: options.loggerInstance,
-    trustProxy: true,
+    // 只信任本机反代（服务绑定 127.0.0.1，A1 审查）：trustProxy:true 会取
+    // X-Forwarded-For 最左值，反代若用 $proxy_add_x_forwarded_for（追加语义），
+    // 客户端自带 XFF 保留在最左——攻击者每次请求轮换 XFF 即可绕过全部按 IP
+    // 限流（登录爆破 / 注册 / 匿名举报 / AI 代理）。'loopback' 让 proxy-addr
+    // 从右往左跳过可信跳，取反代追加的最右值（客户端真实地址）。
+    trustProxy: 'loopback',
   })
 
   await app.register(helmet)
   await app.register(cookie)
+  // 本实例动态创建的 Redis 客户端（A1 审查轻微项）：app.close() 时随钩子
+  // quit——否则优雅停机遗留连接。测试注入的客户端归调用方管理，不 quit。
+  let createdRedis: { quit: () => Promise<unknown> } | null = null
   if (options.redis ?? config.redisUrl) {
     // 多实例共享限流计数（ADR 21 附注）：AGEHA_REDIS_URL 或测试注入的 Redis 客户端。
     const { default: Redis } = await import('ioredis')
     const redis = options.redis ?? (new Redis(config.redisUrl as string) as unknown as RedisLike)
+    if (options.redis === undefined) {
+      createdRedis = redis as unknown as { quit: () => Promise<unknown> }
+    }
     const { redisRateLimitStoreCtor } = await import('./rate-limit-redis')
     await app.register(rateLimit, { global: false, store: redisRateLimitStoreCtor(redis) })
   } else {
     await app.register(rateLimit, { global: false })
   }
+  app.addHook('onClose', async () => {
+    await createdRedis?.quit().catch(() => undefined)
+  })
 
   const store = options.store ?? createStore(config)
   await store.init()
+  // 羽化面老化清理（A2 审查轻微项）：启动一次；长运行由世界调度 tick 搭车兜底。
+  await store.pruneEclosionAged().catch((cause: unknown) => {
+    app.log.warn(
+      { audit: 'eclosion.prune', detail: cause instanceof Error ? cause.message : String(cause) },
+      'eclosion aged prune failed at boot',
+    )
+  })
   // 今日世界热点源服务（§6.1）：内存 + DataStore 双层缓存；测试注入 fake source。
   const trending = createTrendingService({
     store,
@@ -144,7 +165,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   // Root-scope hook so it applies to every /api route registered below
   // (registering it as a sibling plugin would encapsulate the hook away).
-  await originCheck(app, { allowedOrigins: config.allowedOrigins })
+  await originCheck(app, {
+    allowedOrigins: config.allowedOrigins,
+    onInvalidOrigin: (item) => {
+      app.log.warn({ audit: 'origin-check.invalid-allowlist-item', item }, 'cannot parse origin')
+    },
+  })
   await app.register(authRoutes, {
     prefix: '/api',
     store,
@@ -178,7 +204,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   // 远端应用目录（PRD §47 前置切片）：Ed25519 签名密钥落在数据目录，重启不变。
-  const signingKey = options.signingKey ?? (await loadOrCreateSigningKey(config.dataDir))
+  const signingKey =
+    options.signingKey ??
+    (await loadOrCreateSigningKey(config.dataDir, {
+      warn: (entry, message) => app.log.warn(entry, message),
+    }))
   await app.register(storeRoutes, { prefix: '/api', signingKey, store })
 
   // 浏览器代理（档 C 窗口内浏览 + 档 ③ 子域）：会话门 + SSRF 闸 + 头消毒 +
@@ -187,7 +217,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(browseRoutes, {
     store,
     rateLimitWindowMs: config.rateLimit.windowMs,
-    tokenSecret: `${signingKey.keyId}:${signingKey.publicKeyBase64}`,
+    // browse grant 的 HMAC 密钥必须独立于公开目录材料（keyId/publicKey 经
+    // /api/store/catalog 匿名可读；由它们派生会被伪造任意 userId 的 grant）。
+    tokenSecret: signingKey.browseSecret,
     cookieSecure: config.cookieSecure,
     // 嵌入白名单：配置 allowlist（若有）+ 主域缺省（AGEHA_PUBLIC_ORIGIN 覆盖）。
     frameAncestors: [

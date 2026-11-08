@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -27,6 +27,14 @@ async function expectStoreBehavior(store: DataStore): Promise<void> {
   await store.init()
   await store.createUser(makeUser())
   await expect(store.createUser(makeUser())).rejects.toBeInstanceOf(UsernameTakenError)
+
+  // 并发同名注册：内存/文件后端的 check-then-set 之间不得留 await（否则双双通过）。
+  const contenders = await Promise.allSettled([
+    store.createUser(makeUser({ id: 'race-a', username: 'racer' })),
+    store.createUser(makeUser({ id: 'race-b', username: 'racer' })),
+  ])
+  expect(contenders.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+  expect(contenders.filter((result) => result.status === 'rejected')).toHaveLength(1)
 
   const byName = await store.findUserByUsername('alice')
   expect(byName?.id).toBe('u1')
@@ -558,5 +566,121 @@ describe('PostgresDataStore', () => {
 
     const missingPool = makeFakePool()
     expect(await new PostgresDataStore(missingPool).deleteContentSample('ghost')).toBe(false)
+  })
+})
+
+describe('PostgresDataStore 单飞锁重入（A2 审查轻微项）', () => {
+  it('同 holder 重入放行（SQL 契约：过期或同 holder 都可写）', async () => {
+    const pool = makeFakePool({ rowCount: 1, rows: [{ holder: 'h1' }] })
+    const store = new PostgresDataStore(pool)
+    expect(await store.acquireEclosionLock('gen', 'h1', 1000)).toBe(true)
+    const upsert = pool.queries[0]?.text ?? ''
+    // memory/file 驱动对同 holder 返回 true；postgres 不得独缺该语义。
+    expect(upsert).toContain(
+      'WHERE ageha_eclosion_locks.expires_at <= $4 OR ageha_eclosion_locks.holder = $2',
+    )
+  })
+})
+
+describe('MemoryDataStore 羽化 GC（A2 审查轻微项）', () => {
+  it('缓存条目封顶 500，重插刷新新鲜度（近似 LRU）', async () => {
+    const store = new MemoryDataStore()
+    for (let i = 0; i < 500; i += 1) {
+      await store.putEclosionCache(`key-${i}`, `<html>${i}</html>`)
+    }
+    // 重插最老的条目 → 它变最新，被淘汰的是 key-1。
+    await store.putEclosionCache('key-0', '<html>refreshed</html>')
+    await store.putEclosionCache('key-500', '<html>new</html>')
+    expect(await store.getEclosionCache('key-1')).toBeNull()
+    expect(await store.getEclosionCache('key-0')).toBe('<html>refreshed</html>')
+    expect(await store.getEclosionCache('key-500')).toBe('<html>new</html>')
+  })
+
+  it('日计数数据面超阈值时裁掉 8 天窗口外的旧日键；小数据面契约不变', async () => {
+    const store = new MemoryDataStore()
+    // 小数据面：写历史日不触发 GC（现有计数/预留契约完全不变）。
+    await store.incrementEclosionDaily('personal', '2020-01-01', 5)
+    expect(await store.incrementEclosionDaily('personal', '2020-01-01', 1)).toBe(6)
+    expect(await store.getEclosionDaily('personal', '2020-01-01')).toBe(6)
+
+    // 超过 GC 阈值（512）后，下一次写入把保留窗口外的旧日键裁掉。
+    for (let i = 0; i < 512; i += 1) {
+      await store.incrementEclosionDaily(`bulk:${i}`, '2020-01-01', 1)
+    }
+    const today = new Date().toISOString().slice(0, 10)
+    await store.incrementEclosionDaily('personal', today, 1)
+    expect(await store.getEclosionDaily('personal', '2020-01-01')).toBe(0)
+    for (let i = 0; i < 512; i += 8) {
+      expect(await store.getEclosionDaily(`bulk:${i}`, '2020-01-01')).toBe(0)
+    }
+    expect(await store.getEclosionDaily('personal', today)).toBe(1)
+  })
+})
+
+describe('FileDataStore init 容错（A2 审查轻微项）', () => {
+  it('损坏文件改名 .corrupt-<ts> 保留证据后空库启动', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'agehaos-fs-corrupt-'))
+    const filePath = path.join(dir, 'agehaos-auth.json')
+    await writeFile(filePath, '{"users": [broken', 'utf8')
+    const store = new FileDataStore(filePath)
+    await store.init()
+    expect(await store.findUserByUsername('nobody')).toBeNull()
+    const files = await readdir(dir)
+    expect(files.some((name) => name.startsWith('agehaos-auth.json.corrupt-'))).toBe(true)
+    await store.close()
+  })
+
+  it('读错误（EACCES 等非 ENOENT）不再当首次启动——init 直接抛出', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'agehaos-fs-eacces-'))
+    // 用目录占住状态文件路径：readFile 对目录报非 ENOENT 错误（Win EPERM / POSIX EISDIR）。
+    await mkdir(path.join(dir, 'agehaos-auth.json'))
+    const store = new FileDataStore(path.join(dir, 'agehaos-auth.json'))
+    await expect(store.init()).rejects.toThrow()
+  })
+})
+
+describe('pruneEclosionAged（A2 审查轻微项：三驱动老化清理）', () => {
+  it('memory：旧日计数/过期锁清掉，缓存封顶不变', async () => {
+    const store = new MemoryDataStore()
+    await store.incrementEclosionDaily('k', '2020-01-01', 3)
+    await store.acquireEclosionLock('stale', 'h', -1) // 已过期
+    await store.acquireEclosionLock('fresh', 'h', 60_000)
+    await store.pruneEclosionAged()
+    expect(await store.getEclosionDaily('k', '2020-01-01')).toBe(0)
+    // 过期锁可被抢占（清理后仍成立），未过期锁仍在。
+    expect(await store.acquireEclosionLock('stale', 'h2', 60_000)).toBe(true)
+    expect(await store.acquireEclosionLock('fresh', 'h2', 60_000)).toBe(false)
+    await store.releaseEclosionLock('stale', 'h2')
+    await store.releaseEclosionLock('fresh', 'h')
+  })
+
+  it('file：旧日计数清掉并落盘；缓存保留（封顶逻辑与 memory 同口径）', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'agehaos-fs-prune-'))
+    const filePath = path.join(dir, 'agehaos-auth.json')
+    const store = new FileDataStore(filePath)
+    await store.init()
+    await store.incrementEclosionDaily('k', '2020-01-01', 3)
+    const today = new Date().toISOString().slice(0, 10)
+    await store.incrementEclosionDaily('k', today, 1)
+    await store.putEclosionCache('keep', '<html>keep</html>')
+    await store.pruneEclosionAged()
+    // 内存面已裁；新实例重新读档验证落盘面。
+    const reopened = new FileDataStore(filePath)
+    await reopened.init()
+    expect(await reopened.getEclosionDaily('k', '2020-01-01')).toBe(0)
+    expect(await reopened.getEclosionDaily('k', today)).toBe(1)
+    expect(await reopened.getEclosionCache('keep')).toBe('<html>keep</html>')
+    await store.close()
+    await reopened.close()
+  })
+
+  it('postgres：三条 DELETE（日计数/锁/缓存）参数化执行', async () => {
+    const pool = makeFakePool()
+    await new PostgresDataStore(pool).pruneEclosionAged(8)
+    const texts = pool.queries.map((query) => query.text)
+    expect(texts[0]).toContain('DELETE FROM ageha_eclosion_daily WHERE day < $1')
+    expect(texts[1]).toContain('DELETE FROM ageha_eclosion_locks WHERE expires_at <= $1')
+    expect(texts[2]).toContain('DELETE FROM ageha_eclosion_cache WHERE updated_at <= $1')
+    expect(texts.every((t) => t.includes('$1'))).toBe(true)
   })
 })

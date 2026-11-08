@@ -1,6 +1,6 @@
-import { createHash, createPrivateKey, generateKeyPairSync, sign } from 'node:crypto'
+import { createHash, createPrivateKey, generateKeyPairSync, randomBytes, sign } from 'node:crypto'
 import type { KeyObject } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 /**
@@ -17,37 +17,100 @@ export interface CatalogSigningKey {
   /** raw 32 字节公钥，base64。 */
   publicKeyBase64: string
   privateKey: KeyObject
+  /**
+   * 浏览器子域 grant 的 HMAC 密钥（32 字节随机，随密钥文件持久化）。
+   * 必须独立于 keyId/publicKeyBase64——后两者经 /api/store/catalog 公开，
+   * 由它们派生会让任何匿名访问者伪造 browse grant。
+   */
+  browseSecret: string
 }
 
 export function keyIdOf(publicKeyRaw: Buffer): string {
   return createHash('sha256').update(publicKeyRaw).digest('hex').slice(0, 16)
 }
 
-export async function loadOrCreateSigningKey(dataDir: string): Promise<CatalogSigningKey> {
+/** 密钥损坏时保留旧文件的审计回调（宿主接 pino）。 */
+export interface SigningKeyLog {
+  warn: (entry: Record<string, unknown>, message: string) => void
+}
+
+export async function loadOrCreateSigningKey(
+  dataDir: string,
+  log?: SigningKeyLog,
+): Promise<CatalogSigningKey> {
   await mkdir(dataDir, { recursive: true })
   const filePath = path.join(dataDir, 'store-signing-key.json')
   try {
-    const raw = JSON.parse(await readFile(filePath, 'utf8')) as { publicKey?: string; privateKey?: string }
+    const raw = JSON.parse(await readFile(filePath, 'utf8')) as {
+      publicKey?: string
+      privateKey?: string
+      browseSecret?: string
+    }
     if (typeof raw.publicKey === 'string' && typeof raw.privateKey === 'string') {
+      const publicKeyBase64 = raw.publicKey
+      const keyId = keyIdOf(Buffer.from(publicKeyBase64, 'base64'))
+      let browseSecret = typeof raw.browseSecret === 'string' ? raw.browseSecret : ''
+      if (browseSecret === '') {
+        // 旧密钥文件升级：保留既有 Ed25519 对（目录签名不失效），补写独立
+        // browseSecret；此后旧 grant 全部失效（发布说明见 CHANGELOG）。
+        browseSecret = randomBytes(32).toString('base64')
+        await writeFile(
+          filePath,
+          JSON.stringify(
+            { publicKey: publicKeyBase64, privateKey: raw.privateKey, browseSecret },
+            null,
+            2,
+          ),
+          { encoding: 'utf8', mode: 0o600 },
+        )
+      }
       return {
-        keyId: keyIdOf(Buffer.from(raw.publicKey, 'base64')),
-        publicKeyBase64: raw.publicKey,
+        keyId,
+        publicKeyBase64,
         privateKey: createPrivateKey(raw.privateKey),
+        browseSecret,
       }
     }
-  } catch {
-    // first boot or corrupted file: fall through and regenerate
+    // 文件可读但结构不完整：视同损坏，走下方保留 + 重建路径。
+    await preserveCorruptKeyFile(filePath, log)
+  } catch (cause) {
+    const code = (cause as { code?: unknown }).code
+    if (code !== 'ENOENT') {
+      // 读不出（JSON 损坏/EACCES 等）≠ 首次启动：静默换钥会让全部历史目录
+      // 签名失效且无审计痕迹。先把旧文件改名保留（失败忽略），再重建并 warn。
+      await preserveCorruptKeyFile(filePath, log)
+    }
   }
   const { publicKey, privateKey } = generateKeyPairSync('ed25519')
   const spkiDer = publicKey.export({ format: 'der', type: 'spki' })
   const publicKeyRaw = spkiDer.subarray(spkiDer.length - 32)
   const publicKeyBase64 = publicKeyRaw.toString('base64')
   const privatePem = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString()
-  await writeFile(filePath, JSON.stringify({ publicKey: publicKeyBase64, privateKey: privatePem }, null, 2), {
-    encoding: 'utf8',
-    mode: 0o600,
-  })
-  return { keyId: keyIdOf(publicKeyRaw), publicKeyBase64, privateKey: createPrivateKey(privatePem) }
+  const browseSecret = randomBytes(32).toString('base64')
+  await writeFile(
+    filePath,
+    JSON.stringify({ publicKey: publicKeyBase64, privateKey: privatePem, browseSecret }, null, 2),
+    {
+      encoding: 'utf8',
+      mode: 0o600,
+    },
+  )
+  return {
+    keyId: keyIdOf(publicKeyRaw),
+    publicKeyBase64,
+    privateKey: createPrivateKey(privatePem),
+    browseSecret,
+  }
+}
+
+/** 损坏密钥文件改名保留（`.corrupt-<ts>` 后缀）并打审计 warn；改名失败不阻断重建。 */
+async function preserveCorruptKeyFile(filePath: string, log?: SigningKeyLog): Promise<void> {
+  log?.warn({ audit: 'catalog.key_regenerated', filePath }, 'signing key file unreadable; kept a copy and regenerated')
+  try {
+    await rename(filePath, `${filePath}.corrupt-${Date.now()}`)
+  } catch {
+    // 首次启动（文件不存在）或无权限：无可保留内容，直接重建。
+  }
 }
 
 /** Ed25519 签名（返回 base64），输入为规范化 JSON 的 UTF-8 字节。 */

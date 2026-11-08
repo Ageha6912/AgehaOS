@@ -54,7 +54,12 @@ export class RedisRateLimitStore implements FastifyRateLimitStore {
           await this.redis.expire(namespaced, windowSeconds)
         }
         let ttl = await this.redis.ttl(namespaced)
-        if (ttl < 0) ttl = windowSeconds
+        if (ttl < 0) {
+          // EXPIRE 丢失 / 进程在 INCR 与 EXPIRE 之间中断：立即补 TTL。
+          // 否则计数键无过期时间，越过 max 后该 route-ip 组合会被永久限流。
+          await this.redis.expire(namespaced, windowSeconds)
+          ttl = windowSeconds
+        }
         this.lastError = null
         callback(null, { current, ttl })
       } catch (error) {

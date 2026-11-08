@@ -1,5 +1,6 @@
 import { buildApp } from './app'
 import { loadConfig } from './config'
+import { registerShutdown } from './shutdown'
 
 const config = loadConfig()
 
@@ -11,11 +12,7 @@ async function main(): Promise<void> {
     `AgehaOS auth API listening on http://${config.host}:${config.port}`,
   )
 
-  const stop = (): void => {
-    void app.close().then(() => process.exit(0))
-  }
-  process.on('SIGINT', stop)
-  process.on('SIGTERM', stop)
+  registerShutdown(app)
 }
 
 main().catch((error) => {

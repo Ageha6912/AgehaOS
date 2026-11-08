@@ -101,6 +101,8 @@ export async function aiRoutes(app: FastifyInstance, options: AiRoutesOptions): 
         })
         if (!upstream.ok) {
           app.log.warn({ audit: 'ai.upstream_error', status: upstream.status }, 'ai upstream failed')
+          // 消费失败分支的响应体，否则 keepAlive 连接因 body 未读尽被挂到 GC。
+          await upstream.body?.cancel().catch(() => undefined)
           return reply.code(502).send({ error: 'ai-upstream' })
         }
         const payload = (await upstream.json()) as {

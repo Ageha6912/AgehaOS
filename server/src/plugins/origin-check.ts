@@ -4,6 +4,8 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 export interface OriginCheckOptions {
   allowedOrigins?: readonly string[]
+  /** allowlist 项无法解析为 origin 时回调（宿主可打 warn 日志）。 */
+  onInvalidOrigin?: (item: string) => void
 }
 
 /**
@@ -22,7 +24,18 @@ export async function originCheck(
   app: FastifyInstance,
   options: OriginCheckOptions = {},
 ): Promise<void> {
-  const allowed = new Set(options.allowedOrigins ?? [])
+  // 配置归一化（A1 审查轻微项）：`https://os.ageha.cn/`（尾斜杠）、
+  // `HTTPS://OS.AGEHA.CN`（大小写）这类人写的配置逐字节比对会让合法请求
+  // 403。加载时统一折叠成 `new URL(item).origin`；非法项跳过（fail-closed）
+  // 并可观测（宿主传入 logger 时打 warn）。
+  const allowed = new Set<string>()
+  for (const item of options.allowedOrigins ?? []) {
+    try {
+      allowed.add(new URL(item).origin)
+    } catch {
+      options.onInvalidOrigin?.(item)
+    }
+  }
   app.addHook('onRequest', async (request, reply) => {
     if (!MUTATING_METHODS.has(request.method)) return
     const config = (request.routeOptions?.config ?? {}) as { skipOriginCheck?: boolean }
@@ -37,7 +50,13 @@ export async function originCheck(
       // Malformed Origin header: treat as foreign.
       return await reply.code(403).send({ error: 'forbidden' })
     }
-    if ((host !== undefined && originHost === host) || allowed.has(origin)) return
+    let originNormalized: string
+    try {
+      originNormalized = new URL(origin).origin
+    } catch {
+      return await reply.code(403).send({ error: 'forbidden' })
+    }
+    if ((host !== undefined && originHost === host) || allowed.has(originNormalized)) return
     await reply.code(403).send({ error: 'forbidden' })
   })
 }

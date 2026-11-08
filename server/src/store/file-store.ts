@@ -9,6 +9,9 @@ interface SyncEntry {
   updatedAt: string
 }
 
+/** 羽化 L1 缓存条目上限（与 memory-store 同口径；A2 审查轻微项）。 */
+const ECLOSION_CACHE_MAX_ENTRIES = 500
+
 interface SerializedFile {
   users: UserRecord[]
   sessions: SessionRecord[]
@@ -60,8 +63,11 @@ export class FileDataStore implements DataStore {
     let raw: string
     try {
       raw = await readFile(this.filePath, 'utf8')
-    } catch {
-      return // first boot: no file yet
+    } catch (cause) {
+      // 仅 ENOENT 是首次启动（A2 审查轻微项）；EACCES/EBUSY 等读错误继续抛——
+      // 旧实现一律当空库，随后的成功写入会把原文件整个覆盖掉。
+      if ((cause as { code?: unknown }).code === 'ENOENT') return
+      throw cause
     }
     try {
       const parsed = JSON.parse(raw) as Partial<SerializedFile>
@@ -120,8 +126,13 @@ export class FileDataStore implements DataStore {
         }
       }
     } catch {
-      // Corrupted file: start empty rather than crash-looping; the next
-      // successful write replaces it.
+      // Corrupted file: keep evidence before the next write replaces it
+      //（A2 审查轻微项：改名 .corrupt-<ts> 保留，而非让成功写入直接抹掉）。
+      try {
+        await rename(this.filePath, `${this.filePath}.corrupt-${Date.now()}`)
+      } catch {
+        /* 保留失败不阻断启动 */
+      }
     }
   }
 
@@ -141,8 +152,11 @@ export class FileDataStore implements DataStore {
   }
 
   async createUser(user: UserRecord): Promise<void> {
-    const existing = await this.findUserByUsername(user.username)
-    if (existing) throw new UsernameTakenError(user.username)
+    // 同步查重后再写入：check 与 set 之间没有 await，微任务无法插入。
+    // （Postgres 有 UNIQUE 约束，内存/文件后端此前 check-then-set 会双双通过。）
+    for (const existing of this.users.values()) {
+      if (existing.username === user.username) throw new UsernameTakenError(user.username)
+    }
     this.users.set(user.id, user)
     await this.persist()
   }
@@ -212,6 +226,10 @@ export class FileDataStore implements DataStore {
     await this.persist()
   }
 
+  async countSyncDomains(userId: string): Promise<number> {
+    return this.syncData.get(userId)?.size ?? 0
+  }
+
   async getAppCatalog(): Promise<string | null> {
     return this.appCatalog
   }
@@ -226,8 +244,10 @@ export class FileDataStore implements DataStore {
     await this.persist()
   }
 
-  async listContentSamples(): Promise<ContentSampleRecord[]> {
-    return [...this.contentSamples]
+  async listContentSamples(limit?: number, offset = 0): Promise<ContentSampleRecord[]> {
+    const start = Math.max(0, offset)
+    const end = limit === undefined ? undefined : start + Math.max(0, limit)
+    return this.contentSamples.slice(start, end)
   }
 
   async deleteContentSample(id: string): Promise<boolean> {
@@ -248,6 +268,26 @@ export class FileDataStore implements DataStore {
     keys.set(key, next)
     await this.persist()
     return next
+  }
+
+  async reserveEclosionDaily(
+    key: string,
+    day: string,
+    limit: number,
+    amount: number,
+  ): Promise<{ reserved: boolean; used: number }> {
+    let keys = this.eclosionDaily.get(day)
+    if (!keys) {
+      keys = new Map()
+      this.eclosionDaily.set(day, keys)
+    }
+    const used = keys.get(key) ?? 0
+    // 读-判-写同步完成后再落盘：并发调用在同一事件循环内不会交错。
+    if (used + amount > limit) return { reserved: false, used }
+    const next = used + amount
+    keys.set(key, next)
+    await this.persist()
+    return { reserved: true, used: next }
   }
 
   async getEclosionDaily(key: string, day: string): Promise<number> {
@@ -273,6 +313,27 @@ export class FileDataStore implements DataStore {
   async releaseEclosionLock(key: string, holder: string): Promise<void> {
     const existing = this.eclosionLocks.get(key)
     if (existing && existing.holder === holder) this.eclosionLocks.delete(key)
+  }
+
+  /** 显式老化清理（接口契约）：日计数/过期锁裁剪 + 缓存封顶（写盘序列化本就只落 8 天内的日计数）。 */
+  async pruneEclosionAged(keepDays = 8): Promise<void> {
+    const cutoff = new Date(Date.now() - keepDays * 86_400_000)
+      .toISOString()
+      .slice(0, 10)
+    const now = Date.now()
+    for (const day of this.eclosionDaily.keys()) {
+      if (day < cutoff) this.eclosionDaily.delete(day)
+    }
+    for (const [lockKey, lock] of this.eclosionLocks) {
+      if (lock.expiresAt <= now) this.eclosionLocks.delete(lockKey)
+    }
+    // 缓存封顶（与 memory-store 同口径）：重插刷新新鲜度后淘汰最旧。
+    while (this.eclosionCache.size > ECLOSION_CACHE_MAX_ENTRIES) {
+      const oldest = this.eclosionCache.keys().next().value
+      if (oldest === undefined) break
+      this.eclosionCache.delete(oldest)
+    }
+    await this.persist()
   }
 
   async getBrowseJar(userId: string): Promise<string | null> {

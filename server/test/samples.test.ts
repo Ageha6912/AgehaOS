@@ -156,6 +156,61 @@ describe('content sample upload（DDS §8.6 匿名上报 + 服务端分类器）
     expect(samples[0]).toMatchObject({ source: 'eclosion', detail })
   })
 
+  it('pages the admin review listing with limit/offset and reports hasMore (D2 审查)', async () => {
+    const store = new MemoryDataStore()
+    app = await makeApp(store)
+    const admin = await registerAsAdmin(app, store, 'page-boss')
+    for (const text of ['第一条样本内容', '第二条样本内容', '第三条样本内容']) {
+      const created = await app.inject({
+        method: 'POST',
+        url: '/api/dynamic/samples',
+        payload: { text },
+      })
+      expect(created.statusCode).toBe(201)
+    }
+
+    const first = await app.inject({
+      method: 'GET',
+      url: '/api/dynamic/samples?limit=2&offset=0',
+      cookies: admin.cookies,
+    })
+    expect(first.statusCode).toBe(200)
+    const firstBody = first.json() as { samples: { text: string }[]; hasMore: boolean }
+    // 新样本在前（服务端排序），第一页 2 条且还有下一页。
+    expect(firstBody.samples.map((sample) => sample.text)).toEqual([
+      '第三条样本内容',
+      '第二条样本内容',
+    ])
+    expect(firstBody.hasMore).toBe(true)
+
+    const second = await app.inject({
+      method: 'GET',
+      url: '/api/dynamic/samples?limit=2&offset=2',
+      cookies: admin.cookies,
+    })
+    const secondBody = second.json() as { samples: unknown[]; hasMore: boolean }
+    expect(secondBody.samples).toHaveLength(1)
+    expect(secondBody.hasMore).toBe(false)
+
+    // 默认分页（无参数）：返回第一页（3 < 50）且 hasMore=false。
+    const all = await app.inject({
+      method: 'GET',
+      url: '/api/dynamic/samples',
+      cookies: admin.cookies,
+    })
+    const allBody = all.json() as { samples: unknown[]; hasMore: boolean }
+    expect(allBody.samples).toHaveLength(3)
+    expect(allBody.hasMore).toBe(false)
+
+    // 超过单页上限 → 400（不静默截断）。
+    const invalid = await app.inject({
+      method: 'GET',
+      url: '/api/dynamic/samples?limit=999',
+      cookies: admin.cookies,
+    })
+    expect(invalid.statusCode).toBe(400)
+  })
+
   it('validates the extended eclosion body shape', async () => {
     app = await makeApp()
     const url = '/api/dynamic/samples'

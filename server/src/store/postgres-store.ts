@@ -214,6 +214,14 @@ export class PostgresDataStore implements DataStore {
     )
   }
 
+  async countSyncDomains(userId: string): Promise<number> {
+    const result = await this.pool.query(
+      'SELECT COUNT(*)::int AS count FROM ageha_sync WHERE user_id = $1',
+      [userId],
+    )
+    return Number(result.rows[0]?.count ?? 0)
+  }
+
   async getAppCatalog(): Promise<string | null> {
     const result = await this.pool.query(
       'SELECT apps FROM ageha_app_catalog WHERE id = 1',
@@ -244,10 +252,18 @@ export class PostgresDataStore implements DataStore {
     )
   }
 
-  async listContentSamples(): Promise<ContentSampleRecord[]> {
-    const result = await this.pool.query(
-      'SELECT id, text, classification, created_at, source, detail FROM ageha_content_samples ORDER BY created_at DESC, id',
-    )
+  async listContentSamples(limit?: number, offset = 0): Promise<ContentSampleRecord[]> {
+    const params: number[] = []
+    let sql =
+      'SELECT id, text, classification, created_at, source, detail FROM ageha_content_samples ORDER BY created_at DESC, id'
+    if (limit !== undefined) {
+      params.push(Math.max(0, limit), Math.max(0, offset))
+      sql += ' LIMIT $1 OFFSET $2'
+    } else if (offset > 0) {
+      params.push(Math.max(0, offset))
+      sql += ' OFFSET $1'
+    }
+    const result = await this.pool.query(sql, params)
     return result.rows.map(rowToContentSample)
   }
 
@@ -264,6 +280,27 @@ export class PostgresDataStore implements DataStore {
       [day, key, by],
     )
     return Number(result.rows[0]?.value ?? 0)
+  }
+
+  async reserveEclosionDaily(
+    key: string,
+    day: string,
+    limit: number,
+    amount: number,
+  ): Promise<{ reserved: boolean; used: number }> {
+    // 单条条件 upsert：判断与自增在数据库内一次完成，并发预留不会同时越过
+    // 上限（A3 审查 TOCTOU）。未预留时不写行，返回当前值供 429 回包。
+    const result = await this.pool.query(
+      `INSERT INTO ageha_eclosion_daily (day, key, value) VALUES ($1, $2, $3)
+       ON CONFLICT (day, key) DO UPDATE
+         SET value = ageha_eclosion_daily.value + EXCLUDED.value
+         WHERE ageha_eclosion_daily.value + EXCLUDED.value <= $4
+       RETURNING value`,
+      [day, key, amount, limit],
+    )
+    const row = result.rows[0]
+    if (row) return { reserved: true, used: Number(row.value) }
+    return { reserved: false, used: await this.getEclosionDaily(key, day) }
   }
 
   async getEclosionDaily(key: string, day: string): Promise<number> {
@@ -292,11 +329,13 @@ export class PostgresDataStore implements DataStore {
   }
 
   async acquireEclosionLock(key: string, holder: string, ttlMs: number): Promise<boolean> {
-    // 等价 Redis SET NX PX：仅当无锁或已过期时写入（$4 = 当前时刻，过期判定）。
+    // 等价 Redis SET NX PX：仅当无锁、已过期或**同 holder 重入**时写入
+    // （$4 = 当前时刻，过期判定；OR holder=$2 与 memory/file 驱动的重入
+    // 语义对齐——A2 审查轻微项）。
     const result = await this.pool.query(
       `INSERT INTO ageha_eclosion_locks (key, holder, expires_at) VALUES ($1, $2, $3)
        ON CONFLICT (key) DO UPDATE SET holder = $2, expires_at = $3
-       WHERE ageha_eclosion_locks.expires_at <= $4
+       WHERE ageha_eclosion_locks.expires_at <= $4 OR ageha_eclosion_locks.holder = $2
        RETURNING holder`,
       [key, holder, new Date(Date.now() + ttlMs).toISOString(), new Date().toISOString()],
     )
@@ -308,6 +347,17 @@ export class PostgresDataStore implements DataStore {
       key,
       holder,
     ])
+  }
+
+  /** 显式老化清理（接口契约）：启动 + 定时器各调一次，防长运行无限增长。 */
+  async pruneEclosionAged(keepDays = 8): Promise<void> {
+    const cutoff = new Date(Date.now() - keepDays * 86_400_000).toISOString()
+    // 日计数按 day（YYYY-MM-DD 字符串比较）裁剪；锁按过期时刻；缓存按更新时刻。
+    await this.pool.query('DELETE FROM ageha_eclosion_daily WHERE day < $1', [
+      cutoff.slice(0, 10),
+    ])
+    await this.pool.query('DELETE FROM ageha_eclosion_locks WHERE expires_at <= $1', [cutoff])
+    await this.pool.query('DELETE FROM ageha_eclosion_cache WHERE updated_at <= $1', [cutoff])
   }
 
   async getBrowseJar(userId: string): Promise<string | null> {

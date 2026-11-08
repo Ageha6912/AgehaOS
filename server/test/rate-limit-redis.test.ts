@@ -1,7 +1,8 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 
 import { buildApp } from '../src/app'
+import { RedisRateLimitStore } from '../src/rate-limit-redis'
 import type { RedisLike } from '../src/rate-limit-redis'
 
 /**
@@ -117,5 +118,39 @@ describe('Redis 共享限流（多实例，ADR 21 附注）', () => {
       .then((res) => res.statusCode)
     expect(status).toBe(401)
     await app.close()
+  })
+
+  it('注入的 Redis 客户端在 app.close() 后不被 quit（A1 审查轻微项）', async () => {
+    const quit = vi.fn(async () => undefined)
+    const owned: RedisLike & { quit: () => Promise<void> } = { ...fakeRedis(), quit }
+    const app = await buildApp({
+      redis: owned,
+      config: { store: 'memory', rateLimit: { loginMax: 3, registerMax: 20, windowMs: 60_000 } },
+    })
+    await app.ready()
+    await app.close()
+    // 注入的客户端归调用方管理（本文件多个 app 共用一个 fake）。
+    expect(quit).not.toHaveBeenCalled()
+  })
+
+  it('repairs a lost TTL instead of leaving a permanently blocked counter', async () => {
+    const expireCalls: Array<{ key: string; seconds: number }> = []
+    const lostTtlRedis: RedisLike = {
+      // 非首次 INCR（current !== 1），且 TTL 已丢失（ttl = -1）。
+      incr: async () => 4,
+      expire: async (key, seconds) => {
+        expireCalls.push({ key, seconds })
+        return 1
+      },
+      ttl: async () => -1,
+    }
+    const store = new RedisRateLimitStore(lostTtlRedis, {} as never)
+    const result = await new Promise<{ current: number; ttl: number }>((resolve, reject) => {
+      store.incr('route-ip', (error, value) => (error ? reject(error) : resolve(value!)), 60_000)
+    })
+
+    expect(result).toEqual({ current: 4, ttl: 60 })
+    // EXPIRE 必须补回，否则该 route-ip 组合会永久 429。
+    expect(expireCalls).toEqual([{ key: 'ageha:rl:route-ip', seconds: 60 }])
   })
 })

@@ -84,14 +84,23 @@ export interface DataStore {
   getSyncData(userId: string, domain: string): Promise<string | null>
   /** Upserts one sync domain; domain names and capacity are enforced by the route. */
   putSyncData(userId: string, domain: string, data: string): Promise<void>
+  /**
+   * 该用户已存在的同步域数量（A1 审查：域名无上限 → 认证用户可无界膨胀存储；
+   * 路由用它做每用户域数量上限，已存在域照常可写）。
+   */
+  countSyncDomains(userId: string): Promise<number>
   /** Admin-published remote store catalog (ADR 20); null = fall back to built-in. */
   getAppCatalog(): Promise<string | null>
   /** Replaces the published catalog (single JSON blob, validated by the route). */
   putAppCatalog(catalogJson: string): Promise<void>
   /** Stores one reported sample (DDS §8.6); keeps newest MAX_CONTENT_SAMPLES. */
   createContentSample(sample: ContentSampleRecord): Promise<void>
-  /** All stored samples, newest first (admin review listing). */
-  listContentSamples(): Promise<ContentSampleRecord[]>
+  /**
+   * Stored samples, newest first (admin review listing). `limit`/`offset` page
+   * through the newest records (D2 审查：复审面不再一次性全量)；缺省 limit
+   * 返回全部（测试与旧调用方兼容）。
+   */
+  listContentSamples(limit?: number, offset?: number): Promise<ContentSampleRecord[]>
   /** Deletes one sample by id (admin disposition); false when the id is unknown. */
   deleteContentSample(id: string): Promise<boolean>
   /**
@@ -101,6 +110,17 @@ export interface DataStore {
    * 返回自增后的值（原子 upsert 自增）。
    */
   incrementEclosionDaily(key: string, day: string, by: number): Promise<number>
+  /**
+   * 原子预留（A3 审查，§9.3 TOCTOU）：仅当 `used + amount <= limit` 时自增
+   * `amount` 并返回 `{ reserved: true, used }`；否则不写入，返回当前用量。
+   * 实现必须把读-判-写收敛成一个不可分割的操作（postgres 单条条件 upsert）。
+   */
+  reserveEclosionDaily(
+    key: string,
+    day: string,
+    limit: number,
+    amount: number,
+  ): Promise<{ reserved: boolean; used: number }>
   /** 读取某日计数（缺省 0）。 */
   getEclosionDaily(key: string, day: string): Promise<number>
   /**
@@ -117,6 +137,13 @@ export interface DataStore {
   acquireEclosionLock(key: string, holder: string, ttlMs: number): Promise<boolean>
   /** 仅 holder 匹配时释放（不误删他人接手后的锁）。 */
   releaseEclosionLock(key: string, holder: string): Promise<void>
+  /**
+   * 羽化面老化清理（A2 审查轻微项）：裁掉保留窗口（缺省 8 天，与 file 写盘
+   * 裁剪同口径）外的日计数、过期单飞锁与超龄缓存条目。启动时与定时器每日
+   * 各调一次；不做也会自愈（memory 封顶 / file 写盘裁剪），postgres 依赖本
+   * 方法防长期运行无限增长。
+   */
+  pruneEclosionAged(keepDays?: number): Promise<void>
   /**
    * 浏览器代理的站点 Cookie 罐（2026-10-18 档 ②）：按用户隔离的单 JSON blob
    * （结构由 browse/cookie-jar.ts 定义；键 = userId）。null = 从未保存。

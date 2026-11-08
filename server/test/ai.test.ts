@@ -1,11 +1,11 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 
-import { afterEach, describe, expect, it } from 'vitest'
-import type { FastifyInstance } from 'fastify'
+import Fastify, { type FastifyInstance } from 'fastify'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { buildApp } from '../src/app'
-import { parseItems } from '../src/routes/ai'
+import { aiRoutes, parseItems } from '../src/routes/ai'
 import { MemoryDataStore } from '../src/store/memory-store'
 
 const VALID_BODY = {
@@ -192,5 +192,28 @@ describe('parseItems', () => {
   it('returns null for non-JSON content', () => {
     expect(parseItems('抱歉，我无法完成该请求。', ['tip'])).toBeNull()
     expect(parseItems('{"nope":1}', ['tip'])).toBeNull()
+  })
+})
+
+describe('ai proxy 上游失败分支（A1 审查轻微项）', () => {
+  it('非 2xx 时消费/取消上游响应体，keepAlive 连接不被挂死', async () => {
+    const upstream = new Response('gateway exploded', { status: 502 })
+    const fetcher = vi.fn(async () => upstream)
+    const app = Fastify({ logger: false })
+    await app.register(aiRoutes, {
+      ai: { apiKey: 'k', baseUrl: 'http://unused.invalid/v1', model: 'm', timeoutMs: 1000 },
+      rateLimitWindowMs: 60_000,
+      fetcher: fetcher as unknown as typeof fetch,
+    })
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ai/proxy',
+      payload: VALID_BODY,
+    })
+    expect(response.statusCode).toBe(502)
+    expect(response.json()).toEqual({ error: 'ai-upstream' })
+    // cancel() 会锁定流：bodyUsed 变 true = 旧实现的悬置 body 已被消费。
+    expect(upstream.bodyUsed).toBe(true)
+    await app.close()
   })
 })

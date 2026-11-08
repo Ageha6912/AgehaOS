@@ -9,6 +9,23 @@ import { requireAdmin } from './require-admin'
 export const SAMPLE_TEXT_MAX_LENGTH = 512
 /** 羽化举报附带的生成内容摘要上限（HTML 前 2KB，§10）。 */
 export const SAMPLE_DETAIL_MAX_LENGTH = 2048
+/** 复审清单分页（D2 审查）：默认一页 50，单页上限 200。 */
+export const SAMPLE_LIST_DEFAULT_LIMIT = 50
+export const SAMPLE_LIST_MAX_LIMIT = 200
+
+const SAMPLE_LIST_QUERY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    limit: {
+      type: 'integer',
+      minimum: 1,
+      maximum: SAMPLE_LIST_MAX_LIMIT,
+      default: SAMPLE_LIST_DEFAULT_LIMIT,
+    },
+    offset: { type: 'integer', minimum: 0, default: 0 },
+  },
+} as const
 
 const SAMPLE_BODY_SCHEMA = {
   type: 'object',
@@ -72,10 +89,17 @@ export async function sampleRoutes(app: FastifyInstance, options: SampleRoutesOp
     },
   )
 
-  app.get('/dynamic/samples', async (request, reply) => {
-    if (!(await requireAdmin(store, request, reply))) return reply
-    return { samples: await store.listContentSamples() }
-  })
+  app.get(
+    '/dynamic/samples',
+    { schema: { querystring: SAMPLE_LIST_QUERY_SCHEMA } },
+    async (request, reply) => {
+      if (!(await requireAdmin(store, request, reply))) return reply
+      const { limit, offset } = request.query as { limit: number; offset: number }
+      // 多取一条判断是否还有下一页，避免额外 COUNT 查询。
+      const page = await store.listContentSamples(limit + 1, offset)
+      return { samples: page.slice(0, limit), hasMore: page.length > limit }
+    },
+  )
 
   app.delete('/dynamic/samples/:id', async (request, reply) => {
     if (!(await requireAdmin(store, request, reply))) return reply

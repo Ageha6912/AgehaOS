@@ -563,6 +563,45 @@ describe('auth API', () => {
     expect(anonymousFiles.statusCode).toBe(401)
   })
 
+  it('caps the number of sync domains per user (A1 审查)', async () => {
+    app = await makeApp()
+    const registered = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'synccap', password: 'secret123' },
+    })
+    const cookies = { agehaos_session: sessionCookie(registered) ?? '' }
+
+    for (let i = 0; i < 8; i += 1) {
+      const put = await app.inject({
+        method: 'PUT',
+        url: `/api/sync/data/domain-${i}`,
+        cookies,
+        payload: { data: `blob-${i}` },
+      })
+      expect(put.statusCode).toBe(200)
+    }
+    const overflow = await app.inject({
+      method: 'PUT',
+      url: '/api/sync/data/domain-8',
+      cookies,
+      payload: { data: 'overflow' },
+    })
+    expect(overflow.statusCode).toBe(400)
+    expect(overflow.json()).toEqual({ error: 'too-many-sync-domains' })
+
+    // 已存在域仍可覆盖写（上限只拦新域）。
+    const overwrite = await app.inject({
+      method: 'PUT',
+      url: '/api/sync/data/domain-0',
+      cookies,
+      payload: { data: 'updated' },
+    })
+    expect(overwrite.statusCode).toBe(200)
+    const read = await app.inject({ method: 'GET', url: '/api/sync/data/domain-0', cookies })
+    expect(read.json()).toEqual({ data: 'updated' })
+  })
+
   it('answers unknown routes with JSON 404', async () => {
     app = await makeApp()
     const response = await app.inject({ method: 'GET', url: '/api/nope' })

@@ -236,7 +236,12 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
 
   app.patch(
     '/users/me',
-    { schema: { body: profileSchema } },
+    {
+      schema: { body: profileSchema },
+      // 认证写放大防御（A1 审查轻微项）：与改密同规格——无限流时认证用户可
+      // 无节制触发 updateUser 写库（含 64KB avatar）。
+      config: { rateLimit: { max: rateLimit.loginMax, timeWindow: rateLimit.windowMs } },
+    },
     async (request, reply) => {
       const resolved = await resolveSession(store, request, reply, cookieSecure)
       if (!resolved) {

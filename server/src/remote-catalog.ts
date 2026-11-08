@@ -84,6 +84,8 @@ export function validateCatalogApps(input: unknown): RemoteCatalogApp[] | null {
       !Array.isArray(v.permissions) ||
       v.permissions.some((p) => typeof p !== 'string' || !MVP_PERMISSION_NAMES.includes(p)) ||
       typeof v.window !== 'object' || v.window === null ||
+      // 未知键不进签名 payload（与外层 Object.keys 严格键数同一口径）。
+      Object.keys(v.window as Record<string, unknown>).length !== 3 ||
       typeof (v.window as Record<string, unknown>).width !== 'number' ||
       typeof (v.window as Record<string, unknown>).height !== 'number' ||
       typeof (v.window as Record<string, unknown>).resizable !== 'boolean' ||

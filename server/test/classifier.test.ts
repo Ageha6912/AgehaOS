@@ -15,6 +15,13 @@ describe('content classifier（服务端权威版，DDS §8.4）', () => {
     expect(classifyContentText('Best CASINO bonuses').classification).toBe('violation')
   })
 
+  it('normalizes unicode tricks before matching (全角/零宽/空格插字)', () => {
+    for (const text of ['ｐｏｒｎ 推荐', 'po\u200Brn', '赌 博', 'ca\u200Bsino']) {
+      expect(classifyContentText(text).classification, text).toBe('violation')
+    }
+    expect(classifyContentText('ＱＱ：abc12345').classification).toBe('misleading')
+  })
+
   it('flags contact solicitation as misleading', () => {
     expect(classifyContentText('加我微信 abc123456 领取壁纸包').classification).toBe('misleading')
   })
