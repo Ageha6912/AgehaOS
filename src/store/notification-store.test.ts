@@ -83,3 +83,19 @@ describe('notification-store (PRD §16.2)', () => {
     expect(useNotificationStore.getState().items).toHaveLength(0)
   })
 })
+
+describe('markRead/markAllRead no-op 短路（C1 审查）', () => {
+  it('未知 id 与已读项不生成新数组；全已读时 markAllRead 短路', () => {
+    const push = useNotificationStore.getState().push
+    push({ appId: 'system', titleKey: 'notification.title.appCrashed', bodyKey: 'notification.body.appCrashed' })
+    const id = useNotificationStore.getState().items[0]!.id
+    useNotificationStore.getState().markRead(id)
+    const afterRead = useNotificationStore.getState().items
+    useNotificationStore.getState().markRead(id)
+    expect(useNotificationStore.getState().items).toBe(afterRead)
+    useNotificationStore.getState().markRead('no-such-id')
+    expect(useNotificationStore.getState().items).toBe(afterRead)
+    useNotificationStore.getState().markAllRead()
+    expect(useNotificationStore.getState().items).toBe(afterRead)
+  })
+})

@@ -56,6 +56,16 @@ describe('window-persist（W2 窗口持久化 schema，审计 §5 决定 2）', 
     ).toBeNull()
   })
 
+  it('重复窗口 id → 整体丢弃（不静默折叠丢窗，C1 审查）', () => {
+    expect(parsePersistedWindows({ version: 1, windows: [entry(), entry()] })).toBeNull()
+    expect(
+      parsePersistedWindows({
+        version: 1,
+        windows: [entry({ id: 'a' }), entry({ id: 'b' }), entry({ id: 'a', title: 'dup' })],
+      }),
+    ).toBeNull()
+  })
+
   it('非 JSON 文本经 parsePersistedWindowsText 回落 null（损坏回落空桌面的入口）', () => {
     expect(parsePersistedWindowsText(null)).toBeNull()
     expect(parsePersistedWindowsText('[]')).toBeNull()
@@ -100,6 +110,46 @@ describe('window-persist（W2 窗口持久化 schema，审计 §5 决定 2）', 
     ).toBeNull()
     expect(
       parsePersistedWindows({ version: 1, windows: [entry({ snapMode: 3 as never })] }),
+    ).toBeNull()
+  })
+})
+
+describe('持久化载荷上限与读侧容错（C1 审查）', () => {
+  it('超过 50 条整体拒绝', () => {
+    const windows = Array.from({ length: 51 }, (_, i) => ({
+      id: `win-${i}`,
+      appId: 'com.ageha.notes',
+      title: '记事',
+      x: 10,
+      y: 10,
+      width: 900,
+      height: 600,
+      state: 'normal' as const,
+      spaceId: 'space-desktop',
+      restoreBounds: null,
+      zIndex: i,
+    }))
+    expect(parsePersistedWindows({ version: 1, windows })).toBeNull()
+    expect(parsePersistedWindows({ version: 1, windows: windows.slice(0, 50) })).not.toBeNull()
+  })
+
+  it('超长标题/超长 id 拒绝该载荷', () => {
+    const base = {
+      appId: 'com.ageha.notes',
+      x: 10,
+      y: 10,
+      width: 900,
+      height: 600,
+      state: 'normal' as const,
+      spaceId: 'space-desktop',
+      restoreBounds: null,
+      zIndex: 3,
+    }
+    expect(
+      parsePersistedWindows({ version: 1, windows: [{ ...base, id: 'w1', title: 'x'.repeat(201) }] }),
+    ).toBeNull()
+    expect(
+      parsePersistedWindows({ version: 1, windows: [{ ...base, id: 'w'.repeat(65), title: '记事' }] }),
     ).toBeNull()
   })
 })

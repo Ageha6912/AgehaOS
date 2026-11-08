@@ -18,7 +18,6 @@ export interface RecentEntry {
 interface UsageState {
   recent: RecentEntry[]
   recordRecentApp: (appId: string) => void
-  clearRecent: () => void
 }
 
 function isRecentEntry(value: unknown): value is RecentEntry {
@@ -60,10 +59,6 @@ export const useUsageStore = create<UsageState>()((set, get) => ({
     set({ recent })
   },
 
-  clearRecent: () => {
-    persist([])
-    set({ recent: [] })
-  },
 }))
 
 /** 测试间隔离（localStorage 由测试自清）。 */

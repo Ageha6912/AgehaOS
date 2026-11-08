@@ -16,9 +16,6 @@ export const ECLOSION_KEY_PREFIX = 'agehaos.eclosion.prefs.v1.'
 /** 基础软件生成方式（Settings「羽化」区；默认羽化，总开关开时生效）。 */
 export type EclosionGenerateMode = 'eclosion' | 'classic'
 
-/** 三件套默认全「羽化」（设计 §9.3/实施计划裁决：默认羽化）。 */
-export const DEFAULT_GENERATE_MODES: Record<string, EclosionGenerateMode> = {}
-
 export type EclosionAppPhase = 'queued' | 'generating' | 'done' | 'error'
 
 /** 单个羽化应用的生成状态镜像（宿主/设置区共享的观察面）。 */
@@ -109,6 +106,8 @@ interface EclosionState {
   applyQuota: (quota: EclosionQuotaState) => void
   /** 编排器写入会话镜像（patch 合并；appId 不存在则建档）。 */
   setStatus: (appId: string, patch: Partial<EclosionAppStatus>) => void
+  /** 「清除羽化数据」：清空全部会话镜像（C2 审查，与内存会话同步）。 */
+  clearStatuses: () => void
   handleLogout: () => void
 }
 
@@ -233,6 +232,8 @@ export const useEclosionStore = create<EclosionState>()((set, get) => ({
   markWorldNotified: (worldDate) => set({ notifiedWorldDate: worldDate }),
 
   setKeptAppIds: (appIds) => set({ keptAppIds: appIds }),
+
+  clearStatuses: () => set({ statuses: {} }),
 
   setBannedAppIds: (appIds) => set({ bannedAppIds: appIds }),
 

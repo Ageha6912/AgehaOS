@@ -51,8 +51,5 @@ describe('usage-store recent', () => {
     expect(raw).toHaveLength(1)
     expect(raw[0].appId).toBe('com.ageha.notes')
 
-    useUsageStore.getState().clearRecent()
-    expect(useUsageStore.getState().recent).toHaveLength(0)
-    expect(JSON.parse(localStorage.getItem('agehaos.usage.recent.v1')!)).toHaveLength(0)
   })
 })

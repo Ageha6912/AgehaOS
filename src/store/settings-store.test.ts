@@ -29,6 +29,21 @@ describe('settings-store theme', () => {
     expect(htmlClasses().contains('dark')).toBe(true)
   })
 
+  it('ignores corrupted non-object payloads instead of crashing at import (C1 审查)', async () => {
+    // JSON.parse('null') → null：旧实现直接读 persisted.theme 抛 TypeError，
+    // 整个 settings-store import 阶段失败 = 白屏。
+    localStorage.setItem('agehaos.settings.v1', 'null')
+    vi.resetModules()
+    const first = await import('./settings-store')
+    expect(first.useSettingsStore.getState()).toMatchObject({ theme: 'light', fontSize: 'medium' })
+
+    // 数组/原始值同样按无存储处理。
+    localStorage.setItem('agehaos.settings.v1', '[1,2]')
+    vi.resetModules()
+    const second = await import('./settings-store')
+    expect(second.useSettingsStore.getState().theme).toBe('light')
+  })
+
   it('applies and removes the dark class on light/dark switches', () => {
     useSettingsStore.getState().setTheme('dark')
     expect(htmlClasses().contains('dark')).toBe(true)

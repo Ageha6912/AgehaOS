@@ -114,7 +114,11 @@ export const useMobileNavStore = create<MobileNavState>()((set) => ({
     }),
   closeAllApps: () =>
     set((state) => {
-      if (state.apps.length === 0) return state
+      // 空列表但 nav 停在 app 视图（launchApp 过渡帧 windowId===null）也要
+      // 回 home——「全部关闭」不再空转（C1 审查）。
+      if (state.apps.length === 0) {
+        return state.nav.view === 'app' ? { apps: [], nav: { view: 'home' } } : state
+      }
       return {
         apps: [],
         nav: state.nav.view === 'app' ? { view: 'home' } : state.nav,

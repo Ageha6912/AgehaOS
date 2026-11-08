@@ -1,13 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-import { setAuthProvider, systemAuthService } from '@/core/auth'
-import type { AuthProvider } from '@/core/auth'
+import { AuthError, setAuthProvider, systemAuthService } from '@/core/auth'
+import type { AuthProvider, User } from '@/core/auth'
 import { systemBus } from '@/core/events'
 
 import { resetSessionStore, seedSessionForTests, useSessionStore } from './session-store'
 
-/** Only reconcile is meaningful; every other call is a test bug. */
-function makeStubProvider(reconcile: AuthProvider['reconcile']): AuthProvider {
+/** Only reconcile is meaningful by default; overrides cover race tests. */
+function makeStubProvider(
+  reconcile: AuthProvider['reconcile'],
+  overrides: Partial<AuthProvider> = {},
+): AuthProvider {
   return {
     register: async () => {
       throw new Error('unused')
@@ -26,6 +29,7 @@ function makeStubProvider(reconcile: AuthProvider['reconcile']): AuthProvider {
     revokeOtherSessions: async () => 0,
     listSessions: async () => [],
     revokeSession: async () => {},
+    ...overrides,
   }
 }
 
@@ -175,6 +179,92 @@ describe('session-store', () => {
       expect(useSessionStore.getState().user).toBeNull()
     } finally {
       setAuthProvider(null)
+    }
+  })
+
+  it('does not resurrect the user when updateProfile resolves after logout', async () => {
+    const user: User = {
+      id: 'u-late',
+      username: 'late-profile',
+      createdAt: '',
+      updatedAt: '',
+    }
+    let resolveProfile: ((value: User) => void) | undefined
+    setAuthProvider(
+      makeStubProvider(async () => user, {
+        updateProfile: () =>
+          new Promise<User>((resolve) => {
+            resolveProfile = resolve
+          }),
+      }),
+    )
+    try {
+      seedSessionForTests(user)
+      const pending = useSessionStore.getState().updateProfile({ displayName: 'Late' })
+      await useSessionStore.getState().logout()
+
+      resolveProfile?.({ ...user, displayName: 'Late' })
+      const result = await pending
+
+      // 保存期间已登出：晚到的 PATCH 结果被代际校验丢弃。
+      expect(result.ok).toBe(false)
+      expect(useSessionStore.getState().status).toBe('anonymous')
+      expect(useSessionStore.getState().user).toBeNull()
+    } finally {
+      setAuthProvider(null)
+    }
+  })
+
+  it('ignores a reconcile result that resolves after logout', async () => {
+    const user: User = { id: 'u9', username: 'remote-reconcile', createdAt: '', updatedAt: '' }
+    let resolveReconcile: ((value: User | null) => void) | undefined
+    setAuthProvider(
+      makeStubProvider(
+        () =>
+          new Promise<User | null>((resolve) => {
+            resolveReconcile = resolve
+          }),
+      ),
+    )
+    try {
+      seedSessionForTests(user)
+      const pending = useSessionStore.getState().reconcile()
+      await useSessionStore.getState().logout()
+
+      resolveReconcile?.(user)
+      await pending
+
+      expect(useSessionStore.getState().status).toBe('anonymous')
+      expect(useSessionStore.getState().user).toBeNull()
+    } finally {
+      setAuthProvider(null)
+    }
+  })
+
+  it('resets to anonymous when user.logout is broadcast (session invalidated elsewhere)', () => {
+    seedSessionForTests({ id: 'u-ev', username: 'event-user', createdAt: '', updatedAt: '' })
+    expect(useSessionStore.getState().status).toBe('authenticated')
+
+    // 远程 provider 在已认证接口 401 时广播该事件。
+    systemBus.emit('user.logout', { userId: 'u-ev' })
+
+    expect(useSessionStore.getState().status).toBe('anonymous')
+    expect(useSessionStore.getState().user).toBeNull()
+  })
+})
+
+describe('register 自动登录失败传播（C1 审查）', () => {
+  it('本地模式注册后自动登录失败 → register 结果不再谎报 ok', async () => {
+    // 本地 AuthService 的 register/login 不经 provider——用 spy 让注册成功
+    // 之后的自动登录失败（存储被逐/配额异常等现实形态的等价注入）。
+    const loginSpy = vi
+      .spyOn(systemAuthService, 'login')
+      .mockRejectedValue(new AuthError('invalid-credentials', 'auto-login failed'))
+    try {
+      const result = await useSessionStore.getState().register('reg-fail-spy', 'secret123')
+      expect(result.ok).toBe(false)
+    } finally {
+      loginSpy.mockRestore()
     }
   })
 })

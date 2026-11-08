@@ -108,6 +108,13 @@ function storageKey(userId: string): string {
   return `${DYNAMIC_DESKTOP_KEY_PREFIX}${userId}`
 }
 
+/**
+ * 本会话同标签累计反馈增量（§10.3 ±6 预算，B3 审查）：自定义画像只存总分，
+ * 会话预算必须由调用方按「会话开始至今的增量」单独记忆；登出/清空/测试重置
+ * 时清空。
+ */
+const sessionTagDeltas = new Map<string, number>()
+
 function loadPersisted(userId: string): {
   prefs: DynamicDesktopPrefs
   profile: PreferenceProfile
@@ -278,6 +285,9 @@ export const useDynamicDesktopStore = create<DynamicDesktopState>()((set, get) =
   },
 
   setRandomness: (randomness) => {
+    // 钳制 0–100（C1 审查）：越界值本次会话生效、下次 sanitizePrefs 回默认——
+    // 表现为设置莫名丢失。
+    randomness = Math.min(100, Math.max(0, Math.round(randomness)))
     set({ prefs: { ...get().prefs, randomness } })
     persist(get())
   },
@@ -327,13 +337,24 @@ export const useDynamicDesktopStore = create<DynamicDesktopState>()((set, get) =
 
   applyFeedback: (signal, plan) => {
     const target = plan ?? get().currentPlan
+    // 单风格域（当前唯一启用 gradient-field）里风格权重恒等：构图也要成为
+    // 个性化目标（B3 审查），以 `field:<id>` 标签进入同一画像。
+    const targetTags: string[] = target ? [target.style] : []
+    if (target?.fieldId !== undefined) targetTags.push(`field:${target.fieldId}`)
+    const before = get().profile
     const profile = applyFeedbackSignal({
-      profile: get().profile,
+      profile: before,
       signal,
-      targetTags: target ? [target.style] : [],
+      targetTags,
       targetFamily: familyKeyOf(target),
+      sessionDeltas: Object.fromEntries(sessionTagDeltas),
       now: new Date(),
     })
+    // 记录本会话实际落地的增量（被预算截断后的值）。
+    for (const tag of targetTags) {
+      const delta = (profile.tags[tag] ?? 0) - (before.tags[tag] ?? 0)
+      if (delta !== 0) sessionTagDeltas.set(tag, (sessionTagDeltas.get(tag) ?? 0) + delta)
+    }
     set({ profile })
     persist(get())
   },
@@ -372,6 +393,7 @@ export const useDynamicDesktopStore = create<DynamicDesktopState>()((set, get) =
   setGenerating: (generating) => set({ generating }),
 
   handleLogout: () => {
+    sessionTagDeltas.clear()
     set({
       userId: null,
       currentPlan: null,
@@ -387,6 +409,7 @@ export const useDynamicDesktopStore = create<DynamicDesktopState>()((set, get) =
   },
 
   clearAllData: () => {
+    sessionTagDeltas.clear()
     if (typeof localStorage !== 'undefined' && get().userId !== null) {
       try {
         localStorage.removeItem(storageKey(get().userId as string))
@@ -419,6 +442,7 @@ function familyKeyOf(plan: WallpaperPlan | null | undefined): string | undefined
 
 /** Restores boot defaults and clears persisted per-user data; used between tests. */
 export function resetDynamicDesktopStore(): void {
+  sessionTagDeltas.clear()
   if (typeof localStorage !== 'undefined') {
     const doomed: string[] = []
     for (let i = 0; i < localStorage.length; i++) {

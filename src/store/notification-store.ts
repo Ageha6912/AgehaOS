@@ -94,12 +94,14 @@ export const useNotificationStore = create<NotificationState>()((set, get) => ({
   },
 
   markRead: (id) => {
-    set({
-      items: get().items.map((item) => (item.id === id ? { ...item, read: true } : item)),
-    })
+    const target = get().items.find((item) => item.id === id)
+    // 不存在/已读：不生成新数组（C1 审查——订阅 items 的面板/Toast 无意义重渲染）。
+    if (target === undefined || target.read) return
+    set({ items: get().items.map((item) => (item.id === id ? { ...item, read: true } : item)) })
   },
 
   markAllRead: () => {
+    if (get().items.every((item) => item.read)) return
     set({ items: get().items.map((item) => ({ ...item, read: true })) })
   },
 

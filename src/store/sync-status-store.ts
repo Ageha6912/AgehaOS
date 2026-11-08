@@ -42,6 +42,12 @@ export function reduceSyncCycle(state: SyncStatusSnapshot, event: SyncCycleEvent
 }
 
 interface SyncStatusStore extends SyncStatusSnapshot {
+  /**
+   * 在飞同步周期数（C1 审查）：settings-sync 与 file-sync 可并发，单一 phase
+   * 会被先结束的一方覆盖（A 成功把仍在飞的 B 显示 idle / B 失败盖掉刚成功的
+   * A）。计数 > 0 时终态先留在 syncing，最后一个周期结束才落定。
+   */
+  pending: number
   beginSyncCycle: () => void
   completeSyncCycle: (at: number) => void
   failSyncCycle: (at: number) => void
@@ -51,12 +57,32 @@ export const useSyncStatusStore = create<SyncStatusStore>()((set) => ({
   phase: 'idle',
   lastSuccessAt: null,
   lastErrorAt: null,
-  beginSyncCycle: () => set((state) => reduceSyncCycle(state, { type: 'begin' })),
-  completeSyncCycle: (at) => set((state) => reduceSyncCycle(state, { type: 'success', at })),
-  failSyncCycle: (at) => set((state) => reduceSyncCycle(state, { type: 'failure', at })),
+  pending: 0,
+  beginSyncCycle: () =>
+    set((state) => ({
+      ...reduceSyncCycle(state, { type: 'begin' }),
+      pending: state.pending + 1,
+    })),
+  completeSyncCycle: (at) =>
+    set((state) => {
+      const next = reduceSyncCycle(state, { type: 'success', at })
+      const pending = Math.max(0, state.pending - 1)
+      return { ...next, pending, phase: pending > 0 ? 'syncing' : next.phase }
+    }),
+  failSyncCycle: (at) =>
+    set((state) => {
+      const next = reduceSyncCycle(state, { type: 'failure', at })
+      const pending = Math.max(0, state.pending - 1)
+      return { ...next, pending, phase: pending > 0 ? 'syncing' : next.phase }
+    }),
 }))
 
 /** 测试间隔离（session-store 的 resetSessionStore 同款独立出口）。 */
 export function resetSyncStatusForTests(): void {
-  useSyncStatusStore.setState({ phase: 'idle', lastSuccessAt: null, lastErrorAt: null })
+  useSyncStatusStore.setState({
+    phase: 'idle',
+    lastSuccessAt: null,
+    lastErrorAt: null,
+    pending: 0,
+  })
 }

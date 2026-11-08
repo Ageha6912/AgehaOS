@@ -48,16 +48,13 @@ describe('useSpaceStore（Space 列表持久化，W1）', () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).spaces[0]?.name).toBe('工作')
   })
 
-  it('switchSpace 更新 activeSpaceId 并落盘；reorderSpaces 重排 index 并落盘', () => {
-    const { createSpace, switchSpace, reorderSpaces } = useSpaceStore.getState()
+  it('switchSpace 更新 activeSpaceId 并落盘', () => {
+    const { createSpace, switchSpace } = useSpaceStore.getState()
     const second = createSpace('工作')
     switchSpace(second)
-    reorderSpaces(DEFAULT_SPACE_ID, 1)
 
-    const { spaces, activeSpaceId } = useSpaceStore.getState()
+    const { activeSpaceId } = useSpaceStore.getState()
     expect(activeSpaceId).toBe(second)
-    expect(spaces.map((s) => s.id)).toEqual([second, DEFAULT_SPACE_ID])
-    expect(spaces.map((s) => s.index)).toEqual([0, 1])
 
     const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY)!)
     expect(persisted.activeSpaceId).toBe(second)

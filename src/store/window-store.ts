@@ -3,12 +3,14 @@ import { create } from 'zustand'
 import { systemBus } from '@/core/events'
 import {
   DEFAULT_SPACE_ID,
+  MIN_VISIBLE_EDGE,
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
   WindowManager,
 } from '@/core/window'
 import type { CreateWindowOptions, SnapBand, Viewport, WindowInstance } from '@/core/window'
-import { getAppManifest } from '@/store/app-store'
+
+import { getAppManifest } from './app-store'
 import { systemSounds } from '@/services/sounds'
 
 import {
@@ -56,10 +58,55 @@ export function setWindowSpaceExistsProvider(fn: (spaceId: string) => boolean): 
   spaceExists = fn
 }
 
+/**
+ * 窗口实例的结构相等（除引用外逐字段）。commit 用它复用未变化窗口的旧
+ * 引用——WindowFrame 是 memo 的，拖动一个窗口时其余窗口（及其应用子树）
+ * 不再按指针频率重渲染（E1 审查）。
+ */
+function sameWindow(a: WindowInstance, b: WindowInstance): boolean {
+  const sameBounds =
+    a.restoreBounds === null
+      ? b.restoreBounds === null
+      : b.restoreBounds !== null &&
+        a.restoreBounds.x === b.restoreBounds.x &&
+        a.restoreBounds.y === b.restoreBounds.y &&
+        a.restoreBounds.width === b.restoreBounds.width &&
+        a.restoreBounds.height === b.restoreBounds.height
+  return (
+    a.id === b.id &&
+    a.appId === b.appId &&
+    a.title === b.title &&
+    a.x === b.x &&
+    a.y === b.y &&
+    a.width === b.width &&
+    a.height === b.height &&
+    a.state === b.state &&
+    a.spaceId === b.spaceId &&
+    a.zIndex === b.zIndex &&
+    a.focused === b.focused &&
+    a.snapMode === b.snapMode &&
+    a.restoreState === b.restoreState &&
+    a.resizable === b.resizable &&
+    a.closable === b.closable &&
+    a.minWidth === b.minWidth &&
+    a.minHeight === b.minHeight &&
+    sameBounds
+  )
+}
+
 /** 每次 commit 后静默 persist（审计 §5 决定 2；写失败静默降级）。 */
 function commit(): void {
   const windows = engine.list()
-  useWindowStore.setState({ windows })
+  const previous = useWindowStore.getState().windows
+  const previousById = new Map(previous.map((win) => [win.id, win]))
+  let changed = windows.length !== previous.length
+  const reconciled = windows.map((win) => {
+    const old = previousById.get(win.id)
+    if (old !== undefined && sameWindow(old, win)) return old
+    changed = true
+    return win
+  })
+  if (changed) useWindowStore.setState({ windows: reconciled })
   persistWindows(windows)
 }
 
@@ -91,8 +138,47 @@ function persistWindows(windows: WindowInstance[]): void {
   }
 }
 
+/**
+ * 恢复几何钳制（C1 审查）：持久化的 x/y/width/height 原样灌入会让大屏保存
+ * 的右缘窗口在窄屏刷新后完全在屏外，脏数据 0/负尺寸得到不可见窗口。按当前
+ * 视口复用引擎的最小可见边规则（至少 MIN_VISIBLE_EDGE 可见），尺寸不小于
+ * 引擎最小宽高；restoreBounds 同样处理，避免还原时再次飞出。
+ */
+function clampPersistedEntry(entry: PersistedWindow): PersistedWindow {
+  const width = Math.max(MIN_WINDOW_WIDTH, entry.width)
+  const height = Math.max(MIN_WINDOW_HEIGHT, entry.height)
+  if (typeof window === 'undefined') return { ...entry, width, height }
+
+  const maxX = window.innerWidth - MIN_VISIBLE_EDGE
+  const maxY = window.innerHeight - MIN_VISIBLE_EDGE
+  const clampX = (x: number, w: number): number =>
+    Math.min(Math.max(x, MIN_VISIBLE_EDGE - w), maxX)
+  const clampY = (y: number): number => Math.min(Math.max(y, 0), maxY)
+
+  const restoreBounds = entry.restoreBounds
+    ? {
+        x: clampX(entry.restoreBounds.x, Math.max(MIN_WINDOW_WIDTH, entry.restoreBounds.width)),
+        y: clampY(entry.restoreBounds.y),
+        width: Math.max(MIN_WINDOW_WIDTH, entry.restoreBounds.width),
+        height: Math.max(MIN_WINDOW_HEIGHT, entry.restoreBounds.height),
+      }
+    : null
+
+  return {
+    ...entry,
+    x: clampX(entry.x, width),
+    y: clampY(entry.y),
+    width,
+    height,
+    restoreBounds,
+  }
+}
+
 /** 持久化条目 → 完整 WindowInstance：schema 外的运行时字段回落出厂缺省。 */
 function toWindowInstance(entry: PersistedWindow): WindowInstance {
+  // manifest 约束回读（B2 审查）：旧实现硬编码 resizable:true——计算器等
+  // 固定尺寸应用刷新恢复后重新出现缩放手柄/可双击最大化。
+  const manifestWindow = getAppManifest(entry.appId)?.window
   return {
     ...entry,
     // W4（审计 §7）：旧载荷缺可选字段 → snapMode=null、restoreState='normal'
@@ -100,7 +186,7 @@ function toWindowInstance(entry: PersistedWindow): WindowInstance {
     snapMode: entry.snapMode ?? null,
     restoreState: entry.restoreState ?? 'normal',
     focused: false,
-    resizable: true,
+    resizable: manifestWindow?.resizable ?? true,
     closable: true,
     minWidth: MIN_WINDOW_WIDTH,
     minHeight: MIN_WINDOW_HEIGHT,
@@ -190,22 +276,26 @@ export const useWindowStore = create<WindowStoreState>()(() => {
  * 模块加载期做**——由 Desktop.tsx 挂载 effect 显式调用（先 reloadSpaceStore()
  * 再本函数）；移动 Shell 不调用 → 移动「刷新即清空」零变化（M1-6 红线）。
  * 守卫=仅当当前 windows 为空（设备翻转 Desktop 重挂不重复灌入）。
- * 规则：version/结构损坏整体丢弃；appId 无 manifest 丢弃；spaceId 不在
- * 当前 Space 列表丢弃（防御）；恢复后 focused 全 false，对 active Space 内
- * zIndex 最大者 focus()（引擎 topZ 已重置为 max(zIndex)，focus 保持单调）。
+ * 规则：version/结构损坏整体丢弃；spaceId 不在当前 Space 列表丢弃（防御）。
+ * appId 暂未注册的窗口**保留**（渲染 MissingApp）——羽化 kept/今日世界是
+ * 运行时异步注册，启动时按 manifest 过滤会在注册完成前把窗口永久丢掉并
+ * commit 覆写存储。恢复后 focused 全 false，对 active Space 内 zIndex 最大者
+ * focus()（引擎 topZ 已重置为 max(zIndex)，focus 保持单调）。
  */
 export function hydratePersistedWindows(): void {
   if (useWindowStore.getState().windows.length > 0) return
   const persisted = parsePersistedWindowsText(readPersistedWindowsText())
   if (!persisted) return
   const activeSpaceId = getSpaceId()
-  const valid = persisted
-    .filter((entry) => getAppManifest(entry.appId) !== null)
-    .filter((entry) => spaceExists(entry.spaceId))
+  const valid = persisted.filter((entry) => spaceExists(entry.spaceId))
   if (valid.length === 0) return
 
-  engine.hydrateWindows(valid.map(toWindowInstance))
-  const stack = engine.list().filter((win) => win.spaceId === activeSpaceId)
+  engine.hydrateWindows(valid.map(clampPersistedEntry).map(toWindowInstance))
+  // 选活跃 Space 内 zIndex 最大的**非最小化**窗口（C1 审查：engine.focus
+  // 拒绝最小化窗，旧实现选中它则恢复后无聚焦窗）；全最小化保持无焦点。
+  const stack = engine.list().filter(
+    (win) => win.spaceId === activeSpaceId && win.state !== 'minimized',
+  )
   const top = stack[stack.length - 1]
   if (top) engine.focus(top.id)
   commit()
@@ -216,3 +306,11 @@ export function resetWindowStore(): void {
   engine = new WindowManager(systemBus)
   useWindowStore.setState({ windows: [] })
 }
+
+// 应用卸载即关闭其全部窗口（B2 审查）：权限已撤，窗口不能以可操作状态
+// 残留到下次启动。挂 engine 前订阅一次（模块级，与 systemBus 单例同生命周期）。
+systemBus.on('app.uninstalled', ({ appId }) => {
+  for (const win of useWindowStore.getState().windows) {
+    if (win.appId === appId) useWindowStore.getState().close(win.id)
+  }
+})

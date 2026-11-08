@@ -14,6 +14,8 @@ interface AppStoreState {
 const INSTALLED_KEY = 'agehaos.apps.installed.v1'
 
 let registry = new AppRegistry(systemBus)
+/** restoreInstalledApps 期间为 true：installApp 不逐条写盘（C1 审查）。 */
+let restoringInstalledApps = false
 
 /**
  * 会话级运行时应用（羽化今日世界清单 / 「获取」留存 / P3 想象域）：注册进
@@ -71,7 +73,15 @@ export function restoreInstalledApps(): void {
     return
   }
   if (!Array.isArray(parsed)) return
-  for (const item of parsed) installApp(item)
+  // 恢复阶段抑制逐条持久化（C1 审查）：installApp 每次成功都全量重写
+  // INSTALLED_KEY——启动 N 条就 N 次写盘，且中途只剩前缀；统一循环后写一次。
+  restoringInstalledApps = true
+  try {
+    for (const item of parsed) installApp(item)
+  } finally {
+    restoringInstalledApps = false
+  }
+  persistInstalledApps()
 }
 
 /** Validates and installs an app manifest; returns the validation result. */
@@ -85,7 +95,7 @@ export function installApp(input: unknown): ManifestParseResult {
       errors: [{ path: 'id', message: `App "${result.manifest.id}" is already installed` }],
     }
   }
-  if (!builtinIds().has(result.manifest.id)) persistInstalledApps()
+  if (!builtinIds().has(result.manifest.id) && !restoringInstalledApps) persistInstalledApps()
   commit()
   return result
 }
@@ -94,6 +104,9 @@ export function uninstallApp(appId: string): boolean {
   const removed = registry.unregister(appId)
   if (removed) {
     permissionManager.forgetApp(appId)
+    // 广播卸载（B2 审查）：window-store 订阅后关闭该应用全部窗口——权限
+    // 已撤，窗口不能再以「可编辑文件」的状态残留到下次启动。
+    systemBus.emit('app.uninstalled', { appId })
     if (!builtinIds().has(appId)) persistInstalledApps()
     commit()
   }
@@ -127,11 +140,6 @@ export function unregisterRuntimeApp(appId: string): boolean {
   const removed = registry.unregister(appId)
   if (removed) commit()
   return removed
-}
-
-/** 会话级运行时应用是否在册（启动器「我的羽化」等判别用）。 */
-export function isRuntimeApp(appId: string): boolean {
-  return runtimeAppIds.has(appId)
 }
 
 export function getAppManifest(appId: string): AppManifest | null {

@@ -144,6 +144,28 @@ describe('pin / unpin / block / rollback (铁律 1)', () => {
 })
 
 describe('feedback application', () => {
+  it('records field-level tags and enforces the session budget (B3 审查)', () => {
+    seedDynamicDesktopForTests('u1')
+    const plan = buildFieldPlan({
+      seed: 'f1',
+      fieldId: 'dawn-white',
+      zone: 'converge',
+      reason: { signals: [], palette: 'dawn-white', motif: 'gradient-field' },
+    })
+    useDynamicDesktopStore.getState().applyOutcome({
+      outcome: { plan, level: 'L0', durationMs: 1, decisionSource: 'local' },
+      trigger: 'login',
+      atMs: 1,
+      tier: 'low',
+    })
+    for (let i = 0; i < 6; i += 1) useDynamicDesktopStore.getState().applyFeedback('refresh')
+
+    const profile = useDynamicDesktopStore.getState().profile
+    // 风格 + 构图都进画像；-1.5×4 触及 -6 会话预算后不再叠加。
+    expect(profile.tags['gradient-field']).toBe(-6)
+    expect(profile.tags['field:dawn-white']).toBe(-6)
+  })
+
   it('updates the profile for the current plan style', () => {
     seedDynamicDesktopForTests('u1')
     useDynamicDesktopStore.getState().applyOutcome({ outcome: outcomeOf('p1'), trigger: 'login', atMs: 1, tier: 'low' })
@@ -290,5 +312,17 @@ describe('gradient-field plan recents (2026-09-27 生成域防重复)', () => {
     expect(useDynamicDesktopStore.getState().recentFieldIds).toEqual(['dawn-white', 'isle-teal'])
     useDynamicDesktopStore.getState().handleLogout()
     expect(useDynamicDesktopStore.getState().recentFieldIds).toEqual([])
+  })
+})
+
+describe('setRandomness 钳制（C1 审查）', () => {
+  it('越界值钳回 0–100，小数四舍五入', () => {
+    seedDynamicDesktopForTests('u1')
+    useDynamicDesktopStore.getState().setRandomness(-1)
+    expect(useDynamicDesktopStore.getState().prefs.randomness).toBe(0)
+    useDynamicDesktopStore.getState().setRandomness(1000)
+    expect(useDynamicDesktopStore.getState().prefs.randomness).toBe(100)
+    useDynamicDesktopStore.getState().setRandomness(58.6)
+    expect(useDynamicDesktopStore.getState().prefs.randomness).toBe(59)
   })
 })

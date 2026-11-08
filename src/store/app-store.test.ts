@@ -1,13 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { permissionManager } from '@/core/permissions'
 
 import {
   getAppManifest,
   installApp,
-  isRuntimeApp,
   registerRuntimeApp,
   resetAppStore,
+  restoreInstalledApps,
   uninstallApp,
   unregisterRuntimeApp,
   useAppStore,
@@ -181,7 +181,6 @@ describe('runtime registration（羽化今日/留存清单，§3.2/§6.4）', ()
     const result = registerRuntimeApp(TODAY_APP)
     expect(result.ok).toBe(true)
     expect(getAppManifest('com.ageha.eclosion.edge-oracle')?.name).toBe('边缘神谕')
-    expect(isRuntimeApp('com.ageha.eclosion.edge-oracle')).toBe(true)
     // 运行时注册不落盘。
     expect(localStorage.getItem(INSTALLED_KEY)).toBeNull()
 
@@ -205,7 +204,6 @@ describe('runtime registration（羽化今日/留存清单，§3.2/§6.4）', ()
     expect(unregisterRuntimeApp('com.ageha.eclosion.not-registered')).toBe(false) // 未注册的 id
     expect(unregisterRuntimeApp('com.ageha.eclosion.edge-oracle')).toBe(true)
     expect(getAppManifest('com.ageha.eclosion.edge-oracle')).toBeNull()
-    expect(isRuntimeApp('com.ageha.eclosion.edge-oracle')).toBe(false)
     // 第三方安装不受影响。
     expect(getAppManifest('com.ageha.thirdparty')).not.toBeNull()
 
@@ -217,5 +215,29 @@ describe('runtime registration（羽化今日/留存清单，§3.2/§6.4）', ()
     registerRuntimeApp(TODAY_APP)
     resetAppStore()
     expect(getAppManifest('com.ageha.eclosion.edge-oracle')).toBeNull()
+  })
+})
+
+describe('restoreInstalledApps 持久化次数（C1 审查）', () => {
+  it('恢复阶段抑制逐条写盘：整轮 restore 至多一次全量重写', async () => {
+    const manifest = {
+      id: 'com.ageha.thirdparty',
+      name: '第三方',
+      version: '1.0.0',
+      entry: '/apps/sites/third/index.html',
+      permissions: [],
+      window: { width: 400, height: 300, resizable: true },
+    }
+    localStorage.setItem(INSTALLED_KEY, JSON.stringify([manifest, manifest, manifest]))
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
+    try {
+      restoreInstalledApps()
+      const writes = setItemSpy.mock.calls.filter(([key]) => key === INSTALLED_KEY)
+      expect(writes.length).toBeLessThanOrEqual(1)
+      const persisted = JSON.parse(localStorage.getItem(INSTALLED_KEY) ?? '[]')
+      expect(persisted.map((app: { id: string }) => app.id)).toEqual(['com.ageha.thirdparty'])
+    } finally {
+      setItemSpy.mockRestore()
+    }
   })
 })

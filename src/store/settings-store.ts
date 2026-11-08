@@ -54,7 +54,13 @@ function loadPersisted(): PersistedSettings {
   if (typeof localStorage === 'undefined') return {}
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as PersistedSettings) : {}
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as unknown
+    // 存储值可能是 "null" / 数组 / 原始类型（损坏或同源注入）：直接 cast 会
+    // 让模块顶层的 persisted.theme 抛 TypeError → 整个应用 import 阶段白屏
+    // （C1 审查）。非对象一律按无存储处理。
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    return parsed as PersistedSettings
   } catch {
     return {}
   }

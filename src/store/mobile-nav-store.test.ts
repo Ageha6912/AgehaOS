@@ -268,3 +268,11 @@ describe('mobile-nav-store 最近任务（M3-2）', () => {
     expect(nav).toEqual({ view: 'app', appId: 'com.ageha.files', windowId: 'win-files' })
   })
 })
+
+describe('closeAllApps 空列表（C1 审查）', () => {
+  it('apps 为空但 nav 停在 app 视图（过渡帧）也回 home', () => {
+    useMobileNavStore.setState({ apps: [], nav: { view: 'app', appId: 'com.ageha.notes', windowId: null } })
+    useMobileNavStore.getState().closeAllApps()
+    expect(useMobileNavStore.getState().nav.view).toBe('home')
+  })
+})

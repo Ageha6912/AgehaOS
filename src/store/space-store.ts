@@ -52,7 +52,6 @@ interface SpaceStoreState {
   deleteSpace: (id: string) => void
   renameSpace: (id: string, name: string) => void
   switchSpace: (id: string) => void
-  reorderSpaces: (id: string, toIndex: number) => void
   setActiveWindow: (spaceId: string, windowId: string | null) => void
   bindWorkspace: (workspace: WorkspaceId, spaceId: string) => void
   getBoundSpace: (workspace: WorkspaceId) => string | null
@@ -166,11 +165,6 @@ export const useSpaceStore = create<SpaceStoreState>()(() => ({
 
   switchSpace: (id) => {
     engine.switchSpace(id)
-    commit()
-  },
-
-  reorderSpaces: (id, toIndex) => {
-    engine.reorderSpaces(id, toIndex)
     commit()
   },
 

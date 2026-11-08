@@ -9,6 +9,11 @@ import type { WindowBounds, WindowState } from '@/core/window'
 
 export const WINDOWS_STORAGE_KEY = 'agehaos.spaces.windows.v1'
 
+/** 持久化窗口数量上限（C1 审查）：同源注入超大载荷不再启动时水合大量窗口。 */
+export const MAX_PERSISTED_WINDOWS = 50
+/** 单条目标题长度上限（与 MAX_TITLE_LENGTH=120 的窗口标题同量级再留裕量）。 */
+export const MAX_PERSISTED_TITLE_LENGTH = 200
+
 /** 持久化条目 = WindowInstance 的几何/状态/归属子集（focused 等运行时字段不落盘）。 */
 export interface PersistedWindow {
   id: string
@@ -40,10 +45,16 @@ export function serializeWindows(windows: PersistedWindow[]): string {
   return JSON.stringify({ version: 1, windows } satisfies PersistedWindows)
 }
 
-/** 读原始 localStorage 文本 → JSON.parse；损坏（非 JSON）返回 null。 */
+/** 读原始 localStorage 文本 → JSON.parse；损坏（非 JSON）或存储访问被拒
+ *  （隐私模式 getItem 抛错，C1 审查：persistWindows 的 setItem 有保护而读侧
+ *  没有）返回 null。 */
 export function readPersistedWindowsText(): string | null {
   if (typeof localStorage === 'undefined') return null
-  return localStorage.getItem(WINDOWS_STORAGE_KEY)
+  try {
+    return localStorage.getItem(WINDOWS_STORAGE_KEY)
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -57,10 +68,17 @@ export function parsePersistedWindows(data: unknown): PersistedWindow[] | null {
   if (record.version !== 1) return null
   if (!Array.isArray(record.windows)) return null
 
+  // 数量与标题长度上限（C1 审查）：同源注入超大/超长载荷启动时不再水合
+  // 大量窗口/超长标题——与重复 id 同口径整体拒绝。
+  if (record.windows.length > MAX_PERSISTED_WINDOWS) return null
   const windows: PersistedWindow[] = []
+  const seenIds = new Set<string>()
   for (const entry of record.windows) {
     const win = parseWindow(entry)
-    if (!win) return null
+    // id 唯一性（C1 审查）：hydrate 用 Map 按 id 折叠，重复 id 会静默丢窗并
+    // 让 z 序/created 计数失真——与 SpaceManager 同口径，整体丢弃。
+    if (!win || seenIds.has(win.id)) return null
+    seenIds.add(win.id)
     windows.push(win)
   }
   return windows
@@ -101,6 +119,15 @@ function parseWindow(value: unknown): PersistedWindow | null {
   const win = value as Record<string, unknown>
   for (const key of ['id', 'appId', 'title', 'spaceId'] as const) {
     if (typeof win[key] !== 'string') return null
+  }
+  // id/标题长度上限（C1 审查）：超长载荷拒绝该条目——与数量上限同一防线。
+  if (
+    (win.id as string).length > 64 ||
+    (win.appId as string).length > 128 ||
+    (win.title as string).length > MAX_PERSISTED_TITLE_LENGTH ||
+    (win.spaceId as string).length > 64
+  ) {
+    return null
   }
   for (const key of ['x', 'y', 'width', 'height', 'zIndex'] as const) {
     if (typeof win[key] !== 'number' || !Number.isFinite(win[key])) return null

@@ -57,6 +57,34 @@ describe('useSyncStatusStore', () => {
     expect(useSyncStatusStore.getState()).toMatchObject({ phase: 'error', lastSuccessAt: 1000, lastErrorAt: 2000 })
   })
 
+  it('并发周期不互相吞结果：先结束的一方不把仍在飞的另一方标成 idle/error（C1 审查）', () => {
+    useSyncStatusStore.getState().beginSyncCycle()
+    useSyncStatusStore.getState().beginSyncCycle()
+
+    useSyncStatusStore.getState().completeSyncCycle(1000)
+    // 仍有一个周期在飞：phase 保持 syncing，成功时刻已记录。
+    expect(useSyncStatusStore.getState()).toMatchObject({
+      phase: 'syncing',
+      lastSuccessAt: 1000,
+      pending: 1,
+    })
+
+    useSyncStatusStore.getState().failSyncCycle(2000)
+    expect(useSyncStatusStore.getState()).toMatchObject({
+      phase: 'error',
+      lastSuccessAt: 1000,
+      lastErrorAt: 2000,
+      pending: 0,
+    })
+  })
+
+  it('多余的终态事件不会把 pending 压成负数', () => {
+    useSyncStatusStore.getState().completeSyncCycle(10)
+    expect(useSyncStatusStore.getState()).toMatchObject({ phase: 'idle', pending: 0 })
+    useSyncStatusStore.getState().failSyncCycle(20)
+    expect(useSyncStatusStore.getState()).toMatchObject({ phase: 'error', pending: 0 })
+  })
+
   it('resetSyncStatusForTests 回到出厂 idle / 双 null', () => {
     useSyncStatusStore.getState().beginSyncCycle()
     useSyncStatusStore.getState().failSyncCycle(7)
