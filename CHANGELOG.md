@@ -4,6 +4,323 @@
 
 ## [Unreleased]
 
+### 安全修复（2026-11 代码审查 Top3）
+
+- **browse grant 密钥与公开目录材料解耦**：此前 `tokenSecret` 由 `/api/store/catalog` 公开返回的 `keyId:publicKeyBase64` 派生，任何匿名者可伪造任意 userId 的 `agehaos_browse` cookie（含 Cookie 罐回放 → 第三方站点会话劫持）。现改为签名密钥文件内独立随机 `browseSecret`（32 字节，0600）；旧密钥文件启动时原地升级（Ed25519 对不变，历史 grant 全部失效）
+- **代理错误页完整转义 + 错误响应 CSP**：`escapeAttr` 补齐 `<`/`>`/`'`（此前仅 `&`/`"`，`?url=x:<img onerror=...>` 可反射执行脚本）；所有错误/未登录响应下发 `script-src 'none'; object-src 'none'`（错误页为静态 UI，无脚本需求）
+- **query 兜底模式防顶层导航**：`/api/browse` 成功文档追加 CSP `sandbox`（不含 `allow-same-origin`，与客户端 `SANDBOX_FALLBACK` 同口径），并拒绝 `Sec-Fetch-Dest: document` 的顶层导航——恶意链接直达不再能以 os 主域身份执行页面脚本（路径态 browse 子域不受影响）
+- **file-sync 不再把 GET 失败当空快照**：`fetchServerBlob` 对非 2xx 抛错并结束本轮（此前返回 null → 本机树 PUT 覆盖云端，整树数据丢失）；仅 `data:null` 视为「服务端尚无快照」
+- 测试 +7：browseSecret 生成/持久化/旧文件升级/公开材料伪造被拒；错误页尖括号转义 + 错误 CSP；query sandbox + 顶层导航 403；file-sync GET 500 不 PUT
+
+### 其余严重项（2026-11 审查第二批）
+
+- **S4 SSRF**：`url-policy` 补齐 IPv4-mapped IPv6 十六进制（`::ffff:7f00:1`）、IPv4-compatible、NAT64（`64:ff9b::/96`、`64:ff9b:1::/48`）与 6to4 内嵌私网判定 + multicast；`[::ffff:169.254.169.254]` 不再绕过
+- **S6 应用权限**：StoreApp 安装改为只授予「用户勾选 ∩ manifest 声明」，取消勾选保持 Default Deny
+- **S7 窗口水合**：不再按 manifest 过滤持久化窗口（运行时羽化应用启动时尚未注册会被永久丢弃）；未知 appId 保留并渲染 MissingApp，注册完成后窗口内容自动切换（WindowFrame 订阅应用注册表）
+- **S9 部署**：运行时同步先备份 `.deploy-backup/<release>`，失败自动恢复并重启；`--rollback` 在目标 release 带运行时快照时一并恢复 server/src 并重启
+- **S10 目录管理**：目录加载失败时禁用发布/移除并给出重试；响应形状校验，杜绝「单条 PUT 覆盖整份目录」
+- **S11 笔记**：有未保存草稿时切换笔记弹出确认（放弃并切换 / 继续编辑），不再静默丢弃
+- **S12 羽化会话**：`EclosionAppFrame` 按 appId 记忆会话（实例复用不串台）；`AppErrorBoundary` 在 appId/windowId 变化时清除崩溃态；移动宿主按 `appId:windowId` key 重挂
+- **S5 浏览器代理（部分收口）**：`/api/browse/cookies*` 仅接受主域会话（grant 不能枚举/清空 Cookie 罐）；代理文档 `frame-ancestors` 移除 `'self'`（被代理页不能嵌套另一个被代理页读 DOM）；残余的 popup/`/raw` 同 origin 边界已写入 docs/SECURITY.md §7（根治需每站点独立 origin）
+- 本批测试 +13：URL 策略 2 + grant 管理 1、StoreApp consent 1、窗口水合 1 + 运行时注册渲染 1、羽化会话 1、错误边界 1、CatalogSection 1、Notes 1、部署脚本 3
+
+### 中等问题修复 · 第一批（2026-11 审查）
+
+- **Redis 限流 TTL 自愈**：INCR 后 TTL 丢失（EXPIRE 失败/进程中断）时立即补 EXPIRE，避免计数键无过期时间导致某 route-ip 永久 429——`server/src/rate-limit-redis.ts`
+- **并发同名注册**：内存/文件 store 的 `createUser` 改为同步查重后再写入（check 与 set 之间无 await；Postgres 原有 UNIQUE 约束不变）——`server/src/store/{memory-store,file-store}.ts`
+- **SDK 桥加固**：不可序列化值（BigInt/循环引用）回 `invalid-value` 而不是抛异常；storage 读写改 own-property 判断（`toString`/`constructor` 不再被当已存值）；`__proto__` 用 `defineProperty` 写入，杜绝原型污染——`src/core/apps/sdk-bridge.ts`
+- **内容过滤归一化**：客户端 filter 与服务端 classifier 先 NFKC + 去格式字符 + 空白折叠再匹配，堵住全角/零宽/空格插字绕过——`src/core/dynamic/content/filter.ts`、`server/src/classifier.ts`
+- **memory-store 源码 NUL 字节**：改为 `\u0000` 转义（git 不再把文件判为二进制）
+- 本批测试 +6（服务端 +2、前端 +4）
+
+### 中等问题修复 · 第二批（2026-11 审查）
+
+- **browse 响应体超时**：超时截止时间覆盖 body 读取（此前拿到响应头即清定时器，慢滴响应体可无限挂住连接），AbortError → 504——`server/src/routes/browse.ts`
+- **world 单飞锁 TTL**：改为 `timeoutMs * 2 + 30s`，覆盖 invalid-output 重试的两次完整生成，避免第二次尝试期间锁过期被抢——`server/src/eclosion/world.ts`
+- **兜底链过门**：F1/F2 同样过安全/质量/屏蔽过滤 + 主题匹配，不再重放被屏蔽样式或旧主题计划——`src/core/dynamic/generative/pipeline.ts`
+- **计算器状态机**：`=` 后输入数字/`.`/± 开始新计算（清除 accumulator/pending/lastOperand）；退格从 `-5` 到 `-`/空时复位 0——`src/apps/calculator/CalculatorApp.tsx`
+- **Taskbar 悬停计时**：离开瓷砖时取消未触发的 hover 计时器，杜绝指针离开后预览悬空——`src/desktop/taskbar/Taskbar.tsx`
+- **移动退场帧**：leaving 面板加 `pointer-events-none`（不挡 Home 交互）；转场关档回 Home 直接卸载，不留 200ms 冻结层——`src/mobile/app/MobileAppHost.tsx`
+- 本批测试 +8（服务端 +2、前端 +6）
+
+### 中等问题修复 · 第三批（2026-11 审查，VFS/FileManager 数据完整性）
+
+- **根目录保护口径**：VFS 只保护内置系统目录（`DEFAULT_DIRECTORIES`），用户在根目录自建的条目现在可重命名/移动/删除——`src/core/filesystem/vfs.ts`
+- **回收站同名幻影**：`childByName` 活跃节点优先——删除后重建同名文件可正常读取/删除；被删目录的子树在搜索中整体剪枝——`vfs.ts`
+- **还原孤儿**：父目录已进回收站/缺失时 `restore` 明确拒绝（`not-found`），不再产生不可见节点——`vfs.ts`
+- **copy 环检测**：复制到自身或子树抛 `cycle`，不再无限递归——`vfs.ts`
+- **彻底删除二次确认**：FileManager 弹 ConfirmDialog（取消不删），i18n zh/en 新增两键——`src/apps/files/FileManager.tsx`
+- 本批测试 +6（VFS +5、FileManager +1）
+
+### 中等问题修复 · 第四批（2026-11 审查，桌面交互健壮性）
+
+- **WindowFrame 指针序列**：拖拽/resize 记录 `pointerId`（多指/多笔不串台）；鼠标/笔 pointerup 丢失后的 `buttons=0` 悬停 move 收尾；resize 补 `pointercancel`/`lostpointercapture`；标题栏与手柄加 `touch-none`——`src/desktop/window/WindowFrame.tsx`
+- **标题栏双击控制按钮**：双击事件排除 `button` 目标，连点最大化按钮不再 3 次 toggle——同文件
+- **Dock 预览点击语义**：预览体点击 = focus / restore（不再走 toggle 把当前窗最小化）——`src/desktop/taskbar/Taskbar.tsx`
+- **WindowSwitcher 取消回焦**：cancel 把焦点还给打开前的聚焦窗（Esc/backdrop/blur 真正「取消不切换」）；面板收到已被 registry 消费的方向键事件时只同步焦点，不再二次循环——`use-switcher.ts`、`WindowSwitcher.tsx`
+- **Workspace Panel Esc**：收起引发的品牌钮 focusin 被一次性抑制，Esc 不再立即重新展开——`use-workspace-panel.ts`
+- **全局快捷键 IME 守卫**：registry keydown 分发前统一 `isImeComposing`（keyup 不拦，Alt 松开提交不受影响）——`src/desktop/shortcuts/registry.ts`
+- 本批测试 +5（WindowFrame +2、Taskbar +1、Sidebar +1、registry +1）
+
+### 轻微项清尾 · 第三十四批（2026-11 审查，剩余大改面项——收官批）
+
+- **窗口关闭动效统一**：新增 requestMotionClose 登记——MC 卡片 ❌ 与 Dock 预览关闭与标题栏关闭钮同走 ghost 退场（未挂载回退直接关）
+- **MC 可及性**：层补 aria-modal；开层焦点移入活跃卡、关层归还；迁移确认弹层取消钮取焦
+- **移动**：硬件返回关闭最近任务后回焦 Dock Home 触发器；三个手势 hook 的 50ms click 抑制器到期句柄收进 ref（快速 re-arm 不再漏吞）；edge-back 视口落下时定死（消除每帧读-写抖动）
+- **认证**：本地用户持久化失败 console.error（静默降级可诊断）
+- 本批测试 +2（前端 204 文件 / 2365 用例）
+
+### 轻微项清尾 · 第三十三批（2026-11 审查，B3 决策域 + 桌面大改面）
+
+- **AI 提示词安全**：banlist 先于词表白名单（被举报的词表值不再复现）；`PHASE_B_VOCABULARY` own-property 检查（slotId='constructor' 不再抛 TypeError）；登出/清除数据重置 AI 尝试预算/槽位缓存/封禁词表
+- **动态桌面治理**：FPS 帧均改帧间累计（>500ms 窗洞不计）——一次切页/隐藏不再永久停动画；F3 兜底先铺渐变底色（不再透明露基底）；画像 lastSignalAt 非法→冷启动、未来→钳 0（不再永不回退）
+- **浏览器 hash 保留**：query 代理 hash 移到代理地址自身 fragment、路径态附在地址尾部、地址栏显示保留——hash 路由 SPA 与锚点直链不再落默认页
+- **文件管理器**：操作失败改独立可关闭横幅（列表不再被整格替换）
+- **窗口吸附**：snapped 标题栏单击不再弹回吸附前几何——脱 snap 推迟到首次实际位移（首拍落回还原几何、后续跟随）
+- 本批测试 +8（前端 204 文件 / 2363 用例）
+
+### 轻微项清尾 · 第三十二批（2026-11 审查，D1/E1/F1/F2 桌面与移动）
+
+- **浏览器**：token 接口失败/超时统一终结引导（不再永挂「正在准备增强模式…」）；同一 URL 再回车原位刷新（不再追加同址条目）；站点数据摘要随导航重拉
+- **文件/终端**：图片预览坏图显示提示卡；终端会话历史封顶 500、输出行保留最近 800 行
+- **桌面**：MC 拖拽被取消后卡片激活不再被吞；Toast 槽位卸载即删；F4/Ctrl+K 按住不反复开关；Desktop 卸载解除 space-focus 订阅；game-rotation 死代码退役删除
+- **移动**：启动器退场保留文件域结果、reduced-motion 退场立即收尾（通知/控制中心/最近任务 sheet 同款）；启动器搜索 NFKC 归一（全角命中 ASCII 名）；Home 问候语分钟级时钟；PWA 安装条结果行 role=status + aria-live
+- 本批测试 +2（前端 204 文件 / 2355 用例；game-rotation 测试随死代码删除）
+
+### 轻微项清尾 · 第三十一批（2026-11 审查，C1/C2 前端）
+
+- **窗口恢复聚焦**：活跃 Space 内选 zIndex 最大的非最小化窗（全最小化保持无焦点）——恢复后任务栏/菜单栏活跃态不再丢失
+- **窗口持久化**：读侧 getItem 包 try/catch；载荷上限 50 条 + id/标题长度上限（整体拒绝）
+- **应用恢复**：restoreInstalledApps 整轮只写盘一次（不再 N 条 N 次全量重写、中断只剩前缀）
+- **通知**：markRead/markAllRead 无变化时短路（面板/Toast 不再无意义重渲染）；通知桥新增 stopNotificationBridge（可卸载）
+- **动态桌面**：setRandomness 钳 0–100（越界值不再刷新后莫名丢失）
+- **会话**：本地注册后自动登录失败如实上抛；closeAllApps 空列表也回 home
+- **羽化编排**：refreshQuota 瞬时失败保留上次快照（一次 502 不再显示「LLM 未配置」）；sessions 封顶 24（淘汰 done 且无 attach）；eclosion-cache 等事务提交再返回 + open 拒绝挂空 catch；sounds resume 拒绝消音
+- **部署/工程**：deploy.mjs VITE_ 键全透传 + dist 断言 fail() 收口；backup-pull set -euo pipefail + 秒级时间戳；deploy-lib 死代码删除；eslint 范围归位（server node globals、scripts 纳入）；playwright 本机不复用旧 preview；index.html 去静态 dark
+- **根错误边界**：shell 层崩溃给出「重新加载」恢复面 + React 19 onUncaughtError 上报
+- 本批测试 +10（前端 205 文件 / 2353 用例）
+
+### 轻微项清尾 · 第三十批（2026-11 审查，B1/B2 前端基础设施）
+
+- **VFS 路径收紧**：`normalizePath` 拒绝 `.`/`..` 点段；`validateName` 拒绝反斜杠与首尾空白（点段目录创建由 invalid-name 改为 invalid-path）
+- **EventBus 语义**：emit 期间被注销的监听器不再执行；`once` 可用原始 handler 注销
+- **bootCurve 边界**：NaN 回 0；`share=0` 段落段末（不再 NaN）；缓动输出钳 0~1
+- **设备探针**：0×0 视口（隐藏 iframe）落 1024×768 兜底；UA-CH 改方法调用（解构裸调用在真浏览器 Illegal invocation，Chromium 权威位恢复可用）
+- **应用生命周期**：`stop()` 清空计数、未计数 close 忽略；新增 `app.uninstalled` 事件——卸载即关闭该应用全部窗口
+- **窗口引擎**：create 重复 id 重试后抛错；固定尺寸窗口按 manifest 声明落（计算器 300px 不再被抬高）；minimize→maximize→restore 不再卡死 maximized；resize 视口不足落最小尺寸
+- **Space 管理**：删 active Space 先重定向再发 deleted；createSpace 超长名回退缺省名
+- **SSE 解析**：close 无条件派发最后一帧（无结尾空行不再丢 done）；`push('')` 不再吞 BOM
+- **i18n 缺 key 回退**：translate 回退默认语言再回退 key（不再 undefined 打断渲染）
+- **world signals 上行限长**：titles ≤12、sourceName ≤120、sourceUrl 仅 http(s)
+- **manifest 信任边界**：name/author ≤120、description ≤500，控制符与双向格式字符拒绝
+- **SDK `files.list()` 无参缺省根目录**（SDK 与 runner 内联副本同步）
+- **目录钉扎键空串 fail-closed**（不再 `''||null` 静默降级成无钉扎）
+- 本批测试 +23（前端 205 文件 / 2343 用例）
+
+### 轻微项清尾 · 第二十九批（2026-11 审查，A2/A3 剩余较大项）
+
+- **代理重写区段遮蔽**：`<script>/<style>` 正文与注释先遮蔽再改写、原样放回——JS 字符串里的 `href=`/`<base>` 不再被改残/污染解析基准；补 `button/input` 的 `formaction` 改写——`server/src/browse/rewrite.ts`
+- **SW/服务端 Range 透传**：SW 白名单转发 `range`/`accept-language`（`if-*` 与凭据头有意不转）；服务端每跳透传并保留上游 206 + `content-range`/`accept-ranges`——代理内视频/音频可拖动进度条
+- **file-store 读错误不再当首次启动**：仅 ENOENT 返回空库，EACCES/EBUSY 等直接抛出（防止后续写成功覆盖原文件）；JSON 损坏先改名 `.corrupt-<ts>` 保留证据
+- **羽化流/缓存一致**：`StreamingHtmlGate` 报告 `overshoot`（已流式下发但 finalize 被剥除的尾部），服务端发 `replace` 整文替换帧、客户端重建切片与截留脚本——客户端拼流 == 缓存全文
+- **/world/regenerate 个人单飞**：`worldPersonalGenLockKey` + 409 `world-in-progress`（预占退还）+ 显式 `day`——双击不再并发两次真实上游生成
+- **三驱动 `pruneEclosionAged`**：启动 + 世界调度 tick 定期清理旧日计数/过期锁/超龄缓存（postgres 三条参数化 DELETE；file 缓存封顶 500 与 memory 同口径）
+- 本批测试 +14（服务端 +13、前端 +1）
+
+### 轻微项清尾 · 第二十八批（2026-11 审查，A1/A2 服务端）
+
+- **AI 代理失败分支连接泄漏**：非 2xx 回 502 前 `body.cancel()`——上游持续报错时 keepAlive 连接池不再被占满
+- **优雅停机收口**：新增 `server/src/shutdown.ts`——重复信号幂等、close 拒绝打日志并 exit(1)（旧实现 unhandled rejection 且 SIGTERM 无法停机）；动态创建的 Redis 客户端接入 `onClose` quit（测试注入客户端不受影响）
+- **origin allowlist 归一化**：尾斜杠/大小写配置不再让合法请求 403；非法项跳过（fail-closed）并打 warn
+- **签名密钥损坏保全**：区分首次启动与损坏——损坏文件改名 `.corrupt-<ts>` 保留 + `catalog.key_regenerated` 审计后重建（历史目录签名失效不再无痕迹）
+- **PATCH /users/me 挂限流**：与改密同规格（loginMax）——认证写放大收口
+- **目录 window 未知键拒绝**：`Object.keys(v.window).length !== 3`，与外层严格键数同口径
+- **cookie-jar Max-Age/Expires 裁决**：先收集后统一按 RFC 6265 §5.3 裁决——`Expires=<过去>; Max-Age=120` 两种顺序都不再误删
+- **browse prelude 存储回退**：单侧 wrap 抛错时回退真实 Storage（`__agehaRealLocal` 悬空引用移除），页面调用不再 TypeError
+- **grant 用途域**：payload 加 `s:'claim'|'browse'`，`verifyGrant` 校验用途域——browse grant 不能再换 6h 续期、claim token 不能当 browse cookie；**历史 grant 全部失效**（浏览器重新引导即可）
+- **postgres 锁重入对齐**：单飞锁 upsert 允许同 holder 重入（与 memory/file 驱动一致）
+- **store 启动守卫 + memory 羽化 GC**：显式 postgres 缺 DATABASE_URL 拒绝启动；memory 羽化缓存封顶 500 条（近似 LRU）、日计数超 512 条裁 8 天窗口外旧键、过期锁顺手清
+- 本批测试 +18（服务端 16 文件 / 277 用例；新增 shutdown.test.ts）
+
+### 中等问题修复 · 第二十七批（2026-11 审查，个性化与反馈权重）
+
+- **单风格域熵保底**：熵 <1.5 只在可行域 ≥2 风格时强制 `far`，单风格域不再每次 `far`——`src/core/dynamic/decision/engine.ts`
+- **构图个性化**：`pickFieldId` 按 `field:<id>` 反馈标签加权采样；store 把当前构图写进画像——同文件、`src/store/dynamic-desktop-store.ts`
+- **会话累计钳制**：单会话同标签反馈增量收口 ±6；`pin` 权重 10 不再被截成 6；登出/清空重置预算——`src/core/dynamic/feedback/weights.ts`、store
+- 本批测试 +3（熵门槛跳过、构图加权、会话预算/pin）
+
+### 中等问题修复 · 第二十六批（2026-11 审查，羽化宿主治理）
+
+- **回落标题还原**：重新羽化开始时撤销「已回落经典版」后缀（仅当标题仍是回落标题，不覆盖 SDK 自定义）——`src/components/eclosion-app-frame.tsx`
+- **封禁/关闭态门禁**：标题栏重新羽化/获取/举报在封禁或总开关关时禁用；`regenerate`/`keepApp` 服务入口加封禁守卫——同文件、`src/services/eclosion.ts`
+- **WebAppFrame entry 切换**：加载遮罩复位 + iframe 按 entry 重挂，旧文档迟到消息不落新文档——`src/components/web-app-frame.tsx`
+- **举报上传超时**：15s AbortController（可注入）——`src/services/eclosion.ts`
+- **进度条读屏降噪**：字数计数 `aria-hidden`，live region 只留稳定生成文案——`eclosion-app-frame.tsx`、i18n
+- 本批测试 +4（封禁禁用、标题还原、entry 重挂、举报超时）
+
+### 中等问题修复 · 第二十五批（2026-11 审查，窗口动效 / 聚焦 / 渲染）
+
+- **关闭与在飞动画**：open 在飞时反向抓回、restore/minimize 先落定再关闭，不再叠两个 fill:both 动画（弹回全尺寸再淡出）——`src/desktop/window/use-window-motion.ts`
+- **iframe 内点击聚焦**：窗口 section `onFocusCapture` 补 focus（ghost/已聚焦跳过）——`src/desktop/window/WindowFrame.tsx`
+- **窗口渲染开销**：commit 复用未变化窗口对象引用 + `WindowFrame` memo，拖动单个窗口不再重渲染其他窗口的应用子树——`src/store/window-store.ts`、`WindowFrame.tsx`
+- 本批测试 +4（交叉中断 2、焦点桥 1、引用复用 1）
+
+### 中等问题修复 · 第二十四批（2026-11 审查，动态桌面决策）
+
+- **随机度固定档**：`randomness=0` 在服务层直接短路（不发起生成、保留当前计划/照片基底）；决策器 fixed 分支给当前主题 field 兜底，不再返回已退役 landscape——`src/services/dynamic-desktop.ts`、`src/core/dynamic/decision/engine.ts`
+- **空可行域**：屏蔽唯一启用风格时决策器返回无建议（`plan:null`），管线走 F1→F2→F3；不再域外补 fluid-gradient——同文件 + `src/core/dynamic/generative/pipeline.ts`
+- 本批测试 +4（fixed 域内兜底、空域 null、管线兜底、服务层短路）
+
+### 中等问题修复 · 第二十三批（2026-11 审查，XFF 限流 / 同步容量）
+
+- **X-Forwarded-For 伪造绕过限流**：`trustProxy` 从 `true` 收窄为 `'loopback'`（只信本机反代，取最右追加地址）——`server/src/app.ts`（上线前提：反代与 server 同机；远端反代需配置具体网段）
+- **同步域容量**：`DataStore.countSyncDomains` + 每用户 8 域上限（新域 400 `too-many-sync-domains`，旧域照常写）；PUT 路由挂 120/min 会话级限流——`server/src/routes/sync.ts`、`server/src/store/`
+- 本批测试 +2（伪造 XFF 仍 429、同步域上限/覆盖写）
+
+### 中等问题修复 · 第二十二批（2026-11 审查，流式解析 / 窗口焦点 / SDK / 终端）
+
+- **html-stream 下标**：`bufferLower` 只折叠 ASCII 大写，非 ASCII 大写（İ）不再让 rawtext 闭合偏移、脚本截断、后续内容丢失——`src/core/eclosion/html-stream.ts`
+- **跨 Space 焦点补位**：close/minimize 只在同 Space 内补位，关闭后台窗不抢焦点——`src/core/window/window-manager.ts`
+- **Type C SDK 来源校验**：`sdk-result` / `hello` 只认 `event.source === window.parent`——`public/sdk/ageha-sdk.js`
+- **终端错误可见**：VFS 异常映射为 `terminal.err.failed` 错误行，组件兜底 catch——`src/core/terminal/shell.ts`、`src/apps/terminal/TerminalApp.tsx`、i18n
+- 本批测试 +7（İ 下标、跨 Space 补位 3、SDK 来源 2、终端错误映射 1）
+
+### 中等问题修复 · 第二十一批（2026-11 审查，浏览器 / 文件预览 / 终端）
+
+- **iframe 内导航回报**：代理文档注入 `agehaos:browse-location`（load/history/popstate/hashchange），宿主解码回真实 URL 更新地址栏/书签/标题且不重载 iframe；刷新跟随当前真实位置——`server/src/browse/{prelude,rewrite}.ts`、`src/apps/browser/{BrowserApp,browser-nav}.ts(x)`
+- **代理消息来源校验**：browse-ready 绑定引导 iframe + 子域 origin；location/open-external 校验 origin 与已登记 iframe 来源，新标签打开加 1s/5 个限流——同文件
+- **清除站点数据二次确认**：ConfirmDialog + 失败可见 + 成功后重拉摘要——`src/apps/browser/BrowserApp.tsx`、i18n
+- **图片预览缩放按钮**：控件上的 pointerdown 不再被容器抢捕获，补 lostpointercapture 复位——`src/apps/files/ImagePreview.tsx`
+- **终端 IME 守卫**：组合期 Enter/↑/↓ 不提交/不召回——`src/apps/terminal/TerminalApp.tsx`
+- 本批测试 +6（路径解码、导航回报、伪造来源、清除确认/失败、预览捕获、终端 IME）
+
+### 中等问题修复 · 第二十批（2026-11 审查，存储健壮性）
+
+- **设置存储脏数据不再白屏**：persisted 值非对象（`"null"`/数组/原始值）按无存储处理——`src/store/settings-store.ts`
+- **窗口持久化重复 id**：解析阶段整体拒绝，不再被 Map 静默折叠——`src/store/window-persist.ts`
+- **窗口恢复几何钳制**：按当前视口钳制位置/尺寸（至少 80px 可见），脏尺寸抬到最小宽高；`restoreBounds` 同步——`src/store/window-store.ts`
+- **同步状态并发**：新增在飞周期计数，并发 settings/file 同步不再互相吞掉终态——`src/store/sync-status-store.ts`
+- 本批测试 +5（脏设置、重复 id、越界几何、并发状态、多余终态）
+
+### 中等问题修复 · 第十九批（2026-11 审查，样本分页 / 弹层焦点）
+
+- **复审样本分页**：`GET /api/dynamic/samples` 支持 `limit`/`offset`（默认 50、上限 200）并返回 `hasMore`；store 三驱动同步支持（postgres `LIMIT/OFFSET`）——不再一次性全量返回——`server/src/store/`、`server/src/routes/samples.ts`
+- **复审面「加载更多」**：首屏一页、按需追加；失败保留已加载行并可重试——`src/apps/settings/SampleReviewSection.tsx`、`src/core/i18n/dictionaries.ts`
+- **快捷键弹层焦点陷阱**：Tab/Shift+Tab 在对话框内循环，不再跑进背景——`src/desktop/menu-bar/ShortcutsDialog.tsx`
+- 本批测试 +4（分页路由、加载更多、加载失败保留、弹层 Tab 陷阱）
+
+### 中等问题修复 · 第十八批（2026-11 审查，动效 / 窄屏 / 笔记）
+
+- **还原飞行不再被聚焦转场覆盖**：最小化→正常时跳过 tilt，genie 动画独占 transform/opacity——`src/desktop/motion/use-focus-tilt.ts`
+- **顶栏窄屏溢出**：状态簇/用户按钮 `min-w-0`，长显示名 `max-w-24 truncate`，<640px 隐藏日期只留时间——`src/desktop/menu-bar/MenuBar.tsx`、`src/desktop/taskbar/UserMenu.tsx`
+- **笔记异步归属与外部变更对齐**：保存结果只写给发起时的笔记；外部删除选中笔记退出编辑器并提示（不再复活文件），外部改写时草稿干净则跟随内容——`src/apps/notes/NotesApp.tsx`
+- 本批测试 +6（还原不叠加、窄屏截断/日期隐藏、迟到保存归属、外部删除/改写跟随）
+
+### 中等问题修复 · 第十七批（2026-11 审查，顶栏 / 侧栏 / 右栏）
+
+- **菜单编辑命令不再失焦**：触发器与菜单项阻止 pointerdown 默认聚焦，撤销/复制/粘贴等 document 命令（含异步剪贴板粘贴）命中原可编辑元素——`src/desktop/menu-bar/MenuBar.tsx`
+- **顶栏渲染开销**：窗口菜单拆为独立子组件（打开时才订阅窗口列表），日期格式化器 useMemo；拖拽/缩放不再重渲染整条顶栏——同文件
+- **勾选语义**：主题/聚焦窗口项改 `menuitemradio` + `aria-checked`，键盘遍历同步——同文件
+- **iframe 内点击关闭菜单**：window blur 且焦点进入 iframe 时收起——同文件
+- **快捷键弹层焦点**：onClose ref 化，时钟每秒重渲染不再周期抢回焦点——`src/desktop/menu-bar/ShortcutsDialog.tsx`
+- **侧栏与右栏开销**：Sidebar 去掉 windows 订阅（点击时 getState）；WidgetRail 采样按 xl 可见性 + 页面可见性门控并单飞——`src/desktop/sidebar/Sidebar.tsx`、`src/desktop/widgets/WidgetRail.tsx`
+- 本批测试 +3（编辑焦点保持、快捷键弹层不抢焦点、窄屏不采样）
+
+### 中等问题修复 · 第十六批（2026-11 审查，动态面板 / 桌面与壁纸）
+
+- **tip 卡来源徽标**：LLM/缓存增强时卡片徽标如实显示来源（不再写死「本机」）——`src/apps/dynamic-panel/DynamicPanelApp.tsx`
+- **LLM 装配代次**：每次重装配推进代次，先发后返的旧响应不覆盖新内容；关闭深度增强后在途响应不再落地——同文件
+- **样本上传超时**：15s AbortController，悬挂请求走失败通知并关闭确认框——同文件
+- **Boot 会话反向迁移**：远程会话恢复晚于开机判定时，从登录页自动回到桌面——`src/App.tsx`
+- **搜索激活行钳制**：结果收缩或异步到达时激活项不再越界，Enter 不再落空——`src/desktop/search/SearchPalette.tsx`
+- **壁纸跟随视口/DPR 与上下文恢复**：ResizeObserver + resize + resolution 媒体查询重算 backing store 并重绘静态帧；`contextlost` 停循环、`contextrestored` 重画——`src/desktop/wallpaper/{render,WallpaperLayer}.tsx`
+- 本批测试 +7（tip 徽标来源、stale LLM、关闭增强、上传超时、Boot 反向迁移、搜索钳制、壁纸 resize/DPR 与 contextlost）
+
+### 中等问题修复 · 第十五批（2026-11 审查，登录健壮性 / 设置小项）
+
+- **登录请求超时**：`RemoteAuthClient` 新增 15s 请求超时（AbortController 覆盖到响应体读完），超时归 `auth-timeout`；半开网络不再让登录按钮永久 busy——`src/core/auth/backend-client.ts`
+- **登录 busy 复位**：提交改 try/finally，意外异常也复位并显示通用错误；busy 期间禁用模式切换——`src/desktop/login/LoginScreen.tsx`
+- **账户操作在途禁用**：资料/头像/改密/单设备撤下各自禁用与单飞，输入变更清旧提示；本地认证不再显示「登出其他设备」（本地 provider 恒返回 0，旧提示与事实不符）——`src/apps/settings/AccountSection.tsx`
+- **羽化开关可关**：服务端 `configured:false` 只在开启方向置灰，已开启用户仍能关闭——`src/apps/settings/EclosionSection.tsx`
+- **样本删除二次确认**：ConfirmDialog + 失败保留行、刷新复位旧告警——`src/apps/settings/SampleReviewSection.tsx`、`src/core/i18n/dictionaries.ts`
+- **同步状态远程门控**：本地认证下不再显示远程 `sync-status`（即使 localStorage 残留开关）——`src/apps/settings/SyncSection.tsx`
+- 本批测试 +7（登录超时、busy/模式切换、账户在途、羽化开关方向、样本取消/告警复位、同步本地门控）
+
+### 中等问题修复 · 第十四批（2026-11 审查，配额原子化 / 结构闸）
+
+- **羽化额度与预算原子预留**：新增 `DataStore.reserveEclosionDaily`（postgres 单条条件 upsert；memory/file 同步读-判-写），`/generate`、`/world/regenerate` 与世界合成在真实生成前预占（个人 1 次 / 全局预算按单次上限与剩余额度取小），结束后按实际用量多退少补、未生成路径全额退还；并发请求不再能同时越过 `used = limit - 1` 或全局 token 硬顶——`server/src/store/`、`server/src/eclosion/{quota,world}.ts`、`server/src/routes/eclosion.ts`
+- **html-gate script 区间保护**：`<script>` 正文原样转发（`s.src='https://…'` 不再被切成 `el.;` 残句导致黑屏），开标签内 `src=` 仍剥离；script 字符串里的 `</html>` 不再提前截断文档——`server/src/eclosion/html-gate.ts`
+- **外链扫描补全**：`href`/`srcset`/`xlink:href`/`poster`、协议相对 `//host`、实体引号（`&quot;` 等）纳入剥离与审计；8KB 前导垃圾限额在同一次 push 内也生效——同文件
+- 本批测试 +5（预占原子性与并发 TOCTOU、script 正文保留、script 开标签剥离、`</html>` 字符串、8KB 单次 push）
+
+### 中等问题修复 · 第十三批（2026-11 审查，服务端羽化域）
+
+- **计费写入防护**：finally 中额度/预算写入包 try/catch，失败仅审计告警——不再穿出 finally 跳过 finish 导致 SSE 悬挂；计费日键按写入时刻重算（跨 UTC 零点不漏计）——`server/src/routes/eclosion.ts`
+- **上游流式体积上限**：内容 1M / 推理 2M 字符超限即按 ai-upstream 中止；非 2xx 先 cancel body 释放连接——`server/src/eclosion/upstream.ts`
+- **热点源边读边限量**：reading loop 累计超 2MB 即停止并 cancel，不再整体 `text()` 读入——`server/src/eclosion/trending.ts`
+- **世界空响应归类**：空/纯空白输出归 `empty`（旧判定 `lines.length===0` 永假，误标 no-theme）——`server/src/eclosion/world.ts`
+- 本批测试 +4（上游上限、计费失败不悬挂、热点限量、世界空响应）
+
+### 中等问题修复 · 第十二批（2026-11 审查，清除羽化数据）
+
+- **clearData 全量清理**：先中止在跑生成，删缓存后同步清空内存会话（分片/脚本）、想象全文与 query、留存/世界/想象运行时注册与 store 状态镜像；已打开的 eclosion 窗口一并关闭（旧快照不再显示），「获取」无法再把已删数据写回——`src/services/eclosion.ts`、`src/store/eclosion-store.ts`
+- 本批测试 +1（清除后会话/注册/窗口/写回口全链路）
+
+### 中等问题修复 · 第十一批（2026-11 审查，羽化握手 / Type B entry / 计算器作用域）
+
+- **Type B entry 归一化**：`isAllowedWebAppEntry` 先按 WHATWG URL 归一化再比对，`%2e%2e` 编码点段不再绕过 `/apps/sites/` allowlist；编码分隔符与 query/hash 一律拒绝——`src/core/apps/web-app.ts`
+- **羽化 iframe 握手**：同一 attempt 内 iframe 重载会重置握手/下发游标并重新 hello（不再重载后永远结茧）；新增 8s ready 超时走质量回退重试——`src/components/eclosion-app-frame.tsx`
+- **重试栅栏归位**：同一 attempt 的连续 runner error/超时只回炉一次（宿主按 attempt 记忆）；修正把 generating 误当去重档——生成期 power-on 崩溃仍换新一轮——`eclosion-app-frame.tsx`、`src/services/eclosion.ts`
+- **计算器键盘作用域**：补齐 Space 归属与最小化态守卫（非活跃 Space 的隐藏窗口不再吞全系统数字/运算符）；豁免 Ctrl/⌘/Alt 组合键——`src/apps/calculator/CalculatorApp.tsx`
+- 本批测试 +7（web-app 2、CalculatorApp 2、eclosion-app-frame 3；eclosion 服务测试净 0）
+
+### 中等问题修复 · 第十批（2026-11 审查，弹层 portal/可访问性 + 危险操作确认）
+
+- **弹层 portal**：新增共享 `DialogShell`（createPortal 到 body + aria-modal + 焦点陷阱 + Esc/遮罩关闭 + 卸载回焦），Confirm/Prompt/PermissionConsent 三处接入——`backdrop-filter` 做 fixed 包含块导致的「遮罩只盖应用窗口/被裁剪/盖不过其他窗口」修复——`src/components/dialog-shell.tsx`
+- **忙态可退出**：ConfirmDialog busy 只禁用确认，取消/Esc 仍可关闭（网络悬挂不再锁死窗口）
+- **玻璃审计**：Dialog 席位的 backdrop-blur 载体收敛到 DialogShell 一处，`glass-audit.test.ts` 白名单同步
+- **危险操作二次确认**：应用商店卸载（+安装失败可见反馈）、设置「登出其他设备」（+成功后会话列表刷新）、「清除羽化数据」（+失败内联错误 + 蝶谱清空 + 提示复位）、「清除全部 AI 数据」（+在途禁用）——`StoreApp.tsx`、`AccountSection.tsx`、`EclosionSection.tsx`、`DynamicDesktopSection.tsx`
+- 本批测试 +9（dialog-shell 5、StoreApp 1、AccountSection 2、EclosionSection 1）
+
+### 中等问题修复 · 第九批（2026-11 审查，羽化生成并发）
+
+- **重羽化/重试竞态**：尝试代际（token）覆盖终态提交、增量帧、缓存落地与 controller 释放；旧 finally 不再删除新 controller（关窗仍可中止）；`requestRetry` 在 queued/generating 时只确认、不并发开新一轮——`src/services/eclosion.ts`
+- **排队取消/登出排空**：AbortController 提前到排队前登记（queued 阶段可取消）；登出/stop 失效代际、排空等待队列并把 queued/generating 会话落 aborted（settled 不悬挂）；排队唤醒点复核 abort/代际/账号
+- **流空闲看门狗**：30s 无帧即中止，按可重试的 `ai-timeout` 收尾（半开连接不再永久占用并发槽）
+- **登出后晚到结果**：refreshWorld/regenerateWorld/prepareUserData/restoreKeptApps 在 await 后复核 userId+开关，旧账号的世界/留存清单不再复活
+- 本批测试 +6（服务层 eclosion.test.ts）
+
+### 中等问题修复 · 第八批（2026-11 审查，认证/会话竞态）
+
+- **无存储环境会话**：AuthService 增加内存态会话——localStorage 不可用/读取抛错时登录真实生效（资料页/改密可用），有存储时仍以存储为准（跨标签页登出生效）——`src/core/auth/auth-service.ts`
+- **reconcile 不再误登出**：仅 401/not-authenticated 清缓存；网络断开/5xx/429 保留未过期缓存（离线启动不回登录页）——`src/core/auth/backend-client.ts`
+- **已认证接口 401 会话失效**：profile/改密/会话管理调用统一走 authedRequest——会话失效清缓存并广播 `user.logout`（session-store 订阅复位）；改密错误的 `invalid-credentials` 不误登出——`backend-client.ts`、`src/store/session-store.ts`
+- **登出竞态**：provider 与 session-store 双端会话代际——晚到的 reconcile/login/register/updateProfile 结果不写回，不再出现"登出后又回桌面"或 `anonymous` 却保留 user
+- 本批测试 +10（AuthService 3、RemoteAuthClient 4、session-store 3）
+
+### 中等问题修复 · 第七批（2026-11 审查，代理 HTML 重写）
+
+- **data-href 误改写**：属性扫描改为 token 化（精确属性名 + 属性值整体跳过），`data-href`/`data-action` 与属性值内的 `href="…"` 字样不再被改写；无引号 href 也在覆盖内——`server/src/browse/rewrite.ts`
+- **GET 表单目标丢失**：query 兜底模式 action 改为裸 `/api/browse` + 目标注入隐藏域 `__ageha_url`，路由把其余查询参数（表单字段）追加到目标 URL——GET 搜索/筛选表单不再因 action query 被浏览器替换而 400/丢字段；路径模式 action 保留目标路径，POST 口径不变——`rewrite.ts`、`server/src/routes/browse.ts`
+- **`<base>` 语义**：按原页首个 `<base href>` 解析相对链接（删除标签前取样）；query 模式注入解析后的真实 base，路径模式注入代理路径形态的等价 base（相对 URL 仍回同源代理）；`<base target>` 保留——`rewrite.ts`
+- **query 模式绝对代理 URL**：注入的真实站 base 会让路径绝对链接/表单 action 解析到真实站 origin（`/api/browse` → 真站 `/api/browse`）；改写产出改用请求 origin 拼绝对代理 URL，链接与 GET 表单才能稳定回流——`rewrite.ts`、`routes/browse.ts`
+- 本批测试 +9（服务端重写 8 + GET 表单全链路 1）
+
+### 中等问题修复 · 第六批（2026-11 审查，移动覆盖层返回层级 + 安装提示）
+
+- **覆盖层返回层级**：history 记账改为分层栈——应用栈位至多一条（应用间切换不再逐次叠残位）；启动器/通知中心/控制中心/最近任务打开时各压一条栈位，popstate 先关栈顶覆盖层。Home 上打开启动器按 Android 返回键只关启动器（此前直接离开 AgehaOS），app 视图下打开通知/控制中心按返回只关 sheet（此前应用退回 Home 而 sheet 仍盖着）；UI 关闭只消费栈顶栈位，从覆盖层选中/跳转/切卡进入应用时以 `replaceState` 改写栈位（避开 back 异步遍历与随后 pushState 的竞态）——`src/mobile/app/mobile-history.ts`、`MobileAppHost.tsx`
+- **状态栏 sheet 开合入 store**：通知中心/控制中心开合从 MobileStatusBar 本地 state 提升到 `src/store/mobile-sheet-store.ts`，AppHost 单点纳入 history 分层（sheet 内部相位机不变）——`MobileStatusBar.tsx`
+- **安装提示生命周期**：beforeinstallprompt/appinstalled 采集与 deferred prompt 记账提升到模块级 `src/store/install-prompt-store.ts`（覆盖登录前事件 + Home 卸载期；进应用再回 Home 安装条不再整轮消失）；对话框取消后新事件把相位复位 `idle`（第二次安装机会重新可点）；prompt 消费/抛错/appinstalled 语义与 UI 反馈行不变——`use-install-prompt.ts`
+- 本批测试 +23（mobile-history 5、AppHost 7、MobileShell 2、use-install-prompt 3、MobileInstallBar 2、mobile-sheet-store 4）
+
+### 中等问题修复 · 第五批（2026-11 审查，移动端交互/生命周期）
+
+- **返回键栈位**：进入应用 push 的 history 条目由 UI 返回（header / edge-back）主动消费（`mobile-history.ts`），home 也常驻 popstate 监听——残留条目不会让 Android 返回键「静默无响应 / 退出 AgehaOS」
+- **登出复位**：`user.logout` 时清空 mobile nav/apps 并关闭移动窗口，换账号不恢复上一会话视图——`MobileAppHost.tsx`
+- **手势指针捕获**：上滑启动器 / 边缘返回 / 长按的 move/up/cancel 监听提升到 window——pen/鼠标拖出宿主（Dock 区仅约 90px）也能完成或取消，不再永久悬挂
+- **edge-back 动画收尾**：滑出动画挂起的「确认回 home」在新按压取消时 flush（不丢返回）；手势结束/清理无条件还原内联样式，杜绝面板残留偏移
+- 本批测试 +3（MobileAppHost +2、swipe-up +1）
+
 ## [0.7.1] · 修复：代理页点击必有反馈 + 增强模式状态可见（2026-10-18）
 
 用户反馈「B 站只有首页，其他点不进去」。实测定位两层：① **B 站视频页服务端返回 412**（香港出口 + 非浏览器 TLS 指纹，Referer/Cookie 补齐仍拒——首页放宽、内页严查，属服务端代理硬边界）；② 卡片 `target="_blank"` 在沙箱 iframe 里被静默拦掉 → 「点了没反应」。修复第 ② 层（可见的失败优于静默失败）：
