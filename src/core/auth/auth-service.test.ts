@@ -83,6 +83,22 @@ describe('AuthService.register', () => {
       code: 'weak-password',
     })
   })
+
+  it('rejects one of two concurrent registrations of the same name', async () => {
+    // 并发 check-then-act（B1 审查）：hash 是异步让出点，初查都能通过——
+    // 写入前复检保证只有一个成功。
+    const { service } = createService()
+    const settled = await Promise.allSettled([
+      service.register('race-user', 'secret123'),
+      service.register('race-user', 'secret123'),
+    ])
+
+    expect(settled.filter((row) => row.status === 'fulfilled')).toHaveLength(1)
+    const rejected = settled.find((row) => row.status === 'rejected')
+    expect(rejected?.status === 'rejected' ? rejected.reason : null).toMatchObject({
+      code: 'user-exists',
+    })
+  })
 })
 
 describe('AuthService.login', () => {
@@ -167,5 +183,46 @@ describe('AuthService sessions', () => {
 
     expect(restarted.getSession()?.token).toBe(token)
     expect(restarted.getUser()?.username).toBe('alice')
+  })
+
+  it('keeps the session in memory when storage is unavailable', async () => {
+    // 隐私模式/持久化被拒（B1 审查）：登录必须真实生效，资料页/改密可用。
+    const bus = { emit: vi.fn() }
+    let counter = 0
+    const service = new AuthService({
+      storage: null,
+      bus,
+      generateId: () => `mem-${++counter}`,
+    })
+
+    const registered = await service.register('memory-user', 'secret123')
+    await service.login('memory-user', 'secret123')
+    expect(service.getSession()?.userId).toBe(registered.id)
+    expect(service.getUser()?.username).toBe('memory-user')
+
+    const updated = await service.updateProfile({ displayName: '内存用户' })
+    expect(updated.displayName).toBe('内存用户')
+    await expect(service.changePassword('secret123', 'newpass123')).resolves.toBeUndefined()
+
+    expect(service.logout()).toBe(registered.id)
+    expect(service.getSession()).toBeNull()
+    expect(service.getUser()).toBeNull()
+  })
+
+  it('rejects avatars outside the format whitelist on updateProfile', async () => {
+    const { service } = createService()
+    await service.register('avatar-user', 'secret123')
+    await service.login('avatar-user', 'secret123')
+
+    const invalid = await service
+      .updateProfile({ avatar: 'data:image/svg+xml;base64,AAAA' })
+      .catch((error: unknown) => error)
+    expect(invalid).toMatchObject({ code: 'avatar-invalid' })
+
+    const valid = await service.updateProfile({ avatar: 'data:image/png;base64,AAAA' })
+    expect(valid.avatar).toBe('data:image/png;base64,AAAA')
+
+    const cleared = await service.updateProfile({ avatar: null })
+    expect(cleared.avatar).toBeUndefined()
   })
 })

@@ -69,3 +69,21 @@ describe('clamp01 / ease helpers', () => {
     }
   })
 })
+
+describe('bootCurve 数值边界（B1 审查）', () => {
+  it('NaN 输入回 0；x 落在 share=0 段上是段末（不再 NaN）；过冲缓动被钳回 0~1', () => {
+    expect(bootCurve(Number.NaN)).toBe(0)
+    const zeroShare = [
+      { to: 0.5, share: 0, ease: (t: number): number => t, note: 'zero' },
+      { to: 1, share: 1, ease: (t: number): number => t, note: 'rest' },
+    ]
+    // 旧实现 local=(0-0)/0=NaN 一路 NaN；现直接落到段末。
+    expect(bootCurve(0, zeroShare)).toBe(0.5)
+    // 跨过零占比段后按剩余段插值（单调不减）。
+    expect(bootCurve(0.4, zeroShare)).toBe(0.7)
+    const overshoot = [
+      { to: 1, share: 1, ease: (t: number): number => t * 3, note: 'overshoot' },
+    ]
+    expect(bootCurve(0.5, overshoot)).toBe(1)
+  })
+})

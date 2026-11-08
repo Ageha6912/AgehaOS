@@ -26,6 +26,7 @@ export interface SystemEventMap {
   'space.reordered': { spaceId: string; fromIndex: number; toIndex: number }
 
   'app.installed': { appId: string }
+  'app.uninstalled': { appId: string }
   'app.started': { appId: string; windowId: string }
   'app.stopped': { appId: string; windowId: string }
   'app.crashed': { appId: string; windowId: string }

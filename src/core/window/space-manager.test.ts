@@ -474,3 +474,30 @@ describe('SpaceManager.snapshot / hydrate round-trip', () => {
     expect(seen).toEqual([])
   })
 })
+
+describe('SpaceManager 事件次序与命名规则（B2 审查）', () => {
+  it('删 active Space：先重定向 activeId 再发 deleted（监听器拿到有效 Space）', () => {
+    const { manager, bus } = createManager()
+    manager.createSpace()
+    const seen: string[] = []
+    let activeDuringDeleted: string | null = null
+    bus.on('space.deleted', () => {
+      seen.push('deleted')
+      activeDuringDeleted = manager.getActiveSpace()?.id ?? null
+    })
+    bus.on('space.switched', () => seen.push('switched'))
+    const activeId = manager.getActiveSpace()!.id
+    expect(manager.deleteSpace(activeId)).toBe(true)
+    expect(seen).toEqual(['deleted', 'switched'])
+    expect(activeDuringDeleted).not.toBeNull()
+    expect(manager.getActiveSpace()?.id).toBe(activeDuringDeleted)
+  })
+
+  it('createSpace 超长名回退缺省名（与 renameSpace 同一上限）', () => {
+    const { manager } = createManager()
+    const space = manager.createSpace('x'.repeat(200))
+    expect(space.name).toBe('Desktop 2')
+    const named = manager.createSpace('工作台')
+    expect(named.name).toBe('工作台')
+  })
+})

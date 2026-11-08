@@ -102,6 +102,29 @@ describe('RemoteAuthClient', () => {
     await expect(offline.client.login('alice', 'secret123')).rejects.toThrow('auth-network-error')
   })
 
+  it('times out a hung auth request instead of leaving the login UI busy (E2 审查)', async () => {
+    const fetchFn = vi.fn(
+      (_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const error = new Error('aborted')
+            error.name = 'AbortError'
+            reject(error)
+          })
+        }),
+    )
+    const client = new RemoteAuthClient({
+      fetchFn: fetchFn as unknown as typeof fetch,
+      storage: fakeStorage(),
+      now: () => 1_000_000,
+      timeoutMs: 20,
+    })
+
+    await expect(client.login('alice', 'secret123')).rejects.toThrow('auth-timeout')
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+    expect(fetchFn.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal)
+  })
+
   it('logs in, returns a redacted session and keeps the cookie token server-side', async () => {
     const { client, requests } = makeClient([{ status: 200, body: SESSION_BODY }])
 
@@ -182,6 +205,68 @@ describe('RemoteAuthClient', () => {
     expect(dead.storage.getItem('agehaos.auth.remote.v1')).toBeNull()
   })
 
+  it('reconcile keeps the cached session on network/5xx (离线启动不误登出)', async () => {
+    const storage = fakeStorage()
+    storage.setItem('agehaos.auth.remote.v1', JSON.stringify(SESSION_BODY))
+    const { fetchFn } = makeFetch([{ status: 500, body: {} }])
+    const client = new RemoteAuthClient({ fetchFn, storage, now: () => 1_000_000 })
+
+    // 服务端瞬时故障不是登出：缓存保留，用户仍可用本地 fast path。
+    expect(await client.reconcile()).toEqual(USER)
+    expect(client.getUser()).toEqual(USER)
+    expect(storage.getItem('agehaos.auth.remote.v1')).not.toBeNull()
+  })
+
+  it('reconcile keeps the cached session on network failure', async () => {
+    const storage = fakeStorage()
+    storage.setItem('agehaos.auth.remote.v1', JSON.stringify(SESSION_BODY))
+    const { fetchFn } = makeFetch([])
+    fetchFn.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    const client = new RemoteAuthClient({ fetchFn, storage, now: () => 1_000_000 })
+
+    expect(await client.reconcile()).toEqual(USER)
+    expect(client.getUser()).toEqual(USER)
+  })
+
+  it('authenticated 401 invalidates the session and broadcasts user.logout', async () => {
+    const { client, bus } = makeClient([
+      { status: 200, body: SESSION_BODY },
+      { status: 401, body: {} },
+    ])
+    await client.login('alice', 'secret123')
+
+    const error = await client.updateProfile({ displayName: 'x' }).catch((cause: unknown) => cause)
+    expect(error).toBeInstanceOf(AuthError)
+    expect((error as AuthError).code).toBe('not-authenticated')
+    // 会话已失效：缓存清空 + 广播（session-store 订阅后统一复位）。
+    expect(client.getSession()).toBeNull()
+    expect(bus.emit).toHaveBeenLastCalledWith('user.logout', { userId: 'u1' })
+  })
+
+  it('discards an in-flight reconcile that resolves after logout', async () => {
+    let resolveSession: ((response: Response) => void) | undefined
+    const fetchFn = (async (url: string | URL | Request): Promise<Response> => {
+      if (String(url).endsWith('/api/auth/session')) {
+        return new Promise<Response>((resolve) => {
+          resolveSession = resolve
+        })
+      }
+      return { ok: true, status: 204, json: async () => null } as Response
+    }) as typeof fetch
+    const storage = fakeStorage()
+    storage.setItem('agehaos.auth.remote.v1', JSON.stringify(SESSION_BODY))
+    const client = new RemoteAuthClient({ fetchFn, storage, now: () => 1_000_000 })
+
+    const reconciling = client.reconcile()
+    expect(client.logout()).toBe('u1')
+    resolveSession?.({ ok: true, status: 200, json: async () => SESSION_BODY } as Response)
+
+    // 晚到的响应不得把会话写回（"登出后又回桌面"竞态）。
+    expect(await reconciling).toBeNull()
+    expect(client.getSession()).toBeNull()
+    expect(storage.getItem('agehaos.auth.remote.v1')).toBeNull()
+  })
+
   it('patches the profile and keeps the cache in sync', async () => {
     const updated = { ...USER, displayName: 'Alice Liddell', email: 'alice@example.com' }
     const { client, requests } = makeClient([
@@ -234,6 +319,9 @@ describe('RemoteAuthClient', () => {
       .catch((cause: unknown) => cause)
     expect(error).toBeInstanceOf(AuthError)
     expect((error as AuthError).code).toBe('invalid-credentials')
+    // 业务 401（当前密码错误）不是会话失效：缓存/登录态保留。
+    expect(client.getSession()).not.toBeNull()
+    expect(client.getUser()).toEqual(USER)
   })
 
   it('survives reloads by restoring the cache from storage', async () => {

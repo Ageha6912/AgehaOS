@@ -150,6 +150,24 @@ describe('TerminalShell error paths', () => {
     expect(ghost.lines[0]).toMatchObject({ kind: 'message', key: 'terminal.err.notFound' })
   })
 
+  it('maps VFS failures onto error lines instead of rejecting (B2 审查)', async () => {
+    // rm / → root-protected；mkdir 深路径 → 父目录不存在。旧实现直接 reject，
+    // 组件 unhandled rejection 且用户只见回显。
+    const rootRemove = await shell.run('rm /')
+    expect(rootRemove.lines[0]).toMatchObject({
+      kind: 'message',
+      key: 'terminal.err.failed',
+      tone: 'error',
+    })
+
+    const nested = await shell.run('mkdir deep/nested')
+    expect(nested.lines[0]).toMatchObject({
+      kind: 'message',
+      key: 'terminal.err.failed',
+      tone: 'error',
+    })
+  })
+
   it('ignores empty input without output', async () => {
     expect(await shell.run('   ')).toEqual({ lines: [] })
   })

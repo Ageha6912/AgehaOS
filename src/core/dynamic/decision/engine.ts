@@ -12,7 +12,7 @@ import type {
   WallpaperPlan,
   WallpaperStyle,
 } from '../types'
-import { DENSITY_LEVELS, WALLPAPER_STYLES } from '../types'
+import { DENSITY_LEVELS } from '../types'
 import { EPSILON_BY_STAGE, stageForProfile } from '../feedback/epsilon'
 
 /**
@@ -112,7 +112,7 @@ function pickStyle(
   allowed: readonly WallpaperStyle[],
   rng: () => number,
 ): WallpaperStyle {
-  if (allowed.length === 0) return WALLPAPER_STYLES[0]
+  // 调用方保证 allowed 非空（空可行域在 decideWallpaper 直接返回无建议）。
   if (zone !== 'converge') return allowed[Math.floor(rng() * allowed.length)]
   const weights = cappedStyleWeights(profile)
   if (Object.keys(weights).length === 0) {
@@ -152,12 +152,24 @@ export function pickFieldId(
   theme: ContextSnapshot['theme'],
   recentFieldIds: readonly string[],
   rng: () => number,
+  /** 画像 tags（`field:<id>` 命名空间）——个性化加权；缺省均匀采样。 */
+  fieldWeights: Readonly<Record<string, number>> = {},
 ): string {
   const themePool = fieldCompositionsForTheme(theme)
   const fresh = themePool.filter((composition) => !recentFieldIds.includes(composition.id))
   const pool =
     fresh.length > 0 ? fresh : themePool.length > 0 ? themePool : FIELD_COMPOSITIONS
-  return (pool[Math.floor(rng() * pool.length)] as { id: string }).id
+  if (Object.keys(fieldWeights).length === 0) {
+    return (pool[Math.floor(rng() * pool.length)] as { id: string }).id
+  }
+  // 反馈权重叠加在均匀基线上（B3 审查）：单风格域里风格权重恒等，构图必须
+  // 成为个性化目标（`field:<id>` 标签由 store 的 applyFeedback 写入）。
+  const picked = weightedPick(
+    pool,
+    (composition) => Math.max(0.05, 1 + (fieldWeights[`field:${composition.id}`] ?? 0)),
+    rng,
+  )
+  return picked.id
 }
 
 /** §6.4 ③：最近 10 次风格 Shannon 熵（bits）。 */
@@ -197,7 +209,8 @@ export interface DecideInput {
 }
 
 export interface DecideResult {
-  plan: WallpaperPlan
+  /** null = 可行域为空（用户屏蔽了唯一启用风格）：不提供建议，管线走兜底链。 */
+  plan: WallpaperPlan | null
   zone: WallpaperPlan['zone']
 }
 
@@ -207,15 +220,15 @@ export function decideWallpaper(input: DecideInput): DecideResult {
   const rng = mulberry32(domainSeed)
   const band = sliderBand(input.randomness)
   if (band.band === 'fixed') {
-    // 固定档不生成新结果；由调用方短路，此处给确定性兜底（理论不可达）。
-    const plan = buildWallpaperPlan({
+    // 固定档不生成新结果；服务层会在调用前短路。此处给**当前主题**的确定性
+    // field 兜底（B3 审查：旧实现返回已退役的 landscape/shanshui-dawn，且
+    // 完全绕过 blockedStyles）。
+    const fieldId = pickFieldId(snapshot.theme, [], rng)
+    const plan = buildFieldPlan({
       seed: domainSeed,
-      style: 'landscape',
-      paletteId: 'shanshui-dawn',
-      compositionId: COMPOSITIONS[0].id,
-      density: DENSITY_LEVELS[0],
+      fieldId,
       zone: 'fallback',
-      reason: { signals: ['band:fixed'], palette: 'shanshui-dawn', motif: 'landscape' },
+      reason: { signals: ['band:fixed'], palette: fieldId, motif: 'gradient-field' },
     })
     return { plan, zone: 'fallback' }
   }
@@ -233,6 +246,11 @@ export function decideWallpaper(input: DecideInput): DecideResult {
         compatiblePalettes(s).some((p) => p.family.lightness === themeLightness),
   )
 
+  // 空可行域（用户屏蔽了唯一启用风格）：明确「无建议」（B3 审查）——旧实现
+  // 回退 domain 外的 WALLPAPER_STYLES[0]（fluid-gradient，已退役），屏蔽形同
+  // 虚设；管线拿到 null 会走 F1→F2→F3 并逐道过门。
+  if (allowed.length === 0) return { plan: null, zone: 'fallback' }
+
   // 三区配比。
   const roll = rng()
   let zone: WallpaperPlan['zone'] =
@@ -242,8 +260,14 @@ export function decideWallpaper(input: DecideInput): DecideResult {
   if (rng() < epsilon) zone = zone === 'converge' ? 'adjacent' : 'far'
   // §6.4 ②：每 7 次生成 1 次强制探索位。
   if (input.generationOrdinal % FORCED_EXPLORATION_PERIOD === 0) zone = 'far'
-  // §6.4 ③：熵保底。
-  if (styleEntropy(input.recentStyles.slice(-10)) < MIN_STYLE_ENTROPY_BITS) zone = 'far'
+  // §6.4 ③：熵保底——仅在可行域 ≥2 风格时有意义（B3 审查：单风格域熵恒 0，
+  // 旧实现从第二次生成起每次都强制 far，ε/收敛区/cappedStyleWeights 永不执行）。
+  if (
+    allowed.length >= 2 &&
+    styleEntropy(input.recentStyles.slice(-10)) < MIN_STYLE_ENTROPY_BITS
+  ) {
+    zone = 'far'
+  }
 
   const style = pickStyle(zone, profile, allowed, rng)
   const reason = {
@@ -260,7 +284,7 @@ export function decideWallpaper(input: DecideInput): DecideResult {
 
   let plan: WallpaperPlan
   if (style === 'gradient-field') {
-    const fieldId = pickFieldId(snapshot.theme, input.recentFieldIds ?? [], rng)
+    const fieldId = pickFieldId(snapshot.theme, input.recentFieldIds ?? [], rng, profile.tags)
     plan = buildFieldPlan({ seed: domainSeed, fieldId, zone, reason: { ...reason, palette: fieldId } })
   } else {
     const paletteId = pickPalette(style, snapshot, profile, rng)

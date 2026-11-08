@@ -31,16 +31,43 @@ describe('feedback weights (§10.2)', () => {
     expect(profile.lastSignalAt).toBe(NOW.toISOString())
   })
 
-  it('clamps a single signal contribution to ±6 (§10.3 会话钳制)', () => {
-    const profile = applyFeedbackSignal({
+  it('keeps the pin weight 10 while clamping other single signals to ±6 (§10.2/§10.3)', () => {
+    // pin 是显式重申（权重 10），不被单信号钳制截成 6（B3 审查）。
+    const pinned = applyFeedbackSignal({
       profile: emptyProfile(),
       signal: 'pin',
       targetTags: ['fluid-gradient'],
       now: NOW,
     })
-    // pin 权重 +10，但标签增量钳制到 +6。
-    expect(profile.tags['fluid-gradient']).toBe(6)
-    expect(profile.explicitCount).toBe(1)
+    expect(pinned.tags['fluid-gradient']).toBe(10)
+    expect(pinned.explicitCount).toBe(1)
+
+    const blocked = applyFeedbackSignal({
+      profile: emptyProfile(),
+      signal: 'block-style',
+      targetTags: ['particle-nebula'],
+      now: NOW,
+    })
+    expect(blocked.tags['particle-nebula']).toBe(-6)
+  })
+
+  it('caps the per-session cumulative delta per tag at ±6 (B3 审查)', () => {
+    let profile = emptyProfile()
+    const sessionDeltas: Record<string, number> = {}
+    // refresh(-1.5) 连点：1.5×4 即触及 -6 会话预算，之后不再叠加。
+    for (let i = 0; i < 8; i += 1) {
+      const before = profile.tags['field:dawn-white'] ?? 0
+      profile = applyFeedbackSignal({
+        profile,
+        signal: 'refresh',
+        targetTags: ['field:dawn-white'],
+        sessionDeltas,
+        now: NOW,
+      })
+      const delta = (profile.tags['field:dawn-white'] ?? 0) - before
+      sessionDeltas['field:dawn-white'] = (sessionDeltas['field:dawn-white'] ?? 0) + delta
+    }
+    expect(profile.tags['field:dawn-white']).toBe(-6)
   })
 
   it('accumulates negative signals and family counters', () => {

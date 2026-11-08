@@ -42,22 +42,33 @@ export class WindowManager {
   ) {}
 
   create(options: CreateWindowOptions): WindowInstance {
-    const id = this.generateId()
+    // 注入的 generateId 撞上现存 id 时重试（B2 审查：旧实现静默覆盖旧窗、
+    // 不发 window.closed）；确定性坏生成器按编程错误抛出。
+    let id = this.generateId()
+    for (let attempt = 0; attempt < 5 && this.windows.has(id); attempt += 1) {
+      id = this.generateId()
+    }
+    if (this.windows.has(id)) {
+      throw new Error(`WindowManager.create: duplicate id generated: "${id}"`)
+    }
     const offset = (this.createdCount++ % CASCADE_CYCLE) * CASCADE_STEP
     const minWidth = options.minWidth ?? MIN_WINDOW_WIDTH
     const minHeight = options.minHeight ?? MIN_WINDOW_HEIGHT
+    const resizable = options.resizable ?? true
     const instance: WindowInstance = {
       id,
       appId: options.appId,
       title: options.title,
       x: options.x ?? CASCADE_BASE + offset,
       y: options.y ?? CASCADE_BASE + offset,
-      width: Math.max(options.width ?? DEFAULT_WINDOW_WIDTH, minWidth),
-      height: Math.max(options.height ?? DEFAULT_WINDOW_HEIGHT, minHeight),
+      // 固定尺寸（resizable:false）按 manifest 声明原样落——计算器 300px
+      // 不再被 320 默认下限抬高（B2 审查）；可缩放窗口仍钳到最小值。
+      width: resizable ? Math.max(options.width ?? DEFAULT_WINDOW_WIDTH, minWidth) : options.width ?? DEFAULT_WINDOW_WIDTH,
+      height: resizable ? Math.max(options.height ?? DEFAULT_WINDOW_HEIGHT, minHeight) : options.height ?? DEFAULT_WINDOW_HEIGHT,
       zIndex: this.nextZ(),
       state: 'normal',
       focused: false,
-      resizable: options.resizable ?? true,
+      resizable,
       closable: options.closable ?? true,
       minWidth,
       minHeight,
@@ -92,8 +103,11 @@ export class WindowManager {
   close(id: string): boolean {
     const target = this.windows.get(id)
     if (!target || !this.windows.delete(id)) return false
+    const wasFocused = target.focused
     this.bus.emit('window.closed', { windowId: id, appId: target.appId })
-    this.focusTopmost()
+    // 只在关闭的是聚焦窗时补位，且只在本 Space 内选（B2 审查：旧实现全局
+    // 选 topmost，关闭 A 空间聚焦窗会把焦点给 B 空间的不可见窗口）。
+    if (wasFocused) this.focusTopmost(target.spaceId)
     return true
   }
 
@@ -107,14 +121,17 @@ export class WindowManager {
     target.state = 'minimized'
     target.focused = false
     this.bus.emit('window.minimized', { windowId: id })
-    if (wasFocused) this.focusTopmost()
+    if (wasFocused) this.focusTopmost(target.spaceId)
     return true
   }
 
   maximize(id: string): boolean {
     const target = this.windows.get(id)
     if (!target || target.state === 'maximized') return false
-    if (target.state === 'normal') {
+    if (target.state === 'normal' || target.state === 'minimized') {
+      // minimized 来源同样补记 restoreBounds（B2 审查：旧实现只在
+      // normal/snapped 分支写——从未最大化过的窗 minimize→maximize→restore
+      // 返回 false，永久停在 maximized）。
       target.restoreBounds = {
         x: target.x,
         y: target.y,
@@ -251,8 +268,14 @@ export class WindowManager {
   resize(id: string, width: number, height: number, viewport?: Viewport): boolean {
     const target = this.windows.get(id)
     if (!target || !target.resizable || target.state !== 'normal') return false
-    const maxWidth = viewport ? viewport.width - target.x : Number.POSITIVE_INFINITY
-    const maxHeight = viewport ? viewport.height - target.y : Number.POSITIVE_INFINITY
+    // 视口剩余空间不足时取最小尺寸（B2 审查：clamp 在 max<min 时返回 max，
+    // 宽高会低于最小值甚至为负）。
+    const maxWidth = viewport
+      ? Math.max(viewport.width - target.x, target.minWidth)
+      : Number.POSITIVE_INFINITY
+    const maxHeight = viewport
+      ? Math.max(viewport.height - target.y, target.minHeight)
+      : Number.POSITIVE_INFINITY
     target.width = clamp(width, target.minWidth, maxWidth)
     target.height = clamp(height, target.minHeight, maxHeight)
     return true
@@ -321,10 +344,11 @@ export class WindowManager {
     return this.topZ
   }
 
-  private focusTopmost(): boolean {
+  private focusTopmost(spaceId?: string): boolean {
     let best: WindowInstance | null = null
     for (const win of this.windows.values()) {
       if (win.state === 'minimized') continue
+      if (spaceId !== undefined && win.spaceId !== spaceId) continue
       if (!best || win.zIndex > best.zIndex) best = win
     }
     return best ? this.focus(best.id) : false

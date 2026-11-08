@@ -31,6 +31,22 @@ describe('Type B 来源 allowlist（§30.3）', () => {
     expect(isAllowedWebAppEntry('/apps/sites/clock/index.js')).toBe(false)
     expect(isAllowedWebAppEntry('/other/clock/index.html')).toBe(false)
   })
+
+  it('rejects percent-encoded dot segments after URL normalization (E3 审查)', () => {
+    // WHATWG URL 把 %2e/%2e%2e 当 . / ..——字符串级检查会漏。
+    expect(isAllowedWebAppEntry('/apps/sites/%2e%2e/runtime/eclosion.html')).toBe(false)
+    expect(isAllowedWebAppEntry('/apps/sites/%2E%2E/%2E%2E/index.html')).toBe(false)
+    expect(isAllowedWebAppEntry('/apps/sites/a/%2e%2e/%2e%2e/index.html')).toBe(false)
+    // 编码分隔符可能被服务器解码回路径分隔符，同样拒绝。
+    expect(isAllowedWebAppEntry('/apps/sites/a%2fb.html')).toBe(false)
+    expect(isAllowedWebAppEntry('/apps/sites/a%5cb.html')).toBe(false)
+    expect(isAllowedWebAppEntry('/apps/sites/a%00b.html')).toBe(false)
+  })
+
+  it('rejects query/hash (runtime cache-busting is host-appended, not manifest entry)', () => {
+    expect(isAllowedWebAppEntry('/apps/sites/clock/index.html?v=1')).toBe(false)
+    expect(isAllowedWebAppEntry('/apps/sites/clock/index.html#x')).toBe(false)
+  })
 })
 
 describe('羽化运行时 entry（AI-GENERATED-APPS-DESIGN §3.2）', () => {

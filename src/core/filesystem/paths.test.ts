@@ -48,3 +48,18 @@ describe('validateName', () => {
     expect(() => validateName('..')).toThrow(VfsError)
   })
 })
+
+describe('normalizePath / validateName 点段与字符收紧（B1 审查）', () => {
+  it('normalizePath 拒绝点段', () => {
+    expect(() => normalizePath('/Apps/x/../y')).toThrow(/must not contain/)
+    expect(() => normalizePath('/a/./b')).toThrow(/must not contain/)
+    expect(normalizePath('/a/b')).toBe('/a/b')
+  })
+
+  it('validateName 拒绝反斜杠与首尾空白', () => {
+    expect(() => validateName('a\\b')).toThrow()
+    expect(() => validateName(' name')).toThrow()
+    expect(() => validateName('name ')).toThrow()
+    expect(() => validateName('name')).not.toThrow()
+  })
+})

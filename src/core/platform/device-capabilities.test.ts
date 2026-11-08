@@ -351,3 +351,25 @@ describe('detectUaChMobile：高熵位异步尽力而为', () => {
     await expect(detectUaChMobile()).resolves.toBeNull()
   })
 })
+
+describe('探针边界收紧（B1 审查）', () => {
+  it('0×0 视口（隐藏 iframe）按 1024×768 兜底，不再判成移动端', () => {
+    const caps = detectDeviceCapabilities()
+    expect(caps.isMobile).toBe(false)
+    expect(caps.viewportWidth).toBe(1024)
+    expect(caps.viewportHeight).toBe(768)
+  })
+
+  it('UA-CH 以方法调用（this 绑定 userAgentData；解构裸调用在真浏览器抛 Illegal invocation）', async () => {
+    const userAgentData = {
+      getHighEntropyValues(this: unknown): Promise<{ mobile?: boolean }> {
+        if (this === null || typeof this !== 'object' || !('getHighEntropyValues' in this)) {
+          return Promise.reject(new TypeError('Illegal invocation'))
+        }
+        return Promise.resolve({ mobile: true })
+      },
+    }
+    vi.stubGlobal('navigator', { userAgent: DESKTOP_UA, userAgentData })
+    await expect(detectUaChMobile()).resolves.toBe(true)
+  })
+})

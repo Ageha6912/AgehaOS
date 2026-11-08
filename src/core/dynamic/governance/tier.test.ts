@@ -76,3 +76,15 @@ describe('runtime degrade ladder (§7.3 按档相对阈值)', () => {
     expect(evaluateDegrade('high', [100], 1000).action).toBe('none')
   })
 })
+
+describe('帧间洞不计入 FPS 跨度（B3 审查）', () => {
+  it('页面隐藏 1.6s 后恢复旧帧率：不再被判成 switch-static 永久停动画', () => {
+    // 30fps 稳态帧 + 中间 1600ms 空洞（切页/隐藏）+ 恢复后继续 33ms 帧。
+    const frames = [1000, 1033, 1066, 2666, 2699, 2732, 2765]
+    // 窗口 5000ms 覆盖全部：活跃跨度 = 66 + 33×3 = 165ms，6 帧间隔 → ~36fps
+    // ≈ mid 目标 30 的 0.75 档以上（不再因 1.6s 洞打到 2.5fps 静态档）。
+    const decision = evaluateDegrade('mid', frames, 2765)
+    expect(decision.action).not.toBe('switch-static')
+    expect(decision.measuredFps).toBeGreaterThan(30)
+  })
+})

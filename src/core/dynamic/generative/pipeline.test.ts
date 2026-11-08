@@ -135,6 +135,48 @@ describe('generation pipeline (§4.2 + §9.1，验收 ④)', () => {
     expect(events.filter((e) => e.name === 'desktop.generation.failed')).toHaveLength(3)
   })
 
+  it('F1 skips a blocked last-good plan and falls through to F2', () => {
+    const blocked = { ...goodPlan('blocked-replay'), style: 'geometric' as const }
+    const outcome = generateWallpaper(
+      { ...BASE, blockedStyles: ['geometric'] },
+      {
+        emit: recorder().emit,
+        now: NOW,
+        lastGoodPlan: blocked,
+        sample: () => null,
+        curated: curatedPlans(),
+      },
+    )
+    expect(outcome.level).toBe('F2')
+    expect(outcome.plan.style).not.toBe('geometric')
+  })
+
+  it('treats an emptied active domain as sampling failure and falls through the chain (B3 审查)', () => {
+    // 屏蔽唯一启用风格：决策器返回 null（不再域外补 fluid-gradient），管线
+    // 走兜底链，绝不把被屏蔽的梯度场重新端回来。
+    const outcome = generateWallpaper(
+      { ...BASE, blockedStyles: ['gradient-field'] },
+      { emit: recorder().emit, now: NOW, lastGoodPlan: null, curated: curatedPlans() },
+    )
+    expect(outcome.plan.style).not.toBe('gradient-field')
+    expect(['F2', 'F3']).toContain(outcome.level)
+  })
+
+  it('F2 filters blocked styles out; all-blocked curated set falls to F3', () => {
+    const blocked = { ...goodPlan('blocked-curated'), style: 'geometric' as const }
+    const outcome = generateWallpaper(
+      { ...BASE, blockedStyles: ['geometric'] },
+      {
+        emit: recorder().emit,
+        now: NOW,
+        lastGoodPlan: null,
+        sample: () => null,
+        curated: [blocked],
+      },
+    )
+    expect(outcome.level).toBe('F3')
+  })
+
   it('always returns the constant static gradient for F3', () => {
     expect(staticGradientPlan('dark').paletteId).toBe('static-gradient-dark')
     expect(staticGradientPlan('light').paletteId).toBe('static-gradient-light')

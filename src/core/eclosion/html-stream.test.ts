@@ -69,6 +69,16 @@ describe('html-stream：script 截留（安全关键）', () => {
     expect(scripts).toEqual(['\n  var x = 1\n'])
   })
 
+  it('keeps lower-case indices aligned when text has non-ASCII uppercase (B2 审查)', () => {
+    // 'İ'.toLowerCase() 是 2 个 code unit（i + combining dot）：旧实现整段
+    // toLowerCase 累加小写副本，rawtext 闭合下标整体偏移 → 脚本被截断、
+    // 后续内容丢失。
+    const doc = '<div>İİİ</div><script>var a=1</script><p>x</p>'
+    const { chunks, scripts } = run(doc)
+    expect(scripts).toEqual(['var a=1'])
+    expect(chunks.map((c) => c.html)).toEqual(['<div>İİİ</div>', '<p>x</p>'])
+  })
+
   it('keeps script-tag-looking text inside comments inert (comment survives, no script element)', () => {
     const { chunks } = run('<!-- <script>not real code</script> --><p>ok</p>')
     expect(chunks.map((c) => c.html)).toEqual(['<!-- <script>not real code</script> -->', '<p>ok</p>'])

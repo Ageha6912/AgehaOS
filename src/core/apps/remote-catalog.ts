@@ -92,6 +92,11 @@ export async function fetchSignedCatalog(deps: RemoteCatalogDeps = {}): Promise<
     return { ok: false, reason: 'unavailable' }
   }
   if (!isRemoteCatalogResponse(raw)) return { ok: false, reason: 'bad-shape' }
+  // 钉扎键区分「未配置」与「配置为空串」（B2 审查）：'' 是配置错误，
+  // fail-closed 拒绝——静默信任服务端下发键会让钉扎形同虚设。
+  if (typeof deps.pinnedPublicKeyBase64 === 'string' && deps.pinnedPublicKeyBase64.trim() === '') {
+    return { ok: false, reason: 'untrusted-key' }
+  }
   if (deps.pinnedPublicKeyBase64 && deps.pinnedPublicKeyBase64 !== raw.publicKey) {
     return { ok: false, reason: 'untrusted-key' }
   }

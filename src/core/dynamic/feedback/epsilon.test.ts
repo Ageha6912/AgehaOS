@@ -69,3 +69,26 @@ describe('epsilon ladder (§10.2，铁律 6)', () => {
     expect(EPSILON_BY_STAGE.pinned).toBe(0)
   })
 })
+
+describe('lastSignalAt 时间校验（B3 审查）', () => {
+  it('非法时间戳按冷启动；未来时间不误判回退', () => {
+    const now = new Date('2026-11-08T12:00:00.000Z')
+    expect(
+      stageForProfile({ profile: { ...emptyProfile(), lastSignalAt: 'not-a-date' }, now }),
+    ).toBe('cold-start')
+    // 未来时间（时钟回拨）→ idleDays 钳 0：不把已收敛画像打回冷启动。
+    const converged = {
+      ...emptyProfile(),
+      explicitCount: 10,
+      totalCount: 20,
+      tags: { a: 8, b: 2 },
+    }
+    const without = stageForProfile({ profile: converged, now })
+    expect(without).not.toBe('cold-start')
+    const withFuture = stageForProfile({
+      profile: { ...converged, lastSignalAt: '2026-11-09T12:00:00.000Z' },
+      now,
+    })
+    expect(withFuture).toBe(without)
+  })
+})

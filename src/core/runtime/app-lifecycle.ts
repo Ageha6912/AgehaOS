@@ -31,6 +31,9 @@ export function createAppLifecycleTracker(bus: LifecycleBus): AppLifecycleTracke
         if (next === 1) bus.emit('app.started', { appId, windowId })
       })
       detachClosed = bus.on('window.closed', ({ appId, windowId }) => {
+        // 未计数应用收到 close 直接忽略（B1 审查：?? 1 兜底会对没有
+        // app.started 的应用发无中生有的 app.stopped）。
+        if (!windowCounts.has(appId)) return
         const next = (windowCounts.get(appId) ?? 1) - 1
         if (next <= 0) {
           windowCounts.delete(appId)
@@ -46,6 +49,9 @@ export function createAppLifecycleTracker(bus: LifecycleBus): AppLifecycleTracke
       detachClosed?.()
       detachCreated = null
       detachClosed = null
+      // 停用期间关闭的窗口收不到 window.closed——清空计数避免重启后
+      // 运行态漂移（B1 审查：僵尸状态）。
+      windowCounts.clear()
     },
 
     isRunning: (appId) => windowCounts.has(appId),

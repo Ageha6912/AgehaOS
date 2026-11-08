@@ -19,6 +19,14 @@ describe('filterContentText (DDS §8.4 本地半场)', () => {
     })
   })
 
+  it('normalizes unicode tricks before matching (全角/零宽/空格插字)', () => {
+    for (const text of ['ｐｏｒｎ 推荐', 'po\u200Brn', '赌 博', 'ca\u200Bsino']) {
+      expect(filterContentText(text), text).toMatchObject({ ok: false, reason: 'violation' })
+    }
+    // 全角联系方式同样命中误导规则。
+    expect(filterContentText('ＱＱ：abc12345')).toMatchObject({ ok: false, reason: 'misleading' })
+  })
+
   it('rejects contact-info solicitation as misleading', () => {
     expect(filterContentText('加微信 abc12345 领福利')).toMatchObject({ ok: false, reason: 'misleading' })
     expect(filterContentText('TG: @somechannel')).toMatchObject({ ok: false, reason: 'misleading' })

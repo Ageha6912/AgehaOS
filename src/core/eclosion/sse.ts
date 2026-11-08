@@ -90,16 +90,20 @@ export function createSseParser(): SseParser {
       buffer = ''
       const frame = processLine(line)
       if (frame !== null) frames.push(frame)
-      const final = dispatch() // 流结束即帧终结（无结尾空行也派发）
-      if (final !== null) frames.push(final)
     }
+    // 无条件派发一次（B2 审查）：缓冲恰为空但 dataBuffer 已积累时（流以
+    // 换行结束、无结尾空行），旧实现把最后一帧整个丢掉。
+    const final = dispatch()
+    if (final !== null) frames.push(final)
     return frames
   }
 
   return {
     push(chunk: string): SseFrame[] {
       buffer += chunk
-      if (!started) {
+      // BOM 判定只在缓冲非空时定 started（B2 审查）：push('')（TextDecoder
+      // 多字节切断的首包）不再让后续到达的 BOM 永远剥不掉。
+      if (!started && buffer !== '') {
         started = true
         if (buffer.charCodeAt(0) === 0xfeff) buffer = buffer.slice(1)
       }

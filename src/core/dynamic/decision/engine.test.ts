@@ -56,11 +56,21 @@ describe('decideWallpaper determinism (验收 ③)', () => {
     const second = decideWallpaper(BASE_INPUT).plan
     expect(second).toEqual(first)
     const retried = decideWallpaper({ ...BASE_INPUT, attempt: 2 }).plan
-    expect(retried.seed).not.toBe(first.seed)
+    expect(retried?.seed).not.toBe(first?.seed)
   })
 
-  it('short-circuits the fixed band with a fallback-zone plan', () => {
+  it('short-circuits the fixed band within the active style domain (B3 审查)', () => {
     const result = decideWallpaper({ ...BASE_INPUT, randomness: 0 })
+    expect(result.zone).toBe('fallback')
+    // 旧实现给已退役的 landscape/shanshui-dawn；现给当前主题的 field 兜底。
+    expect(result.plan?.style).toBe('gradient-field')
+    expect(fieldCompositionById(result.plan?.fieldId ?? '')?.theme).toBe('dark')
+  })
+
+  it('returns no suggestion when blocking empties the active domain (B3 审查)', () => {
+    const blocked = [...ACTIVE_STYLES] as WallpaperStyle[]
+    const result = decideWallpaper({ ...BASE_INPUT, blockedStyles: blocked })
+    expect(result.plan).toBeNull()
     expect(result.zone).toBe('fallback')
   })
 
@@ -68,24 +78,24 @@ describe('decideWallpaper determinism (验收 ③)', () => {
     const blocked: WallpaperStyle[] = ['fluid-gradient', 'geometric', 'particle-nebula', 'grid-wavefield']
     for (let attempt = 1; attempt <= 8; attempt++) {
       const plan = decideWallpaper({ ...BASE_INPUT, blockedStyles: blocked, attempt }).plan
-      expect(blocked).not.toContain(plan.style)
+      expect(blocked).not.toContain(plan?.style)
     }
   })
 
   it('filters field compositions by theme (§2.1 权重 0.25 的硬性部分，gradient-field 域)', () => {
     for (let attempt = 1; attempt <= 8; attempt++) {
       const dark = decideWallpaper({ ...BASE_INPUT, attempt }).plan
-      expect(dark.style).toBe('gradient-field')
-      expect(fieldCompositionById(dark.fieldId ?? '')?.theme).toBe('dark')
+      expect(dark?.style).toBe('gradient-field')
+      expect(fieldCompositionById(dark?.fieldId ?? '')?.theme).toBe('dark')
       const light = decideWallpaper({ ...BASE_INPUT, attempt, snapshot: snapshotOf('light') }).plan
-      expect(fieldCompositionById(light.fieldId ?? '')?.theme).toBe('light')
+      expect(fieldCompositionById(light?.fieldId ?? '')?.theme).toBe('light')
     }
   })
 
   it('samples only the active style domain (Phase A.6 裁决：照片为主动样域)', () => {
     expect(ACTIVE_STYLES).toEqual(['gradient-field'])
     for (let attempt = 1; attempt <= 8; attempt++) {
-      expect(decideWallpaper({ ...BASE_INPUT, attempt }).plan.style).toBe('gradient-field')
+      expect(decideWallpaper({ ...BASE_INPUT, attempt }).plan?.style).toBe('gradient-field')
     }
   })
 
@@ -93,7 +103,7 @@ describe('decideWallpaper determinism (验收 ③)', () => {
     const recent = fieldCompositionsForTheme('dark').slice(0, 4).map((composition) => composition.id)
     for (let attempt = 1; attempt <= 12; attempt++) {
       const plan = decideWallpaper({ ...BASE_INPUT, attempt, recentFieldIds: recent }).plan
-      expect(recent).not.toContain(plan.fieldId)
+      expect(recent).not.toContain(plan?.fieldId)
     }
   })
 
@@ -101,8 +111,15 @@ describe('decideWallpaper determinism (验收 ③)', () => {
     const all = fieldCompositionsForTheme('dark').map((composition) => composition.id)
     for (let attempt = 1; attempt <= 8; attempt++) {
       const plan = decideWallpaper({ ...BASE_INPUT, attempt, recentFieldIds: all }).plan
-      expect(all).toContain(plan.fieldId)
+      expect(all).toContain(plan?.fieldId)
     }
+  })
+
+  it('weights field sampling by profile tags (B3 审查)', () => {
+    const pool = fieldCompositionsForTheme('dark')
+    const target = pool[pool.length - 1]!
+    // 大权重把 rng=0.5 的落点拉到目标构图（基线 1 + 1000）。
+    expect(pickFieldId('dark', [], () => 0.5, { [`field:${target.id}`]: 1000 })).toBe(target.id)
   })
 
   it('pickFieldId stays inside the catalog for both themes (含种子确定性)', () => {
@@ -122,14 +139,18 @@ describe('decideWallpaper determinism (验收 ③)', () => {
     expect(result.zone).toBe('far')
   })
 
-  it('forces global sampling when recent entropy drops below 1.5 bits (§6.4 ③)', () => {
+  it('skips the entropy floor while a single style is active (§6.4 ③，B3 审查)', () => {
     expect(styleEntropy(['fluid-gradient', 'fluid-gradient'])).toBe(0)
     expect(styleEntropy(['fluid-gradient', 'geometric'])).toBeCloseTo(1, 5)
-    const result = decideWallpaper({
-      ...BASE_INPUT,
-      recentStyles: ['fluid-gradient', 'fluid-gradient', 'fluid-gradient'],
-    })
-    expect(result.zone).toBe('far')
+    // 单风格域熵恒 0：旧实现从第二次起每次强制 zone='far'；现在收敛区/ε
+    // 仍可命中，只有 ≥2 风格时熵保底才生效。
+    const recentStyles = ['gradient-field', 'gradient-field', 'gradient-field'] as WallpaperStyle[]
+    const zones = new Set(
+      Array.from({ length: 8 }, (_, index) =>
+        decideWallpaper({ ...BASE_INPUT, attempt: index + 1, recentStyles }).zone,
+      ),
+    )
+    expect([...zones].some((zone) => zone !== 'far')).toBe(true)
   })
 })
 

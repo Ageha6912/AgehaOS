@@ -682,6 +682,45 @@ describe('WindowManager.close', () => {
   })
 })
 
+describe('WindowManager 跨 Space 焦点补位（B2 审查）', () => {
+  it('关闭聚焦窗只在同 Space 内补位，不把焦点给其他 Space 的窗口', () => {
+    const { manager } = createManager()
+    const a1 = manager.create({ appId: 'a', title: 'A1', spaceId: 'space-a' })
+    const a2 = manager.create({ appId: 'a', title: 'A2', spaceId: 'space-a' })
+    const b1 = manager.create({ appId: 'b', title: 'B1', spaceId: 'space-b' })
+    manager.focus(a2.id)
+
+    manager.close(a2.id)
+
+    expect(manager.get(a1.id)?.focused).toBe(true)
+    expect(manager.get(b1.id)?.focused).toBe(false)
+  })
+
+  it('最小化聚焦窗只在同 Space 内补位', () => {
+    const { manager } = createManager()
+    const a1 = manager.create({ appId: 'a', title: 'A1', spaceId: 'space-a' })
+    const a2 = manager.create({ appId: 'a', title: 'A2', spaceId: 'space-a' })
+    const b1 = manager.create({ appId: 'b', title: 'B1', spaceId: 'space-b' })
+    manager.focus(a2.id)
+
+    manager.minimize(a2.id)
+
+    expect(manager.get(a1.id)?.focused).toBe(true)
+    expect(manager.get(b1.id)?.focused).toBe(false)
+  })
+
+  it('关闭其他 Space 的后台窗口不动当前焦点', () => {
+    const { manager } = createManager()
+    const a1 = manager.create({ appId: 'a', title: 'A1', spaceId: 'space-a' })
+    const b1 = manager.create({ appId: 'b', title: 'B1', spaceId: 'space-b' })
+    expect(manager.get(b1.id)?.focused).toBe(true)
+
+    manager.close(a1.id)
+
+    expect(manager.get(b1.id)?.focused).toBe(true)
+  })
+})
+
 describe('WindowManager.move', () => {
   it('moves a normal window freely without a viewport', () => {
     const { manager, stateOf } = createManager()
@@ -886,5 +925,46 @@ describe('WindowManager.setTitle（SDK Window API 底座）', () => {
     expect(manager.setTitle(win.id, 'x'.repeat(121))).toBe(false)
     expect(manager.setTitle('missing', '任何标题')).toBe(false)
     expect(manager.get(win.id)?.title).toBe('便签 (3)')
+  })
+})
+
+describe('WindowManager 边界收紧（B2 审查）', () => {
+  it('minimize→maximize→restore 不再永久停在 maximized', () => {
+    const { manager, stateOf } = createManager()
+    const win = manager.create({ appId: 'a', title: 'A', x: 40, y: 60, width: 500, height: 400 })
+    manager.minimize(win.id)
+    manager.maximize(win.id)
+    expect(stateOf(win.id).state).toBe('maximized')
+    manager.restore(win.id)
+    // maximize 时按当时几何补记 restoreBounds；restore 消费后落回原几何。
+    expect(stateOf(win.id).state).toBe('normal')
+    expect(stateOf(win.id)).toMatchObject({ x: 40, y: 60, width: 500, height: 400 })
+    expect(stateOf(win.id).restoreBounds).toBeNull()
+  })
+
+  it('固定尺寸窗口按声明落（计算器 300px 不被默认 320 下限抬高）', () => {
+    const { manager, stateOf } = createManager()
+    const win = manager.create({ appId: 'calc', title: 'C', width: 300, height: 440, resizable: false })
+    expect(stateOf(win.id).width).toBe(300)
+    expect(stateOf(win.id).resizable).toBe(false)
+  })
+
+  it('viewport 剩余空间不足时 resize 落最小尺寸（不再击穿下限）', () => {
+    const { manager, stateOf } = createManager()
+    const win = manager.create({ appId: 'a', title: 'A', x: 1880, y: 0, width: 400, height: 300 })
+    manager.resize(win.id, 400, 300, VIEWPORT)
+    // 右缘剩余 40px < minWidth：落最小宽；高度剩余充足照常。
+    expect(stateOf(win.id).width).toBe(MIN_WINDOW_WIDTH)
+    expect(stateOf(win.id).height).toBe(300)
+  })
+
+  it('generateId 撞现存 id 时重试；确定性坏生成器抛错', () => {
+    const bus = new EventBus<SystemEventMap>()
+    const manager = new WindowManager(bus, () => 'win-dup')
+    manager.create({ appId: 'a', title: 'A' })
+    // 重新建实例：同一生成器但空表 → 首个 id 正常落。
+    const manager2 = new WindowManager(bus, () => 'win-dup')
+    manager2.create({ appId: 'a', title: 'A' })
+    expect(() => manager2.create({ appId: 'a', title: 'B' })).toThrow(/duplicate id/)
   })
 })

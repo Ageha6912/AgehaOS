@@ -1,3 +1,4 @@
+import { VfsError } from '../filesystem'
 import type { Vfs, VfsNode } from '../filesystem'
 import type { MessageKey } from '../i18n'
 
@@ -69,6 +70,22 @@ export class TerminalShell {
   }
 
   async run(input: string): Promise<TerminalResult> {
+    try {
+      return await this.runCommand(input)
+    } catch (cause) {
+      // VFS 异常映射为错误行（B2 审查）：rm /、mkdir deep/nested、cat 二进制
+      // 等此前直接 reject——用户只看到回显、组件 unhandled rejection 且零输出。
+      const detail =
+        cause instanceof VfsError
+          ? cause.message
+          : cause instanceof Error
+            ? cause.message
+            : String(cause)
+      return { lines: [message('terminal.err.failed', { message: detail }, 'error')] }
+    }
+  }
+
+  private async runCommand(input: string): Promise<TerminalResult> {
     const tokens = input.trim().split(/\s+/).filter((token) => token.length > 0)
     if (tokens.length === 0) return { lines: [] }
     const [command, ...args] = tokens

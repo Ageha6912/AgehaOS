@@ -34,17 +34,20 @@ export const BOOT_SEGMENTS: readonly BootSegment[] = [
 
 /**
  * 分段变速曲线：时间占比 t∈[0,1] → 进度 p∈[0,1]，全程单调不减。
- * t 越界自动钳制；自定义 segments 时最后一段兜底吞掉剩余时间。
+ * t 越界自动钳制；NaN 视为 0（进度未开始）；自定义 segments 时最后一段
+ * 兜底吞掉剩余时间。share=0 的段直接落到段末（除法产 NaN/Infinity 的边界，
+ * B1 审查）；缓动输出再钳 0~1（自定义过冲缓动不破坏单调契约）。
  */
 export function bootCurve(t: number, segments: readonly BootSegment[] = BOOT_SEGMENTS): number {
+  if (Number.isNaN(t)) return 0
   const x = clamp01(t)
   let acc = 0
   let from = 0
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i]
     if (x <= acc + seg.share || i === segments.length - 1) {
-      const local = clamp01((x - acc) / seg.share)
-      return from + (seg.to - from) * seg.ease(local)
+      const local = seg.share > 0 ? clamp01((x - acc) / seg.share) : 1
+      return clamp01(from + (seg.to - from) * clamp01(seg.ease(local)))
     }
     acc += seg.share
     from = seg.to

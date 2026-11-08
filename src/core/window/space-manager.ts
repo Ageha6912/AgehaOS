@@ -37,13 +37,15 @@ export class SpaceManager {
     this.seedDefault()
   }
 
-  /** 缺省名 "Desktop N"；显式传入空名（trim 后）同样回退缺省名（rename 级校验归 W7 UI）。 */
+  /** 缺省名 "Desktop N"；显式传入空名或超长名（>120，与 renameSpace 同一
+   *  规则，B2 审查：旧实现无校验）回退缺省名。 */
   createSpace(name?: string): Space {
     const now = Date.now()
     const trimmed = name !== undefined ? name.trim() : ''
+    const validName = trimmed !== '' && trimmed.length <= MAX_SPACE_NAME_LENGTH ? trimmed : ''
     const space: Space = {
       id: this.generateId(),
-      name: trimmed !== '' ? trimmed : `Desktop ${this.nextDefaultOrdinal()}`,
+      name: validName !== '' ? validName : `Desktop ${this.nextDefaultOrdinal()}`,
       index: this.spaces.size,
       createdAt: now,
       updatedAt: now,
@@ -69,13 +71,16 @@ export class SpaceManager {
     const previousIndex = target.index
     this.spaces.delete(id)
     this.reindex()
-    this.bus.emit('space.deleted', { spaceId: id })
-
-    if (this.activeId === id) {
+    // 删 active Space 时先完成重定向再发 space.deleted（B2 审查：监听器在
+    // deleted 里 getActiveSpace() 不再拿 undefined）；switched 仍最后发。
+    const redirect = this.activeId === id
+    if (redirect) {
       const remaining = this.listByIndex()
-      const fromSpaceId = id
       this.activeId = remaining[Math.min(previousIndex, remaining.length - 1)]!.id
-      this.bus.emit('space.switched', { spaceId: this.activeId, fromSpaceId })
+    }
+    this.bus.emit('space.deleted', { spaceId: id })
+    if (redirect) {
+      this.bus.emit('space.switched', { spaceId: this.activeId, fromSpaceId: id })
     }
     return true
   }

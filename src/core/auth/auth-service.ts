@@ -1,6 +1,7 @@
 import { systemBus } from '@/core/events'
 import type { EventBus, SystemEventMap } from '@/core/events'
 
+import { AvatarError, isValidAvatarDataUrl } from './avatar'
 import { generateSalt, hashPassword, verifyPassword } from './password'
 import { AuthError } from './types'
 import type { AuthResult, ProfileInput, Session, SessionInfo, StoredUser, User } from './types'
@@ -48,6 +49,13 @@ export class AuthService {
   private sessionTtlMs: number
   private generateId: () => string
   private now: () => number
+  /**
+   * 内存态会话：storage 不可用（隐私模式/持久化被拒）时的唯一会话载体。
+   * 有 storage 时仍以 storage 为准（跨标签页登出要能生效）；本字段只在
+   * 无 storage 或 storage 读取抛错时兜底（2026-11 审查 B1：此前 storage
+   * 为 null 时登录看似成功但 getSession/getUser 恒 null，资料页/改密不可用）。
+   */
+  private currentSession: Session | null = null
 
   constructor(options: AuthOptions = {}) {
     this.storage = options.storage === undefined ? defaultStorage() : options.storage
@@ -75,13 +83,19 @@ export class AuthService {
 
       const salt = generateSalt()
       const timestamp = new Date(this.now()).toISOString()
+      const passwordHash = await hashPassword(password, salt)
+      // 并发 check-then-act 复检（2026-11 审查 B1）：hash 是异步让出点，
+      // 两个同名注册都可能通过第 72 行的初查——写入前同步复检，后者丢弃。
+      if ([...this.users.values()].some((user) => user.username === username)) {
+        throw new AuthError('user-exists', `Username "${username}" is already taken`)
+      }
       const user: StoredUser = {
         id: this.generateId(),
         username,
         createdAt: timestamp,
         updatedAt: timestamp,
         passwordSalt: salt,
-        passwordHash: await hashPassword(password, salt),
+        passwordHash,
       }
       this.users.set(user.id, user)
       this.persistUsers()
@@ -105,7 +119,12 @@ export class AuthService {
   /** Clears the current session; returns the signed-out user id, if any. */
   logout(): string | null {
     const session = this.getStoredSession()
-    if (this.storage) this.storage.removeItem(SESSION_KEY)
+    this.currentSession = null
+    try {
+      this.storage?.removeItem(SESSION_KEY)
+    } catch {
+      /* storage unavailable: memory session is already cleared */
+    }
     if (!session) return null
     this.bus.emit('user.logout', { userId: session.userId })
     return session.userId
@@ -116,7 +135,12 @@ export class AuthService {
     const session = this.getStoredSession()
     if (!session) return null
     if (session.expiresAt <= this.now()) {
-      if (this.storage) this.storage.removeItem(SESSION_KEY)
+      this.currentSession = null
+      try {
+        this.storage?.removeItem(SESSION_KEY)
+      } catch {
+        /* storage unavailable */
+      }
       return null
     }
     return session
@@ -143,7 +167,14 @@ export class AuthService {
     const user = this.currentUserOrThrow()
     if (input.displayName !== undefined) user.displayName = input.displayName ?? undefined
     if (input.email !== undefined) user.email = input.email ?? undefined
-    if (input.avatar !== undefined) user.avatar = input.avatar ?? undefined
+    if (input.avatar !== undefined) {
+      // 格式白名单在本地模式同样是入库闸（PRD §8.4 / avatar.ts）：此前只
+      // 在 fileToAvatarDataUrl 内部校验，程序化调用可绕过写入 svg/超限串。
+      if (input.avatar !== null && !isValidAvatarDataUrl(input.avatar)) {
+        throw new AvatarError('avatar-invalid')
+      }
+      user.avatar = input.avatar ?? undefined
+    }
     user.updatedAt = new Date(this.now()).toISOString()
     this.persistUsers()
     return this.toPublicUser(user)
@@ -188,13 +219,26 @@ export class AuthService {
       userId: user.id,
       expiresAt: this.now() + this.sessionTtlMs,
     }
-    if (this.storage) this.storage.setItem(SESSION_KEY, JSON.stringify(session))
+    // 内存态先落地（storage 写入失败/不可用时 getSession 仍可用）。
+    this.currentSession = session
+    try {
+      this.storage?.setItem(SESSION_KEY, JSON.stringify(session))
+    } catch {
+      /* quota/privacy: memory session keeps this page signed in */
+    }
     return session
   }
 
   private getStoredSession(): Session | null {
-    if (!this.storage) return null
-    const raw = this.storage.getItem(SESSION_KEY)
+    // 无 storage：memory 是唯一来源（隐私模式/持久化被拒环境）。
+    if (!this.storage) return this.currentSession
+    let raw: string | null
+    try {
+      raw = this.storage.getItem(SESSION_KEY)
+    } catch {
+      // storage 运行时读取失败（被拒/损坏）：退回内存态，不把会话判死。
+      return this.currentSession
+    }
     if (!raw) return null
     try {
       const parsed = JSON.parse(raw) as Session
@@ -236,7 +280,12 @@ export class AuthService {
 
   private loadUsers(): void {
     if (!this.storage) return
-    const raw = this.storage.getItem(USERS_KEY)
+    let raw: string | null
+    try {
+      raw = this.storage.getItem(USERS_KEY)
+    } catch {
+      return
+    }
     if (!raw) return
     try {
       const parsed = JSON.parse(raw) as StoredUser[]
@@ -255,8 +304,10 @@ export class AuthService {
     if (!this.storage) return
     try {
       this.storage.setItem(USERS_KEY, JSON.stringify([...this.users.values()]))
-    } catch {
-      /* quota or privacy mode: users stay in memory */
+    } catch (cause) {
+      // 静默降级仍要可观测（B1 审查：register/updateProfile 返回成功但数据
+      // 只在内存——刷新即丢；console.error 是无 UI 面下的最小可诊断性）。
+      console.error('[AgehaOS:auth] user persistence failed (memory only)', cause)
     }
   }
 }

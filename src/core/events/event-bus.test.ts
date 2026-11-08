@@ -119,3 +119,32 @@ describe('EventBus', () => {
     bus.off('ping', subscribeLate as never)
   })
 })
+
+describe('emit/once 语义修正（B1 审查）', () => {
+  it('emit 期间被注销的监听器不再执行', () => {
+    const bus = new EventBus<{ e: string }>()
+    const seen: string[] = []
+    const second = (): void => {
+      seen.push('second')
+    }
+    bus.on('e', () => {
+      seen.push('first')
+      bus.off('e', second)
+    })
+    bus.on('e', second)
+    bus.emit('e', 'x')
+    expect(seen).toEqual(['first'])
+  })
+
+  it('once 可以用原始 handler 注销', () => {
+    const bus = new EventBus<{ e: number }>()
+    let calls = 0
+    const handler = (): void => {
+      calls += 1
+    }
+    bus.once('e', handler)
+    bus.off('e', handler)
+    bus.emit('e', 1)
+    expect(calls).toBe(0)
+  })
+})

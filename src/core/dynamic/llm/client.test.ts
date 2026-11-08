@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   AI_PROXY_TIMEOUT_MS,
+  MAX_AI_ATTEMPTS_PER_SESSION,
+  PHASE_B_VOCABULARY,
   banContent,
   filterAccepted,
   getCachedAiSlots,
   isContentBanned,
-  MAX_AI_ATTEMPTS_PER_SESSION,
   requestAiSlots,
   resetAiSessionState,
 } from './client'
@@ -123,5 +124,22 @@ describe('filterAccepted', () => {
     }
     const items = filterAccepted(payload, ['tip', ...Array.from({ length: 10 }, (_, i) => `s${i}`)])
     expect(items).toEqual([{ slotId: 'tip', text: 'privacy' }])
+  })
+})
+
+describe('词表/banlist 交叉与原型链（B3 审查）', () => {
+  it('词表值被举报后同样被拒（banlist 先于词表白名单）', () => {
+    const vocabularyValue = PHASE_B_VOCABULARY.tip[0]!
+    banContent(vocabularyValue)
+    expect(
+      filterAccepted({ items: [{ slotId: 'tip', text: vocabularyValue }] }, ['tip']),
+    ).toEqual([])
+  })
+
+  it("slotId='constructor' 走 unknown-slot 丢弃（不再取到原型 Function 抛错）", () => {
+    expect(() =>
+      filterAccepted({ items: [{ slotId: 'constructor', text: 'anything' }] }, ['constructor']),
+    ).not.toThrow()
+    expect(filterAccepted({ items: [{ slotId: 'constructor', text: 'anything' }] }, ['constructor'])).toEqual([])
   })
 })

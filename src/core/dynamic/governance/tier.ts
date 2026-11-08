@@ -70,7 +70,14 @@ export function evaluateDegrade(
   const windowAvgFps = (fromMs: number): number | null => {
     const inWindow = frameTimestamps.filter((t) => t >= now - fromMs)
     if (inWindow.length < 2) return null
-    const span = now - inWindow[0]
+    // 帧间累计（>500ms 的洞——页面隐藏/卡顿——不计入跨度，B3 审查：旧实现
+    // now-inWindow[0] 跨过隐藏间隔，一次 1.6s 切页即把均值打到停动画档）。
+    let span = 0
+    for (let i = 1; i < inWindow.length; i += 1) {
+      const delta = inWindow[i]! - inWindow[i - 1]!
+      if (delta <= 500) span += delta
+    }
+    if (span <= 0) return null
     if (span <= 0) return null
     return ((inWindow.length - 1) * 1000) / span
   }

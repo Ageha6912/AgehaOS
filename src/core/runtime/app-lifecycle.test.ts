@@ -94,3 +94,28 @@ describe('createAppLifecycleTracker', () => {
     expect(started).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('lifecycle 计数边界（B1 审查）', () => {
+  it('未计数应用收到 close 直接忽略（不发无中生有的 app.stopped）', () => {
+    const bus = new EventBus<SystemEventMap>()
+    const tracker = createAppLifecycleTracker(bus)
+    tracker.start()
+    const stopped = vi.fn()
+    bus.on('app.stopped', stopped)
+    bus.emit('window.closed', { appId: 'ghost.app', windowId: 'w1' })
+    expect(stopped).not.toHaveBeenCalled()
+    expect(tracker.isRunning('ghost.app')).toBe(false)
+  })
+
+  it('stop() 清空计数：重启后运行态从零重建', () => {
+    const bus = new EventBus<SystemEventMap>()
+    const tracker = createAppLifecycleTracker(bus)
+    tracker.start()
+    bus.emit('window.created', { appId: 'a.app', windowId: 'w1' })
+    expect(tracker.isRunning('a.app')).toBe(true)
+    tracker.stop()
+    expect(tracker.runningAppIds()).toEqual([])
+    tracker.start()
+    expect(tracker.isRunning('a.app')).toBe(false)
+  })
+})

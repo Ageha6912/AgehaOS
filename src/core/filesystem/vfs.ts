@@ -215,6 +215,10 @@ export class Vfs {
       this.requireExisting(source, path)
       this.requireNotRoot(source!)
       const dest = this.requireDirectory(destDirPath)
+      // 与 move 同款环检测：目标在源子树内会复制出新节点再被递归复制（无限递归）。
+      if (this.isDescendant(dest.id, source!.id) || dest.id === source!.id) {
+        throw new VfsError('cycle', `Cannot copy "${path}" into itself or its own subtree`)
+      }
       this.requireFreeName(dest.id, source!.name)
 
       const copied = this.copySubtree(source!, dest.id)
@@ -245,9 +249,12 @@ export class Vfs {
       if (!node!.trashed) return cloneNode(node!)
       if (node!.parentId !== null) {
         const parent = this.nodes.get(node!.parentId)
-        if (parent && !parent.trashed) {
-          this.requireFreeName(parent.id, node!.name, node!.id)
+        // 父目录已删除/不可用：直接还原会得到不可见孤儿（listTrash 也不列），
+        // 随后清空父目录还会把它永久带走——必须拒绝并提示。
+        if (!parent || parent.trashed || parent.type !== 'directory') {
+          throw new VfsError('not-found', 'Cannot restore into a trashed or missing parent')
         }
+        this.requireFreeName(parent.id, node!.name, node!.id)
       }
       node!.trashed = false
       node!.updatedAt = now()
@@ -290,14 +297,18 @@ export class Vfs {
       const needle = query.trim().toLowerCase()
       if (needle === '') return []
       const results: VfsSearchResult[] = []
-      for (const id of this.collectSubtreeIds(root.id)) {
-        const node = this.nodes.get(id)
-        if (!node || node.trashed) continue
-        if (node.id === root.id) continue
-        if (node.name.toLowerCase().includes(needle)) {
-          results.push({ node: cloneNode(node), path: this.pathOfId(node.id) ?? '' })
+      // 在 trashed 节点处整体剪枝：只跳过节点本身会继续下钻被删目录的子树，
+      // 返回路径经过回收站祖先的“幻影”结果。
+      const visit = (parentId: string): void => {
+        for (const node of this.childrenOf(parentId)) {
+          if (node.trashed) continue
+          if (node.name.toLowerCase().includes(needle)) {
+            results.push({ node: cloneNode(node), path: this.pathOfId(node.id) ?? '' })
+          }
+          if (node.type === 'directory') visit(node.id)
         }
       }
+      visit(root.id)
       return results
     })
   }
@@ -426,7 +437,15 @@ export class Vfs {
   }
 
   private childByName(parentId: string, name: string): VfsNode | undefined {
-    return this.childrenOf(parentId).find((node) => node.name === name)
+    // 活跃节点优先：回收站条目可能先插入且同名（删除后重建同名文件），
+    // 取插入序第一个 trashed 节点会让新文件解析不到（幻影）。
+    let trashedMatch: VfsNode | undefined
+    for (const node of this.childrenOf(parentId)) {
+      if (node.name !== name) continue
+      if (!node.trashed) return node
+      trashedMatch ??= node
+    }
+    return trashedMatch
   }
 
   private requireDirectory(path: string): VfsNode {
@@ -443,10 +462,14 @@ export class Vfs {
   }
 
   private requireNotRoot(node: VfsNode): void {
-    // Root itself and every top-level entry (the system directories, PRD
-    // §11.1) are protected in v0.1.
-    if (node.parentId === null || node.parentId === ROOT_ID) {
-      throw new VfsError('root-protected', `"${node.name || '/'}" is protected`)
+    if (node.parentId === null) {
+      throw new VfsError('root-protected', 'The root directory cannot be modified')
+    }
+    // 只保护内置系统目录（PRD §11.1）；用户在根目录自建的条目必须可管理。
+    const isSystemTopLevel =
+      node.parentId === ROOT_ID && (DEFAULT_DIRECTORIES as readonly string[]).includes(node.name)
+    if (isSystemTopLevel) {
+      throw new VfsError('root-protected', `"${node.name}" is protected`)
     }
   }
 

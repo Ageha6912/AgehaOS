@@ -15,6 +15,8 @@ const defaultErrorHandler: BusErrorHandler = (error, eventName) => {
  */
 export class EventBus<M extends object> {
   private handlers = new Map<string, Set<EventHandler<never>>>()
+  /** once 包装器映射（B1 审查：off(event, 原始 handler) 也能摘掉 once）。 */
+  private onceWrappers = new WeakMap<EventHandler<never>, EventHandler<never>>()
   private errorHandler: BusErrorHandler = defaultErrorHandler
 
   setErrorHandler(handler: BusErrorHandler): void {
@@ -32,16 +34,23 @@ export class EventBus<M extends object> {
   }
 
   once<K extends keyof M & string>(eventName: K, handler: EventHandler<M[K]>): () => void {
-    const off = this.on(eventName, (payload) => {
-      off()
+    const wrapper = (payload: M[K]): void => {
+      this.off(eventName, handler)
       handler(payload)
-    })
-    return off
+    }
+    this.onceWrappers.set(handler as EventHandler<never>, wrapper as EventHandler<never>)
+    return this.on(eventName, wrapper as EventHandler<M[K]>)
   }
 
   off<K extends keyof M & string>(eventName: K, handler: EventHandler<M[K]>): void {
     const set = this.handlers.get(eventName)
     if (!set) return
+    // once 注册的监听器：用原始 handler 也能摘掉包装器。
+    const wrapper = this.onceWrappers.get(handler as EventHandler<never>)
+    if (wrapper !== undefined) {
+      set.delete(wrapper)
+      this.onceWrappers.delete(handler as EventHandler<never>)
+    }
     set.delete(handler as EventHandler<never>)
     if (set.size === 0) this.handlers.delete(eventName)
   }
@@ -50,6 +59,9 @@ export class EventBus<M extends object> {
     const set = this.handlers.get(eventName)
     if (!set || set.size === 0) return
     for (const handler of [...set]) {
+      // emit 期间被前面处理器 off 掉的监听器不再执行（B1 审查：快照迭代
+      // 的语义修正——「首个事件里注销其它监听器」应真正生效）。
+      if (!set.has(handler)) continue
       try {
         ;(handler as EventHandler<M[K]>)(payload)
       } catch (error) {

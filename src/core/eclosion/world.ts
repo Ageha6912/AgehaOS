@@ -318,14 +318,32 @@ export function validateEclosionWorld(payload: unknown): EclosionWorld | null {
 
   let titles: readonly string[] = []
   if (isObject(payload.signals) && Array.isArray(payload.signals.titles)) {
-    titles = payload.signals.titles.filter(
-      (title): title is string => typeof title === 'string' && title.length > 0 && title.length <= 160,
-    )
+    titles = payload.signals.titles
+      .filter(
+        (title): title is string => typeof title === 'string' && title.length > 0 && title.length <= 160,
+      )
+      .slice(0, 12) // 数组长度上限（B2 审查：模块定位是不信任任何上行数据）
+  }
+  const rawSourceName =
+    isObject(payload.signals) && typeof payload.signals.sourceName === 'string'
+      ? payload.signals.sourceName
+      : ''
+  const rawSourceUrl =
+    isObject(payload.signals) && typeof payload.signals.sourceUrl === 'string'
+      ? payload.signals.sourceUrl
+      : ''
+  // WorldSignals.tsx 把 sourceUrl 直接作 <a href>：仅放行 http(s)（B2 审查）。
+  let sourceUrl = ''
+  try {
+    const parsed = new URL(rawSourceUrl)
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') sourceUrl = rawSourceUrl
+  } catch {
+    sourceUrl = ''
   }
   const signals = {
     titles,
-    sourceName: isObject(payload.signals) && typeof payload.signals.sourceName === 'string' ? payload.signals.sourceName : '',
-    sourceUrl: isObject(payload.signals) && typeof payload.signals.sourceUrl === 'string' ? payload.signals.sourceUrl : '',
+    sourceName: rawSourceName.slice(0, 120),
+    sourceUrl,
   }
 
   return {

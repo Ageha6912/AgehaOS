@@ -28,6 +28,8 @@ const EXPLICIT_SIGNALS: ReadonlySet<FeedbackSignal> = new Set([
 
 /** §10.3：单会话内同一标签权重增量上限 ±6（无会话追踪时按单信号增量钳制）。 */
 export const PER_SIGNAL_TAG_CLAMP = 6
+/** §10.3：单会话同一标签的**累计**权重增量预算（正负各 6）。 */
+export const SESSION_TAG_BUDGET = 6
 
 export interface ApplyFeedbackInput {
   profile: PreferenceProfile
@@ -36,16 +38,31 @@ export interface ApplyFeedbackInput {
   targetTags: readonly string[]
   /** 该壁纸的调色板家族键（'dark:low' 等），可选。 */
   targetFamily?: string
+  /**
+   * 本会话内各标签已累计的权重增量（调用方维护）；缺省=不做累计钳制。
+   * §10.3 预算 ±6；`pin` 是显式重申（§10.2 权重 10），不受该预算。
+   */
+  sessionDeltas?: Readonly<Record<string, number>>
   now: Date
 }
 
 /** 应用反馈信号，返回新画像（不可变更新）。 */
 export function applyFeedbackSignal(input: ApplyFeedbackInput): PreferenceProfile {
   const weight = SIGNAL_WEIGHTS[input.signal]
-  const clamped = Math.max(-PER_SIGNAL_TAG_CLAMP, Math.min(PER_SIGNAL_TAG_CLAMP, weight))
+  // pin（10）是用户每日重申，按 §10.2 原值计入，不被单信号/会话钳制截成 6
+  // （B3 审查）。其余信号先过单信号钳制，再按会话累计预算收口。
+  const isPin = input.signal === 'pin'
+  const perSignal = isPin
+    ? weight
+    : Math.max(-PER_SIGNAL_TAG_CLAMP, Math.min(PER_SIGNAL_TAG_CLAMP, weight))
   const tags: Record<string, number> = { ...input.profile.tags }
   for (const tag of input.targetTags) {
-    tags[tag] = (tags[tag] ?? 0) + clamped
+    let delta = perSignal
+    if (!isPin && input.sessionDeltas !== undefined) {
+      const used = input.sessionDeltas[tag] ?? 0
+      delta = Math.max(-SESSION_TAG_BUDGET - used, Math.min(SESSION_TAG_BUDGET - used, delta))
+    }
+    tags[tag] = (tags[tag] ?? 0) + delta
   }
   const families: Record<string, number> = { ...input.profile.families }
   if (input.targetFamily) {

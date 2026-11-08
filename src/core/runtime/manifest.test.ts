@@ -289,3 +289,13 @@ describe('parseManifest', () => {
     })
   })
 })
+
+describe('manifest 自由文本上限（B2 审查：远程目录信任边界）', () => {
+  it('name 超 120 / 双向控制符 / description 超 500 拒绝', () => {
+    expect(parseManifest({ ...VALID_MANIFEST, name: 'x'.repeat(121) }).ok).toBe(false)
+    const bidi = VALID_MANIFEST.name.slice(0, 1) + String.fromCharCode(0x202e) + VALID_MANIFEST.name.slice(1)
+    expect(parseManifest({ ...VALID_MANIFEST, name: bidi }).ok).toBe(false)
+    expect(parseManifest({ ...VALID_MANIFEST, description: 'x'.repeat(501) }).ok).toBe(false)
+    expect(parseManifest({ ...VALID_MANIFEST, description: 'x'.repeat(500) }).ok).toBe(true)
+  })
+})

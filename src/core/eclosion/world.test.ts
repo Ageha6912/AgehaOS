@@ -197,3 +197,23 @@ describe('accentHue quality gate (§6.2/§6.3)', () => {
     expect(ECLOSION_WORLD_ICON_WHITELIST).not.toContain('NotAnIcon')
   })
 })
+
+describe('signals 子结构上限（B2 审查：不信任任何上行数据）', () => {
+  it('titles 截到 12 条；sourceName 限长；sourceUrl 仅放行 http(s)', () => {
+    const payload = publicPayload(appSeries(8))
+    payload.signals = {
+      titles: Array.from({ length: 20 }, (_, i) => '标题' + i),
+      sourceName: '源'.repeat(300),
+      sourceUrl: 'javascript:alert(1)',
+    }
+    const world = validateEclosionWorld(payload)
+    expect(world).not.toBeNull()
+    expect(world?.signals.titles).toHaveLength(12)
+    expect(world?.signals.sourceName).toHaveLength(120)
+    expect(world?.signals.sourceUrl).toBe('')
+
+    const https = publicPayload(appSeries(8))
+    https.signals = { titles: ['t'], sourceName: 's', sourceUrl: 'https://example.invalid/feed' }
+    expect(validateEclosionWorld(https)?.signals.sourceUrl).toBe('https://example.invalid/feed')
+  })
+})

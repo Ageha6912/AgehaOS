@@ -401,3 +401,47 @@ describe('envelope coverage (回归：类型面与运行时白名单同步)', ()
     }
   })
 })
+
+describe('SDK storage 加固（序列化 / 原型链）', () => {
+  it('rejects non-serializable values with a receipt instead of throwing', async () => {
+    const ctx = makeContext()
+    const bigint = await handleSdkRequest(
+      request({ action: 'set', params: { key: 'big', value: 1n } }),
+      ctx,
+    )
+    expect(bigint).toEqual({ reqId: 'r1', ok: false, error: 'invalid-value' })
+
+    const circular: Record<string, unknown> = {}
+    circular.self = circular
+    const cycle = await handleSdkRequest(
+      request({ reqId: 'r2', action: 'set', params: { key: 'cycle', value: circular } }),
+      ctx,
+    )
+    expect(cycle).toEqual({ reqId: 'r2', ok: false, error: 'invalid-value' })
+  })
+
+  it('does not treat prototype members as stored values', async () => {
+    const ctx = makeContext()
+    const response = await handleSdkRequest(
+      request({ action: 'get', params: { key: 'toString' } }),
+      ctx,
+    )
+    expect(response).toEqual({ reqId: 'r1', ok: true, data: { value: null } })
+  })
+
+  it('writes __proto__ as an own key without polluting Object.prototype', async () => {
+    const ctx = makeContext()
+    const set = await handleSdkRequest(
+      request({ action: 'set', params: { key: '__proto__', value: { polluted: true } } }),
+      ctx,
+    )
+    expect(set.ok).toBe(true)
+
+    const get = await handleSdkRequest(
+      request({ reqId: 'r2', action: 'get', params: { key: '__proto__' } }),
+      ctx,
+    )
+    expect(get).toEqual({ reqId: 'r2', ok: true, data: { value: { polluted: true } } })
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined()
+  })
+})

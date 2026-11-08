@@ -135,10 +135,13 @@ export function filterAccepted(payload: unknown, slots: readonly string[]): AiSl
     if (typeof slotId !== 'string' || !requested.has(slotId) || seen.has(slotId)) continue
     if (typeof text !== 'string' || text.length === 0) continue
     // 槽位白名单：未知槽位直接丢弃；已知槽位接受词表变体或过滤后的自由文本。
-    const vocabulary = PHASE_B_VOCABULARY[slotId]
-    if (vocabulary === undefined) continue
+    // own-property 检查（B3 审查：slotId='constructor' 会取到原型上的
+    // Function 再调 .includes 抛 TypeError）；banlist 先查——词表值同样
+    // 可能被举报封禁（旧实现词表分支绕过 banlist）。
+    if (!Object.hasOwn(PHASE_B_VOCABULARY, slotId)) continue
+    const vocabulary = PHASE_B_VOCABULARY[slotId]!
+    if (isBanned(text)) continue
     if (!vocabulary.includes(text)) {
-      if (isBanned(text)) continue
       if (text.length > 200 || !filterContentText(text).ok) continue
     }
     seen.add(slotId)

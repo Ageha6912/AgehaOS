@@ -38,9 +38,12 @@ export function stageForProfile(input: StageInput): PersonalizationStage {
   const { profile } = input
   const distinctStyles = Object.keys(profile.tags).length
 
-  // 时间回退（§10.2 状态机的回退边）。
+  // 时间回退（§10.2 状态机的回退边）。非法时间戳按冷启动口径（NaN 比较
+  // 恒 false 会让画像永不回退，B3 审查）；未来时间按 0（时钟回拨不误判）。
   if (profile.lastSignalAt) {
-    const idleDays = (input.now.getTime() - new Date(profile.lastSignalAt).getTime()) / DAY_MS
+    const lastMs = Date.parse(profile.lastSignalAt)
+    if (Number.isNaN(lastMs)) return 'cold-start'
+    const idleDays = Math.max(0, (input.now.getTime() - lastMs) / DAY_MS)
     if (idleDays >= STALE_TO_COLD_START_DAYS) return 'cold-start'
     if (idleDays >= STALE_TO_EXPLORATION_DAYS) return 'exploration'
   }

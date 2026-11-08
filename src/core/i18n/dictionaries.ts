@@ -344,6 +344,9 @@ export const dictionaries = {
     'browser.siteDataCount': '已保存 {count} 条站点登录数据（仅存于服务器）',
     'browser.siteDataNone': '暂无已保存的站点数据',
     'browser.siteDataClear': '清除',
+    'browser.siteDataClearTitle': '清除站点数据',
+    'browser.siteDataClearConfirm': '清除后将登出所有已保存的站点登录态，且不可恢复。',
+    'browser.siteDataClearFailed': '清除失败，请稍后重试。',
     'browser.mode.enhanced': '增强模式已启用：站点交互与存储按站隔离',
     'browser.mode.pending': '正在准备增强模式…',
     'browser.mode.fallback':
@@ -357,6 +360,7 @@ export const dictionaries = {
     'terminal.err.isDirectory': '{path}：是目录',
     'terminal.err.exists': '{path}：已存在',
     'terminal.err.missingOperand': '{command}：缺少参数',
+    'terminal.err.failed': '操作失败：{message}',
     'terminal.info.trashed': '已移入回收站：{path}',
     'terminal.keys.row': '终端快捷键',
     'terminal.keys.esc': '取消当前输入（Esc）',
@@ -377,6 +381,10 @@ export const dictionaries = {
     'store.installed': '已安装',
     'store.install': '安装',
     'store.uninstall': '卸载',
+    'store.uninstallTitle': '卸载应用',
+    'store.uninstallConfirm': '卸载「{name}」？已授予的权限会被遗忘，再次使用需要重新安装。',
+    'store.installFailed': '安装失败：「{name}」的清单无效或已安装。',
+    'store.cancel': '取消',
     'store.open': '打开',
 
     'webapp.loading': '正在加载应用…',
@@ -385,6 +393,7 @@ export const dictionaries = {
     // 羽化模式（AI-GENERATED-APPS-DESIGN §1.1 用语：结茧中 / 破茧 / 重新羽化）
     'app.clock.title': '时钟',
     'eclosion.generating': '结茧中…（思考 {count} 字）',
+    'eclosion.generatingLabel': '正在破茧生成…',
     'eclosion.think.toggle': '思考过程',
     'eclosion.queued': '排队中…（同时最多 2 个生成流）',
     'eclosion.fallbackNotice': '已回落经典版',
@@ -431,6 +440,9 @@ export const dictionaries = {
     'settings.eclosion.clearHint':
       '删除本机缓存的全部羽化应用生成结果；应用自身的笔记等数据不受影响。',
     'settings.eclosion.cleared': '已清除羽化数据。',
+    'settings.eclosion.clearConfirm': '清除全部羽化数据？已生成的缓存与蝶谱将删除，无法恢复。',
+    'settings.eclosion.clearFailed': '清除失败，请稍后重试。',
+    'settings.eclosion.clearCancel': '取消',
     'settings.eclosion.replay': '蝶谱',
     'settings.eclosion.replayHint':
       '每日世界的时间线（标题、配色、应用名单与壁纸参数，最多 60 天）；「回到那天」只恢复主题与壁纸。',
@@ -495,6 +507,8 @@ export const dictionaries = {
     'files.delete': '删除',
     'files.restore': '还原',
     'files.purge': '彻底删除',
+    'files.purgeConfirmTitle': '彻底删除？',
+    'files.purgeConfirmBody': '该操作不可撤销；文件夹内的内容也会被永久删除。',
     'files.search.placeholder': '搜索当前目录…',
     'files.loading': '加载中…',
     'files.empty': '此文件夹为空',
@@ -507,9 +521,11 @@ export const dictionaries = {
     'files.preview.close': '关闭预览',
     'files.preview.zoomIn': '放大',
     'files.preview.zoomOut': '缩小',
+    'files.preview.broken': '图片无法显示（文件可能已损坏或不是受支持的格式）。',
     'files.dialog.name': '名称',
     'files.dialog.confirm': '确定',
     'files.dialog.cancel': '取消',
+    'files.actionErrorDismiss': '知道了',
     'files.error.notFound': '找不到该路径',
     'files.error.alreadyExists': '同名项目已存在',
     'files.error.invalidName': '名称不合法',
@@ -595,6 +611,8 @@ export const dictionaries = {
     'settings.account.revokeOthers': '登出其他设备',
     'settings.account.revokeOthersHint': '保留当前设备的登录状态，登出该账户的全部其他会话。',
     'settings.account.revokeDone': '已登出其他设备的会话',
+    'settings.account.revokeConfirm': '登出该账户的全部其他会话？这些设备需要重新登录。',
+    'settings.account.revokeCancel': '取消',
     'settings.account.sessions': '登录的设备',
     'settings.account.sessionCurrent': '本设备',
     'settings.account.sessionRevoke': '撤下',
@@ -608,6 +626,8 @@ export const dictionaries = {
     'settings.catalogPlaceholder': '粘贴单个应用清单 JSON（与商店条目同构）…',
     'settings.catalogBadJson': 'JSON 解析失败，请检查格式。',
     'settings.catalogInvalid': '发布被拒绝：条目未通过服务端校验。',
+    'settings.catalogLoadFailed': '目录加载失败，已禁止发布以避免覆盖现有条目。',
+    'settings.catalogRetry': '重试',
     'settings.catalogSaved': '已发布',
     'settings.catalogRemove': '移除',
     'settings.review': '内容复审',
@@ -618,7 +638,11 @@ export const dictionaries = {
     'settings.reviewRefresh': '刷新清单',
     'settings.reviewCount': '{count} 条样本',
     'settings.reviewDelete': '删除此样本',
+    'settings.reviewDeleteTitle': '删除样本',
+    'settings.reviewDeleteConfirm': '删除后不可恢复，确定删除这条举报样本？',
     'settings.reviewDeleteFailed': '样本删除失败。',
+    'settings.reviewLoadMore': '加载更多',
+    'settings.reviewLoadMoreFailed': '加载更多失败。',
     'settings.reviewClass.ok': '正常',
     'settings.reviewClass.misleading': '误导',
     'settings.reviewClass.discomfort': '不适',
@@ -648,6 +672,10 @@ export const dictionaries = {
     'notes.listEmptyHint': '点击上方按钮写下第一条',
     'notes.editor': '笔记编辑器',
     'notes.unsaved': '有未保存的更改',
+    'notes.switchConfirmTitle': '切换笔记？',
+    'notes.switchConfirmBody': '当前笔记有未保存的修改，切换后会丢失。',
+    'notes.switchConfirmAction': '放弃并切换',
+    'notes.switchConfirmCancel': '继续编辑',
     /* M2-6 窄容器：Notes「列表↔编辑器」单面切换的返回键可访问名（宽容器
        双栏在场时不渲染，见 src/apps/notes/NotesApp.tsx）。 */
     'notes.backToList': '返回笔记列表',
@@ -699,6 +727,8 @@ export const dictionaries = {
     'dynamicDesktop.rollback': '回滚并固定',
     'dynamicDesktop.clearData': '清除全部 AI 数据',
     'dynamicDesktop.clearHint': '清空偏好、画像与历史，回到出厂外观。',
+    'dynamicDesktop.clearConfirm': '清除全部 AI 数据？偏好、画像与历史将不可恢复。',
+    'dynamicDesktop.clearCancel': '取消',
     'dynamicDesktop.hideBadge': '隐藏「AI 生成」徽标',
     'dynamicDesktop.style.fluid-gradient': '流体渐变',
     'dynamicDesktop.style.geometric': '几何构成',
@@ -1092,6 +1122,9 @@ export const dictionaries = {
     'browser.siteDataCount': '{count} site sign-ins saved (server-side only)',
     'browser.siteDataNone': 'No saved site data',
     'browser.siteDataClear': 'Clear',
+    'browser.siteDataClearTitle': 'Clear site data',
+    'browser.siteDataClearConfirm': 'This signs you out of every saved site and cannot be undone.',
+    'browser.siteDataClearFailed': 'Failed to clear site data. Try again.',
     'browser.mode.enhanced': 'Enhanced mode active: site interactions and isolated storage enabled',
     'browser.mode.pending': 'Preparing enhanced mode…',
     'browser.mode.fallback':
@@ -1105,6 +1138,7 @@ export const dictionaries = {
     'terminal.err.isDirectory': '{path}: is a directory',
     'terminal.err.exists': '{path}: already exists',
     'terminal.err.missingOperand': '{command}: missing operand',
+    'terminal.err.failed': 'Operation failed: {message}',
     'terminal.info.trashed': 'Moved to trash: {path}',
     'terminal.keys.row': 'Terminal quick keys',
     'terminal.keys.esc': 'Cancel current input (Esc)',
@@ -1125,6 +1159,11 @@ export const dictionaries = {
     'store.installed': 'Installed',
     'store.install': 'Install',
     'store.uninstall': 'Uninstall',
+    'store.uninstallTitle': 'Uninstall app',
+    'store.uninstallConfirm':
+      'Uninstall “{name}”? Granted permissions are forgotten and you must install it again to use it.',
+    'store.installFailed': 'Install failed: “{name}” has an invalid manifest or is already installed.',
+    'store.cancel': 'Cancel',
     'store.open': 'Open',
 
     'webapp.loading': 'Loading app…',
@@ -1133,6 +1172,7 @@ export const dictionaries = {
     // Eclosion mode (design §1.1 wording: cocooning / power-on / regenerate)
     'app.clock.title': 'Clock',
     'eclosion.generating': 'Cocooning… (thinking, {count} chars)',
+    'eclosion.generatingLabel': 'Generating…',
     'eclosion.think.toggle': 'Thinking',
     'eclosion.queued': 'Queued… (at most 2 concurrent generations)',
     'eclosion.fallbackNotice': 'Classic version restored',
@@ -1181,6 +1221,10 @@ export const dictionaries = {
     'settings.eclosion.clearHint':
       'Deletes every generated app cached on this device; app data such as notes is unaffected.',
     'settings.eclosion.cleared': 'Eclosion data cleared.',
+    'settings.eclosion.clearConfirm':
+      'Clear all eclosion data? Generated caches and the timeline will be deleted permanently.',
+    'settings.eclosion.clearFailed': 'Clear failed. Try again later.',
+    'settings.eclosion.clearCancel': 'Cancel',
     'settings.eclosion.replay': 'Metamorphosis timeline',
     'settings.eclosion.replayHint':
       'One entry per day’s world (headline, palette, app list and wallpaper parameters, up to 60 days); “Revert” restores only the theme and wallpaper.',
@@ -1246,6 +1290,8 @@ export const dictionaries = {
     'files.delete': 'Delete',
     'files.restore': 'Restore',
     'files.purge': 'Delete permanently',
+    'files.purgeConfirmTitle': 'Delete permanently?',
+    'files.purgeConfirmBody': 'This cannot be undone; everything inside the folder is deleted too.',
     'files.search.placeholder': 'Search this folder…',
     'files.loading': 'Loading…',
     'files.empty': 'This folder is empty',
@@ -1258,9 +1304,11 @@ export const dictionaries = {
     'files.preview.close': 'Close preview',
     'files.preview.zoomIn': 'Zoom in',
     'files.preview.zoomOut': 'Zoom out',
+    'files.preview.broken': 'Image cannot be displayed (the file may be corrupted or in an unsupported format).',
     'files.dialog.name': 'Name',
     'files.dialog.confirm': 'OK',
     'files.dialog.cancel': 'Cancel',
+    'files.actionErrorDismiss': 'Dismiss',
     'files.error.notFound': 'Path not found',
     'files.error.alreadyExists': 'An item with this name already exists',
     'files.error.invalidName': 'Invalid name',
@@ -1349,6 +1397,9 @@ export const dictionaries = {
     'settings.account.revokeOthersHint':
       'Keeps this device signed in and revokes every other session of this account.',
     'settings.account.revokeDone': 'Other device sessions signed out',
+    'settings.account.revokeConfirm':
+      'Sign out every other session of this account? Those devices must sign in again.',
+    'settings.account.revokeCancel': 'Cancel',
     'settings.account.sessions': 'Signed-in devices',
     'settings.account.sessionCurrent': 'This device',
     'settings.account.sessionRevoke': 'Sign out',
@@ -1362,6 +1413,9 @@ export const dictionaries = {
     'settings.catalogPlaceholder': 'Paste a single app manifest JSON (store-entry shaped)…',
     'settings.catalogBadJson': 'Could not parse the JSON. Check the format.',
     'settings.catalogInvalid': 'Rejected: an entry failed server-side validation.',
+    'settings.catalogLoadFailed':
+      'Catalog failed to load; publishing is disabled to avoid overwriting it.',
+    'settings.catalogRetry': 'Retry',
     'settings.catalogSaved': 'Published',
     'settings.catalogRemove': 'Remove',
     'settings.review': 'Content review',
@@ -1372,7 +1426,11 @@ export const dictionaries = {
     'settings.reviewRefresh': 'Refresh list',
     'settings.reviewCount': '{count} samples',
     'settings.reviewDelete': 'Delete this sample',
+    'settings.reviewDeleteTitle': 'Delete sample',
+    'settings.reviewDeleteConfirm': 'This cannot be undone. Delete this reported sample?',
     'settings.reviewDeleteFailed': 'Failed to delete the sample.',
+    'settings.reviewLoadMore': 'Load more',
+    'settings.reviewLoadMoreFailed': 'Failed to load more.',
     'settings.reviewClass.ok': 'OK',
     'settings.reviewClass.misleading': 'Misleading',
     'settings.reviewClass.discomfort': 'Discomfort',
@@ -1402,6 +1460,10 @@ export const dictionaries = {
     'notes.listEmptyHint': 'Click the button above to write your first note',
     'notes.editor': 'Note editor',
     'notes.unsaved': 'Unsaved changes',
+    'notes.switchConfirmTitle': 'Switch notes?',
+    'notes.switchConfirmBody': 'The current note has unsaved changes that will be lost.',
+    'notes.switchConfirmAction': 'Discard & switch',
+    'notes.switchConfirmCancel': 'Keep editing',
     /* M2-6 narrow container: accessible name of the back button in the
        Notes list↔editor single-pane switch (not rendered when the wide
        two-pane layout is up; see src/apps/notes/NotesApp.tsx). */
@@ -1458,6 +1520,9 @@ export const dictionaries = {
     'dynamicDesktop.clearData': 'Clear all AI data',
     'dynamicDesktop.clearHint':
       'Clears preferences, profile and history, restoring the factory look.',
+    'dynamicDesktop.clearConfirm':
+      'Clear all AI data? Preferences, profile and history cannot be restored.',
+    'dynamicDesktop.clearCancel': 'Cancel',
     'dynamicDesktop.hideBadge': 'Hide the "AI generated" badge',
     'dynamicDesktop.style.fluid-gradient': 'Fluid gradient',
     'dynamicDesktop.style.geometric': 'Geometric',
@@ -1504,7 +1569,9 @@ export type Dictionary = Record<MessageKey, string>
 export const DEFAULT_LOCALE: Locale = 'zh-CN'
 
 export function translate(locale: Locale, key: MessageKey): string {
-  return dictionaries[locale][key]
+  // 缺 key 回退默认语言、再回退 key 本身（B2 审查：运行期缺 key 时 t()
+  // 返回 undefined，formatMessage 的 template.replace 会打断渲染）。
+  return dictionaries[locale][key] ?? dictionaries[DEFAULT_LOCALE][key] ?? (key as string)
 }
 
 /** 占位参数插值：`{name}` → params.name（通知正文等带参数的模板用）。 */

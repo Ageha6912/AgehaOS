@@ -2,9 +2,11 @@
  * 流式 HTML 切分（设计 §4.2 第 2 条）：宿主边收 SSE 边把文本切片下发给沙箱 runner。
  *
  * 安全与渲染契约：
- * - **`<script>` 内容永不进 chunk**：整个 script 元素（开标签+内容+闭标签）在宿主侧
+ * - **`<script>` 元素延迟注入**：整个 script 元素（开标签+内容+闭标签）在宿主侧
  *   截留，收进 `scripts()`，流结束经 `eclosion:power-on` 才注入 runner（"页面先成形、
- *   再破茧"）。这是安全关键路径——生成代码在破茧前不存在于沙箱任何位置。
+ *   再破茧"）。截留范围是**脚本元素**——行内 on* 事件属性与 javascript: URL
+ *   template.innerHTML 挂载即生效（纵深由沙箱 allow-scripts 无 same-origin 与
+ *   SDK 权限面兜底，B2 审查措辞对齐实现）。
  * - **仅闭合元素成片**：chunk 边界只落在顶层构造（元素/注释/结构标签）完成之后；
  *   未闭合元素与残缺标签留在内部缓冲，runner 收到的每片都能被 `<template>` 安全解析。
  * - **样式与骨架先行**：`<style>` 是普通（非截留）元素，完整闭合后立即成片。
@@ -235,7 +237,10 @@ export function createHtmlStreamSplitter(): HtmlStreamSplitter {
     push(text: string): EclosionStreamChunk[] {
       if (done || text === '') return []
       buffer += text
-      bufferLower += text.toLowerCase()
+      // 仅折叠 ASCII 大写（B2 审查）：'İ'.toLowerCase() 是 2 个 code unit
+      // （i + combining dot），整段 toLowerCase 会让小写副本与 buffer 下标
+      // 错位，rawtext 闭合位置整体偏移、脚本被截断。
+      bufferLower += text.replace(/[A-Z]/g, (ch) => ch.toLowerCase())
       return scan()
     },
     flush(): EclosionStreamChunk[] {

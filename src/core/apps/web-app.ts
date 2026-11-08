@@ -36,12 +36,33 @@ export interface HostHelloMessage {
   type: 'agehaos:hello'
 }
 
-/** 校验 Type B entry 是否在来源 allowlist 内。拒绝外部 URL、路径穿越与非常规写法。 */
+/**
+ * 校验 Type B entry 是否在来源 allowlist 内。拒绝外部 URL、路径穿越与非常规写法。
+ *
+ * 归一化优先（E3 审查）：先按 WHATWG URL 解析再比对——`%2e%2e` 会被浏览器/
+ * 服务器按 `..` 处理，字符串检查会漏（`/apps/sites/%2e%2e/runtime/eclosion.html`
+ * → `/apps/runtime/eclosion.html`）。query/hash 不属于 Manifest entry（运行时
+ * `?v=` 由宿主追加），一律拒绝。
+ */
 export function isAllowedWebAppEntry(entry: string): boolean {
   if (typeof entry !== 'string' || !entry.startsWith(WEB_APP_ENTRY_PREFIX)) return false
   if (entry.includes('\\') || entry.includes('//')) return false
-  if (!entry.endsWith('.html')) return false
-  const segments = entry.slice(WEB_APP_ENTRY_PREFIX.length).split('/')
+  // 编码分隔符 / NUL：服务器可能把 %2f、%5c 解码回路径分隔符，绕过段检查。
+  if (/%2f|%5c|%00|%3f|%23/i.test(entry)) return false
+  let url: URL
+  try {
+    // 固定 dummy origin：只做路径归一化，不访问网络。
+    url = new URL(entry, 'https://ageha.invalid')
+  } catch {
+    return false
+  }
+  if (url.origin !== 'https://ageha.invalid') return false
+  if (url.search !== '' || url.hash !== '') return false
+  // WHATWG 已把编码点段（%2e/%2e%2e）折叠为 . / .. 并消解——这里对归一化后的
+  // 路径做同一组检查（含前缀本身：消解后可能已逃出 allowlist 目录）。
+  const path = url.pathname
+  if (!path.startsWith(WEB_APP_ENTRY_PREFIX) || !path.endsWith('.html')) return false
+  const segments = path.slice(WEB_APP_ENTRY_PREFIX.length).split('/')
   return segments.every((segment) => segment !== '' && segment !== '.' && segment !== '..')
 }
 

@@ -69,6 +69,13 @@ const MOBILE_ORIENTATIONS = new Set<string>(['portrait', 'landscape', 'any'])
  * Validates an untrusted manifest (PRD §9). Collects every issue instead of
  * failing fast, so developers see the full list of problems at once.
  */
+/** C0/C1 控制符与 Unicode 双向/隐形格式字符（显示欺骗向量）。 */
+function hasControlChars(value: string): boolean {
+  // 控制字符正是要检测的目标——no-control-regex 在此是误报。
+  // eslint-disable-next-line no-control-regex
+  return /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/u.test(value)
+}
+
 export function parseManifest(input: unknown): ManifestParseResult {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {
     return {
@@ -98,6 +105,11 @@ export function parseManifest(input: unknown): ManifestParseResult {
   if (name.ok && name.value.trim() === '') {
     errors.push({ path: 'name', message: 'App name must not be empty' })
   }
+  // 自由文本上限 + 控制字符拒绝（B2 审查：远程 manifest 经 name 成窗口
+  // 标题，超长名/双向控制符破坏布局、持久化膨胀、显示欺骗）。
+  if (name.ok && (name.value.length > 120 || hasControlChars(name.value))) {
+    errors.push({ path: 'name', message: 'App name must be 1-120 chars without control characters' })
+  }
 
   const version = readString(raw, 'version', errors, { required: true })
   if (version.ok && !VERSION_PATTERN.test(version.value)) {
@@ -121,7 +133,13 @@ export function parseManifest(input: unknown): ManifestParseResult {
   const mobile = readMobileConfig(raw, errors)
 
   const author = readString(raw, 'author', errors, {})
+  if (author.ok && (author.value.length > 120 || hasControlChars(author.value))) {
+    errors.push({ path: 'author', message: 'Author must be 0-120 chars without control characters' })
+  }
   const description = readString(raw, 'description', errors, {})
+  if (description.ok && (description.value.length > 500 || hasControlChars(description.value))) {
+    errors.push({ path: 'description', message: 'Description must be 0-500 chars without control characters' })
+  }
 
   if (errors.length > 0 || !id.ok || !name.ok || !version.ok || !entry.ok) {
     return { ok: false, errors }

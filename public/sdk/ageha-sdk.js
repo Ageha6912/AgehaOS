@@ -37,6 +37,9 @@
   }
 
   window.addEventListener('message', function (event) {
+    // 宿主回执只认父窗口（B2 审查）：应用内嵌第三方 iframe 可 parent.postMessage
+    // 伪造 sdk-result，篡改 storage/files 结果；reqId 顺序可预测。
+    if (event.source !== window.parent) return
     var data = event.data
     if (!data || data.type !== RESULT_TYPE) return
     var entry = pending.get(data.reqId)
@@ -113,7 +116,9 @@
         })
       },
       list: function (path) {
-        return request('files', 'list', { path: path }).then(function (data) {
+        // 无参缺省根目录（B2 审查：桥拒绝空串，undefined 原样透传必然
+        // invalid-path）；显式传 '' 仍按原样交给桥拒绝。
+        return request('files', 'list', { path: path === undefined ? '/' : path }).then(function (data) {
           return data.entries
         })
       },
@@ -156,6 +161,7 @@
 
   // 就绪握手：告诉宿主 SDK 已加载（配合宿主的 hello 消息亦可）。
   window.addEventListener('message', function (event) {
+    if (event.source !== window.parent) return
     if (event.data && event.data.type === 'agehaos:hello') {
       event.source.postMessage({ type: 'agehaos:ready' }, '*')
     }

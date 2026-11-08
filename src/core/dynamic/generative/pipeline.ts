@@ -102,19 +102,26 @@ export function generateWallpaper(input: GenerateInput, deps: GenerateDeps): Gen
     return finish(input, deps, plan, 'L0', startedAt, 'local')
   }
 
+  // 兜底链同样必须过安全/质量门与主题匹配——历史计划可能来自旧主题，
+  // 精选集也可能包含被用户屏蔽的样式，不能无条件上屏。
+  const themeMatches = (plan: WallpaperPlan): boolean => {
+    const paletteIsLight = plan.reason.signals.includes('theme:light')
+    return (input.snapshot.theme === 'light') === paletteIsLight
+  }
+  const passesGates = (plan: WallpaperPlan): boolean =>
+    safetyFilter({ plan, blockedStyles: input.blockedStyles }).allowed &&
+    evaluateQuality({ plan, snapshot: input.snapshot }).passed
+
   // F1：重放最近合格三元组（Phase A 唯一手段：位图不落盘）。
-  if (deps.lastGoodPlan) {
+  if (deps.lastGoodPlan && themeMatches(deps.lastGoodPlan) && passesGates(deps.lastGoodPlan)) {
     deps.emit('desktop.wallpaper.fallback', { from: 'L0', to: 'F1', reason: 'generation failed after 3 attempts' })
     return finish(input, deps, deps.lastGoodPlan, 'F1', startedAt, 'cache')
   }
 
-  // F2：内置精选集（按种子确定性选 1，且仍须过质量门）。
-  const theme = input.snapshot.theme
-  const passing = (deps.curated ?? curatedPlans()).filter((plan) => {
-    const paletteIsLight = plan.reason.signals.includes('theme:light')
-    const themeMatches = (theme === 'light') === paletteIsLight
-    return themeMatches && evaluateQuality({ plan, snapshot: input.snapshot }).passed
-  })
+  // F2：内置精选集（按种子确定性选 1，且仍须过主题/安全/质量/屏蔽门）。
+  const passing = (deps.curated ?? curatedPlans()).filter(
+    (plan) => themeMatches(plan) && passesGates(plan),
+  )
   if (passing.length > 0) {
     const rng = mulberry32(`${input.sessionSeed}|fallback`)
     const plan = passing[Math.floor(rng() * passing.length)]
@@ -124,7 +131,7 @@ export function generateWallpaper(input: GenerateInput, deps: GenerateDeps): Gen
 
   // F3：静态渐变（恒定可用的最终保险）。
   deps.emit('desktop.wallpaper.fallback', { from: 'L0', to: 'F3', reason: 'curated set unavailable' })
-  return finish(input, deps, staticGradientPlan(theme), 'F3', startedAt, 'local')
+  return finish(input, deps, staticGradientPlan(input.snapshot.theme), 'F3', startedAt, 'local')
 }
 
 function finish(

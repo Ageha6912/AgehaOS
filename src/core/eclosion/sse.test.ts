@@ -96,3 +96,20 @@ describe('SSE 跨 chunk 边界', () => {
     expect(parseAll('\ufeffdata: x\n\n')).toEqual([{ event: 'message', data: 'x' }])
   })
 })
+
+describe('sse 流收尾边界（B2 审查）', () => {
+  it('缓冲恰为空但已积累 data 行：close() 仍派发最后一帧（不再丢 done）', () => {
+    const parser = createSseParser()
+    expect(parser.push('event: done' + String.fromCharCode(10) + 'data: ok' + String.fromCharCode(10))).toEqual([])
+    expect(parser.close()).toEqual([{ event: 'done', data: 'ok' }])
+  })
+
+  it('push 空串不吞 BOM：多字节切断后的后续 chunk 正常剥除', () => {
+    const parser = createSseParser()
+    expect(parser.push('')).toEqual([])
+    const bom = String.fromCharCode(0xfeff)
+    expect(parser.push(bom + 'data: a' + String.fromCharCode(10) + String.fromCharCode(10))).toEqual([
+      { event: 'message', data: 'a' },
+    ])
+  })
+})

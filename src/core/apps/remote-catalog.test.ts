@@ -113,3 +113,15 @@ describe('remote catalog client (PRD §47 前置切片，ADR 18)', () => {
     expect(result).toEqual({ ok: false, reason: 'unavailable' })
   })
 })
+
+describe('钉扎键配置边界（B2 审查）', () => {
+  it('空串钉扎键按配置错误 fail-closed（不再静默信任服务端键）', async () => {
+    const { response } = makeSignedResponse()
+    const result = await fetchSignedCatalog({
+      fetchJson: async () => response,
+      verify: nodeWebcryptoVerify,
+      pinnedPublicKeyBase64: '   ',
+    })
+    expect(result).toEqual({ ok: false, reason: 'untrusted-key' })
+  })
+})

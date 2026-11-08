@@ -93,11 +93,12 @@ describe('Vfs.createDirectory', () => {
   it('rejects invalid names and missing intermediate directories', async () => {
     const { vfs } = createVfsUnderTest()
 
+    // 点段在路径归一化层被拒（B1 审查：normalizePath 拒绝 . / .. 段）。
     await expect(vfs.createDirectory('/Documents/..')).rejects.toMatchObject({
-      code: 'invalid-name',
+      code: 'invalid-path',
     })
     await expect(vfs.createDirectory('/Documents/.')).rejects.toMatchObject({
-      code: 'invalid-name',
+      code: 'invalid-path',
     })
     await expect(vfs.createDirectory('/Documents/bad/name')).rejects.toMatchObject({
       code: 'not-found',
@@ -233,6 +234,19 @@ describe('Vfs.copy', () => {
     const copiedDir = await vfs.get('/Desktop/project/src')
     expect(copiedDir?.type).toBe('directory')
   })
+
+  it('rejects copying a directory into itself or its subtree', async () => {
+    const { vfs } = createVfsUnderTest()
+    await vfs.createDirectory('/Documents/project')
+    await vfs.createDirectory('/Documents/project/sub')
+
+    await expect(vfs.copy('/Documents/project', '/Documents/project')).rejects.toMatchObject({
+      code: 'cycle',
+    })
+    await expect(vfs.copy('/Documents/project', '/Documents/project/sub')).rejects.toMatchObject({
+      code: 'cycle',
+    })
+  })
 })
 
 describe('Vfs trash', () => {
@@ -263,6 +277,47 @@ describe('Vfs trash', () => {
     const node2 = await vfs.remove('/Documents/a.txt')
     await vfs.writeFile('/Documents/a.txt', 'replacement')
     await expect(vfs.restore(node2.id)).rejects.toMatchObject({ code: 'already-exists' })
+  })
+
+  it('restore() refuses when the parent directory is in the trash', async () => {
+    const { vfs } = createVfsUnderTest()
+    await vfs.createDirectory('/Documents/folder')
+    await vfs.writeFile('/Documents/folder/a.txt', 'x')
+    const child = await vfs.get('/Documents/folder/a.txt')
+
+    await vfs.remove('/Documents/folder/a.txt')
+    await vfs.remove('/Documents/folder')
+
+    await expect(vfs.restore(child!.id)).rejects.toMatchObject({ code: 'not-found' })
+  })
+
+  it('recreating a deleted name stays addressable（回收站同名不产生幻影）', async () => {
+    const { vfs } = createVfsUnderTest()
+    await vfs.writeFile('/Documents/a.txt', 'old')
+    await vfs.remove('/Documents/a.txt')
+
+    await vfs.writeFile('/Documents/a.txt', 'new')
+
+    expect(await vfs.readFile('/Documents/a.txt')).toBe('new')
+    expect((await vfs.list('/Documents')).map((node) => node.name)).toContain('a.txt')
+    // 新文件同样可删；回收站里留下两条同名记录。
+    await vfs.remove('/Documents/a.txt')
+    expect((await vfs.listTrash()).filter((node) => node.name === 'a.txt')).toHaveLength(2)
+  })
+
+  it('allows managing user-created top-level entries but protects system directories', async () => {
+    const { vfs } = createVfsUnderTest()
+
+    const file = await vfs.writeFile('/notes.txt', 'x')
+    expect(file.parentId).toBe('root')
+    await vfs.rename('/notes.txt', 'notes-2.txt')
+    await vfs.move('/notes-2.txt', '/Documents')
+
+    const dir = await vfs.createDirectory('/UserFolder')
+    await vfs.remove('/UserFolder')
+    expect((await vfs.listTrash()).some((node) => node.id === dir.id)).toBe(true)
+
+    await expect(vfs.remove('/Documents')).rejects.toMatchObject({ code: 'root-protected' })
   })
 
   it('purge() and emptyTrash() permanently delete trashed nodes', async () => {
@@ -313,6 +368,16 @@ describe('Vfs.search', () => {
       '/Documents/Report-Q3.txt',
     ])
     expect(await vfs.search('/Music', 'report')).toEqual([])
+  })
+
+  it('prunes trashed directory subtrees (no phantom paths)', async () => {
+    const { vfs } = createVfsUnderTest()
+    await vfs.createDirectory('/Documents/old')
+    await vfs.writeFile('/Documents/old/note.txt', 'x')
+
+    await vfs.remove('/Documents/old')
+
+    expect(await vfs.search('/', 'note')).toEqual([])
   })
 })
 

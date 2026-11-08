@@ -191,6 +191,11 @@ function byteLengthOf(value: string): number {
   return new TextEncoder().encode(value).length
 }
 
+/** own-property 判断（`key in obj` 会把原型链成员当已存值）。 */
+function hasOwn(record: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key)
+}
+
 function ok(reqId: string, data?: unknown): SdkResponse {
   return { reqId, ok: true, data }
 }
@@ -249,6 +254,15 @@ function sanitizeNotificationText(value: unknown, max: number): string | null {
 
 /** 能力分发：权限门禁 → 动作路由 → 注入 IO。任何失败都以 {ok:false} 回执。 */
 export async function handleSdkRequest(request: SdkRequest, ctx: SdkContext): Promise<SdkResponse> {
+  try {
+    return await dispatchSdkRequest(request, ctx)
+  } catch {
+    // 未预期异常（如不可序列化的值）也必须回执，绝不能让宿主产生 unhandled rejection。
+    return fail(request.reqId, 'internal')
+  }
+}
+
+async function dispatchSdkRequest(request: SdkRequest, ctx: SdkContext): Promise<SdkResponse> {
   const permission = requiredPermission(request.api, request.action)
   if (permission !== null && !ctx.hasPermission(permission)) {
     ctx.onPermissionDenied(permission)
@@ -292,20 +306,35 @@ function handleStorage(request: SdkRequest, ctx: SdkContext): SdkResponse {
   if (action === 'get') {
     if (key === null || !SDK_KEY_PATTERN.test(key)) return fail(reqId, 'invalid-key')
     const data = readNamespace(ctx)
-    return ok(reqId, { value: key in data ? data[key] : null })
+    // own-property：避免把 Object.prototype 成员（toString/constructor…）当作已存值，
+    // 否则响应里的原生函数会在 postMessage 结构化克隆时抛 DataCloneError。
+    return ok(reqId, { value: hasOwn(data, key) ? data[key] : null })
   }
 
   if (action === 'set') {
     if (key === null || !SDK_KEY_PATTERN.test(key)) return fail(reqId, 'invalid-key')
     if (params.value === undefined) return fail(reqId, 'invalid-value')
-    const encoded = JSON.stringify(params.value)
+    let encoded: string
+    try {
+      encoded = JSON.stringify(params.value)
+    } catch {
+      // BigInt / 循环引用等：必须是可回执的失败，不能让异常冒到宿主。
+      return fail(reqId, 'invalid-value')
+    }
+    if (encoded === undefined) return fail(reqId, 'invalid-value')
     if (byteLengthOf(encoded) > SDK_MAX_VALUE_BYTES) return fail(reqId, 'value-too-large')
     const data = readNamespace(ctx)
-    const isNew = !(key in data)
+    const isNew = !hasOwn(data, key)
     if (isNew && Object.keys(data).length >= SDK_MAX_KEYS) return fail(reqId, 'too-many-keys')
     const withoutOld = byteLengthOf(JSON.stringify(data)) - (isNew ? 0 : byteLengthOf(JSON.stringify(data[key])))
     if (withoutOld + byteLengthOf(encoded) > SDK_MAX_TOTAL_BYTES) return fail(reqId, 'quota-exceeded')
-    data[key] = params.value
+    // defineProperty：`__proto__` 直接赋值会触发原型 setter（假成功且不落盘）。
+    Object.defineProperty(data, key, {
+      value: params.value,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    })
     return writeNamespace(ctx, data) ? ok(reqId, {}) : fail(reqId, 'storage-unavailable')
   }
 

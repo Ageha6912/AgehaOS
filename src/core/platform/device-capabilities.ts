@@ -92,14 +92,15 @@ function mediaQueryMatches(query: string): boolean {
   }
 }
 
-/** 视口安全读取：innerWidth/innerHeight 缺失（非数值/非有限）落 1024×768 兜底档。 */
+/** 视口安全读取：innerWidth/innerHeight 缺失或非正数（0×0 隐藏 iframe、
+ *  异常宿主，B1 审查）落 1024×768 兜底档。 */
 function readViewportSize(): { width: number; height: number } {
   const rawWidth = typeof window !== 'undefined' ? window.innerWidth : undefined
   const rawHeight = typeof window !== 'undefined' ? window.innerHeight : undefined
-  const width = typeof rawWidth === 'number' && Number.isFinite(rawWidth)
+  const width = typeof rawWidth === 'number' && Number.isFinite(rawWidth) && rawWidth > 0
     ? rawWidth
     : FALLBACK_VIEWPORT_WIDTH
-  const height = typeof rawHeight === 'number' && Number.isFinite(rawHeight)
+  const height = typeof rawHeight === 'number' && Number.isFinite(rawHeight) && rawHeight > 0
     ? rawHeight
     : FALLBACK_VIEWPORT_HEIGHT
   return { width, height }
@@ -217,9 +218,10 @@ export async function detectUaChMobile(): Promise<boolean | null> {
     const nav = navigator as Navigator & {
       userAgentData?: { getHighEntropyValues?: (hints: string[]) => Promise<{ mobile?: unknown }> }
     }
-    const getHighEntropyValues = nav.userAgentData?.getHighEntropyValues
-    if (typeof getHighEntropyValues !== 'function') return null
-    const hints = await getHighEntropyValues(['mobile'])
+    const uaData = nav.userAgentData
+    // WebIDL 品牌检查：解构后裸调用会因 this 缺失抛 Illegal invocation（B1 审查）。
+    if (typeof uaData?.getHighEntropyValues !== 'function') return null
+    const hints = await uaData.getHighEntropyValues(['mobile'])
     const mobile = hints?.mobile
     return typeof mobile === 'boolean' ? mobile : null
   } catch {

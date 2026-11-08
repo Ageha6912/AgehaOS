@@ -198,7 +198,8 @@
           })
         },
         list: function (path) {
-          return sdkRequest('files', 'list', { path: path === undefined ? '' : path }).then(function (data) {
+          // 无参缺省根目录（B2 审查：'' 会被桥判 invalid-path）。
+          return sdkRequest('files', 'list', { path: path === undefined ? '/' : path }).then(function (data) {
             return unwrap(data, 'entries') || []
           })
         },
