@@ -39,7 +39,9 @@ describe('CatalogSection (ADR 20 远程目录管理)', () => {
     })
     expect(screen.getByText('计数器')).toBeInTheDocument()
     expect(screen.getByText(/com\.ageha\.samples\.counter/)).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledWith('/api/store/admin/catalog', { credentials: 'same-origin' })
+    expect(fetchMock).toHaveBeenCalledWith('/api/store/admin/catalog', {
+      credentials: 'same-origin',
+    })
   })
 
   it('shows the empty hint when nothing is published', async () => {
@@ -89,7 +91,11 @@ describe('CatalogSection (ADR 20 远程目录管理)', () => {
   it('surfaces server rejection and keeps the draft', async () => {
     fetchMock
       .mockResolvedValueOnce(okGet([]))
-      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: 'invalid-catalog' }) } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: 'invalid-catalog' }),
+      } as Response)
     render(<CatalogSection />)
     await waitFor(() => {
       expect(screen.getByText('尚未发布应用。')).toBeInTheDocument()
@@ -119,5 +125,17 @@ describe('CatalogSection (ADR 20 远程目录管理)', () => {
     const put = fetchMock.mock.calls.filter((call) => call[1]?.method === 'PUT').pop()
     const body = JSON.parse((put?.[1]?.body as string) ?? 'null') as { apps: unknown[] } | null
     expect(body?.apps).toEqual([])
+  })
+
+  it('目录加载失败时禁止发布（防止单条覆盖整份目录）', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) } as Response)
+    render(<CatalogSection />)
+
+    expect(await screen.findByText(/目录加载失败/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('发布应用（JSON）'), {
+      target: { value: JSON.stringify(SAMPLE_APP) },
+    })
+    expect(screen.getByRole('button', { name: '发布应用（JSON）' })).toBeDisabled()
+    expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'PUT')).toHaveLength(0)
   })
 })

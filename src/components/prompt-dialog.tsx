@@ -2,6 +2,8 @@ import { useState, type FormEvent, type KeyboardEvent } from 'react'
 
 import { isImeComposing } from '@/components/ime-guard'
 
+import { DialogShell } from './dialog-shell'
+
 export interface PromptDialogProps {
   title: string
   label: string
@@ -14,6 +16,10 @@ export interface PromptDialogProps {
   onCancel: () => void
 }
 
+/**
+ * 输入型对话框（重命名/新建目录等）。弹层壳归 DialogShell（portal 到 body +
+ * aria-modal + 焦点陷阱 + Esc/遮罩关闭）；输入框挂载即聚焦（data-autofocus）。
+ */
 export function PromptDialog({
   title,
   label,
@@ -34,11 +40,7 @@ export function PromptDialog({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-label={title}
-      className="animate-os-fade-in fixed inset-0 z-[70] flex items-center justify-center bg-scrim-strong p-6 backdrop-blur-sm"
-    >
+    <DialogShell title={title} testId="prompt-dialog" onClose={onCancel}>
       <form
         className="surface-glass animate-os-pop-in w-full max-w-sm rounded-lg border border-border p-4 shadow-window"
         onSubmit={submit}
@@ -47,7 +49,7 @@ export function PromptDialog({
         <label className="mt-3 block text-sm text-text-muted">
           {label}
           <input
-            autoFocus
+            data-autofocus
             value={value}
             onChange={(event) => setValue(event.target.value)}
             onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
@@ -81,6 +83,6 @@ export function PromptDialog({
           </button>
         </div>
       </form>
-    </div>
+    </DialogShell>
   )
 }

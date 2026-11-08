@@ -4,11 +4,13 @@ import { CheckCircle, Trash } from '@phosphor-icons/react'
 
 import { AppIcon } from '@/apps/app-icon'
 import { useNarrowContainer } from '@/apps/use-narrow-container'
-import { useTranslation } from '@/core/i18n'
+import { formatMessage, useTranslation } from '@/core/i18n'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { PermissionConsentDialog } from '@/components/permission-consent-dialog'
 import { ScrollFadeList } from '@/components/scroll-fade-list'
 import { fetchSignedCatalog } from '@/core/apps/remote-catalog'
 import { permissionManager } from '@/core/permissions'
+import type { Permission } from '@/core/permissions'
 import type { AppManifest } from '@/core/runtime/manifest'
 import { launchApp } from '@/apps/launch'
 import { installApp, uninstallApp, useAppStore } from '@/store/app-store'
@@ -49,6 +51,9 @@ export function StoreApp() {
   const { ref: rootRef, narrow } = useNarrowContainer()
   const apps = useAppStore((s) => s.apps)
   const [consenting, setConsenting] = useState<number | null>(null)
+  // 卸载确认（D2 审查）：此前垃圾桶单击即卸载且权限被遗忘；安装失败也静默。
+  const [pendingUninstall, setPendingUninstall] = useState<StoreEntry | null>(null)
+  const [installError, setInstallError] = useState<string | null>(null)
   const [remote, setRemote] = useState<{
     status: 'loading' | 'ok' | 'none' | 'invalid'
     apps: AppManifest[]
@@ -60,8 +65,9 @@ export function StoreApp() {
   useEffect(() => {
     let cancelled = false
     void fetchSignedCatalog({
-      pinnedPublicKeyBase64:
-        (import.meta.env.VITE_STORE_CATALOG_PUBLIC_KEY as string | undefined)?.trim() || null,
+      // 空串（配置了但值无效）原样下传——fetchSignedCatalog fail-closed 报
+      // untrusted-key（B2 审查：旧实现 ''||null 静默改成无钉扎）。
+      pinnedPublicKeyBase64: (import.meta.env.VITE_STORE_CATALOG_PUBLIC_KEY as string | undefined)?.trim(),
     }).then((result) => {
       if (cancelled) return
       if (result.ok) setRemote({ status: 'ok', apps: result.apps })
@@ -85,13 +91,23 @@ export function StoreApp() {
   ]
   const installedIds = new Set(apps.map((app) => app.id))
 
-  const install = (index: number) => {
+  const install = (index: number, granted: readonly Permission[]) => {
     const entry = entries[index]
     if (!entry) return
     const result = installApp(entry.manifest)
     if (result.ok) {
-      // 授权范围 = 用户在对话框确认的权限（consent → grant，§10.2/§10.3）。
-      permissionManager.grantAll(result.manifest.id, result.manifest.permissions)
+      // 授权范围 = 用户勾选 ∩ manifest 声明（consent → grant，§10.2/§10.3）。
+      // 取消勾选的权限保持 Default Deny。
+      const declared = new Set(result.manifest.permissions)
+      for (const permission of granted) {
+        if (declared.has(permission)) permissionManager.grant(result.manifest.id, permission)
+      }
+      setInstallError(null)
+    } else {
+      // 安装失败不再静默：清单校验失败/已安装都要给用户可见反馈（D2 审查）。
+      setInstallError(
+        formatMessage(t('store.installFailed'), { name: entry.manifest.name }),
+      )
     }
     setConsenting(null)
   }
@@ -104,6 +120,11 @@ export function StoreApp() {
         {remote.status === 'invalid' && (
           <p className="mt-1 text-xs text-warning" data-testid="store-remote-invalid">
             {t('store.remoteInvalid')}
+          </p>
+        )}
+        {installError !== null && (
+          <p role="alert" className="mt-1 text-xs text-danger" data-testid="store-install-error">
+            {installError}
           </p>
         )}
       </div>
@@ -135,7 +156,7 @@ export function StoreApp() {
                     installed={installed}
                     name={entry.manifest.name}
                     onOpen={() => launchApp(entry.manifest.id)}
-                    onUninstall={() => uninstallApp(entry.manifest.id)}
+                    onUninstall={() => setPendingUninstall(entry)}
                     onInstall={() => setConsenting(index)}
                   />
                 </div>
@@ -153,7 +174,7 @@ export function StoreApp() {
                       installed={installed}
                       name={entry.manifest.name}
                       onOpen={() => launchApp(entry.manifest.id)}
-                      onUninstall={() => uninstallApp(entry.manifest.id)}
+                      onUninstall={() => setPendingUninstall(entry)}
                       onInstall={() => setConsenting(index)}
                     />
                   </div>
@@ -168,8 +189,24 @@ export function StoreApp() {
         <PermissionConsentDialog
           appName={entries[consenting].manifest.name}
           permissions={entries[consenting].manifest.permissions}
-          onAllow={() => install(consenting)}
+          onAllow={(granted) => install(consenting, granted)}
           onDeny={() => setConsenting(null)}
+        />
+      )}
+      {/* 卸载二次确认（D2 审查）：垃圾桶单击不再直接卸装并遗忘权限。 */}
+      {pendingUninstall !== null && (
+        <ConfirmDialog
+          title={t('store.uninstallTitle')}
+          body={formatMessage(t('store.uninstallConfirm'), {
+            name: pendingUninstall.manifest.name,
+          })}
+          confirmLabel={t('store.uninstall')}
+          cancelLabel={t('store.cancel')}
+          onConfirm={() => {
+            uninstallApp(pendingUninstall.manifest.id)
+            setPendingUninstall(null)
+          }}
+          onCancel={() => setPendingUninstall(null)}
         />
       )}
     </div>

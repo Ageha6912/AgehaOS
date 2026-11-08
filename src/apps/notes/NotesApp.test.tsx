@@ -1,7 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MemoryAdapter, Vfs } from '@/core/filesystem'
+import type { VfsNode } from '@/core/filesystem'
 
 import { NotesApp } from './NotesApp'
 
@@ -65,6 +66,109 @@ describe('NotesApp', () => {
       expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
     })
     expect(await vfs.readFile('/Documents/ideas.txt')).toBe('second draft')
+  })
+
+  it('未保存草稿时切换笔记需确认（不静默覆盖）', async () => {
+    const vfs = await createVfs()
+    await vfs.writeFile('/Documents/ideas.txt', 'first draft')
+    await vfs.writeFile('/Documents/diary.txt', 'day 1')
+
+    render(<NotesApp vfs={vfs} windowId="w-notes" />)
+    fireEvent.click(await screen.findByText('ideas.txt'))
+    const editor = await screen.findByRole('textbox', { name: '笔记编辑器' })
+    fireEvent.change(editor, { target: { value: 'edited' } })
+
+    fireEvent.click(screen.getByText('diary.txt'))
+    const dialog = await screen.findByRole('dialog', { name: '切换笔记？' })
+
+    // 取消：保留当前草稿，不切走。
+    fireEvent.click(within(dialog).getByRole('button', { name: '继续编辑' }))
+    expect(screen.queryByRole('dialog', { name: '切换笔记？' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '笔记编辑器' })).toHaveValue('edited')
+
+    // 确认：切到目标笔记，且原笔记磁盘内容未被静默改写。
+    fireEvent.click(screen.getByText('diary.txt'))
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'))
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: '笔记编辑器' })).toHaveValue('day 1')
+    })
+    expect(await vfs.readFile('/Documents/ideas.txt')).toBe('first draft')
+  })
+
+  it('attributes a late save to its own note, not the newly selected one (D2 审查)', async () => {
+    const vfs = await createVfs()
+    await vfs.writeFile('/Documents/a.txt', 'A')
+    await vfs.writeFile('/Documents/b.txt', 'B')
+    const originalWrite = vfs.writeFile.bind(vfs)
+    const pending: { release?: () => void } = {}
+    const writeSpy = vi.spyOn(vfs, 'writeFile').mockImplementation((path, content) => {
+      if (path === '/Documents/a.txt') {
+        return new Promise<VfsNode>((resolve) => {
+          pending.release = () => {
+            void originalWrite(path, content).then(resolve)
+          }
+        })
+      }
+      return originalWrite(path, content)
+    })
+
+    try {
+      render(<NotesApp vfs={vfs} windowId="w-notes" />)
+      fireEvent.click(await screen.findByText('a.txt'))
+      const editor = await screen.findByRole('textbox', { name: '笔记编辑器' })
+      fireEvent.change(editor, { target: { value: 'A2' } })
+      // 写盘在途时切到 B（脏草稿确认 → 放弃并切换）。
+      fireEvent.click(screen.getByRole('button', { name: '保存' }))
+      fireEvent.click(screen.getByText('b.txt'))
+      fireEvent.click(await screen.findByRole('button', { name: '放弃并切换' }))
+      await waitFor(() => expect(editor).toHaveValue('B'))
+
+      // A 的保存现在才落地：不得把 B 的 savedContent 记成 A 的内容。
+      pending.release?.()
+      await waitFor(async () => {
+        expect(await vfs.readFile('/Documents/a.txt')).toBe('A2')
+      })
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: '保存' })).toBeDisabled(),
+      )
+      expect(editor).toHaveValue('B')
+    } finally {
+      writeSpy.mockRestore()
+    }
+  })
+
+  it('closes the editor when the selected note is deleted externally (D2 审查)', async () => {
+    const vfs = await createVfs()
+    await vfs.writeFile('/Documents/a.txt', 'A')
+    render(<NotesApp vfs={vfs} windowId="w-notes" />)
+    fireEvent.click(await screen.findByText('a.txt'))
+    expect(await screen.findByRole('textbox', { name: '笔记编辑器' })).toHaveValue('A')
+
+    await act(async () => {
+      await vfs.remove('/Documents/a.txt')
+    })
+
+    // 选中项消失 → 退出编辑器（旧实现保留 selectedPath，再保存会把文件复活）。
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: '笔记编辑器' })).toBeNull(),
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent('找不到该路径')
+  })
+
+  it('follows an external edit while the draft is clean (D2 审查)', async () => {
+    const vfs = await createVfs()
+    await vfs.writeFile('/Documents/a.txt', 'v1')
+    render(<NotesApp vfs={vfs} windowId="w-notes" />)
+    fireEvent.click(await screen.findByText('a.txt'))
+    const editor = await screen.findByRole('textbox', { name: '笔记编辑器' })
+    expect(editor).toHaveValue('v1')
+
+    await act(async () => {
+      await vfs.writeFile('/Documents/a.txt', 'v2 externally')
+    })
+
+    await waitFor(() => expect(editor).toHaveValue('v2 externally'))
+    expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
   })
 
   it('shows the empty state when no note is selected', async () => {
@@ -143,9 +247,7 @@ describe('NotesApp 窄容器（M2-6）', () => {
     // 触控 ≥44px（§35.3）：列表行 + 新建按钮命中区抬档，列表头容住命中区。
     const row = await screen.findByRole('button', { name: /ideas\.txt/ })
     expect(row.className).toContain('min-h-[44px]')
-    expect(screen.getByRole('button', { name: '新建文本文件' }).className).toContain(
-      'min-h-[44px]',
-    )
+    expect(screen.getByRole('button', { name: '新建文本文件' }).className).toContain('min-h-[44px]')
     expect(screen.getByTestId('notes-list-pane').firstElementChild?.className).toContain('min-h-14')
   })
 

@@ -5,6 +5,7 @@ import { ArrowClockwise, ListChecks, Trash } from '@phosphor-icons/react'
 import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { formatMessage } from '@/core/i18n'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ScrollFadeList } from '@/components/scroll-fade-list'
 
 /**
@@ -39,6 +40,9 @@ const CLASS_STYLE: Record<ContentSample['classification'], string> = {
   discomfort: 'bg-warning/10 text-warning',
 }
 
+/** 复审清单分页（D2 审查）：服务端 limit/offset，前端「加载更多」。 */
+const PAGE_SIZE = 50
+
 /** 来源筛选（客户端过滤，分类三态不变）。 */
 type SourceFilter = 'all' | 'eclosion'
 
@@ -54,21 +58,54 @@ export function SampleReviewSection() {
   const [loadError, setLoadError] = useState(false)
   const [busy, setBusy] = useState(false)
   const [deleteError, setDeleteError] = useState(false)
+  // 删除不可撤销：二次确认（D2 审查），行数据留给确认框展示。
+  const [pendingDelete, setPendingDelete] = useState<ContentSample | null>(null)
+  // 分页（D2 审查）：首屏只取一页，其余按需加载。
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState(false)
+
+  const fetchPage = useCallback(
+    async (offset: number): Promise<{ samples: ContentSample[]; hasMore: boolean }> => {
+      const response = await fetch(`/api/dynamic/samples?limit=${PAGE_SIZE}&offset=${offset}`, {
+        credentials: 'same-origin',
+      })
+      if (!response.ok) throw new Error(`samples-http-${response.status}`)
+      const body = (await response.json()) as { samples: ContentSample[]; hasMore?: boolean }
+      // 旧服务端无 hasMore 字段：按「没有更多」处理（保持兼容）。
+      return { samples: body.samples, hasMore: body.hasMore === true }
+    },
+    [],
+  )
 
   const load = useCallback(async () => {
     setLoadError(false)
+    // 刷新成功/失败都不该继续挂着上一次删除的告警（D2 审查）。
+    setDeleteError(false)
+    setLoadMoreError(false)
     try {
-      const response = await fetch('/api/dynamic/samples', { credentials: 'same-origin' })
-      if (!response.ok) {
-        setLoadError(true)
-        return
-      }
-      const body = (await response.json()) as { samples: ContentSample[] }
-      setSamples(body.samples)
+      const page = await fetchPage(0)
+      setSamples(page.samples)
+      setHasMore(page.hasMore)
     } catch {
       setLoadError(true)
     }
-  }, [])
+  }, [fetchPage])
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore) return
+    setLoadingMore(true)
+    setLoadMoreError(false)
+    try {
+      const page = await fetchPage(samples?.length ?? 0)
+      setSamples((previous) => [...(previous ?? []), ...page.samples])
+      setHasMore(page.hasMore)
+    } catch {
+      setLoadMoreError(true)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [fetchPage, loadingMore, samples])
 
   // 复审处置（ADR 22 尾巴）：删除已复核样本；失败行保留 + 行内告警。
   const removeSample = useCallback(async (id: string) => {
@@ -88,6 +125,7 @@ export function SampleReviewSection() {
       setDeleteError(true)
     } finally {
       setBusy(false)
+      setPendingDelete(null)
     }
   }, [])
 
@@ -199,7 +237,7 @@ export function SampleReviewSection() {
                             data-testid="sample-review-delete"
                             disabled={busy}
                             className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-raised hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
-                            onClick={() => void removeSample(sample.id)}
+                            onClick={() => setPendingDelete(sample)}
                           >
                             <Trash aria-hidden="true" size={12} />
                           </button>
@@ -215,10 +253,44 @@ export function SampleReviewSection() {
                     ))}
                   </ScrollFadeList>
                 </div>
+                {hasMore && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      data-testid="sample-review-load-more"
+                      disabled={loadingMore}
+                      className="rounded-md border border-border px-2.5 py-1 text-[11px] text-text-muted hover:bg-surface-raised hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+                      onClick={() => void loadMore()}
+                    >
+                      {loadingMore ? t('files.loading') : t('settings.reviewLoadMore')}
+                    </button>
+                    {loadMoreError && (
+                      <p
+                        role="alert"
+                        className="text-[11px] text-danger"
+                        data-testid="sample-review-load-more-error"
+                      >
+                        {t('settings.reviewLoadMoreFailed')}
+                      </p>
+                    )}
+                  </div>
+                )}
               </>
             )
           })()}
         </>
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title={t('settings.reviewDeleteTitle')}
+          body={t('settings.reviewDeleteConfirm')}
+          confirmLabel={t('settings.reviewDelete')}
+          cancelLabel={t('files.dialog.cancel')}
+          busy={busy}
+          onConfirm={() => void removeSample(pendingDelete.id)}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
     </section>
   )

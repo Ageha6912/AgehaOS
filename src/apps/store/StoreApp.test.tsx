@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RemoteCatalogResult } from '@/core/apps/remote-catalog'
+import { permissionManager, resetPermissionManager } from '@/core/permissions'
 import { resetAppStore } from '@/store/app-store'
 
 import { StoreApp } from './StoreApp'
@@ -17,6 +18,7 @@ vi.mock('@/core/apps/remote-catalog', async (importOriginal) => ({
 
 beforeEach(() => {
   resetAppStore()
+  resetPermissionManager()
   remoteCatalog.result = { ok: false, reason: 'unavailable' }
 })
 
@@ -177,5 +179,48 @@ describe('StoreApp 窄容器（M3-4）', () => {
     expect(uninstall.className).toContain('active:opacity-80')
     // 打开键同步触控档。
     expect(screen.getByRole('button', { name: '打开' }).className).toContain('min-h-[44px]')
+  })
+
+  it('卸载需二次确认：取消保留安装，确认后卸载', async () => {
+    await renderSettled()
+
+    fireEvent.click(screen.getAllByRole('button', { name: '安装' })[0]!)
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '应用权限申请' })).getByRole('button', {
+        name: '允许并安装',
+      }),
+    )
+    await act(async () => {})
+
+    // 垃圾桶单击只开确认弹层，不直接卸载（D2 审查）。
+    fireEvent.click(screen.getByRole('button', { name: '卸载 时钟' }))
+    const dialog = screen.getByRole('dialog', { name: '卸载应用' })
+    expect(within(dialog).getByText(/卸载「时钟」/)).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+    expect(screen.getByRole('button', { name: '卸载 时钟' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '卸载 时钟' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '卸载应用' })).getByRole('button', {
+        name: '卸载',
+      }),
+    )
+    expect(screen.queryByRole('button', { name: '卸载 时钟' })).toBeNull()
+    expect(screen.getAllByRole('button', { name: '安装' }).length).toBeGreaterThan(0)
+  })
+
+  it('安装时只授予用户勾选的权限（取消勾选保持拒绝）', async () => {
+    await renderSettled()
+
+    const noteCard = screen.getByText('云笔记').closest('li')!
+    fireEvent.click(within(noteCard).getByRole('button', { name: '安装' }))
+    const dialog = screen.getByRole('dialog', { name: '应用权限申请' })
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: '发送通知' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '允许并安装' }))
+    await act(async () => {})
+
+    expect(permissionManager.has('com.ageha.samples.fs-note', 'filesystem.read')).toBe(true)
+    expect(permissionManager.has('com.ageha.samples.fs-note', 'filesystem.write')).toBe(true)
+    expect(permissionManager.has('com.ageha.samples.fs-note', 'notification')).toBe(false)
   })
 })

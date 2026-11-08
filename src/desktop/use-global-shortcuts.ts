@@ -74,6 +74,8 @@ export function useGlobalShortcuts(): void {
           (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'k',
         run: (event) => {
           event.preventDefault()
+          // 切换类快捷键拦 repeat（E1 审查：按住 Ctrl+K 反复开关搜索）。
+          if (event.repeat) return
           useSearchStore.getState().toggle()
         },
       }),
@@ -84,6 +86,7 @@ export function useGlobalShortcuts(): void {
         test: (event) => event.key === 'F4',
         run: (event) => {
           event.preventDefault()
+          if (event.repeat) return
           useMissionControlStore.getState().toggle()
         },
       }),

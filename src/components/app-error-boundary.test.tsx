@@ -62,4 +62,24 @@ describe('AppErrorBoundary', () => {
 
     expect(screen.getByText('app content')).toBeInTheDocument()
   })
+
+  it('appId / windowId 变化时清除崩溃态（跨应用复用不串台）', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { rerender } = render(
+      <AppErrorBoundary appId="app.a" windowId="w1">
+        <CrashingChild />
+      </AppErrorBoundary>,
+    )
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    rerender(
+      <AppErrorBoundary appId="app.b" windowId="w2">
+        <p>app b content</p>
+      </AppErrorBoundary>,
+    )
+
+    expect(screen.getByText('app b content')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 })

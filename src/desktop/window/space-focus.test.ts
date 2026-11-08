@@ -50,23 +50,27 @@ describe('space-focus（activeWindowId 按 Space 记忆）', () => {
     expect(spaceById(DEFAULT_SPACE_ID)?.activeWindowId).toBe(first)
   })
 
-  it('其他 Space 的 window.focused 不记忆（minimize/close 的 focusTopmost 跨 Space 补焦点守卫）', async () => {
+  it('minimize 只在同 Space 补焦点（B2 审查：不把焦点给其他 Space 的不可见窗口）', async () => {
     startSpaceFocusTracking()
     const otherId = useSpaceStore.getState().createSpace('其他')
 
-    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事一' })
-    useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件', spaceId: otherId })
+    const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事一' })
+    const other = useWindowStore.getState().open({
+      appId: 'com.ageha.files',
+      title: '文件',
+      spaceId: otherId,
+    })
     const third = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事三' })
     await flushMemory()
-    // third 聚焦中被最小化 → focusTopmost 全局补焦点落到 other 的文件窗。
+    // third 聚焦中被最小化 → 补焦点落回本 Space 的 first（不再漂到 other）。
     useWindowStore.getState().minimize(third)
     await flushMemory()
 
-    // 守卫：other Space 的补焦点（focusTopmost 选中 z 最高的 other 文件窗）不落
-    // 记忆；default 的记忆停在最后被聚焦的本 Space 窗口 third（first 从未再被聚焦）。
-    expect(spaceById(otherId)?.activeWindowId).toBeNull()
-    expect(spaceById(DEFAULT_SPACE_ID)?.activeWindowId).toBe(third)
     expect(winById(third)?.state).toBe('minimized')
+    expect(winById(first)?.focused).toBe(true)
+    expect(winById(other)?.focused).toBe(false)
+    expect(spaceById(otherId)?.activeWindowId).toBeNull()
+    expect(spaceById(DEFAULT_SPACE_ID)?.activeWindowId).toBe(first)
   })
 
   it('switched 恢复记住窗：记忆窗 minimized → restore+focus 组合（taskbar 同款）', async () => {
@@ -113,12 +117,13 @@ describe('space-focus（activeWindowId 按 Space 记忆）', () => {
     await flushMemory()
     expect(winById(first)?.focused).toBe(true)
 
-    // 关掉被聚焦的 first：focusTopmost 全局补焦点落到 work 的 third（守卫不落
-    // default 记忆）→ default 记忆悬在已关闭的 first 上。
+    // 关掉被聚焦的 first：补焦点只在本 Space 内选 → second（B2 审查：不再全局
+    // 漂到 work 的 third）；记忆随补焦点的 window.focused 收敛到 second。
     useWindowStore.getState().close(first)
     await flushMemory()
-    expect(winById(third)?.focused).toBe(true)
-    expect(spaceById(DEFAULT_SPACE_ID)?.activeWindowId).toBe(first)
+    expect(winById(second)?.focused).toBe(true)
+    expect(winById(third)?.focused).toBe(false)
+    expect(spaceById(DEFAULT_SPACE_ID)?.activeWindowId).toBe(second)
 
     useSpaceStore.getState().switchSpace(workId)
     useSpaceStore.getState().switchSpace(DEFAULT_SPACE_ID)

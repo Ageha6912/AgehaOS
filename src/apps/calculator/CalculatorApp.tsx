@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { useTranslation } from '@/core/i18n'
+import { useSpaceStore } from '@/store/space-store'
 import { useWindowStore } from '@/store/window-store'
 
 import { useNarrowContainer } from '@/apps/use-narrow-container'
@@ -28,6 +29,8 @@ interface CalcState {
   lastOperand: number | null
   /** 正在输入新数字（而非追加到结果）。 */
   freshEntry: boolean
+  /** 刚按过 =：下一次数字/./± 输入开始新计算（不再续算旧 accumulator）。 */
+  evaluated: boolean
   error: string | null
 }
 
@@ -37,6 +40,7 @@ const INITIAL: CalcState = {
   pending: null,
   lastOperand: null,
   freshEntry: true,
+  evaluated: false,
   error: null,
 }
 
@@ -64,13 +68,20 @@ function apply(operator: Operator, a: number, b: number): number {
   }
 }
 
+/** = 之后首次输入新数字：清掉旧运算状态，开始一轮新计算。 */
+function startNewEntry(state: CalcState): CalcState {
+  if (!state.evaluated) return state
+  return { ...state, accumulator: null, pending: null, lastOperand: null, evaluated: false }
+}
+
 function pressKey(state: CalcState, key: string): CalcState {
   if (state.error && key !== 'C') return state
   if (key === 'C') return INITIAL
 
   if (key >= '0' && key <= '9') {
     if (state.freshEntry) {
-      return { ...state, display: key, freshEntry: false }
+      const base = startNewEntry(state)
+      return { ...base, display: key, freshEntry: false }
     }
     if (state.display.replace(/[-.]/g, '').length >= MAX_DISPLAY_LENGTH) return state
     const next = state.display === '0' ? key : state.display + key
@@ -78,16 +89,20 @@ function pressKey(state: CalcState, key: string): CalcState {
   }
 
   if (key === '.') {
-    if (state.freshEntry) return { ...state, display: '0.', freshEntry: false }
+    if (state.freshEntry) {
+      const base = startNewEntry(state)
+      return { ...base, display: '0.', freshEntry: false }
+    }
     if (state.display.includes('.')) return state
     return { ...state, display: `${state.display}.` }
   }
 
   if (key === '±') {
     if (state.display === '0' || state.display === '错误') return state
+    const base = startNewEntry(state)
     return {
-      ...state,
-      display: state.display.startsWith('-') ? state.display.slice(1) : `-${state.display}`,
+      ...base,
+      display: base.display.startsWith('-') ? base.display.slice(1) : `-${base.display}`,
     }
   }
 
@@ -100,10 +115,19 @@ function pressKey(state: CalcState, key: string): CalcState {
         display: formatNumber(result),
         accumulator: result,
         pending: key,
+        lastOperand: null,
         freshEntry: true,
+        evaluated: false,
       }
     }
-    return { ...state, accumulator: current, pending: key, freshEntry: true }
+    return {
+      ...state,
+      accumulator: current,
+      pending: key,
+      lastOperand: null,
+      freshEntry: true,
+      evaluated: false,
+    }
   }
 
   if (key === '=') {
@@ -122,6 +146,7 @@ function pressKey(state: CalcState, key: string): CalcState {
       accumulator: result,
       lastOperand: operand,
       freshEntry: true,
+      evaluated: true,
       error: null,
     }
   }
@@ -205,10 +230,17 @@ export function CalculatorApp({ windowId }: CalculatorAppProps = {}) {
       // 守卫一（2026-10-18 用户 bug）：焦点在可编辑字段内，数字/标点/退格
       // 属于该字段的输入——绝不 preventDefault。
       if (isEditableTarget(event.target)) return
-      // 守卫二：仅聚焦窗口接管物理键盘（windowId 缺失视为聚焦回退）。
+      // 修饰键组合（Ctrl/⌘+1..8 切标签、Ctrl+= 缩放等）属于浏览器/系统
+      // 快捷键，不得被计算器吞掉（D2 审查）。
+      if (event.ctrlKey || event.metaKey || event.altKey) return
+      // 守卫二：仅**可见且活跃 Space** 的聚焦窗口接管物理键盘（windowId
+      // 缺失视为聚焦回退）。D2 审查：focused 不随 Space 切换清除，非活跃
+      // Space 的隐藏窗口仍挂着监听——必须比对 activeSpaceId 与最小化态，
+      // 否则隐藏计算器会吞掉全系统数字/运算符。
       if (windowId !== undefined) {
-        const focused = useWindowStore.getState().windows.find((w) => w.id === windowId)?.focused
-        if (focused !== true) return
+        const win = useWindowStore.getState().windows.find((w) => w.id === windowId)
+        if (win?.focused !== true || win.state === 'minimized') return
+        if (win.spaceId !== useSpaceStore.getState().activeSpaceId) return
       }
       const mapped = KEYBOARD_MAP[event.key] ?? event.key
       if (/^[0-9]$/.test(mapped) || ['+', '-', '×', '÷', '=', 'C', '.', '%', '±'].includes(mapped)) {
@@ -217,7 +249,14 @@ export function CalculatorApp({ windowId }: CalculatorAppProps = {}) {
       }
       if (event.key === 'Backspace') {
         event.preventDefault()
-        setState((s) => (s.display.length > 1 && !s.freshEntry ? { ...s, display: s.display.slice(0, -1) } : s))
+        setState((s) => {
+          if (s.freshEntry || s.display.length <= 1) {
+            return { ...s, display: '0', freshEntry: true }
+          }
+          const next = s.display.slice(0, -1)
+          if (next === '' || next === '-') return { ...s, display: '0', freshEntry: true }
+          return { ...s, display: next }
+        })
       }
     }
     window.addEventListener('keydown', onKey)

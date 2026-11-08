@@ -15,9 +15,20 @@ export const BROWSE_ENDPOINT = '/api/browse'
  */
 export const SEARCH_ENDPOINT = 'https://www.sogou.com/web'
 
-/** 窗口内 iframe 的代理地址（query 兜底模式）。 */
+/** 窗口内 iframe 的代理地址（query 兜底模式）。目标里的 hash 移到代理地址
+ *  自身的 fragment 上（D1 审查：hash 路由 SPA 与锚点直链——服务端 fetch 自
+ *  然剥 fragment，浏览器对 iframe 文档再应用锚点/哈希路由）。 */
 export function proxyUrlFor(target: string): string {
-  return `${BROWSE_ENDPOINT}?url=${encodeURIComponent(target)}`
+  let hash = ''
+  let bare = target
+  try {
+    const url = new URL(target)
+    hash = url.hash
+    bare = hash === '' ? target : target.slice(0, target.length - hash.length)
+  } catch {
+    /* 非法 URL 原样走老路径（调用方自行回退） */
+  }
+  return `${BROWSE_ENDPOINT}?url=${encodeURIComponent(bare)}${hash}`
 }
 
 /**
@@ -36,7 +47,9 @@ export function browsePathFor(target: string): string | null {
   // 地址栏目标一律写 https 段：https 子域下 http 段会被混合内容拦死（与
   // rewrite.ts 的重写侧升级同口径）。
   const path = url.pathname === '' ? '/' : url.pathname
-  return `/https/${url.host}${path}${url.search}`
+  // hash 附在路径态地址尾部：浏览器请求服务端时自动剥 fragment，加载后
+  // 再对 iframe 文档应用锚点/哈希路由（D1 审查：hash 不再被丢弃）。
+  return `/https/${url.host}${path}${url.search}${url.hash}`
 }
 
 /**
@@ -50,6 +63,57 @@ export function resolveBrowseOrigin(
 ): string {
   if (typeof explicit === 'string' && explicit !== '') return explicit
   return remoteAuth ? 'https://browse.ageha.cn' : ''
+}
+
+/**
+ * 路径态 → 目标 URL（客户端半场；与 server path-codec.decodeBrowsePath 同构，
+ * 测试两侧钉死）：`/https/example.com/a?b=1` → `https://example.com/a?b=1`。
+ */
+export function targetFromBrowsePath(pathname: string, search: string): string | null {
+  const segments = pathname.split('/')
+  const scheme = segments[1] ?? ''
+  const host = segments[2] ?? ''
+  if ((scheme !== 'http' && scheme !== 'https') || host === '') return null
+  const rest = segments.slice(3).join('/')
+  try {
+    const url = new URL(`${scheme}://${host}${rest === '' ? '/' : `/${rest}`}${search}`)
+    return url.host === '' ? null : url.toString()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * iframe 上报的当前位置 → 真实目标 URL（D1 审查）：
+ * - query 兜底：同源 `/api/browse?url=…`，取 url 参数；
+ * - 路径态：browse 子域 `/https|/http/…`，解码回真实站；
+ * - 其余（站外 origin/非代理路径）一律 null。
+ */
+export function targetFromBrowseUrl(
+  reported: string,
+  v3Origin: string | null,
+  pageOrigin: string = typeof window !== 'undefined' ? window.location.origin : '',
+): string | null {
+  let url: URL
+  try {
+    url = new URL(reported, pageOrigin)
+  } catch {
+    return null
+  }
+  if (url.origin === pageOrigin && url.pathname === BROWSE_ENDPOINT) {
+    const target = url.searchParams.get('url')
+    return target !== null && /^https?:\/\//i.test(target) ? target : null
+  }
+  if (v3Origin !== null) {
+    try {
+      if (url.origin === new URL(v3Origin).origin) {
+        return targetFromBrowsePath(url.pathname, url.search)
+      }
+    } catch {
+      return null
+    }
+  }
+  return null
 }
 
 export function searchUrlFor(query: string): string {
@@ -91,7 +155,7 @@ export function displayForTarget(target: string): string {
   try {
     const url = new URL(target)
     const path = url.pathname === '/' ? '' : url.pathname
-    return `${url.host}${path}${url.search}`
+    return `${url.host}${path}${url.search}${url.hash}`
   } catch {
     return target
   }

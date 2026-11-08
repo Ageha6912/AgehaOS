@@ -18,7 +18,7 @@ import { useWorkspacePanel } from '@/desktop/workspace/use-workspace-panel'
 import { useCursorGlow } from '@/desktop/motion/use-cursor-glow'
 import { useAurora } from '@/desktop/motion/use-aurora'
 import { useGlobalShortcuts } from '@/desktop/use-global-shortcuts'
-import { startSpaceFocusTracking } from '@/desktop/window/space-focus'
+import { startSpaceFocusTracking, stopSpaceFocusTracking } from '@/desktop/window/space-focus'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useSettingsStore, type ThemePreference } from '@/store/settings-store'
 import { reloadSpaceStore } from '@/store/space-store'
@@ -79,6 +79,9 @@ export function Desktop() {
     // 被记住。幂等；移动 Shell 不挂 Desktop → 不订阅（M1-6 红线不受影响）。
     startSpaceFocusTracking()
     hydratePersistedWindows()
+    // 卸载时解除 bus 订阅（E1 审查：移动 Shell 不挂 Desktop/设备翻转重挂
+    // 场景下，遗留订阅继续写 space-store activeWindowId）。
+    return () => stopSpaceFocusTracking()
   }, [])
 
   // 2026-10-02 用户裁决：进桌面不再自动打开任何窗口——动态面板与随机小游戏

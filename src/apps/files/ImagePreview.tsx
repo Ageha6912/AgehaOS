@@ -27,6 +27,7 @@ export function ImagePreview({ src, name, narrow }: ImagePreviewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [zoom, setZoom] = useState<ImageZoomState>({ scale: 1, tx: 0, ty: 0 })
   const [dragging, setDragging] = useState(false)
+  const [broken, setBroken] = useState(false)
   const dragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null)
 
   useEffect(() => {
@@ -78,6 +79,10 @@ export function ImagePreview({ src, name, narrow }: ImagePreviewProps) {
       }`}
       onPointerDown={(event) => {
         if (event.button !== 0) return
+        // 缩放胶囊/按钮自己消费指针（D1 审查）：容器一旦 setPointerCapture，
+        // pointerup 被重定向到容器、click 目标也变容器，+/− 按钮在鼠标下
+        // 完全失效（触屏 tap 不受影响，故旧单测没抓到）。
+        if (event.target instanceof Element && event.target.closest('button') !== null) return
         dragRef.current = { pointerId: event.pointerId, lastX: event.clientX, lastY: event.clientY }
         setDragging(true)
         try {
@@ -110,18 +115,30 @@ export function ImagePreview({ src, name, narrow }: ImagePreviewProps) {
         dragRef.current = null
         setDragging(false)
       }}
+      onLostPointerCapture={() => {
+        // 捕获被浏览器收回（窗口失焦/手势中断）：兜底复位平移态。
+        dragRef.current = null
+        setDragging(false)
+      }}
       onDoubleClick={() => setZoom({ scale: 1, tx: 0, ty: 0 })}
     >
+      {broken ? (
+        <div className="flex max-h-full max-w-full items-center justify-center rounded-md border border-border bg-surface px-6 py-4 text-sm text-text-dimmed">
+          {t('files.preview.broken')}
+        </div>
+      ) : (
       <img
         src={src}
         alt={name}
         draggable={false}
+        onError={() => setBroken(true)}
         className="max-h-full max-w-full"
         style={{
           transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.scale})`,
           transformOrigin: 'center',
         }}
       />
+      )}
       <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-surface-elevated/95 px-1 shadow-window">
         {/* §35.1 材质纪律：共享应用不自带 blur 面——胶囊用实色兜底，不挂 backdrop-blur。 */}
         <button

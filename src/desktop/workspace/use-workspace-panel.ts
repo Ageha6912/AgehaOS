@@ -47,6 +47,8 @@ export function useWorkspacePanel(
   // 若计入 focusWithin 会让面板对鼠标用户常开不收。pointerdown 置位抑制、
   // keydown 解除（键盘 Tab/Enter 恢复正常的聚焦展开语义）。
   const pointerFocusSuppressed = useRef(false)
+  // 收起动作把焦点交还品牌钮时，这次 focusin 不应再触发「聚焦展开」。
+  const suppressNextFocus = useRef(false)
 
   const launcherOpen = useLauncherStore((s) => s.launcherOpen)
   const notificationOpen = useNotificationStore((s) => s.panelOpen)
@@ -66,9 +68,13 @@ export function useWorkspacePanel(
     // 焦点若在面板内，收起后内容 inert、焦点丢到 body——交还品牌钮。
     const owner = document.activeElement
     if (owner instanceof Node && boundaryRef.current?.contains(owner)) {
-      ;(boundaryRef.current.querySelector(
+      const brand = boundaryRef.current.querySelector(
         `[data-testid="${brandButtonTestId}"]`,
-      ) as HTMLElement | null)?.focus()
+      ) as HTMLElement | null
+      if (brand && document.activeElement !== brand) {
+        suppressNextFocus.current = true
+        brand.focus()
+      }
     }
   }, [boundaryRef, brandButtonTestId, cancelLeave])
 
@@ -86,6 +92,11 @@ export function useWorkspacePanel(
   }, [cancelLeave])
 
   const onFocusCapture = useCallback((): void => {
+    // 收起引发的回焦（品牌钮在边界内）不能把面板重新展开。
+    if (suppressNextFocus.current) {
+      suppressNextFocus.current = false
+      return
+    }
     if (pointerFocusSuppressed.current) return
     cancelLeave()
     setFocusWithin(true)

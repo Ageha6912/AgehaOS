@@ -35,7 +35,7 @@ export function UserMenu() {
         ref={triggerRef}
         type="button"
         aria-expanded={open}
-        className="flex h-7 items-center gap-2 rounded-md px-2 text-xs text-text hover:bg-surface-raised"
+        className="flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-xs text-text hover:bg-surface-raised"
         onClick={() => setOpen((value) => !value)}
       >
         {user.avatar ? (
@@ -48,7 +48,8 @@ export function UserMenu() {
         ) : (
           <User size={14} weight="regular" />
         )}
-        {user.displayName ?? user.username}
+        {/* 显示名服务端上限 32 字符：窄屏截断，避免把时钟挤出视口（E2 审查）。 */}
+        <span className="max-w-24 truncate">{user.displayName ?? user.username}</span>
       </button>
       {menuPhase.render && (
         <menu

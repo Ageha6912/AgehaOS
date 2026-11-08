@@ -18,11 +18,19 @@ import {
 } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { PromptDialog } from '@/components/prompt-dialog'
 import { systemBus } from '@/core/events'
 import { formatMessage, useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
-import { joinPath, splitPath, Vfs, MAX_FILE_BYTES } from '@/core/filesystem'
+import {
+  DEFAULT_DIRECTORIES,
+  joinPath,
+  splitPath,
+  Vfs,
+  MAX_FILE_BYTES,
+  ROOT_ID,
+} from '@/core/filesystem'
 import { consumeFilesTarget, useFilesTargetStore } from '@/store/files-target-store'
 
 import { vfsErrorMessageKey } from './error-messages'
@@ -72,6 +80,13 @@ function folderLabel(path: string, t: (key: MessageKey) => string): string | nul
   return key ? t(key) : null
 }
 
+/** 根级系统目录（PRD §11.1）：VFS 保护口径与 UI 禁用口径必须同源。 */
+function isSystemTopLevel(node: FileEntry['node']): boolean {
+  return (
+    node.parentId === ROOT_ID && (DEFAULT_DIRECTORIES as readonly string[]).includes(node.name)
+  )
+}
+
 export interface FileManagerProps {
   vfs: Vfs
   windowId: string
@@ -91,10 +106,16 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
   /** `null` while the first listing for the current view is in flight. */
   const [entries, setEntries] = useState<FileEntry[] | null>(null)
   const [error, setError] = useState<MessageKey | null>(null)
+  // 操作错误（上传/打开/删除/还原/清空）独立横幅（D1 审查：旧实现与列表
+  // 读取共用 error——操作失败把整个文件网格替换成一条文案，且点同路径
+  // 面包屑不重跑 effect 无自然恢复）。
+  const [actionError, setActionError] = useState<MessageKey | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dialog, setDialog] = useState<DialogState>(null)
   const [dialogError, setDialogError] = useState<MessageKey | null>(null)
   const [preview, setPreview] = useState<PreviewState | null>(null)
+  // 彻底删除的二次确认目标（null = 无待确认操作）。
+  const [pendingPurge, setPendingPurge] = useState<FileEntry | null>(null)
   const uploadInputRef = useRef<HTMLInputElement>(null)
   // 行操作单（M3-6，仅窄容器触发）：长按行 = 选中该行 + 弹出操作单；
   // null = 关闭。动作执行全部走下方既有逻辑，不新增业务。
@@ -109,20 +130,20 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
    */
   const uploadFile = useCallback(
     async (file: File) => {
-      setError(null)
+      setActionError(null)
       try {
         if (file.size > MAX_FILE_BYTES) {
-          setError('files.error.tooLarge')
+          setActionError('files.error.tooLarge')
           return
         }
         const target = joinPath(path, file.name)
         if ((await vfs.get(target)) !== null) {
-          setError('files.error.alreadyExists')
+          setActionError('files.error.alreadyExists')
           return
         }
         await vfs.writeFileBytes(target, new Uint8Array(await file.arrayBuffer()))
       } catch (cause) {
-        setError(vfsErrorMessageKey(cause))
+        setActionError(vfsErrorMessageKey(cause))
       }
     },
     [path, vfs],
@@ -190,7 +211,7 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
       const content = await vfs.readFile(entry.path)
       setPreview({ path: entry.path, kind: 'text', content })
     } catch (cause) {
-      setError(vfsErrorMessageKey(cause))
+      setActionError(vfsErrorMessageKey(cause))
     }
   }
 
@@ -212,34 +233,41 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
   }
 
   const deleteSelected = async () => {
+    setActionError(null)
     const entry = entries?.find((candidate) => candidate.node.id === selectedId)
-    if (!entry || entry.node.parentId === null) return
+    if (!entry || entry.node.parentId === null || isSystemTopLevel(entry.node)) return
     try {
       await vfs.remove(entry.path)
       setSelectedId(null)
     } catch (cause) {
-      setError(vfsErrorMessageKey(cause))
+      setActionError(vfsErrorMessageKey(cause))
     }
   }
 
   const restoreSelected = async () => {
+    setActionError(null)
     if (!selectedId) return
     try {
       await vfs.restore(selectedId)
       setSelectedId(null)
     } catch (cause) {
-      setError(vfsErrorMessageKey(cause))
+      setActionError(vfsErrorMessageKey(cause))
     }
   }
 
-  const purgeSelected = async () => {
-    if (!selectedId) return
+  const purgeNode = async (nodeId: string) => {
+    setActionError(null)
     try {
-      await vfs.purge(selectedId)
+      await vfs.purge(nodeId)
       setSelectedId(null)
     } catch (cause) {
-      setError(vfsErrorMessageKey(cause))
+      setActionError(vfsErrorMessageKey(cause))
     }
+  }
+
+  const requestPurge = () => {
+    const entry = entries?.find((candidate) => candidate.node.id === selectedId)
+    if (entry) setPendingPurge(entry)
   }
 
   // useCallback（依赖恒空）：M4-1 定位通道的订阅 effect 以它为稳定依赖。
@@ -312,7 +340,7 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
     // （与工具栏同一代码路径，含 parentId 保护和 vfsErrorMessageKey 映射）。
     if (action === 'delete') void deleteSelected()
     if (action === 'restore') void restoreSelected()
-    if (action === 'purge') void purgeSelected()
+    if (action === 'purge') requestPurge()
   }
 
   // 关闭回焦长按行（§0.4 弹层关闭契约的移动口径，触发器 = 行按钮）；动作
@@ -500,7 +528,13 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
             {trashMode ? (
               <>
                 <ToolbarButton narrow={narrow} label={t('files.restore')} disabled={!selected} onClick={restoreSelected} />
-                <ToolbarButton narrow={narrow} label={t('files.purge')} disabled={!selected} onClick={purgeSelected} danger />
+                <ToolbarButton
+                  narrow={narrow}
+                  label={t('files.purge')}
+                  disabled={!selected}
+                  onClick={requestPurge}
+                  danger
+                />
               </>
             ) : (
               <>
@@ -546,7 +580,7 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                 <ToolbarButton
                   narrow={narrow}
                   label={t('files.rename')}
-                  disabled={!selected}
+                  disabled={!selected || (selected !== null && isSystemTopLevel(selected.node))}
                   onClick={() => {
                     setDialogError(null)
                     if (selected) setDialog({ kind: 'rename', entry: selected })
@@ -555,7 +589,11 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
                 <ToolbarButton
                   narrow={narrow}
                   label={t('files.delete')}
-                  disabled={!selected || selected.node.parentId === null}
+                  disabled={
+                    !selected ||
+                    selected.node.parentId === null ||
+                    isSystemTopLevel(selected.node)
+                  }
                   onClick={deleteSelected}
                   danger
                 />
@@ -578,6 +616,22 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
             </div>
           </div>
         </div>
+
+        {actionError !== null && (
+          <p
+            className="flex items-center justify-between gap-2 border-b border-border bg-danger/10 px-4 py-2 text-xs text-danger"
+            role="alert"
+          >
+            <span>{t(actionError)}</span>
+            <button
+              type="button"
+              onClick={() => setActionError(null)}
+              className="shrink-0 rounded px-1.5 py-0.5 text-danger hover:bg-danger/15"
+            >
+              {t('files.actionErrorDismiss')}
+            </button>
+          </p>
+        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3" data-window-id={windowId}>
           {loading ? (
@@ -667,6 +721,21 @@ export function FileManager({ vfs, windowId, initialTrash = false }: FileManager
           onCancel={() => {
             setDialog(null)
             setDialogError(null)
+          }}
+        />
+      )}
+
+      {pendingPurge && (
+        <ConfirmDialog
+          title={t('files.purgeConfirmTitle')}
+          body={t('files.purgeConfirmBody')}
+          confirmLabel={t('files.purge')}
+          cancelLabel={t('files.dialog.cancel')}
+          onCancel={() => setPendingPurge(null)}
+          onConfirm={() => {
+            const entry = pendingPurge
+            setPendingPurge(null)
+            void purgeNode(entry.node.id)
           }}
         />
       )}

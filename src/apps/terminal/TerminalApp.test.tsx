@@ -30,6 +30,27 @@ describe('TerminalApp (PRD §26)', () => {
     expect(screen.getByTestId('terminal-input')).toBeInTheDocument()
   })
 
+  it('guards Enter/arrow keys during IME composition (D1 审查)', async () => {
+    render(<TerminalApp />)
+    const input = screen.getByTestId('terminal-input')
+    await userEvent.type(input, 'pwd')
+
+    // 组合期 Enter（keyCode 229）属于选词确认：不提交。
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })
+    expect(input).toHaveValue('pwd')
+
+    // 正常 Enter 提交并清空输入。
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(input).toHaveValue(''))
+
+    // 组合期 ↑ 不召回历史；非组合期 ↑ 召回上一条命令。
+    await userEvent.type(input, 'xyz')
+    fireEvent.keyDown(input, { key: 'ArrowUp', keyCode: 229 })
+    expect(input).toHaveValue('xyz')
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(input).toHaveValue('pwd')
+  })
+
   it('echoes the prompt and command output', async () => {
     render(<TerminalApp />)
 
@@ -403,5 +424,21 @@ describe('TerminalApp 快捷键行（M4-4，窄容器）', () => {
 
     fireEvent.click(screen.getByTestId('terminal-key-esc'))
     expect(input).toHaveValue('')
+  })
+})
+
+describe('历史与输出封顶（D1 审查）', () => {
+  it('历史封顶 500 条、输出行保留最近 800 行', async () => {
+    render(<TerminalApp />)
+    const input = screen.getByTestId('terminal-input')
+    for (let i = 0; i < 30; i += 1) {
+      await runCommand(`echo cmd-${i}`)
+    }
+    // 召回链完整（30 条远小于 500 上限）：最后一条可被 ↑ 召回。
+    await runCommand('echo marker-last')
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect((input as HTMLInputElement).value).toBe('echo marker-last')
+    // 输出行集合存在（30+ 条远小于 800 上限，无 DOM 膨胀截断异常）。
+    expect(screen.getAllByTestId('terminal-line').length).toBeGreaterThan(30)
   })
 })

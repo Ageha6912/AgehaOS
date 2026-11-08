@@ -208,7 +208,9 @@ export function NotificationToasts() {
         <div
           key={item.id}
           ref={(el) => {
-            slotsRef.current.set(item.id, el)
+            // 卸载即删（E1 审查：旧实现 set(id, null)——长会话 Map 只增不减）。
+            if (el === null) slotsRef.current.delete(item.id)
+            else slotsRef.current.set(item.id, el)
           }}
           className="absolute inset-x-0 top-0 transition-transform duration-[200ms] ease-[cubic-bezier(0.2,0,0,1)]"
           style={{ transform: `translateY(${offsets.get(item.id) ?? 0}px)` }}

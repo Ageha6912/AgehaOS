@@ -36,6 +36,23 @@ interface ActiveFlight {
  * anim.reverse() 半途抓回；交叉中断先落定当前目标终态再继续；任何时刻
  * 不锁 store、不锁输入。
  */
+/**
+ * 已挂载 WindowFrame 的动效关闭入口登记（E1 审查：MC 卡片 ❌ / Dock 预览
+ * 关闭此前直接 store.close——跳过 ghost 退场，与标题栏关闭钮视觉不一致）。
+ * 外部调用 requestMotionClose(id)：有登记走同一 requestClose（ghost 退场），
+ * 未挂载（最小化隐藏帧等）回退 store.close。
+ */
+const motionClosers = new Map<string, () => void>()
+
+export function requestMotionClose(id: string): void {
+  const closer = motionClosers.get(id)
+  if (closer !== undefined) {
+    closer()
+    return
+  }
+  useWindowStore.getState().close(id)
+}
+
 export function useWindowMotion(
   win: WindowInstance,
   sectionRef: RefObject<HTMLElement | null>,
@@ -171,12 +188,31 @@ export function useWindowMotion(
       close(win.id)
       return
     }
+    const active = flightRef.current
+    if (active?.goal === 'close') return
+    // 开窗动画在飞：互为反向，半途抓回（E1 审查）。旧实现直接 startClose
+    // 覆盖 flightRef——两个 fill:both 动画叠放，窗口先跳回全尺寸再淡出。
+    if (active?.goal === 'open' && reverseTo('close')) {
+      registerClosingGhost(win)
+      close(win.id)
+      return
+    }
+    // 其余交叉目标（restore/minimize 在飞）：先落定当前终态，再起关闭动画。
+    settleActive()
     const anim = startClose(el, taskbarAnchor(win.id))
     registerClosingGhost(win)
     close(win.id)
     if (anim) track('close', anim)
     else unregisterClosingGhost(win.id)
-  }, [canAnimate, close, settleActive, sectionRef, win])
+  }, [canAnimate, close, reverseTo, sectionRef, settleActive, track, win])
+
+  // 登记动效关闭入口（requestClose 恒新 → 依赖它重登记）。
+  useLayoutEffect(() => {
+    motionClosers.set(win.id, requestClose)
+    return () => {
+      if (motionClosers.get(win.id) === requestClose) motionClosers.delete(win.id)
+    }
+  }, [win.id, requestClose])
 
   return { requestClose }
 }

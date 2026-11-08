@@ -139,6 +139,16 @@ describe('FileManager', () => {
     expect(img).not.toBeNull()
     expect(img).toHaveAttribute('src', `data:image/png;base64,${btoa(String.fromCharCode(...png))}`)
 
+    // 缩放按钮上的 pointerdown 不被外层容器抢捕获（D1 审查）：平移态不启动，
+    // 否则 pointerup/click 被重定向到容器，+/− 按钮在鼠标下完全失效。
+    fireEvent.pointerDown(screen.getByRole('button', { name: '放大' }), {
+      button: 0,
+      pointerId: 9,
+      clientX: 10,
+      clientY: 10,
+    })
+    expect(surface.className).not.toContain('cursor-grabbing')
+
     // 按钮步进缩放（中心锚，1.25×）→ 125%。
     fireEvent.click(screen.getByRole('button', { name: '放大' }))
     expect(screen.getByTestId('files-image-zoom-level')).toHaveTextContent('125%')
@@ -214,6 +224,25 @@ describe('FileManager', () => {
     })
   })
 
+  it('彻底删除需二次确认：取消不删除', async () => {
+    const vfs = await createVfs()
+    await vfs.writeFile('/Documents/gone.txt', 'x')
+    await vfs.remove('/Documents/gone.txt')
+
+    render(<FileManager vfs={vfs} windowId="w-files" />)
+    fireEvent.click(
+      await within(screen.getByRole('complementary')).findByRole('button', { name: /回收站/ }),
+    )
+    fireEvent.click(await screen.findByRole('button', { name: /gone\.txt/ }))
+    fireEvent.click(screen.getByRole('button', { name: '彻底删除' }))
+
+    const confirm = await screen.findByRole('dialog', { name: '彻底删除？' })
+    fireEvent.click(within(confirm).getByRole('button', { name: '取消' }))
+
+    expect(screen.getByRole('button', { name: /gone\.txt/ })).toBeInTheDocument()
+    expect(await vfs.listTrash()).toHaveLength(1)
+  })
+
   it('restores and permanently deletes from the trash view', async () => {
     const vfs = await createVfs()
     await vfs.writeFile('/Documents/gone.txt', 'x')
@@ -232,10 +261,12 @@ describe('FileManager', () => {
     })
     expect((await vfs.list('/Documents')).map((n) => n.name)).toContain('gone.txt')
 
-    // delete again, then purge permanently
+    // delete again, then purge permanently（二次确认）
     await vfs.remove('/Documents/gone.txt')
     fireEvent.click(await screen.findByRole('button', { name: /gone\.txt/ }))
     fireEvent.click(screen.getByRole('button', { name: '彻底删除' }))
+    const confirm = await screen.findByRole('dialog', { name: '彻底删除？' })
+    fireEvent.click(within(confirm).getByRole('button', { name: '彻底删除' }))
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: /gone\.txt/ })).not.toBeInTheDocument()
     })
@@ -766,5 +797,23 @@ describe('Files 定位通道（M4-1 移动全域搜索落点）', () => {
     expect(useFilesTargetStore.getState().pending).toBeNull()
     // 页脚路径仍是根（面包屑根按钮与页脚同文案，getAll 断言其一在场即可）。
     expect(screen.getAllByText('/', { exact: true }).length).toBeGreaterThan(0)
+  })
+})
+
+describe('操作错误独立横幅（D1 审查）', () => {
+  it('上传超限：横幅告警且列表仍在；点「知道了」清除', async () => {
+    const vfs = await createVfs()
+    render(<FileManager vfs={vfs} windowId="w-files" />)
+    const input = screen.getByTestId('file-upload-input') as HTMLInputElement
+    const big = new File(['x'.repeat(9 * 1024 * 1024)], 'big.bin')
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [big] } })
+    })
+    const banner = await screen.findByRole('alert')
+    expect(banner).toHaveTextContent('文件超过 8 MB 上限')
+    // 应用面未被错误替换（工具栏/上传入口仍在——旧实现整网格换一条文案）。
+    expect(screen.getByTestId('file-upload-input')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '知道了' }))
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

@@ -139,14 +139,33 @@ function WallpaperSurface({
     if (!canvas || !supportsCanvas || !active) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    const stop = drawPlan(canvas, ctx, plan, {
-      animate: tier !== 'low' && !reduced.current,
-      tier,
-      onDegrade: (action, value) => {
-        systemBus.emit('desktop.perf.degraded', { metric: 'fps', value, action })
-      },
-    })
-    return stop
+    let stop: (() => void) | null = null
+    const start = (): void => {
+      stop?.()
+      stop = drawPlan(canvas, ctx, plan, {
+        animate: tier !== 'low' && !reduced.current,
+        tier,
+        onDegrade: (action, value) => {
+          systemBus.emit('desktop.perf.degraded', { metric: 'fps', value, action })
+        },
+      })
+    }
+    // 上下文丢失（GPU 进程重置）：阻止默认行为让浏览器有机会恢复，并停下
+    // 绘制循环；恢复事件到达后整段重画（E2 审查：旧实现丢失后一直空白）。
+    const onContextLost = (event: Event): void => {
+      event.preventDefault()
+      stop?.()
+      stop = null
+    }
+    const onContextRestored = (): void => start()
+    start()
+    canvas.addEventListener('contextlost', onContextLost)
+    canvas.addEventListener('contextrestored', onContextRestored)
+    return () => {
+      canvas.removeEventListener('contextlost', onContextLost)
+      canvas.removeEventListener('contextrestored', onContextRestored)
+      stop?.()
+    }
   }, [plan, tier, active, supportsCanvas])
 
   if (!supportsCanvas) {

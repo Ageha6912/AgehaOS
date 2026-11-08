@@ -57,6 +57,13 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
     })
   }
 
+  componentDidUpdate(previous: AppErrorBoundaryProps): void {
+    // 同一实例被复用于另一应用/窗口时清除崩溃态——否则 A 的崩溃屏会盖住 B。
+    if (previous.appId !== this.props.appId || previous.windowId !== this.props.windowId) {
+      if (this.state.crashed) this.setState({ crashed: false, attempt: 0 })
+    }
+  }
+
   render() {
     if (this.state.crashed) {
       return (

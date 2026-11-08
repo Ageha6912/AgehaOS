@@ -47,6 +47,20 @@ describe('WebAppFrame（Type B 宿主，§30.3）', () => {
     await waitFor(() => expect(screen.queryByTestId('web-app-loading')).toBeNull())
   })
 
+  it('resets the loading veil and remounts the iframe when the entry changes (E3 审查)', async () => {
+    const { rerender } = render(<WebAppFrame {...PROPS} />)
+    const first = document.querySelector('iframe') as HTMLIFrameElement
+    fireEvent.load(first)
+    await waitFor(() => expect(screen.queryByTestId('web-app-loading')).toBeNull())
+
+    rerender(<WebAppFrame {...PROPS} entry="/apps/sites/notes/index.html" />)
+    const second = document.querySelector('iframe') as HTMLIFrameElement
+    // 新 entry：iframe 重挂（旧文档的迟到消息不再落到新文档）+ 加载遮罩回归。
+    expect(second).not.toBe(first)
+    expect(second.getAttribute('src')).toBe('/apps/sites/notes/index.html')
+    expect(screen.getByTestId('web-app-loading')).toBeInTheDocument()
+  })
+
   it('reveals on a ready handshake from the iframe and drops foreign ones', async () => {
     render(<WebAppFrame {...PROPS} />)
     expect(screen.getByTestId('web-app-loading')).toBeInTheDocument()

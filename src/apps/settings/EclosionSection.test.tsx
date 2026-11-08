@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthProvider } from '@/core/auth'
@@ -62,6 +62,25 @@ describe('EclosionSection（总开关置灰逻辑，§9.3 准入）', () => {
     expect(screen.getByTestId('eclosion-ai-not-configured')).toHaveTextContent('服务端未配置 AI')
     // 额度行同步显示不可用。
     expect(screen.getByTestId('eclosion-quota')).toHaveTextContent('暂无法获取额度')
+  })
+
+  it('still allows turning an already-enabled toggle off when AI is no longer configured (D2 审查)', () => {
+    enableRemoteAuth()
+    seedEclosionForTests('u-settings', true)
+    useEclosionStore.getState().applyQuota({
+      configured: false,
+      basic: { used: 0, limit: 10 },
+      today: { used: 0, limit: 30 },
+      imagine: { used: 0, limit: 20 },
+      resetAtIso: null,
+    })
+    render(<EclosionSection />)
+
+    const toggle = screen.getByTestId('eclosion-enable-toggle')
+    // 开启方向仍提示不可用，但已是 enabled 的用户必须能关掉（旧实现锁死在开）。
+    expect(toggle).toBeEnabled()
+    fireEvent.click(toggle)
+    expect(useEclosionStore.getState().enabled).toBe(false)
   })
 
   it('enables the toggle under remote auth with a configured backend', () => {
@@ -144,13 +163,43 @@ describe('EclosionSection（生成方式 / 清除数据）', () => {
     expect(screen.getByTestId('eclosion-mode-calculator-toggle')).toHaveAttribute('aria-checked', 'false')
   })
 
-  it('clears the eclosion cache via the orchestrator and confirms', async () => {
+  it('clears the eclosion cache after confirmation and confirms', async () => {
     enableRemoteAuth()
     render(<EclosionSection />)
 
     fireEvent.click(screen.getByTestId('eclosion-clear'))
+    // 不可逆操作：先落在二次确认弹层上，取消不执行。
+    const dialog = screen.getByRole('dialog', { name: '清除羽化数据' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+    expect(systemEclosion.clearData).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTestId('eclosion-clear'))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '清除羽化数据' })).getByRole('button', {
+        name: '清除羽化数据',
+      }),
+    )
     await waitFor(() => expect(systemEclosion.clearData).toHaveBeenCalled())
     await waitFor(() => expect(screen.getByTestId('eclosion-cleared-notice')).toBeInTheDocument())
+  })
+
+  it('shows an inline error and keeps the dialog when clearing fails', async () => {
+    enableRemoteAuth()
+    vi.mocked(systemEclosion.clearData).mockRejectedValueOnce(new Error('boom'))
+    render(<EclosionSection />)
+
+    fireEvent.click(screen.getByTestId('eclosion-clear'))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '清除羽化数据' })).getByRole('button', {
+        name: '清除羽化数据',
+      }),
+    )
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('清除失败，请稍后重试。'),
+    )
+    expect(screen.getByRole('dialog', { name: '清除羽化数据' })).toBeInTheDocument()
+    expect(screen.queryByTestId('eclosion-cleared-notice')).toBeNull()
   })
 
   it('fetches a quota snapshot when the section opens', () => {

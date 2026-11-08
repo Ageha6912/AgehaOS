@@ -46,6 +46,29 @@ function navigate(value: string): void {
   fireEvent.keyDown(addressInput(), { key: 'Enter' })
 }
 
+/** 引导页回执：必须携带本帧 contentWindow 与子域 origin（D1 来源校验）。 */
+function dispatchBrowseReady(ok: boolean, origin = 'http://browse.local'): void {
+  const boot = screen.getByTestId('browser-boot')
+  const source = { postMessage: vi.fn() } as unknown as Window
+  Object.defineProperty(boot, 'contentWindow', { configurable: true, value: source })
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'agehaos:browse-ready', ok },
+        origin,
+        source,
+      }),
+    )
+  })
+}
+
+/** 内容 iframe 的消息源：把 contentWindow 换成可控 Window 以便断言。 */
+function registerFrameSource(frame: HTMLIFrameElement, ack = vi.fn()): Window {
+  const source = { postMessage: ack } as unknown as Window
+  Object.defineProperty(frame, 'contentWindow', { configurable: true, value: source })
+  return source
+}
+
 describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
   it('起始页：工具栏与书签/最近访问空态', () => {
     render(<BrowserApp />)
@@ -245,13 +268,45 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     // 只回条目数——源与值都不上屏（隐私面最小化）。
     expect(panel.textContent).not.toContain('a.example')
 
-    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ cleared: true }), { status: 200 }))
+    // 清除是全站登录态：先二次确认（D1 审查）。
     fireEvent.click(screen.getByTestId('browser-site-data-clear'))
+    expect(screen.getByRole('dialog', { name: '清除站点数据' })).toBeInTheDocument()
+
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ cleared: true }), { status: 200 }))
+    // 成功后重拉摘要（服务端唯一事实源）。
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ count: 0, origins: [] }), { status: 200 }),
+    )
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
     await waitFor(() => expect(within(panel).getByText('暂无已保存的站点数据')).toBeInTheDocument())
-    expect(fetchSpy).toHaveBeenLastCalledWith('/api/browse/cookies/clear', {
+    expect(fetchSpy).toHaveBeenCalledWith('/api/browse/cookies/clear', {
       method: 'POST',
       credentials: 'same-origin',
     })
+  })
+
+  it('清除站点数据取消不发送请求；失败时保留确认框并显示错误（D1 审查）', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ count: 1, origins: ['https://a.example'] }), { status: 200 }),
+    )
+    render(<BrowserApp />)
+    await screen.findByTestId('browser-site-data')
+
+    // 取消：不调用 clear 端点。
+    fireEvent.click(screen.getByTestId('browser-site-data-clear'))
+    fireEvent.click(screen.getByTestId('confirm-dialog-cancel'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('/clear'))).toBe(false)
+
+    // 失败：错误展示在确认框内，弹层不关闭。
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'x' }), { status: 500 }))
+    fireEvent.click(screen.getByTestId('browser-site-data-clear'))
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('清除失败，请稍后重试。'),
+    )
+    expect(screen.getByRole('dialog', { name: '清除站点数据' })).toBeInTheDocument()
   })
 
   it('站点数据不可用时（本地预览/未登录）区块整体隐藏', () => {
@@ -280,11 +335,7 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     expect(boot.getAttribute('src')).toBe('http://browse.local/__bootstrap#t=claim-token')
 
     // 子域回执：引导页卸载、进入 v3 模式。
-    act(() => {
-      window.dispatchEvent(
-        new MessageEvent('message', { data: { type: 'agehaos:browse-ready', ok: true } }),
-      )
-    })
+    dispatchBrowseReady(true)
     await waitFor(() => expect(screen.queryByTestId('browser-boot')).toBeNull())
 
     navigate('example.com')
@@ -306,11 +357,7 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     render(<BrowserApp />)
     await screen.findByTestId('browser-boot')
 
-    act(() => {
-      window.dispatchEvent(
-        new MessageEvent('message', { data: { type: 'agehaos:browse-ready', ok: false } }),
-      )
-    })
+    dispatchBrowseReady(false)
     await waitFor(() => expect(screen.queryByTestId('browser-boot')).toBeNull())
 
     navigate('example.com')
@@ -341,11 +388,7 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     expect(await screen.findByTestId('browser-mode')).toHaveTextContent('正在准备增强模式…')
 
     // ③ 失败回执 → 受限模式提示（明确告知可用新标签页逃生）。
-    act(() => {
-      window.dispatchEvent(
-        new MessageEvent('message', { data: { type: 'agehaos:browse-ready', ok: false } }),
-      )
-    })
+    dispatchBrowseReady(false)
     await waitFor(() =>
       expect(screen.getByTestId('browser-mode')).toHaveTextContent('增强模式不可用（受限模式）'),
     )
@@ -354,28 +397,26 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     // ④ 成功回执 → 增强模式提示。
     const third = render(<BrowserApp />)
     await screen.findByTestId('browser-boot')
-    act(() => {
-      window.dispatchEvent(
-        new MessageEvent('message', { data: { type: 'agehaos:browse-ready', ok: true } }),
-      )
-    })
+    dispatchBrowseReady(true)
     await waitFor(() =>
       expect(screen.getByTestId('browser-mode')).toHaveTextContent('增强模式已启用'),
     )
     third.unmount()
   })
 
-  it('代理页请求新标签打开：window.open 真实 URL 并回执页面', async () => {
+  it('代理页请求新标签打开：window.open 真实 URL 并回执页面', () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     render(<BrowserApp />)
-
+    navigate('example.com')
     const ack = vi.fn()
-    const fakeSource = { postMessage: ack } as unknown as Window
+    const source = registerFrameSource(activeFrame(), ack)
+
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
           data: { type: 'agehaos:open-external', url: 'https://www.bilibili.com/video/BV1' },
-          source: fakeSource,
+          origin: window.location.origin,
+          source,
         }),
       )
     })
@@ -392,12 +433,74 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
       window.dispatchEvent(
         new MessageEvent('message', {
           data: { type: 'agehaos:open-external', url: 'javascript:alert(1)' },
-          source: fakeSource,
+          origin: window.location.origin,
+          source,
         }),
       )
     })
     expect(openSpy).not.toHaveBeenCalled()
     openSpy.mockRestore()
+  })
+
+  it('伪造来源/未知 iframe 的消息一律忽略（D1 审查）', () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    render(<BrowserApp />)
+    navigate('example.com')
+    const frame = activeFrame()
+    const source = registerFrameSource(frame)
+
+    // ① 未知窗口源（不在已登记 iframe 集合）。
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'agehaos:open-external', url: 'https://evil.example' },
+          origin: window.location.origin,
+          source: { postMessage: vi.fn() } as unknown as Window,
+        }),
+      )
+    })
+    // ② 站外 origin（即使 source 恰好是真实 iframe）。
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'agehaos:open-external', url: 'https://evil.example' },
+          origin: 'https://evil.example',
+          source,
+        }),
+      )
+    })
+    expect(openSpy).not.toHaveBeenCalled()
+    openSpy.mockRestore()
+  })
+
+  it('iframe 内导航回报：地址栏/书签跟随新位置，且不重载 iframe（D1 审查）', () => {
+    render(<BrowserApp />)
+    navigate('example.com')
+    const frame = activeFrame()
+    const source = registerFrameSource(frame)
+    const srcBefore = frame.getAttribute('src')
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'agehaos:browse-location',
+            url: `${window.location.origin}/api/browse?url=${encodeURIComponent('https://example.com/page2')}`,
+          },
+          origin: window.location.origin,
+          source,
+        }),
+      )
+    })
+
+    expect(addressInput().value).toBe('example.com/page2')
+    // iframe 的 src 不变：页内历史由 iframe 自己维护，改 src 会打断/重载页面。
+    expect(activeFrame().getAttribute('src')).toBe(srcBefore)
+    expect(activeFrame().getAttribute('data-url')).toBe('https://example.com/page2')
+
+    // 刷新跟随当前真实位置（不再弹回入栈 URL）。
+    fireEvent.click(screen.getByTestId('browser-reload'))
+    expect(activeFrame().getAttribute('src')).toBe(proxyUrlFor('https://example.com/page2'))
   })
 
   it('访问入历史：起始页最近访问列出并按序回访', () => {
@@ -410,5 +513,61 @@ describe('BrowserApp（档 C：窗口内浏览 + 真实浏览兜底）', () => {
     const rows = within(historyList).getAllByRole('button')
     expect(rows[0]).toHaveTextContent('b.example')
     expect(rows[1]).toHaveTextContent('a.example')
+  })
+})
+
+describe('引导失败终结与同 URL 重入（D1 审查）', () => {
+  it('token 接口非 2xx → bootDone（受限模式），不再永挂「正在准备增强模式」', async () => {
+    vi.stubEnv('VITE_BROWSE_ORIGIN', 'http://browse.local')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).includes('/api/browse/token')) {
+        return new Response('{}', { status: 502 })
+      }
+      if (String(input).includes('/api/browse/cookies')) {
+        return new Response(JSON.stringify({ count: 0, origins: [] }), { status: 200 })
+      }
+      throw new Error(`unexpected fetch: ${String(input)}`)
+    })
+    try {
+      render(<BrowserApp />)
+      // 引导终结 = 起始页模式状态行（browser-mode 出现且 boot iframe 缺席）。
+      await waitFor(() => expect(screen.getByTestId('browser-mode')).toBeInTheDocument())
+      expect(screen.queryByTestId('browser-boot')).toBeNull()
+    } finally {
+      fetchSpy.mockRestore()
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('同一 URL 再回车原位刷新（reloadSeq 递增、不追加 TrailEntry）', async () => {
+    vi.stubEnv('VITE_BROWSE_ORIGIN', 'http://browse.local')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('/api/browse/token')) {
+        return new Response(JSON.stringify({ token: 't' }), { status: 200 })
+      }
+      if (url.includes('/api/browse/cookies')) {
+        return new Response(JSON.stringify({ count: 0, origins: [] }), { status: 200 })
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+    try {
+      render(<BrowserApp />)
+      await screen.findByTestId('browser-boot')
+      dispatchBrowseReady(true)
+      await waitFor(() => expect(screen.queryByTestId('browser-boot')).toBeNull())
+
+      navigate('example.com')
+      expect(screen.getAllByTestId('browser-iframe')).toHaveLength(1)
+      // 同 URL 再回车：不追加条目/iframe（旧实现挂两个同址 iframe，后退
+      // 回到内容相同的上一页）；原位刷新（reloadSeq 进 key 重挂）。
+      navigate('example.com')
+      expect(screen.getAllByTestId('browser-iframe')).toHaveLength(1)
+      // 后退按钮不可用：trail 没有追加（index 仍在入栈位）。
+      expect((screen.getByTestId('browser-back') as HTMLButtonElement).disabled).toBe(true)
+    } finally {
+      fetchSpy.mockRestore()
+      vi.unstubAllEnvs()
+    }
   })
 })

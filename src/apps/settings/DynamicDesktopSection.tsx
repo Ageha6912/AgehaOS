@@ -1,8 +1,11 @@
+import { useState } from 'react'
+
 import { useTranslation } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
 import { sliderBand } from '@/core/dynamic/decision/engine'
 import { systemDynamicDesktop } from '@/services/dynamic-desktop'
 import { useDynamicDesktopStore } from '@/store/dynamic-desktop-store'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ToggleSwitch } from '@/components/toggle-switch'
 
 /** Settings「动态桌面」section（设计文档 §6.5 入口 ①）：总开关、滑杆、固定/屏蔽、历史、清除数据。 */
@@ -74,8 +77,21 @@ export function DynamicDesktopSection() {
   const unpin = useDynamicDesktopStore((s) => s.unpin)
   const blockCurrentStyle = useDynamicDesktopStore((s) => s.blockCurrentStyle)
   const rollbackTo = useDynamicDesktopStore((s) => s.rollbackTo)
+  // 「清除全部数据」不可逆：二次确认 + 在途禁用（D2 审查：此前单击即执行）。
+  const [clearOpen, setClearOpen] = useState(false)
+  const [clearing, setClearing] = useState(false)
 
   const band = sliderBand(prefs.randomness)
+
+  const clearAll = async (): Promise<void> => {
+    setClearing(true)
+    try {
+      await systemDynamicDesktop.clearAllData()
+      setClearOpen(false)
+    } finally {
+      setClearing(false)
+    }
+  }
 
   return (
     <section aria-label={t('dynamicDesktop.section')}>
@@ -242,12 +258,24 @@ export function DynamicDesktopSection() {
           type="button"
           data-testid="dynamic-desktop-clear"
           className="rounded-md border border-border px-3 py-1.5 text-xs text-text hover:bg-surface-raised"
-          onClick={() => void systemDynamicDesktop.clearAllData()}
+          onClick={() => setClearOpen(true)}
         >
           {t('dynamicDesktop.clearData')}
         </button>
         <p className="mt-1 text-xs text-text-muted">{t('dynamicDesktop.clearHint')}</p>
       </div>
+
+      {clearOpen && (
+        <ConfirmDialog
+          title={t('dynamicDesktop.clearData')}
+          body={t('dynamicDesktop.clearConfirm')}
+          confirmLabel={t('dynamicDesktop.clearData')}
+          cancelLabel={t('dynamicDesktop.clearCancel')}
+          busy={clearing}
+          onConfirm={() => void clearAll()}
+          onCancel={() => setClearOpen(false)}
+        />
+      )}
     </section>
   )
 }

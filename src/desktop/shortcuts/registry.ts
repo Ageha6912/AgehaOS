@@ -11,7 +11,13 @@
  * W6（审计 .tmp/spaces-audit.md §9）：条目增可选 `onKeyUp`——registry 同时
  * 挂 keyup(capture) 分发，**仅分发给 test 命中且带 onKeyUp 的条目**（向后
  * 兼容：不传 onKeyUp 的既有条目对 keyup 零感知，行为零变化）。
+ *
+ * IME 守卫（2026-11 审查）：keydown 分配发前统一过 isImeComposing——组合期
+ * Esc 是取消候选词，不能被 search.close 等条目消费；keyup 不拦（Alt 松开
+ * 提交仍需工作）。
  */
+
+import { isImeComposing } from '@/components/ime-guard'
 
 export interface ShortcutEntry {
   id: string
@@ -44,6 +50,8 @@ export function registerShortcut(entry: ShortcutEntry): () => void {
 export function mountShortcutRegistry(): () => void {
   if (keydownHandler) return () => {}
   keydownHandler = (event) => {
+    // 组合期按键属于 IME（Esc 取消候选词等），shell 快捷键一律让位。
+    if (isImeComposing(event)) return
     for (const entry of entries) {
       if (entry.when && !entry.when()) continue
       if (!entry.test(event)) continue

@@ -241,6 +241,24 @@ describe('Taskbar', () => {
     expect(screen.queryByTestId('window-preview')).toBeNull()
   })
 
+  it('指针在悬停延迟内掠过瓷砖：不会出现悬空预览', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<Taskbar />)
+
+    const item = screen.getByRole('button', { name: '记事' })
+    fireEvent.mouseEnter(item.parentElement as HTMLElement)
+    // 100ms < HOVER_DELAY_MS 就离开：必须取消待触发的悬停计时器。
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+    fireEvent.mouseLeave(item.parentElement as HTMLElement)
+    act(() => {
+      vi.advanceTimersByTime(600)
+    })
+
+    expect(screen.queryByTestId('window-preview')).toBeNull()
+  })
+
   it('shows a hover preview with title, close and minimized state', async () => {
     const { act } = await import('@testing-library/react')
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
@@ -263,6 +281,10 @@ describe('Taskbar', () => {
     // 点击预览体切回窗口；再次悬停后用关闭按钮关窗。
     fireEvent.click(screen.getByTestId('window-preview'))
     expect(useWindowStore.getState().windows).toHaveLength(1)
+    // 预览体=切到窗口（focus），不是瓷砖的 toggle 语义（不得最小化）。
+    const afterPreviewClick = useWindowStore.getState().windows[0]!
+    expect(afterPreviewClick.state).not.toBe('minimized')
+    expect(afterPreviewClick.focused).toBe(true)
 
     fireEvent.mouseEnter(item.parentElement as HTMLElement)
     act(() => {
@@ -273,8 +295,24 @@ describe('Taskbar', () => {
     expect(screen.queryByTestId('window-preview')).toBeNull()
   })
 
-  it('keeps the preview alive while the pointer moves into it（2026-10-02 裁决：悬停桥）', async () => {
-    const { act } = await import('@testing-library/react')
+  it('预览体点击最小化窗口 = restore + focus（不是 toggle）', () => {
+    const id = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().minimize(id)
+    render(<Taskbar />)
+
+    const item = screen.getByRole('button', { name: '记事' })
+    fireEvent.mouseEnter(item.parentElement as HTMLElement)
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    fireEvent.click(screen.getByTestId('window-preview'))
+
+    const win = useWindowStore.getState().windows.find((candidate) => candidate.id === id)
+    expect(win?.state).toBe('normal')
+    expect(win?.focused).toBe(true)
+  })
+
+  it('keeps the preview alive while the pointer moves into it（2026-10-02 裁决：悬停桥）', async () => {    const { act } = await import('@testing-library/react')
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     render(<Taskbar />)
 

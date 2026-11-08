@@ -56,7 +56,9 @@ export function SyncSection() {
   }, [])
 
   const remoteAuth = isRemoteAuthActive()
-  const statusVisible = user !== null && syncOn
+  // 远程状态块只在远程认证下成立（D2 审查）：本地构建 + localStorage 残留
+  // 同步开关时会同时摆「本机模式无法同步」和远程状态块，自相矛盾。
+  const statusVisible = remoteAuth && user !== null && syncOn
 
   return (
     <section aria-label={t('settings.sync.section')}>

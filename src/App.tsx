@@ -20,7 +20,15 @@ export default function App() {
 
   // Signing out from the desktop returns to the login screen (PRD §24.1).
   useEffect(() => {
-    if (phase === 'ready' && status === 'anonymous') setPhase('login')
+    if (phase === 'ready' && status === 'anonymous') {
+      setPhase('login')
+    } else if (phase === 'login' && status === 'authenticated') {
+      // 远程会话恢复晚于开机判定（E2 审查）：main.tsx 的 reconcile 不阻塞
+      // 开机，/api/auth/session 可能在 finishBoot('login') 之后才返回有效
+      // Cookie 会话。反向迁移回桌面，避免「已登录却停在登录页」（跳过开机
+      // 时尤其容易触发）。
+      setPhase('ready')
+    }
   }, [phase, status, setPhase])
 
   const booting = phase === 'booting' || phase === 'loading'

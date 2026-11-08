@@ -7,6 +7,7 @@ import { resetSearchStore, useSearchStore } from '@/store/search-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 import { resetNotificationStore } from '@/store/notification-store'
 import { resetUsageStore, useUsageStore } from '@/store/usage-store'
+import type { VfsSearchResult } from '@/core/filesystem/types'
 import { systemVfs } from '@/services/vfs'
 
 import { SearchPalette } from './SearchPalette'
@@ -128,6 +129,39 @@ describe('SearchPalette (PRD §15 · Shell 3.0 STEP 9)', () => {
     expect(results[2]?.className).toContain('bg-primary/10')
     fireEvent.keyDown(input, { key: 'ArrowUp' })
     expect(screen.getAllByTestId('search-result-app')[1]?.className).toContain('bg-primary/10')
+  })
+
+  it('clamps the active row when async results arrive after an empty ArrowDown (E2 审查)', async () => {
+    let resolveSearch: (results: VfsSearchResult[]) => void = () => {}
+    const searchSpy = vi.spyOn(systemVfs, 'search').mockReturnValue(
+      new Promise<VfsSearchResult[]>((resolve) => {
+        resolveSearch = resolve
+      }),
+    )
+    try {
+      render(<SearchPalette />)
+      openPalette()
+
+      const input = screen.getByTestId('search-input')
+      await userEvent.type(input, 'zzz')
+      // 应用/想象域无命中、文件检索在途 → total = 0；旧实现 ↓ 会把 active 弄成 -1。
+      expect(screen.queryByTestId('search-result-file')).toBeNull()
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+
+      await act(async () => {
+        resolveSearch([
+          { node: { name: 'zzz.txt' } as VfsSearchResult['node'], path: '/Documents/zzz.txt' },
+        ])
+      })
+      await waitFor(() => expect(screen.getAllByTestId('search-result-file')).toHaveLength(1))
+
+      // 结果到达后第一行即激活（钳制到 0），Enter 正常打开文件而不是静默无动作。
+      expect(screen.getAllByTestId('search-result-file')[0]?.className).toContain('bg-primary/10')
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(useWindowStore.getState().windows.some((w) => w.appId === 'com.ageha.files')).toBe(true)
+    } finally {
+      searchSpy.mockRestore()
+    }
   })
 
   it('shows real recent apps on empty query and reaches them by keyboard (STEP 9)', async () => {

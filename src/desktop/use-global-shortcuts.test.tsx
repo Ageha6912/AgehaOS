@@ -410,7 +410,7 @@ describe('Window Switcher Windows 语义（W12）', () => {
     expect(windowSwitcher.getState().open).toBe(false)
   })
 
-  it('Esc 面板开启 → cancel 不切换（若搜索 Esc 先命中面板不会关——钉注册序）', () => {
+  it('Esc 面板开启 → cancel 回到打开前的焦点（若搜索 Esc 先命中面板不会关——钉注册序）', () => {
     const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     const second = useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
     render(<Harness />)
@@ -420,16 +420,16 @@ describe('Window Switcher Windows 语义（W12）', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(windowSwitcher.getState().open).toBe(false) // switcher Esc 先命中并取消
-    // 不追加切换：焦点保持 open 路径落下的 first
-    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
-    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(false)
+    // 取消=不切换：焦点回到 open 前的聚焦窗（second），而不是预览选中的 first。
+    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(true)
+    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(false)
 
     // 取消后的 W/Alt keyup 全零作用（W12：cancel 后松 Alt 不得触发提交）
     fireEvent.keyUp(window, { key: 'w' })
     fireEvent.keyUp(window, { key: 'Alt' })
     expect(windowSwitcher.getState().open).toBe(false)
-    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
-    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(false)
+    expect(useWindowStore.getState().windows.find((win) => win.id === second)?.focused).toBe(true)
+    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(false)
   })
 
   it('焦点落在面板条目上时 Enter 让位（原生激活自理，registry 不抢——防错位提交选中）', () => {
@@ -471,5 +471,24 @@ describe('Window Switcher Windows 语义（W12）', () => {
 
     expect(windowSwitcher.getState().open).toBe(false)
     expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
+  })
+})
+
+describe('切换类快捷键 repeat 守卫（E1 审查）', () => {
+  it('F4 按住（repeat）只 toggle 一次；Ctrl+K repeat 不翻搜索', () => {
+    render(<Harness />)
+
+    fireEvent.keyDown(window, { key: 'F4' })
+    expect(useMissionControlStore.getState().open).toBe(true)
+    // repeat 不翻转（按住不放只算一次）。
+    fireEvent.keyDown(window, { key: 'F4', repeat: true })
+    expect(useMissionControlStore.getState().open).toBe(true)
+    fireEvent.keyDown(window, { key: 'F4' })
+    expect(useMissionControlStore.getState().open).toBe(false)
+
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    expect(useSearchStore.getState().open).toBe(true)
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true, repeat: true })
+    expect(useSearchStore.getState().open).toBe(true)
   })
 })

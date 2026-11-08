@@ -11,6 +11,7 @@ import {
 } from '@phosphor-icons/react'
 
 import { formatMessage, useTranslation } from '@/core/i18n'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { isImeComposing } from '@/components/ime-guard'
 import { useNarrowContainer } from '@/apps/use-narrow-container'
 
@@ -21,6 +22,7 @@ import {
   displayForTarget,
   proxyUrlFor,
   resolveBrowseOrigin,
+  targetFromBrowseUrl,
   targetForInput,
   titleForTarget,
 } from './browser-nav'
@@ -46,7 +48,13 @@ import {
 export interface TrailEntry {
   /** 稳定条目 id（iframe key 用；同 URL 两次入栈也不撞）。 */
   id: string
+  /** 入栈目标（iframe src 的来源；页内跳转不改它，避免重载 iframe）。 */
   url: string
+  /**
+   * iframe 上报的当前位置（D1 审查）：站内链接/SPA 跳转后地址栏、书签、
+   * 外开、刷新/标题都以它为准；缺省 = 与 url 相同。
+   */
+  currentUrl?: string
   /** 刷新计数：+1 即重挂该条目的 iframe（同 src 不重载的 React 语义）。 */
   reloadSeq: number
 }
@@ -112,16 +120,29 @@ export function BrowserApp() {
   const addressSelectPendingRef = useRef(false)
   // 站点数据（服务端 Cookie 罐）元信息：null = 不可用（本地预览/未登录）→ 隐藏区块。
   const [siteData, setSiteData] = useState<SiteDataSummary | null>(null)
+  // 清除站点数据 = 全部站点登录态（D1 审查：二次确认 + 失败可见）。
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [clearError, setClearError] = useState(false)
+  const bootFrameRef = useRef<HTMLIFrameElement | null>(null)
+  /** 内容 iframe 来源登记（消息校验用）：key = tabId:entryId。 */
+  const framesRef = useRef(
+    new Map<string, { element: HTMLIFrameElement; tabId: string; entryId: string }>(),
+  )
+  /** 新标签打开频率限流（1s 内最多 5 个）。 */
+  const openExternalTimesRef = useRef<number[]>([])
 
-  useEffect(() => {
-    let cancelled = false
-    void fetchSiteDataSummary().then((summary) => {
-      if (!cancelled) setSiteData(summary)
-    })
-    return () => {
-      cancelled = true
+  const frameForSource = (
+    source: MessageEventSource | null,
+  ): { tabId: string; entryId: string } | null => {
+    if (source === null) return null
+    for (const frame of framesRef.current.values()) {
+      if (frame.element.contentWindow === (source as Window)) {
+        return { tabId: frame.tabId, entryId: frame.entryId }
+      }
     }
-  }, [])
+    return null
+  }
 
   // 档 ③ 引导：主域取短期令牌 → 子域引导页 claim + 注册 SW → postMessage 回执。
   // 成功 = 子域路径态模式（iframe 用 /https/host/path + allow-same-origin）；
@@ -143,22 +164,38 @@ export function BrowserApp() {
       setV3Origin(ok ? origin : null)
       setBootDone(true)
     }
+    const expectedOrigin = new URL(origin).origin
     const onMessage = (event: MessageEvent): void => {
       const data = event.data as { type?: unknown; ok?: unknown } | null
       if (data === null || typeof data !== 'object' || data.type !== 'agehaos:browse-ready') return
+      // 来源校验（D1 审查）：只接受本应用的引导 iframe 且来自配置的子域
+      // origin——被代理页可 parent.postMessage，旧实现任意外部页面都能把
+      // 增强模式提前置位或强制回退。
+      if (event.origin !== expectedOrigin) return
+      const boot = bootFrameRef.current
+      if (boot === null || event.source !== boot.contentWindow) return
       finish(data.ok === true)
     }
     window.addEventListener('message', onMessage)
     void (async () => {
+      // 超时覆盖整个引导流程（D1 审查：旧实现计时器在 token 成功后才挂起，
+      // token 接口失败时起始页永远停在「正在准备增强模式…」）。
+      timer = window.setTimeout(() => finish(false), V3_BOOTSTRAP_TIMEOUT_MS)
       try {
         const response = await fetch('/api/browse/token', { credentials: 'same-origin' })
-        if (!response.ok) return
+        if (!response.ok) {
+          finish(false)
+          return
+        }
         const payload = (await response.json()) as { token?: unknown }
-        if (cancelled || typeof payload.token !== 'string') return
+        if (cancelled || typeof payload.token !== 'string') {
+          finish(false)
+          return
+        }
         setBootSrc(`${origin}/__bootstrap#t=${encodeURIComponent(payload.token)}`)
-        timer = window.setTimeout(() => finish(false), V3_BOOTSTRAP_TIMEOUT_MS)
       } catch {
-        /* 静默回退兜底模式 */
+        // token 接口失败同样终结引导（可见的受限模式优于无限 pending）。
+        finish(false)
       }
     })()
     return () => {
@@ -171,7 +208,20 @@ export function BrowserApp() {
   const active = tabs.find((tab) => tab.id === activeId) ?? tabs[0]
   const activeEntry =
     active !== undefined && active.index >= 0 ? active.trail[active.index] : undefined
-  const currentUrl = activeEntry?.url ?? null
+  // 页内跳转优先：地址栏/书签/外开/刷新都跟当前真实位置（D1 审查）。
+  const currentUrl = activeEntry === undefined ? null : (activeEntry.currentUrl ?? activeEntry.url)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchSiteDataSummary().then((summary) => {
+      if (!cancelled) setSiteData(summary)
+    })
+    return () => {
+      cancelled = true
+    }
+    // 导航成功（含页内跳转回报）后重拉摘要（D1 审查：挂载一次会让浏览中
+    // 新增的 Cookie 不入计数、清除按钮禁用失效）。
+  }, [currentUrl])
 
   // 切标签/导航/后退前进后地址栏跟随当前条目（起始页清空并聚焦）。
   useEffect(() => {
@@ -194,6 +244,15 @@ export function BrowserApp() {
     const target = explicitTarget ?? targetForInput(raw)
     if (target === null) return
     const entry = newTrailEntry(target)
+    // 同一 URL 再回车 = 原位刷新（D1 审查：旧实现同 URL 也 push 新条目并
+    // 各挂一个 iframe，后退会回到内容完全相同的上一页）。
+    if (
+      activeEntry !== undefined &&
+      (activeEntry.currentUrl ?? activeEntry.url) === target
+    ) {
+      reload()
+      return
+    }
     updateTab(active.id, {
       trail: [...active.trail.slice(0, active.index + 1), entry],
       index: active.index + 1,
@@ -211,9 +270,13 @@ export function BrowserApp() {
 
   const reload = (): void => {
     if (active === undefined || activeEntry === undefined) return
+    // 刷新对象 = 当前真实位置（页内跳转后不再弹回入栈 URL——D1 审查）。
+    const target = activeEntry.currentUrl ?? activeEntry.url
     updateTab(active.id, {
       trail: active.trail.map((entry) =>
-        entry.id === activeEntry.id ? { ...entry, reloadSeq: entry.reloadSeq + 1 } : entry,
+        entry.id === activeEntry.id
+          ? { ...entry, url: target, currentUrl: undefined, reloadSeq: entry.reloadSeq + 1 }
+          : entry,
       ),
     })
   }
@@ -258,20 +321,65 @@ export function BrowserApp() {
 
   const tabTitle = (tab: BrowserTab): string => {
     const entry = tab.index >= 0 ? tab.trail[tab.index] : undefined
-    return entry === undefined ? t('browser.newTab') : titleForTarget(entry.url)
+    return entry === undefined
+      ? t('browser.newTab')
+      : titleForTarget(entry.currentUrl ?? entry.url)
   }
 
   const canBack = active !== undefined && active.index > 0
   const canForward =
     active !== undefined && active.index >= 0 && active.index < active.trail.length - 1
 
-  // 代理页的「新标签页打开」请求（点击守卫 postMessage）：真实浏览器顶层标签
-  // 零限制；回执让页面取消同帧兜底。
+  // 代理页消息（D1 审查）：①点击守卫的「新标签页打开」请求；②iframe 内
+  // 导航回报（地址栏/书签/刷新跟随当前真实位置）。两者都要求 event.origin
+  // 属于代理域且 event.source 是已登记的内容 iframe——被代理页不能再伪造。
   useEffect(() => {
+    const isBrowseOrigin = (origin: string): boolean => {
+      if (origin === 'null') return true // query 兜底 sandbox 的不透明 origin
+      if (origin === window.location.origin) return true
+      if (v3Origin !== null) {
+        try {
+          return origin === new URL(v3Origin).origin
+        } catch {
+          return false
+        }
+      }
+      return false
+    }
+    const applyFrameLocation = (tabId: string, entryId: string, target: string): void => {
+      setTabs((current) =>
+        current.map((tab) => {
+          if (tab.id !== tabId) return tab
+          let changed = false
+          const trail = tab.trail.map((entry) => {
+            if (entry.id !== entryId || entry.currentUrl === target) return entry
+            changed = true
+            return { ...entry, currentUrl: target }
+          })
+          return changed ? { ...tab, trail } : tab
+        }),
+      )
+    }
     const onMessage = (event: MessageEvent): void => {
       const data = event.data as { type?: unknown; url?: unknown } | null
       if (data === null || typeof data !== 'object') return
+      if (!isBrowseOrigin(event.origin)) return
+      const owner = frameForSource(event.source)
+      if (owner === null) return
+
+      if (data.type === 'agehaos:browse-location') {
+        if (typeof data.url !== 'string') return
+        const target = targetFromBrowseUrl(data.url, v3Origin)
+        if (target === null) return
+        applyFrameLocation(owner.tabId, owner.entryId, target)
+        return
+      }
+
       if (data.type !== 'agehaos:open-external' || typeof data.url !== 'string') return
+      // 频率限流：1s 内最多 5 个新标签（防被代理页批量弹窗）。
+      const now = Date.now()
+      openExternalTimesRef.current = openExternalTimesRef.current.filter((at) => now - at < 1000)
+      if (openExternalTimesRef.current.length >= 5) return
       let target: URL
       try {
         target = new URL(data.url)
@@ -279,6 +387,7 @@ export function BrowserApp() {
         return
       }
       if (target.protocol !== 'http:' && target.protocol !== 'https:') return
+      openExternalTimesRef.current.push(now)
       window.open(target.toString(), '_blank', 'noopener,noreferrer')
       try {
         ;(event.source as Window | null)?.postMessage({ type: 'agehaos:browse-open-external' }, '*')
@@ -288,7 +397,28 @@ export function BrowserApp() {
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [])
+  }, [v3Origin])
+
+  const clearSiteDataNow = async (): Promise<void> => {
+    setClearing(true)
+    setClearError(false)
+    try {
+      const cleared = await clearSiteData()
+      if (!cleared) {
+        setClearError(true)
+        return
+      }
+      setSiteData({ count: 0, origins: [] })
+      setClearConfirmOpen(false)
+      // 成功后重拉摘要：服务端是唯一事实源（D1 审查）。
+      const summary = await fetchSiteDataSummary()
+      if (summary !== null) setSiteData(summary)
+    } catch {
+      setClearError(true)
+    } finally {
+      setClearing(false)
+    }
+  }
 
   const recentHistory = useMemo(() => history.slice(0, 8), [history])
 
@@ -540,9 +670,8 @@ export function BrowserApp() {
                   disabled={siteData.count === 0}
                   className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs text-text-muted hover:bg-surface-raised hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={() => {
-                    void clearSiteData().then((cleared) => {
-                      if (cleared) setSiteData({ count: 0, origins: [] })
-                    })
+                    setClearError(false)
+                    setClearConfirmOpen(true)
                   }}
                 >
                   {t('browser.siteDataClear')}
@@ -566,8 +695,16 @@ export function BrowserApp() {
           return (
             <iframe
               key={`${tab.id}:${entry.id}:${entry.reloadSeq}`}
+              ref={(element) => {
+                const frameKey = `${tab.id}:${entry.id}`
+                if (element) {
+                  framesRef.current.set(frameKey, { element, tabId: tab.id, entryId: entry.id })
+                } else {
+                  framesRef.current.delete(frameKey)
+                }
+              }}
               data-testid="browser-iframe"
-              data-url={entry.url}
+              data-url={entry.currentUrl ?? entry.url}
               data-active={visible || undefined}
               data-mode={v3Origin === null ? 'query' : 'path'}
               src={
@@ -590,11 +727,25 @@ export function BrowserApp() {
       {/* 档 ③ 引导页（隐藏；子域 origin）：claim + SW 注册 + 回执后自卸载。 */}
       {bootSrc !== null && (
         <iframe
+          ref={bootFrameRef}
           data-testid="browser-boot"
           src={bootSrc}
           title="浏览引导"
           aria-hidden="true"
           className="hidden"
+        />
+      )}
+
+      {clearConfirmOpen && (
+        <ConfirmDialog
+          title={t('browser.siteDataClearTitle')}
+          body={t('browser.siteDataClearConfirm')}
+          confirmLabel={t('browser.siteDataClear')}
+          cancelLabel={t('files.dialog.cancel')}
+          busy={clearing}
+          error={clearError ? t('browser.siteDataClearFailed') : null}
+          onConfirm={() => void clearSiteDataNow()}
+          onCancel={() => setClearConfirmOpen(false)}
         />
       )}
     </div>

@@ -161,6 +161,19 @@ describe('Sidebar（Workspace Rail + Workspace Panel）', () => {
     expect(screen.getByTestId('workspace-panel').hasAttribute('inert')).toBe(true)
   })
 
+  it('Esc 收起面板后不会被「回焦品牌钮」的 focusin 重新展开', () => {
+    render(<SidebarHarness />)
+    fireEvent.click(screen.getByTestId('sidebar-brand'))
+    expect(screen.getByTestId('sidebar-brand').getAttribute('aria-expanded')).toBe('true')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    const brand = screen.getByTestId('sidebar-brand')
+    expect(brand.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByTestId('workspace-panel-island')).not.toHaveAttribute('data-expanded')
+    expect(screen.getByTestId('workspace-panel').hasAttribute('inert')).toBe(true)
+  })
+
   it('the Ageha Mark stays decorative; the brand button carries the accessible name', () => {
     render(<SidebarHarness />)
 

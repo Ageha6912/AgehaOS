@@ -20,6 +20,7 @@ import { bezier, EASE_FLIGHT_LEG2 } from '@/core/window/motion'
 import { activateCardWindow, useMissionControlStore } from '@/store/mission-control-store'
 import { useSpaceStore } from '@/store/space-store'
 import { useWindowStore } from '@/store/window-store'
+import { requestMotionClose } from '@/desktop/window/use-window-motion'
 
 import { WindowCard, WindowDragGhost, type CardWindow } from './WindowCard'
 
@@ -209,6 +210,22 @@ export function MissionControl({
   const rovingActiveId = spaceWindows.some((win) => win.id === rovingId)
     ? rovingId
     : (spaceWindows[0]?.id ?? null)
+  // 开层取焦（E1 审查：roving tabindex 要先进层才生效；读屏不再停在背景），
+  // 关层归还先前焦点。活跃卡优先（聚焦窗的卡），否则回落首卡 DOM。
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+  const layerRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (open === false) return
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null
+    const target =
+      layerRef.current?.querySelector<HTMLElement>('[data-roving-card][tabindex="0"]') ??
+      layerRef.current?.querySelector<HTMLElement>('[data-roving-card]')
+    target?.focus()
+    return () => {
+      previouslyFocusedRef.current?.focus?.()
+      previouslyFocusedRef.current = null
+    }
+  }, [open])
   const onCardRovingFocus = useCallback((win: CardWindow) => setRovingId(win.id), [])
   const onCardsKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!event.key.startsWith('Arrow')) return
@@ -301,6 +318,9 @@ export function MissionControl({
 
   const onLayerPointerCancel = useCallback(() => {
     pointerRef.current = null
+    // 被取消的拖拽不再留着 didDrag=true（E1 审查：其后到达的 Enter/Space
+    // 键盘激活会被静默吞掉直到下次 pointerdown）。
+    didDragRef.current = false
     setDrag(null)
   }, [])
 
@@ -318,7 +338,8 @@ export function MissionControl({
    * 更新从卡片区消失，关窗 ghost 在 WindowLayer 原地播完退场（与标题栏关闭
    * 钮同一条引擎路径）；MC 层不关（批量整理窗口的调度语义）。 */
   const onCardClose = useCallback((win: CardWindow) => {
-    useWindowStore.getState().close(win.id)
+    // 与标题栏关闭钮同一动效路径（E1 审查：ghost 退场；注释与实现自此一致）。
+    requestMotionClose(win.id)
   }, [])
 
   const onCreateSpace = useCallback(() => {
@@ -378,8 +399,10 @@ export function MissionControl({
 
   return (
     <div
+      ref={layerRef}
       data-testid="mission-control-layer"
       role="dialog"
+      aria-modal="true"
       aria-label={t('missionControl.title')}
       onPointerMove={onLayerPointerMove}
       onPointerUp={onLayerPointerUp}
@@ -616,6 +639,7 @@ export function MissionControl({
               <button
                 type="button"
                 data-testid="mission-control-delete-cancel"
+                autoFocus
                 onClick={() => setDeleteCandidateId(null)}
                 className="rounded-md border border-border-subtle px-3 py-1.5 text-xs text-text hover:bg-surface-raised"
               >

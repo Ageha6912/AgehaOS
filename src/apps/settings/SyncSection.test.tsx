@@ -58,6 +58,17 @@ describe('SyncSection 降级派生（不入状态库，M4-3）', () => {
     expect(screen.queryByTestId('sync-status')).not.toBeInTheDocument()
   })
 
+  it('本地认证 + 已登录 + 开关残留开：不显示远程状态块（D2 审查）', () => {
+    seedSessionForTests(makeUser())
+    localStorage.setItem('agehaos.sync.enabled.v1', '1')
+    render(<SyncSection />)
+
+    // 本地构建没有远程同步：即使 localStorage 残留开关，也不能同时摆
+    // 「本机模式无法同步」与远程 sync-status。
+    expect(screen.getByTestId('sync-mode-local')).toBeInTheDocument()
+    expect(screen.queryByTestId('sync-status')).not.toBeInTheDocument()
+  })
+
   it('远程认证 + 已登录 + 开关关：提示去「账户」分区开启', () => {
     seedSessionForTests(makeUser())
     setAuthProvider({} as unknown as AuthProvider)

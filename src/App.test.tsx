@@ -72,6 +72,23 @@ describe('App', () => {
     expect(screen.queryByTestId('boot-screen')).not.toBeInTheDocument()
   })
 
+  it('moves to the desktop when a late reconcile authenticates after boot chose login (E2 审查)', () => {
+    render(<App />)
+    act(() => {
+      vi.advanceTimersByTime(BOOT_DONE_BUT_NOT_SETTLED_MS + 800 + EXIT_SETTLE_MS)
+    })
+    expect(screen.getByRole('form', { name: '登录 AgehaOS' })).toBeInTheDocument()
+
+    // /api/auth/session 晚到：store 变 authenticated，App 必须反向迁移。
+    act(() => {
+      seedSessionForTests(TEST_USER)
+    })
+
+    expect(screen.queryByRole('form', { name: '登录 AgehaOS' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /开始/ })).toBeInTheDocument()
+    expect(screen.getByText('alice')).toBeInTheDocument()
+  })
+
   it('returns to the login screen after signing out without re-showing the boot layer', () => {
     seedSessionForTests(TEST_USER)
     render(<App />)

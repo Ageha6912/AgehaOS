@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  memo,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 
 import { AppIcon } from '@/apps/app-icon'
 import { componentFor } from '@/apps/builtin'
@@ -11,7 +18,7 @@ import { isEclosionAppId } from '@/core/eclosion/spec'
 import { AppErrorBoundary } from '@/components/app-error-boundary'
 import { EclosionAppFrame, EclosionTitleExtras } from '@/components/eclosion-app-frame'
 import { WebAppFrame } from '@/components/web-app-frame'
-import { getAppManifest } from '@/store/app-store'
+import { useAppStore } from '@/store/app-store'
 import { useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { useWindowStore } from '@/store/window-store'
 
@@ -21,6 +28,7 @@ import { useWindowMotion } from './use-window-motion'
 import { useFocusTilt } from '@/desktop/motion/use-focus-tilt'
 
 interface DragOrigin {
+  pointerId: number
   pointerX: number
   pointerY: number
   x: number
@@ -28,6 +36,7 @@ interface DragOrigin {
 }
 
 interface ResizeOrigin {
+  pointerId: number
   pointerX: number
   pointerY: number
   width: number
@@ -72,13 +81,17 @@ function TypeBOrMissing({
   title: string
   windowId: string
 }) {
-  const manifest = getAppManifest(appId)
+  // 订阅注册表：运行时应用（羽化 kept/今日世界）异步注册，注册完成后本窗口
+  // 必须从 MissingApp 自动切换为真实内容。
+  const manifest = useAppStore((state) => state.apps.find((app) => app.id === appId) ?? null)
   if (manifest && isAllowedWebAppEntry(manifest.entry)) {
     return <WebAppFrame entry={manifest.entry} appId={appId} windowId={windowId} title={title} />
   }
   return <MissingApp windowId={windowId} />
 }
-export function WindowFrame({
+// memo（E1 审查）：store 复用未变化窗口的引用后，拖动单个窗口只重渲染该
+// WindowFrame（应用子树不跟着每帧重渲染）。
+export const WindowFrame = memo(function WindowFrame({
   win,
   ghost = false,
   spaceHidden = false,
@@ -107,6 +120,8 @@ export function WindowFrame({
   // W4（审计 §7）：本次拖拽是否发生过实际位移——pointerup 吸附判定的前置
   // 条件（点击标题栏不动不触发 snap/最大化）。
   const dragMoved = useRef(false)
+  // snapped 窗标题栏拖拽的待决脱 snap 标记（E1 审查：推迟到首次位移）。
+  const pendingUnsnapRef = useRef(false)
   const resizeOrigin = useRef<ResizeOrigin | null>(null)
 
   const maximized = win.state === 'maximized'
@@ -169,21 +184,17 @@ export function WindowFrame({
     // W4 脱 snap 转换点（审计 §7 钉死）：snapped 窗按下标题栏先经 store
     // unsnap()，再从 getState() 读还原后几何记 dragOrigin——move 数学以
     // 还原基线起算，指针移动零跳变（Windows 惯例：拖出即还原）。
-    let originX = win.x
-    let originY = win.y
-    if (win.state === 'snapped') {
-      unsnap(win.id)
-      const restored = useWindowStore.getState().windows.find((w) => w.id === win.id)
-      if (restored) {
-        originX = restored.x
-        originY = restored.y
-      }
-    }
+    // W4 脱 snap 转换点（E1 审查修订）：snapped 窗按下标题栏**不再立即
+    // 脱 snap**——单击（只想聚焦）直接弹回吸附前几何的旧问题改为「首次
+    // 实际位移才脱」：挂待决标记，move 首拍完成 unsnap + 基线重算（窗口
+    // 落回还原几何，Windows 惯例），无位移放手保持吸附。
+    pendingUnsnapRef.current = win.state === 'snapped'
     dragOrigin.current = {
+      pointerId: event.pointerId,
       pointerX: event.clientX,
       pointerY: event.clientY,
-      x: originX,
-      y: originY,
+      x: win.x,
+      y: win.y,
     }
     dragMoved.current = false
     setDragging(true)
@@ -192,9 +203,40 @@ export function WindowFrame({
 
   const onTitlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     const origin = dragOrigin.current
-    if (!origin) return
+    // 多指/多笔：只认发起拖拽的那个 pointerId。
+    if (!origin || event.pointerId !== origin.pointerId) return
+    // 鼠标/笔在 pointerup 丢失后（Alt+Tab 切走再回来）会产生 buttons=0 的
+    // 悬停 move：必须收尾，否则窗口“粘”在指针上继续移动。触屏的断点由
+    // pointercancel 承担（触摸期间 buttons 恒非 0）。
+    const staleMouseHover =
+      (event.pointerType === 'mouse' || event.pointerType === 'pen') && event.buttons === 0
+    if (staleMouseHover) {
+      clearSnapPreview()
+      dragOrigin.current = null
+      dragMoved.current = false
+      setDragging(false)
+      return
+    }
     if (event.clientX !== origin.pointerX || event.clientY !== origin.pointerY) {
       dragMoved.current = true
+      if (pendingUnsnapRef.current) {
+        pendingUnsnapRef.current = false
+        unsnap(win.id)
+        const restored = useWindowStore.getState().windows.find((w) => w.id === win.id)
+        if (restored) {
+          // 基线重置到还原几何（指针差清零）：首拍把窗口落回吸附前位置，
+          // 后续 move 从该基线连续跟随。
+          dragOrigin.current = {
+            ...origin,
+            pointerX: event.clientX,
+            pointerY: event.clientY,
+            x: restored.x,
+            y: restored.y,
+          }
+          move(win.id, restored.x, restored.y, getWorkspaceViewport())
+          return
+        }
+      }
     }
     move(
       win.id,
@@ -223,6 +265,7 @@ export function WindowFrame({
     // W5（审计 §8）pointercancel 全路径收尾：系统掠走 capture（滚轮手势/
     // 通知打断）时 pointerup 不来——清预览 + 复位拖拽态防悬挂。
     clearSnapPreview()
+    pendingUnsnapRef.current = false
     if (!dragOrigin.current) return
     dragOrigin.current = null
     dragMoved.current = false
@@ -237,8 +280,9 @@ export function WindowFrame({
   const onTitlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
     // W5（审计 §8）pointerup 全路径清预览（防悬挂双保险之二）——早退路径也清。
     clearSnapPreview()
-    if (!dragOrigin.current) return
+    if (!dragOrigin.current || event.pointerId !== dragOrigin.current.pointerId) return
     const moved = dragMoved.current
+    pendingUnsnapRef.current = false
     dragOrigin.current = null
     dragMoved.current = false
     setDragging(false)
@@ -284,6 +328,7 @@ export function WindowFrame({
       }
     }
     resizeOrigin.current = {
+      pointerId: event.pointerId,
       pointerX: event.clientX,
       pointerY: event.clientY,
       width: baseWidth,
@@ -301,7 +346,14 @@ export function WindowFrame({
 
   const onResizePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     const origin = resizeOrigin.current
-    if (!origin) return
+    if (!origin || event.pointerId !== origin.pointerId) return
+    // 同上：鼠标/笔的 buttons=0 悬停 move = pointerup 丢失，结束本次 resize。
+    const staleMouseHover =
+      (event.pointerType === 'mouse' || event.pointerType === 'pen') && event.buttons === 0
+    if (staleMouseHover) {
+      resizeOrigin.current = null
+      return
+    }
     const dx = event.clientX - origin.pointerX
     const dy = event.clientY - origin.pointerY
     // 钳制在手柄层做（最小尺寸 + 不越过屏幕缘，保留 8px 可见）——不能用
@@ -309,7 +361,8 @@ export function WindowFrame({
     // 位置补偿会让「x 右移 → 上限收窄 → 再缩」正反馈螺旋（2026-10-02 实测：
     // 3 步内窗口被挤到 80px 宽钉死）。
     let width = origin.width + (origin.dir.includes('e') ? dx : origin.dir.includes('w') ? -dx : 0)
-    let height = origin.height + (origin.dir.includes('s') ? dy : origin.dir.includes('n') ? -dy : 0)
+    let height =
+      origin.height + (origin.dir.includes('s') ? dy : origin.dir.includes('n') ? -dy : 0)
     const fixedRight = origin.x + origin.width
     const fixedBottom = origin.y + origin.height
     if (origin.dir.includes('w')) width = Math.min(width, fixedRight - 8)
@@ -321,9 +374,7 @@ export function WindowFrame({
     resize(win.id, width, height)
     if (origin.dir.includes('w') || origin.dir.includes('n')) {
       // 西/北缘：拖的是左/上边——尺寸被钳制后把位置反向补偿（拖哪边哪边跟手）。
-      const current = useWindowStore
-        .getState()
-        .windows.find((candidate) => candidate.id === win.id)
+      const current = useWindowStore.getState().windows.find((candidate) => candidate.id === win.id)
       if (current) {
         const x = origin.dir.includes('w') ? origin.x + (origin.width - current.width) : origin.x
         const y = origin.dir.includes('n') ? origin.y + (origin.height - current.height) : origin.y
@@ -333,13 +384,18 @@ export function WindowFrame({
   }
 
   const onResizePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
-    if (!resizeOrigin.current) return
+    if (!resizeOrigin.current || event.pointerId !== resizeOrigin.current.pointerId) return
     resizeOrigin.current = null
     try {
       event.currentTarget.releasePointerCapture(event.pointerId)
     } catch {
       /* pointer capture was already released */
     }
+  }
+
+  /** 取消/丢捕获统一收尾：不清几何（resize 是即时提交），只结束本次手势。 */
+  const onResizePointerCancel = (): void => {
+    resizeOrigin.current = null
   }
 
   return (
@@ -351,34 +407,40 @@ export function WindowFrame({
         // W3 Space 渲染过滤（审计 §6）：非活跃 Space 的窗口与 minimized 走同一
         // hidden 类机制——可见性非卸载，iframe/应用状态存活，切换不销毁窗口。
         minimized || spaceHidden ? 'hidden' : ''
-      } ${
-        maximized ? 'inset-0 rounded-none sp-win-max' : ''
-      } ${
+      } ${maximized ? 'inset-0 rounded-none sp-win-max' : ''} ${
         // 空间化窗口状态栈（2026-10-10）：材质结构走 .spatial-window 体系
         // （32px 圆角档/40px 磨砂/斜向高光/空间阴影/两处实色兜底），面实度
         // 与细边仍走 --ag 窗口档（工作面承墨字；sp-win 段 unlayered 覆写）——
         // 聚焦 = 更高面实度 + border-strong + 更深空间阴影；失焦 = 基底档。
         // 聚焦档只提实度不加色相（active 禁止整体变蓝）。
-        win.focused
-          ? 'sp-win-focused'
-          : 'sp-win-unfocused'
+        win.focused ? 'sp-win-focused' : 'sp-win-unfocused'
       } ${depthClass} ${hoverClass} ${tiltOn && !win.focused && !minimized ? 'is-tilt-dim' : ''} ${
         spatialMotion ? '' : 'sp-motion-static'
       } ${ghost ? 'pointer-events-none' : 'pointer-events-auto'}`}
       style={style}
       onPointerDown={() => focus(win.id)}
+      // iframe 内容点击不冒泡 pointerdown（E1 审查）：焦点进入 iframe 时在
+      // 捕获段补一次 focus，z 序/聚焦样式才能跟上；已聚焦/ghost 不重复提交。
+      onFocusCapture={() => {
+        if (!ghost && !win.focused) focus(win.id)
+      }}
     >
       <header
         // 2026-10-02 用户裁决：拖动区保持默认箭头（cursor-move 十字观感差）。
         // Shell 3.0 STEP 7：头部 36→44px（ask 档 44-50）——App Icon + 标题 +
         // 控制灯在更舒展的带内保持「干净、精确、轻」（标题常规字重不加重）。
-        className="flex h-11 shrink-0 select-none cursor-default items-center gap-2 border-b border-border-subtle px-3"
+        className="flex h-11 shrink-0 touch-none select-none cursor-default items-center gap-2 border-b border-border-subtle px-3"
         onPointerDown={onTitlePointerDown}
         onPointerMove={onTitlePointerMove}
         onPointerUp={onTitlePointerUp}
         onPointerCancel={onTitlePointerCancel}
-        onDoubleClick={() => {
-          if (win.resizable) toggleMaximize(win.id)
+        onLostPointerCapture={onTitlePointerCancel}
+        onDoubleClick={(event) => {
+          // 控制按钮自身的 click/dblclick 会冒泡到标题栏：连点两次最大化
+          // 按钮会变成 3 次 toggle（两次 click + 一次 dblclick），状态反转。
+          if (!win.resizable) return
+          if (event.target instanceof Element && event.target.closest('button')) return
+          toggleMaximize(win.id)
         }}
       >
         {/* 交通灯（Q4 裁决，左置；非激活时整体降不透明度，§21）。
@@ -461,14 +523,16 @@ export function WindowFrame({
               key={dir}
               role="presentation"
               data-testid={`window-resize-${dir}`}
-              className={`absolute z-10 ${className}`}
+              className={`absolute z-10 touch-none ${className}`}
               onPointerDown={onResizePointerDown(dir)}
               onPointerMove={onResizePointerMove}
               onPointerUp={onResizePointerUp}
+              onPointerCancel={onResizePointerCancel}
+              onLostPointerCapture={onResizePointerCancel}
             />
           ))}
         </>
       )}
     </section>
   )
-}
+})

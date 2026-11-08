@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react'
 
 import { BatteryHigh, Check, CloudArrowUp } from '@phosphor-icons/react'
 
@@ -79,15 +86,10 @@ export function MenuBar() {
 
   const theme = useSettingsStore((s) => s.theme)
   const setTheme = useSettingsStore((s) => s.setTheme)
-  const windows = useWindowStore((s) => s.windows)
-  const focus = useWindowStore((s) => s.focus)
-  const restore = useWindowStore((s) => s.restore)
-  const minimize = useWindowStore((s) => s.minimize)
-  const closeWindow = useWindowStore((s) => s.close)
-  // Space-aware（W2，审计 .tmp/spaces-audit.md §5 决定 4）：窗口菜单与
-  // minimizeAll/closeAll 只作用于当前 Space。
-  const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
-  const spaceWindows = windows.filter((win) => win.spaceId === activeSpaceId)
+  // 窗口列表不再订阅在 MenuBar 本身（E2 审查）：拖拽/缩放每帧 commit 会
+  // 让整条顶栏（含通知中心/用户菜单/日期 Intl）重渲染。窗口菜单内容拆到
+  // `WindowMenuItems`，只在菜单打开时挂载并自行订阅。
+
 
   // Cloud 要素（§1②）：同步状态指示（与左栏云同步项同数据源）+ 深链设置
   // 账户分区；开关切换事件驱动重渲染（与 Sidebar 同款 SYNC_TOGGLE_EVENT 模式）。
@@ -121,11 +123,18 @@ export function MenuBar() {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') setOpenMenu(null)
     }
+    // iframe 应用内的 pointerdown 不冒泡到父文档：焦点进入 iframe 后关闭
+    // 菜单，否则菜单会一直悬浮（E2 审查）。
+    const onWindowBlur = (): void => {
+      if (document.activeElement instanceof HTMLIFrameElement) setOpenMenu(null)
+    }
     document.addEventListener('pointerdown', onPointerDown, true)
     document.addEventListener('keydown', onKeyDown, true)
+    window.addEventListener('blur', onWindowBlur)
     return () => {
       document.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('keydown', onKeyDown, true)
+      window.removeEventListener('blur', onWindowBlur)
     }
   }, [openMenu])
 
@@ -174,7 +183,9 @@ export function MenuBar() {
     const dropdown = dropdownRefs.current[id]
     if (!dropdown) return []
     return Array.from(
-      dropdown.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([disabled])'),
+      dropdown.querySelectorAll<HTMLButtonElement>(
+        '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])',
+      ),
     )
   }
   const stepMenuItem = (id: MenuId, delta: 1 | -1): void => {
@@ -238,12 +249,18 @@ export function MenuBar() {
     }
   }
 
-  // 日期（参考图右侧「9月29日 周一」）；时钟每秒重渲染，无需独立计时。
-  const dateLabel = new Intl.DateTimeFormat(locale, {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-  }).format(new Date())
+  // 日期（参考图右侧「9月29日 周一」）；时钟每秒重渲染，格式化器按 locale
+  // 记忆（E2 审查：此前每次渲染都新建两个 Intl 实例）。
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        month: 'long',
+        day: 'numeric',
+        weekday: 'short',
+      }),
+    [locale],
+  )
+  const dateLabel = dateFormatter.format(new Date())
 
   return (
     <header
@@ -353,48 +370,7 @@ export function MenuBar() {
           dropdownRefs.current['window'] = element
         }}
       >
-        {/* W7（审计 .tmp/spaces-audit.md §10）：任务视图入口——F4 同款 toggle
-            （store 翻转；MC 开启时经 popover 互斥顶替其他弹层）。 */}
-        <MenuItem
-          label={t('menubar.window.missionControl')}
-          shortcut="F4"
-          onSelect={() => act(() => useMissionControlStore.getState().toggle())}
-        />
-        <MenuItem
-          label={t('menubar.window.next')}
-          shortcut={altShortcutLabel('W')}
-          disabled={spaceWindows.filter((win) => win.state !== 'minimized').length < 2}
-          onSelect={() => act(cycleWindows)}
-        />
-        <MenuItem
-          label={t('menubar.window.minimizeAll')}
-          disabled={spaceWindows.length === 0}
-          onSelect={() =>
-            act(() => {
-              for (const win of [...spaceWindows]) {
-                if (win.state !== 'minimized') minimize(win.id)
-              }
-            })
-          }
-        />
-        <MenuItem
-          label={t('menubar.window.closeAll')}
-          disabled={spaceWindows.length === 0}
-          onSelect={() =>
-            act(() => {
-              for (const win of [...spaceWindows]) closeWindow(win.id)
-            })
-          }
-        />
-        {spaceWindows.length > 0 && <MenuSeparator />}
-        {spaceWindows.map((win) => (
-          <MenuItem
-            key={win.id}
-            label={win.title}
-            checked={win.focused && win.state !== 'minimized'}
-            onSelect={() => act(() => (win.state === 'minimized' ? restore(win.id) : focus(win.id)))}
-          />
-        ))}
+        <WindowMenuItems onClose={close} />
       </MenuEntry>
 
       <MenuEntry
@@ -438,7 +414,7 @@ export function MenuBar() {
           （macOS 惯例；时钟为等宽数据读出）。Shell 3.1 STEP 3（F3）：AI 产品句
           「今日桌面由 N 条趋势信号生成」迁出顶栏——趋势信息归右栏今日世界卡
           （widgets/WorldSignals.tsx），顶栏只留 OS Identity + 菜单 + 真实状态。 */}
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="ml-auto flex min-w-0 items-center gap-1.5">
         {battery !== null && (
           <span
             className="flex h-6 items-center gap-0.5 text-[11px] tabular-nums text-text-muted"
@@ -465,11 +441,80 @@ export function MenuBar() {
         <NotificationCenter />
         <UserMenu />
         <time data-testid="menu-bar-clock" className="flex shrink-0 items-center gap-1.5 px-1 text-xs text-text-muted">
-          <span>{dateLabel}</span>
+          {/* 窄屏（<640px）只留时间：日期文案不再把时钟挤出视口（E2 审查）。 */}
+          <span className="hidden sm:inline">{dateLabel}</span>
           <span>{clock}</span>
         </time>
       </div>
     </header>
+  )
+}
+
+/**
+ * 窗口菜单内容（E2 审查）：只在菜单打开时挂载并自行订阅窗口列表——MenuBar
+ * 本体不再订阅全量 windows，拖拽/缩放的每次 commit 不再重渲染整条顶栏。
+ * Space-aware（W2，审计 .tmp/spaces-audit.md §5 决定 4）：列表与
+ * minimizeAll/closeAll 只作用于当前 Space。
+ */
+function WindowMenuItems({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
+  const windows = useWindowStore((s) => s.windows)
+  const focus = useWindowStore((s) => s.focus)
+  const restore = useWindowStore((s) => s.restore)
+  const minimize = useWindowStore((s) => s.minimize)
+  const closeWindow = useWindowStore((s) => s.close)
+  const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
+  const spaceWindows = windows.filter((win) => win.spaceId === activeSpaceId)
+  const act = (run: () => void): void => {
+    onClose()
+    run()
+  }
+
+  return (
+    <>
+      {/* W7（审计 .tmp/spaces-audit.md §10）：任务视图入口——F4 同款 toggle
+          （store 翻转；MC 开启时经 popover 互斥顶替其他弹层）。 */}
+      <MenuItem
+        label={t('menubar.window.missionControl')}
+        shortcut="F4"
+        onSelect={() => act(() => useMissionControlStore.getState().toggle())}
+      />
+      <MenuItem
+        label={t('menubar.window.next')}
+        shortcut={altShortcutLabel('W')}
+        disabled={spaceWindows.filter((win) => win.state !== 'minimized').length < 2}
+        onSelect={() => act(cycleWindows)}
+      />
+      <MenuItem
+        label={t('menubar.window.minimizeAll')}
+        disabled={spaceWindows.length === 0}
+        onSelect={() =>
+          act(() => {
+            for (const win of [...spaceWindows]) {
+              if (win.state !== 'minimized') minimize(win.id)
+            }
+          })
+        }
+      />
+      <MenuItem
+        label={t('menubar.window.closeAll')}
+        disabled={spaceWindows.length === 0}
+        onSelect={() =>
+          act(() => {
+            for (const win of [...spaceWindows]) closeWindow(win.id)
+          })
+        }
+      />
+      {spaceWindows.length > 0 && <MenuSeparator />}
+      {spaceWindows.map((win) => (
+        <MenuItem
+          key={win.id}
+          label={win.title}
+          checked={win.focused && win.state !== 'minimized'}
+          onSelect={() => act(() => (win.state === 'minimized' ? restore(win.id) : focus(win.id)))}
+        />
+      ))}
+    </>
   )
 }
 
@@ -497,9 +542,14 @@ function MenuItem({
   return (
     <button
       type="button"
-      role="menuitem"
+      // 有勾选语义 = 单选档（读屏可播报当前主题/聚焦窗口）；无勾选 = 普通项。
+      role={checked === undefined ? 'menuitem' : 'menuitemradio'}
+      aria-checked={checked === undefined ? undefined : checked}
       aria-keyshortcuts={shortcut ? toAriaShortcut(shortcut) : undefined}
       disabled={disabled}
+      // 阻止 pointerdown 把焦点从可编辑元素抢走（E2 审查）：撤销/复制/粘贴
+      // 等 document.execCommand 命令必须作用于原聚焦处，点击菜单不能先失焦。
+      onPointerDown={(event) => event.preventDefault()}
       className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-text hover:bg-surface-raised disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
       onClick={onSelect}
     >
@@ -553,6 +603,8 @@ function MenuEntry({
         aria-expanded={open}
         ref={triggerRef}
         className="flex h-7 items-center rounded-md px-2 text-[13px] font-medium text-text-muted hover:bg-surface-raised hover:text-text aria-expanded:bg-surface-raised aria-expanded:text-text"
+        // 点击菜单触发器不抢焦点（同上：编辑命令作用于原聚焦元素）。
+        onPointerDown={(event) => event.preventDefault()}
         onClick={onToggle}
         onPointerEnter={onHoverSwitch}
         onKeyDown={onTriggerKeyDown}

@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import App from '@/App'
+import { RootErrorBoundary } from '@/components/root-error-boundary'
 import { RemoteAuthClient, setAuthProvider } from '@/core/auth'
 import { systemAppLifecycle } from '@/core/runtime'
 import { registerBuiltinApps, restoreInstalledApps } from '@/store/app-store'
@@ -51,8 +52,15 @@ systemEclosion.start()
 // 初始快照并挂 resize/orientationchange/matchMedia 订阅。
 initDeviceStore()
 
-createRoot(rootElement).render(
+createRoot(rootElement, {
+  // React 19：渲染外抛出的未捕获错误上报（C2 审查：根级防御缺失项）。
+  onUncaughtError: (error) => {
+    console.error('[AgehaOS] uncaught error', error)
+  },
+}).render(
   <StrictMode>
-    <App />
+    <RootErrorBoundary>
+      <App />
+    </RootErrorBoundary>
   </StrictMode>,
 )

@@ -232,13 +232,48 @@ interface MetricReading {
   ratio: number | null
 }
 
+/** 右栏可见断点（Tailwind xl = 80rem；aside 用 `hidden xl:flex` 门控）。 */
+const RAIL_MEDIA_QUERY = '(min-width: 1280px)'
+
+/** 右栏是否真正可见（E2 审查：<1280px 时组件仍挂载，旧实现照常每 5s 采样）。 */
+function useRailVisible(): boolean {
+  const [visible, setVisible] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true
+    try {
+      return window.matchMedia(RAIL_MEDIA_QUERY).matches
+    } catch {
+      return true
+    }
+  })
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    let query: MediaQueryList
+    try {
+      query = window.matchMedia(RAIL_MEDIA_QUERY)
+    } catch {
+      return
+    }
+    const onChange = (): void => setVisible(query.matches)
+    onChange()
+    query.addEventListener?.('change', onChange)
+    return () => query.removeEventListener?.('change', onChange)
+  }, [])
+  return visible
+}
+
 /**
  * 真实系统指标：内存（performance.memory）/ 网络（connection.downlink）/
  * 帧率（rAF 实测）。进度比只来自测量值本身——帧率对 60fps 目标、内存对堆
  * 上限、网络对 Connection API 规范的 10Mbps downlink 满档（非发明刻度）；
  * 源不可用 = 「—」+ 无条（拒绝装饰性谎言 §0.5）。
+ * `enabled=false`（窄视口）时完全不采样；页面隐藏时跳过本轮，且同一时刻
+ * 只允许一条 60 帧测量链（旧实现回前台可能多链并发跑完集中 setState）。
  */
-function useSystemMetrics(): { fps: MetricReading; memory: MetricReading; network: MetricReading } {
+function useSystemMetrics(enabled: boolean): {
+  fps: MetricReading
+  memory: MetricReading
+  network: MetricReading
+} {
   const [metrics, setMetrics] = useState<{
     fps: MetricReading
     memory: MetricReading
@@ -294,19 +329,35 @@ function useSystemMetrics(): { fps: MetricReading; memory: MetricReading; networ
   }, [])
 
   useEffect(() => {
+    if (!enabled) return
     let cancelled = false
+    let sampling = false
     const update = (): void => {
+      if (sampling) return
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      sampling = true
       void sample.readFps().then((fps) => {
+        sampling = false
         if (!cancelled) setMetrics({ fps, memory: sample.readMemory(), network: sample.readDownlink() })
       })
     }
     update()
     const timer = window.setInterval(update, 5000)
+    const onVisibility = (): void => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') update()
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility)
+    }
     return () => {
       cancelled = true
+      sampling = false
       window.clearInterval(timer)
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibility)
+      }
     }
-  }, [sample])
+  }, [sample, enabled])
 
   return metrics
 }
@@ -314,7 +365,7 @@ function useSystemMetrics(): { fps: MetricReading; memory: MetricReading; networ
 /** 系统状态：行式 compact metrics——label 左 + 等宽数值右 + 行内细进度条。 */
 function SystemCard() {
   const { t } = useTranslation()
-  const metrics = useSystemMetrics()
+  const metrics = useSystemMetrics(useRailVisible())
 
   const rows = [
     {

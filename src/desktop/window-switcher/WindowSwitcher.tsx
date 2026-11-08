@@ -118,6 +118,13 @@ export function WindowSwitcher() {
         <ul
           className="flex w-full flex-wrap items-stretch justify-center gap-3 overflow-hidden px-3 py-3"
           onKeyDown={(event) => {
+            // registry 捕获段已对 ←/→ 循环并 preventDefault；事件继续冒泡到
+            // 面板时不能再 cycle 一次（否则一次按键前进两格），只同步焦点。
+            if (event.defaultPrevented) {
+              const current = windowSwitcher.getState().selectedId
+              if (current !== null) itemButtonRefs.current.get(current)?.focus()
+              return
+            }
             const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown'
             const backward = event.key === 'ArrowLeft' || event.key === 'ArrowUp'
             if (!forward && !backward) return

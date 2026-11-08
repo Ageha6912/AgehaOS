@@ -15,7 +15,7 @@ import { EclosionOrchestrator } from '@/services/eclosion'
 import { buildThemeTokenCss } from '@/services/eclosion-theme'
 import { systemVfs } from '@/services/vfs'
 
-import { EclosionAppFrame, EclosionTitleExtras } from './eclosion-app-frame'
+import { ECLOSION_HANDSHAKE_TIMEOUT_MS, EclosionAppFrame, EclosionTitleExtras } from './eclosion-app-frame'
 
 /**
  * jsdom 不真加载 iframe（about:blank 窗口可直接作为 event.source 模拟 runner，
@@ -296,6 +296,108 @@ describe('EclosionAppFrame（宿主容器）', () => {
     })
     await waitFor(() => expect(screen.queryByTestId('eclosion-progress')).toBeNull())
     expect(ready).toHaveBeenCalledWith({ appId: CALCULATOR, specId: 'calculator', source: 'cache' })
+  })
+
+  it('同一 attempt 内 iframe 重载：重新握手并按游标归零重发内容（E3 审查）', async () => {
+    const cache = createEclosionCache()
+    await cache.writeBasic(frameUser, {
+      appId: CALCULATOR,
+      specId: 'calculator',
+      specVersion: 5,
+      html: DOC_HTML,
+      createdAt: '',
+    })
+    const orchestrator = new EclosionOrchestrator({ fetcher: vi.fn(), cache })
+    const { iframe, runner, posted } = await renderHosted({ orchestrator })
+
+    fireEvent.load(iframe)
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'agehaos:ready' }))
+    })
+    await waitFor(() =>
+      expect(posted.some((message) => message.type === 'eclosion:power-on')).toBe(true),
+    )
+    const beforeReload = posted.length
+
+    // runner location.reload / 浏览器恢复框架：同一 attempt、新文档。
+    fireEvent.load(iframe)
+    expect(posted[beforeReload]).toEqual({ type: 'agehaos:hello' })
+
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'agehaos:ready' }))
+    })
+    await waitFor(() => {
+      const after = posted.slice(beforeReload + 1)
+      // 游标归零 → 主题 chunk 从 seq 0 重发、分片与破茧全部重来。
+      expect(after.some((message) => message.type === 'eclosion:chunk' && message.seq === 0)).toBe(
+        true,
+      )
+      expect(after.some((message) => message.type === 'eclosion:power-on')).toBe(true)
+    })
+  })
+
+  it('同一 attempt 的连续 runner error 只请求一次重试（E3 审查）', async () => {
+    const cache = createEclosionCache()
+    await cache.writeBasic(frameUser, {
+      appId: CALCULATOR,
+      specId: 'calculator',
+      specVersion: 5,
+      html: DOC_HTML,
+      createdAt: '',
+    })
+    const orchestrator = new EclosionOrchestrator({ fetcher: vi.fn(), cache })
+    const retrySpy = vi.spyOn(orchestrator, 'requestRetry').mockReturnValue(true)
+    const { iframe, runner } = await renderHosted({ orchestrator })
+    fireEvent.load(iframe)
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'agehaos:ready' }))
+    })
+
+    // 旧 iframe 连续两条错误 / 错误 + 超时：本轮只回炉一次，不叠第二轮。
+    act(() => {
+      window.dispatchEvent(eventFrom(runner, { type: 'eclosion:error', message: 'boom' }))
+      window.dispatchEvent(eventFrom(runner, { type: 'eclosion:error', message: 'boom' }))
+    })
+    expect(retrySpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('ready 超时（8s 无握手）：质量回退重试，attempt 递增（E3 审查）', async () => {
+    const cache = createEclosionCache()
+    await cache.writeBasic(frameUser, {
+      appId: CALCULATOR,
+      specId: 'calculator',
+      specVersion: 5,
+      html: DOC_HTML,
+      createdAt: '',
+    })
+    const orchestrator = new EclosionOrchestrator({
+      fetcher: vi.fn(async () => new Response('{}', { status: 500 })),
+      cache,
+    })
+    const windowId = useWindowStore.getState().open({ appId: CALCULATOR, title: '计算器' })
+    render(
+      <EclosionAppFrame
+        appId={CALCULATOR}
+        windowId={windowId}
+        title="计算器"
+        orchestrator={orchestrator}
+      />,
+    )
+    const session = orchestrator.ensureSession(CALCULATOR)!
+    await act(async () => {
+      await session.settled()
+    })
+    const iframe = document.querySelector('iframe') as HTMLIFrameElement
+
+    vi.useFakeTimers()
+    fireEvent.load(iframe)
+    await act(async () => {
+      vi.advanceTimersByTime(ECLOSION_HANDSHAKE_TIMEOUT_MS)
+    })
+
+    // 无 ready → requestRetry 换一轮（不再永久结茧）；预算耗尽后由宿主回落。
+    expect(session.getSnapshot().attempt).toBe(2)
+    vi.useRealTimers()
   })
 
   it('drops messages that do not come from its own contentWindow', async () => {
@@ -777,6 +879,35 @@ describe('EclosionAppFrame（宿主容器）', () => {
     ).toBe('计算器 · 已回落经典版')
   })
 
+  it('restores the base title once a re-eclosion attempt starts (E3 审查)', async () => {
+    const { orchestrator } = makeOrchestrator([
+      new Response(JSON.stringify({ error: 'ai-not-configured' }), { status: 503 }),
+      new Response(frame('delta', { text: DOC_HTML }) + frame('done', {}), {
+        headers: { 'content-type': 'text/event-stream' },
+      }),
+    ])
+    const windowId = useWindowStore.getState().open({ appId: CALCULATOR, title: '计算器' })
+    render(
+      <EclosionAppFrame
+        appId={CALCULATOR}
+        windowId={windowId}
+        title="计算器"
+        orchestrator={orchestrator}
+      />,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('calculator-display')).toBeInTheDocument())
+    const titleOf = (): string | undefined =>
+      useWindowStore.getState().windows.find((win) => win.id === windowId)?.title
+    expect(titleOf()).toBe('计算器 · 已回落经典版')
+
+    // 重新羽化（标题栏同款入口）：新一轮一开始就撤销回落后缀。
+    act(() => {
+      orchestrator.regenerate(CALCULATOR)
+    })
+    await waitFor(() => expect(titleOf()).toBe('计算器'))
+  })
+
   it('shows the cocooning progress with thinking chars while streaming', async () => {
     let releaseStream!: (value: string) => void
     const stream = new ReadableStream<Uint8Array>({
@@ -826,6 +957,17 @@ describe('EclosionTitleExtras（标题栏重新羽化/密码警示）', () => {
     fireEvent.click(screen.getByTestId('eclosion-regenerate'))
     expect(onRegenerate).toHaveBeenCalledWith(CALCULATOR)
     expect(screen.queryByTestId('eclosion-password-warning')).toBeNull()
+  })
+
+  it('disables regenerate/keep/report for a banned app (E3 审查)', () => {
+    const todayApp = 'com.ageha.eclosion.app-01'
+    useEclosionStore.getState().setBannedAppIds([todayApp])
+    render(<EclosionTitleExtras appId={todayApp} windowId="w-extras" onRegenerate={vi.fn()} />)
+
+    expect(screen.getByTestId('eclosion-regenerate')).toBeDisabled()
+    expect(screen.getByTestId('eclosion-keep')).toBeDisabled()
+    expect(screen.getByTestId('eclosion-report')).toBeDisabled()
+    useEclosionStore.getState().setBannedAppIds([])
   })
 
   it('raises the red password warning when the generated content contains a password input', () => {
@@ -1109,5 +1251,21 @@ describe('EclosionAppFrame × 会话封禁（§10 举报后不可再打开）', 
     expect(document.querySelector('iframe')).toBeNull()
     // 编排器侧同样拒绝再开会话（纵深防御）。
     expect(orchestrator.ensureSession(CALCULATOR)).toBeNull()
+  })
+
+  it('appId 变化时重建会话（同一实例被复用也不串台）', () => {
+    const { orchestrator } = makeOrchestrator([])
+    const windowId = useWindowStore.getState().open({ appId: CALCULATOR, title: '计算器' })
+    const ensure = vi.spyOn(orchestrator, 'ensureSession')
+
+    const { rerender } = render(
+      <EclosionAppFrame appId={CALCULATOR} windowId={windowId} title="计算器" orchestrator={orchestrator} />,
+    )
+    expect(ensure).toHaveBeenCalledWith(CALCULATOR)
+
+    rerender(
+      <EclosionAppFrame appId={NOTES} windowId={windowId} title="记事" orchestrator={orchestrator} />,
+    )
+    expect(ensure).toHaveBeenCalledWith(NOTES)
   })
 })

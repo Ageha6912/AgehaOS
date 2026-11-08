@@ -26,6 +26,8 @@ type Feedback = { kind: 'error'; key: string } | { kind: 'ok' } | null
 export function CatalogSection() {
   const { t } = useTranslation()
   const [apps, setApps] = useState<CatalogApp[] | null>(null)
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [reloadKey, setReloadKey] = useState(0)
   const [jsonInput, setJsonInput] = useState('')
   const [feedback, setFeedback] = useState<Feedback>(null)
   const [busy, setBusy] = useState(false)
@@ -35,19 +37,31 @@ export function CatalogSection() {
     void (async () => {
       try {
         const response = await fetch('/api/store/admin/catalog', { credentials: 'same-origin' })
-        if (!response.ok) return
-        const body = (await response.json()) as { apps: CatalogApp[] }
-        if (!cancelled) setApps(body.apps)
+        if (!response.ok) {
+          if (!cancelled) setLoadState('error')
+          return
+        }
+        const body = (await response.json()) as { apps?: unknown }
+        if (!Array.isArray(body.apps)) {
+          if (!cancelled) setLoadState('error')
+          return
+        }
+        if (!cancelled) {
+          setApps(body.apps as CatalogApp[])
+          setLoadState('ready')
+        }
       } catch {
-        /* offline: keep null (loading state) */
+        if (!cancelled) setLoadState('error')
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [reloadKey])
 
   const publish = async (next: CatalogApp[]): Promise<boolean> => {
+    // 未拿到当前目录时禁止发布：服务端是整表替换，单条 PUT 会清空其余条目。
+    if (loadState !== 'ready') return false
     setBusy(true)
     setFeedback(null)
     try {
@@ -59,7 +73,10 @@ export function CatalogSection() {
       })
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { error?: string }
-        setFeedback({ kind: 'error', key: body.error === 'invalid-catalog' ? 'settings.catalogInvalid' : 'auth.error.generic' })
+        setFeedback({
+          kind: 'error',
+          key: body.error === 'invalid-catalog' ? 'settings.catalogInvalid' : 'auth.error.generic',
+        })
         return false
       }
       setApps(next)
@@ -74,6 +91,7 @@ export function CatalogSection() {
   }
 
   const addFromJson = async () => {
+    if (loadState !== 'ready') return
     let entry: CatalogApp
     try {
       entry = JSON.parse(jsonInput) as CatalogApp
@@ -86,6 +104,7 @@ export function CatalogSection() {
   }
 
   const remove = async (id: string) => {
+    if (loadState !== 'ready') return
     await publish((apps ?? []).filter((app) => app.id !== id))
   }
 
@@ -97,7 +116,21 @@ export function CatalogSection() {
       </h2>
       <p className="mb-4 text-xs text-text-muted">{t('settings.catalogHint')}</p>
 
-      {apps === null ? (
+      {loadState === 'error' ? (
+        <div className="mb-4 flex items-center gap-2 text-xs" role="alert">
+          <p className="text-danger">{t('settings.catalogLoadFailed')}</p>
+          <button
+            type="button"
+            className="h-7 rounded-md border border-border px-2.5 text-xs text-text hover:bg-surface-raised"
+            onClick={() => {
+              setLoadState('loading')
+              setReloadKey((key) => key + 1)
+            }}
+          >
+            {t('settings.catalogRetry')}
+          </button>
+        </div>
+      ) : apps === null ? (
         <p className="flex items-center gap-2 text-xs text-text-muted" role="status">
           <span aria-hidden="true" className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
           {t('files.loading')}
@@ -120,7 +153,7 @@ export function CatalogSection() {
               <button
                 type="button"
                 aria-label={`${t('settings.catalogRemove')} ${app.name}`}
-                disabled={busy}
+                disabled={busy || loadState !== 'ready'}
                 onClick={() => void remove(app.id)}
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-raised hover:text-danger disabled:opacity-40"
               >
@@ -137,14 +170,15 @@ export function CatalogSection() {
           placeholder={t('settings.catalogPlaceholder')}
           value={jsonInput}
           onChange={(event) => setJsonInput(event.target.value)}
+          disabled={loadState !== 'ready'}
           rows={5}
           spellCheck={false}
-          className="resize-y rounded-md border border-border bg-surface-raised/60 p-2.5 font-mono text-xs text-text placeholder:text-text-muted focus:border-primary"
+          className="resize-y rounded-md border border-border bg-surface-raised/60 p-2.5 font-mono text-xs text-text placeholder:text-text-muted focus:border-primary disabled:opacity-60"
         />
         <div className="flex items-center gap-2">
           <button
             type="button"
-            disabled={busy || jsonInput.trim() === ''}
+            disabled={busy || loadState !== 'ready' || jsonInput.trim() === ''}
             onClick={() => void addFromJson()}
             className="h-7 rounded-md bg-primary px-2.5 text-xs text-primary-contrast hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -155,7 +189,9 @@ export function CatalogSection() {
               {t(feedback.key as 'auth.error.generic')}
             </p>
           )}
-          {feedback?.kind === 'ok' && <p className="text-xs text-success">{t('settings.catalogSaved')}</p>}
+          {feedback?.kind === 'ok' && (
+            <p className="text-xs text-success">{t('settings.catalogSaved')}</p>
+          )}
         </div>
       </div>
     </section>

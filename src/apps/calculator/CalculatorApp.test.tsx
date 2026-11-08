@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { registerBuiltinApps, resetAppStore } from '@/store/app-store'
+import { resetSpaceStore, useSpaceStore } from '@/store/space-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 
 import { CalculatorApp } from './CalculatorApp'
@@ -51,6 +52,20 @@ describe('CalculatorApp（PRD §26 P1）', () => {
   it('clears back to the initial state', () => {
     for (const key of ['9', '×', '9', '=']) press(key)
     press('C')
+    expect(display()).toBe('0')
+  })
+
+  it('starts a new calculation after equals when a digit is typed', () => {
+    // 2 + 3 =（显示 5）→ 输入 7 → +：应以 7 开始新运算，而不是续算 5 + 7。
+    for (const key of ['2', '+', '3', '=', '7', '+', '1', '=']) press(key)
+    expect(display()).toBe('8')
+  })
+
+  it('backspace from a negative single digit resets to zero', () => {
+    press('5')
+    press('±')
+    expect(display()).toBe('-5')
+    fireEvent.keyDown(window, { key: 'Backspace' })
     expect(display()).toBe('0')
   })
 })
@@ -137,6 +152,7 @@ describe('CalculatorApp × 物理键盘作用域守卫（2026-10-18 修复）', 
     resetAppStore()
     registerBuiltinApps()
     resetWindowStore()
+    resetSpaceStore()
   })
 
   function keydownOn(target: Element): boolean {
@@ -177,6 +193,34 @@ describe('CalculatorApp × 物理键盘作用域守卫（2026-10-18 修复）', 
 
     expect(keydownOn(document.body)).toBe(false)
     expect(display()).toBe('5')
+  })
+
+  it('窗口在非活跃 Space：物理键盘不接管；切回其 Space 后恢复（D2 审查）', () => {
+    const calcId = useWindowStore.getState().open({ appId: 'com.ageha.calculator', title: '计算器' })
+    const otherSpace = useSpaceStore.getState().createSpace('其他桌面')
+    // moveWindowToSpace 明确不动 focused（W3 契约）：隐藏窗口仍挂着监听，
+    // 必须靠 Space 归属判定拦住。
+    useWindowStore.getState().moveWindowToSpace(calcId, otherSpace)
+    render(<CalculatorApp windowId={calcId} />)
+
+    expect(keydownOn(document.body)).toBe(true)
+    expect(display()).toBe('0')
+
+    act(() => {
+      useSpaceStore.getState().switchSpace(otherSpace)
+    })
+    expect(keydownOn(document.body)).toBe(false)
+    expect(display()).toBe('5')
+  })
+
+  it('修饰键组合（Ctrl/⌘/Alt + 数字）不被吞（D2 审查）', () => {
+    const calcId = useWindowStore.getState().open({ appId: 'com.ageha.calculator', title: '计算器' })
+    render(<CalculatorApp windowId={calcId} />)
+
+    expect(fireEvent.keyDown(document.body, { key: '1', ctrlKey: true })).toBe(true)
+    expect(fireEvent.keyDown(document.body, { key: '1', metaKey: true })).toBe(true)
+    expect(fireEvent.keyDown(document.body, { key: '1', altKey: true })).toBe(true)
+    expect(display()).toBe('0')
   })
 
   it('无 windowId（直接挂载/预览）：回退为视为聚焦，既有行为不变', () => {

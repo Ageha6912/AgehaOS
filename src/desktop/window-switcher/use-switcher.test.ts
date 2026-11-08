@@ -321,14 +321,15 @@ describe('window switcher 状态机（W6 边缘态 + W12 Windows 语义）', () 
     expect(machine.getState().windows.find((entry) => entry.id === 'c')?.focused).toBe(false)
   })
 
-  it('cancel：关面板零聚焦指令（Esc/backdrop/blur 语义，不切换）', () => {
+  it('cancel：关面板并回焦打开前的聚焦窗（Esc/backdrop/blur 语义，不切换）', () => {
     const { machine, applied } = createSpyMachine()
     machine.open(twoWindows())
     applied.length = 0 // open 的即时聚焦已单独断言过，这里只看 cancel
 
     machine.cancel()
 
-    expect(applied).toEqual([])
+    // 取消=不切换：open 已把焦点移到预览窗（a），cancel 必须还给 b。
+    expect(applied).toEqual([{ windowId: 'b', minimized: false }])
     expect(machine.getState().open).toBe(false)
   })
 })

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Trash } from '@phosphor-icons/react'
 
 import { AppIcon } from '@/apps/app-icon'
+import { requestMotionClose } from '@/desktop/window/use-window-motion'
 import { componentFor } from '@/apps/builtin'
 import { requestFilesTrash } from '@/apps/app-deep-link'
 import { launchApp } from '@/apps/launch'
@@ -174,6 +175,13 @@ export function Taskbar() {
     }
   }
   const scheduleEndHover = (): void => {
+    // 离开图标时先取消尚未触发的悬停计时：否则指针在 HOVER_DELAY_MS 内
+    // 掠过瓷砖后，计时器仍会把 hoveredId 置回，预览在指针已离开后弹出且
+    // 再没有 mouseleave 来收卡（悬空浮现）。
+    if (hoverTimer.current !== null) {
+      window.clearTimeout(hoverTimer.current)
+      hoverTimer.current = null
+    }
     if (endHoverTimer.current !== null) window.clearTimeout(endHoverTimer.current)
     endHoverTimer.current = window.setTimeout(() => {
       endHoverTimer.current = null
@@ -303,10 +311,10 @@ export function Taskbar() {
                       onMouseEnter={cancelEndHover}
                       onMouseLeave={scheduleEndHover}
                       onSwitch={() =>
-                        toggleWindow(latest.id, latest.focused, latest.state === 'minimized')
+                        latest.state === 'minimized' ? restore(latest.id) : focus(latest.id)
                       }
                       onClose={() => {
-                        useWindowStore.getState().close(latest.id)
+                        requestMotionClose(latest.id)
                         endHover()
                       }}
                     />
@@ -401,9 +409,11 @@ export function Taskbar() {
                       anchorLeft={anchorLeft}
                       onMouseEnter={cancelEndHover}
                       onMouseLeave={scheduleEndHover}
-                      onSwitch={() => toggleWindow(win.id, win.focused, win.state === 'minimized')}
+                      onSwitch={() =>
+                        win.state === 'minimized' ? restore(win.id) : focus(win.id)
+                      }
                       onClose={() => {
-                        useWindowStore.getState().close(win.id)
+                        requestMotionClose(win.id)
                         endHover()
                       }}
                     />

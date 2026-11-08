@@ -90,6 +90,8 @@ export interface WindowSwitcherMachine {
 
 export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine {
   let state: WindowSwitcherState = { open: false, selectedId: null, windows: [] }
+  /** 打开前的聚焦窗：cancel（Esc/backdrop/blur）回焦，兑现「取消=不切换」。 */
+  let restoreFocusId: string | null = null
   const listeners = new Set<() => void>()
 
   function commitState(next: WindowSwitcherState): void {
@@ -118,6 +120,7 @@ export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine 
   function commitSelected(windows: SwitcherWindow[]): SwitcherCommitDirective | null {
     if (!state.open) return null
     if (windows.length === 0) {
+      restoreFocusId = null
       close()
       return null
     }
@@ -127,6 +130,7 @@ export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine 
         : carryForward(state.windows, windows)
     const target = windows.find((win) => win.id === selectedId)
     if (!target) {
+      restoreFocusId = null
       close()
       return null
     }
@@ -135,6 +139,7 @@ export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine 
       minimized: target.state === 'minimized',
     }
     if (directive.minimized || !target.focused) deps.applyFocus(directive)
+    restoreFocusId = null
     close()
     return directive
   }
@@ -152,6 +157,7 @@ export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine 
     open(windows) {
       // 0 窗不开面板；1 窗轻点 no-op 且按住也不开（W6 边缘态钉扎，W11 沿用）。
       if (state.open || windows.length < 2) return
+      restoreFocusId = windows.find((win) => win.focused && win.state !== 'minimized')?.id ?? null
       // W11：选中=**z 序下一位**（相对当前聚焦窗，wrap；无聚焦回落 z 顶）——
       // 替代 W6 的「预选当前聚焦窗」（旧实现靠 keydown 先跑 cycleWindows 落焦点，
       // 新交互 keydown 只开面板，z-next 选择内聚到状态机）。
@@ -199,6 +205,12 @@ export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine 
     },
 
     cancel() {
+      const focusId = restoreFocusId
+      restoreFocusId = null
+      // 取消=不切换：open/cycle 已把焦点移到预览中的窗口，必须回焦原窗。
+      if (state.open && focusId !== null) {
+        deps.applyFocus({ windowId: focusId, minimized: false })
+      }
       close()
     },
 
@@ -206,6 +218,7 @@ export function createWindowSwitcher(deps: SwitcherDeps): WindowSwitcherMachine 
       if (!state.open) return
       // 面板开启期间窗都被关到 <2：面板失去存在意义，自动关（不提交）。
       if (windows.length < 2) {
+        restoreFocusId = null
         close()
         return
       }

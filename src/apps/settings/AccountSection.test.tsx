@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { systemAuthService } from '@/core/auth'
+import { setAuthProvider, systemAuthService } from '@/core/auth'
+import type { AuthProvider } from '@/core/auth'
 import { fileToAvatarDataUrl } from '@/core/auth/avatar'
 
+import type { LoginResult } from '@/store/session-store'
 import { resetSessionStore, seedSessionForTests, useSessionStore } from '@/store/session-store'
 
 import { AccountSection } from './AccountSection'
@@ -26,6 +28,10 @@ beforeEach(() => {
   resetSessionStore()
 })
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 /** Registers AND signs in, so the local provider has a live session. */
 async function seedUser(): Promise<void> {
   userCounter += 1
@@ -33,6 +39,29 @@ async function seedUser(): Promise<void> {
   await systemAuthService.register(username, 'secret123')
   const { user } = await systemAuthService.login(username, 'secret123')
   seedSessionForTests(user)
+}
+
+function makeProvider(overrides: Partial<AuthProvider> = {}): AuthProvider {
+  return {
+    register: async () => {
+      throw new Error('unused')
+    },
+    login: async () => {
+      throw new Error('unused')
+    },
+    logout: () => null,
+    getSession: () => null,
+    getUser: () => null,
+    reconcile: async () => null,
+    updateProfile: async () => {
+      throw new Error('unused')
+    },
+    changePassword: async () => {},
+    revokeOtherSessions: async () => 0,
+    listSessions: async () => [],
+    revokeSession: async () => {},
+    ...overrides,
+  }
 }
 
 describe('AccountSection', () => {
@@ -100,14 +129,95 @@ describe('AccountSection', () => {
     expect(login.user.username).toBe(current?.username)
   })
 
-  it('revokes other sessions and shows the confirmation', async () => {
+  it('revokes other sessions after confirmation and shows the result', async () => {
     await seedUser()
-    render(<AccountSection />)
+    setAuthProvider(makeProvider())
+    try {
+      render(<AccountSection />)
 
-    await userEvent.click(screen.getByRole('button', { name: '登出其他设备' }))
-    await waitFor(() =>
-      expect(screen.getAllByRole('status')[0]).toHaveTextContent('已登出其他设备的会话'),
+      await userEvent.click(screen.getByRole('button', { name: '登出其他设备' }))
+      // 危险操作二次确认（D2 审查）：取消不执行。
+      const dialog = screen.getByRole('dialog', { name: '登出其他设备' })
+      expect(
+        within(dialog).getByText('登出该账户的全部其他会话？这些设备需要重新登录。'),
+      ).toBeInTheDocument()
+
+      await userEvent.click(within(dialog).getByRole('button', { name: '登出其他设备' }))
+      await waitFor(() =>
+        expect(screen.getAllByRole('status')[0]).toHaveTextContent('已登出其他设备的会话'),
+      )
+    } finally {
+      setAuthProvider(null)
+    }
+  })
+
+  it('does not revoke when the confirmation is cancelled', async () => {
+    await seedUser()
+    setAuthProvider(makeProvider())
+    const revoke = vi.spyOn(systemAuthService, 'revokeOtherSessions')
+    try {
+      render(<AccountSection />)
+
+      await userEvent.click(screen.getByRole('button', { name: '登出其他设备' }))
+      await userEvent.click(
+        within(screen.getByRole('dialog', { name: '登出其他设备' })).getByRole('button', {
+          name: '取消',
+        }),
+      )
+      expect(revoke).not.toHaveBeenCalled()
+      expect(screen.queryByRole('dialog')).toBeNull()
+    } finally {
+      revoke.mockRestore()
+      setAuthProvider(null)
+    }
+  })
+
+  it('disables profile actions while a save is in flight (D2 审查)', async () => {
+    await seedUser()
+    let resolveSave: (result: LoginResult) => void = () => {}
+    const pending = new Promise<LoginResult>((resolve) => {
+      resolveSave = resolve
+    })
+    vi.spyOn(useSessionStore.getState(), 'updateProfile').mockImplementation(() => pending)
+
+    render(<AccountSection />)
+    await userEvent.click(screen.getByRole('button', { name: '保存资料' }))
+
+    expect(screen.getByRole('button', { name: '保存资料' })).toBeDisabled()
+    resolveSave({ ok: true })
+    await waitFor(() => expect(screen.getByRole('button', { name: '保存资料' })).toBeEnabled())
+  })
+
+  it('refreshes the session list after revoking other sessions (remote)', async () => {
+    seedSessionForTests({ id: 'u-remote', username: 'remote', createdAt: '', updatedAt: '' })
+    const revokeOtherSessions = vi.fn(async () => 1)
+    setAuthProvider(
+      makeProvider({
+        listSessions: async () => [
+          { id: 's1', device: 'Mac', createdAt: null, current: true },
+          { id: 's2', device: 'iPad', createdAt: null, current: false },
+        ],
+        revokeOtherSessions,
+      }),
     )
+    try {
+      render(<AccountSection />)
+      await waitFor(() => expect(screen.getAllByTestId('session-row')).toHaveLength(2))
+
+      await userEvent.click(screen.getByRole('button', { name: '登出其他设备' }))
+      await userEvent.click(
+        within(screen.getByRole('dialog', { name: '登出其他设备' })).getByRole('button', {
+          name: '登出其他设备',
+        }),
+      )
+
+      await waitFor(() => expect(revokeOtherSessions).toHaveBeenCalledTimes(1))
+      // 其他会话已失效：列表只保留本设备（此前成功后列表不刷新）。
+      await waitFor(() => expect(screen.getAllByTestId('session-row')).toHaveLength(1))
+      expect(screen.queryByText('iPad')).toBeNull()
+    } finally {
+      setAuthProvider(null)
+    }
   })
 
   it('sets and removes the avatar through the picker', async () => {
@@ -152,7 +262,9 @@ describe('AccountSection', () => {
 
     expect(screen.queryByTestId('session-list')).toBeNull()
     expect(screen.queryByTestId('settings-sync-toggle')).toBeNull()
-    expect(screen.getByRole('button', { name: '登出其他设备' })).toBeInTheDocument()
+    // 本地 provider 恒返回 0：旧实现点击后仍提示「已登出其他设备」，
+    // 实际什么都没发生。本机只有一个会话，整块不摆（D2 审查）。
+    expect(screen.queryByRole('button', { name: '登出其他设备' })).toBeNull()
   })
 })
 

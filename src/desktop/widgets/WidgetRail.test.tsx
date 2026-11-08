@@ -169,6 +169,21 @@ describe('WidgetRail (STEP 4 Floating System Center)', () => {
     expect(screen.getByTestId('widgets-system-network').textContent).toContain('网络')
   })
 
+  it('skips metrics sampling while the rail is hidden below xl (E2 审查)', () => {
+    const query = { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }
+    vi.stubGlobal('matchMedia', vi.fn(() => query))
+    const raf = vi.spyOn(window, 'requestAnimationFrame')
+    try {
+      render(<WidgetRail />)
+      // 5s 采样周期 × 2：隐藏时连 rAF 链都不该启动。
+      act(() => vi.advanceTimersByTime(10_000))
+      expect(raf).not.toHaveBeenCalled()
+    } finally {
+      raf.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('lists the two most recent notifications newest-first with no dead center entry', () => {
     const push = useNotificationStore.getState().push
     push({ appId: 'com.ageha.notes', title: '应用更新', body: '3 个应用可更新' })

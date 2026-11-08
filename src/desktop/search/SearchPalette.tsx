@@ -109,6 +109,9 @@ export function SearchPalette() {
   const imagineVisible =
     eclosionEnabled && trimmed.length >= 2 && filterContentText(trimmed).ok
   const total = recentHits.length + appHits.length + fileHits.length + (imagineVisible ? 1 : 0)
+  // 结果收缩时把激活项钳在有效区间（E2 审查）：旧实现 ArrowDown 在 total=0
+  // 时得到 -1，之后结果异步到达也没有行 active，Enter 可能误走想象域分支。
+  const activeIndex = Math.min(active, Math.max(total - 1, 0))
   const openApp = (appId: string): void => {
     launchApp(appId)
     close()
@@ -126,13 +129,13 @@ export function SearchPalette() {
     close()
   }
   const openActive = (): void => {
-    if (active < recentHits.length) {
-      const hit = recentHits[active]
+    if (activeIndex < recentHits.length) {
+      const hit = recentHits[activeIndex]
       if (hit) openApp(hit.id)
-    } else if (active < recentHits.length + appHits.length) {
-      const hit = appHits[active - recentHits.length]
+    } else if (activeIndex < recentHits.length + appHits.length) {
+      const hit = appHits[activeIndex - recentHits.length]
       if (hit) openApp(hit.id)
-    } else if (active < recentHits.length + appHits.length + fileHits.length) {
+    } else if (activeIndex < recentHits.length + appHits.length + fileHits.length) {
       if (fileHits.length > 0) openFile()
     } else if (imagineVisible) {
       generateImagine()
@@ -150,7 +153,7 @@ export function SearchPalette() {
     testId: string,
     onOpen: () => void,
   ) => {
-    const isActive = flatIndex === active
+    const isActive = flatIndex === activeIndex
     return (
       <li key={hit.id}>
         <button
@@ -214,7 +217,8 @@ export function SearchPalette() {
                 close()
               } else if (event.key === 'ArrowDown') {
                 event.preventDefault()
-                setActive((index) => Math.min(index + 1, total - 1))
+                // total=0 时保持 0（旧实现给 -1）。
+                setActive((index) => Math.min(index + 1, Math.max(total - 1, 0)))
               } else if (event.key === 'ArrowUp') {
                 event.preventDefault()
                 setActive((index) => Math.max(index - 1, 0))
@@ -268,7 +272,7 @@ export function SearchPalette() {
               <ul>
                 {fileHits.map((hit, index) => {
                   const flatIndex = recentHits.length + appHits.length + index
-                  const isActive = flatIndex === active
+                  const isActive = flatIndex === activeIndex
                   return (
                     <li key={hit.path}>
                       <button
@@ -310,7 +314,7 @@ export function SearchPalette() {
                     data-testid="search-result-imagine"
                     aria-label={formatMessage(t('search.imagineItem'), { query: trimmed })}
                     className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm ${
-                      total - 1 === active ? 'bg-primary/10 text-text' : 'text-text hover:bg-surface-raised'
+                      total - 1 === activeIndex ? 'bg-primary/10 text-text' : 'text-text hover:bg-surface-raised'
                     }`}
                     onMouseEnter={() => setActive(total - 1)}
                     onClick={generateImagine}
@@ -321,7 +325,7 @@ export function SearchPalette() {
                     <span className="min-w-0 truncate">
                       {formatMessage(t('search.imagineItem'), { query: trimmed })}
                     </span>
-                    {total - 1 === active && (
+                    {total - 1 === activeIndex && (
                       <span className="ml-auto shrink-0">
                         <Kbd>↵</Kbd>
                       </span>

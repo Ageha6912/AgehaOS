@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { systemBus } from '@/core/events'
@@ -180,6 +180,81 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
     await waitFor(() => expect(screen.getByTestId('panel-tip-body').textContent).toContain('随机度'))
     expect(decisionSpy).toHaveBeenCalledWith({ domain: 'content', source: 'llm' })
     expect(screen.getByTestId('panel-decision-source').textContent).toBe('生成于 云端 AI')
+    // 卡片徽标必须与底栏一致（D2 审查：旧实现写死「本机」）。
+    expect(within(screen.getByTestId('panel-card-tip')).getByText(/云端 AI/)).toBeInTheDocument()
+  })
+
+  it('ignores a stale LLM response that resolves after a newer assembly (D2 审查)', async () => {
+    useDynamicDesktopStore.setState({
+      prefs: {
+        enabled: true,
+        randomness: 40,
+        hideBadge: false,
+        pinned: null,
+        blockedStyles: [],
+        llmEnhance: true,
+      },
+    })
+    const pending: Array<(items: unknown[]) => void> = []
+    requestAiSlots.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pending.push(resolve as (items: unknown[]) => void)
+        }),
+    )
+    render(<DynamicPanelApp />)
+    await waitFor(() => expect(screen.getByTestId('panel-tip-body')).toBeInTheDocument())
+    await waitFor(() => expect(pending.length).toBe(1))
+
+    fireEvent.click(screen.getByTestId('dynamic-panel-refresh'))
+    await waitFor(() => expect(pending.length).toBe(2))
+
+    // 新装配先返回；旧响应随后到达，不得覆盖新内容。
+    act(() => pending[1]?.([{ slotId: 'tip', text: '新装配文本：今天适合整理桌面。' }]))
+    await waitFor(() =>
+      expect(screen.getByTestId('panel-tip-body').textContent).toContain('新装配文本'),
+    )
+    act(() => pending[0]?.([{ slotId: 'tip', text: '旧装配文本：应被丢弃。' }]))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('panel-tip-body').textContent).toContain('新装配文本')
+    expect(screen.getByTestId('panel-tip-body').textContent).not.toContain('旧装配文本')
+  })
+
+  it('drops an in-flight LLM tip after llmEnhance is switched off (D2 审查)', async () => {
+    useDynamicDesktopStore.setState({
+      prefs: {
+        enabled: true,
+        randomness: 40,
+        hideBadge: false,
+        pinned: null,
+        blockedStyles: [],
+        llmEnhance: true,
+      },
+    })
+    let resolveTip: (items: unknown[]) => void = () => {}
+    requestAiSlots.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveTip = resolve as (items: unknown[]) => void
+        }),
+    )
+    render(<DynamicPanelApp />)
+    await waitFor(() => expect(screen.getByTestId('panel-tip-body')).toBeInTheDocument())
+
+    act(() => {
+      useDynamicDesktopStore.setState({
+        prefs: { ...useDynamicDesktopStore.getState().prefs, llmEnhance: false },
+      })
+    })
+    act(() => resolveTip([{ slotId: 'tip', text: '关闭后到达的文本：不应出现。' }]))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByTestId('panel-tip-body').textContent).not.toContain('不应出现')
+    expect(screen.getByTestId('panel-decision-source').textContent).toBe('生成于 本机')
   })
 
   it('falls back to the cached slot when the LLM call fails', async () => {
@@ -201,6 +276,7 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
 
     await waitFor(() => expect(screen.getByTestId('panel-tip-body').textContent).toContain('数据不会离开'))
     expect(screen.getByTestId('panel-decision-source').textContent).toBe('生成于 本机缓存')
+    expect(within(screen.getByTestId('panel-card-tip')).getByText(/本机缓存/)).toBeInTheDocument()
   })
 
   it('renders filter-passed free text with a report takedown (Phase C / §8.6)', async () => {
@@ -310,6 +386,42 @@ describe('DynamicPanelApp（DDS §5.1 域③，Phase B 本地切片）', () => {
       const items = useNotificationStore.getState().items
       expect(items[0]?.titleKey).toBe('cards.tip.uploadFailedTitle')
       expect(items[0]?.bodyKey).toBe('cards.tip.uploadFailedBody')
+    })
+
+    it('aborts a hung upload so the consent dialog cannot stay busy forever (D2 审查)', async () => {
+      remoteAuth.active = true
+      enableFreeTextTip()
+      const fetchMock = vi.fn(
+        (_url: string | URL | Request, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+              const error = new Error('aborted')
+              error.name = 'AbortError'
+              reject(error)
+            })
+          }),
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      await reportFreeText()
+      vi.useFakeTimers()
+      try {
+        fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
+        act(() => {
+          vi.advanceTimersByTime(15_000)
+        })
+        await act(async () => {
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+
+        expect(screen.queryByRole('dialog')).toBeNull()
+        const items = useNotificationStore.getState().items
+        expect(items[0]?.titleKey).toBe('cards.tip.uploadFailedTitle')
+        expect((fetchMock.mock.calls[0]?.[1] as RequestInit).signal).toBeInstanceOf(AbortSignal)
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 })

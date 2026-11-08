@@ -54,6 +54,17 @@ export function paintFrame(
 
   const stops = planStops(plan)
 
+  // 底色先铺（B3 审查：F3 静态渐变 shapes:[] 时画布全透明——用户见的是
+  // 下层照片基底而非石墨渐变；其余 plan 也受益于不依赖首个 sky 形状）。
+  if (plan.shapes.every((shape) => shape.kind !== 'sky')) {
+    const base = ctx.createLinearGradient(0, 0, 0, height)
+    stops.forEach((stop, index) => {
+      base.addColorStop(stops.length === 1 ? 0 : index / (stops.length - 1), stop)
+    })
+    ctx.fillStyle = base
+    ctx.fillRect(0, 0, width, height)
+  }
+
   for (const shape of plan.shapes) {
     switch (shape.kind) {
       // —— 山水场景图层（v2）：确定性绘制，无漂移 ——
@@ -214,31 +225,91 @@ export function paintFrame(
  * 启动绘制循环：静态（animate=false 或低档）只画一帧；动画档按目标帧率节流的慢漂移，
  * 并按 §7.3 相对阈值做 FPS 降级判定（暂停动画 → 切静态 + 事件）。返回清理函数。
  */
+/**
+ * 画布尺寸跟随视口 + DPR（E2 审查）：旧实现只在启动时 resize 一次，窗口缩放
+ * 后 backing store 仍旧尺寸（位图拉伸模糊），挂载时容器 0 尺寸会永久停在
+ * 1280×720 兜底，换 DPR 显示器也不重算。返回 true = 尺寸确实变了。
+ */
+function resizeCanvas(canvas: HTMLCanvasElement): boolean {
+  const ratio = Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2)
+  // 容器尚未布局（client 0）时先用兜底，ResizeObserver 会在布局后补一次。
+  const w = canvas.clientWidth || 1280
+  const h = canvas.clientHeight || 720
+  const width = Math.max(1, Math.round(w * ratio))
+  const height = Math.max(1, Math.round(h * ratio))
+  if (canvas.width === width && canvas.height === height) return false
+  canvas.width = width
+  canvas.height = height
+  return true
+}
+
+/**
+ * 监听尺寸/DPR 变化（ResizeObserver 优先，window resize 兜底；DPR 变化在
+ * 部分浏览器只触发 matchMedia 的 resolution 媒体查询）。返回清理函数。
+ */
+function watchViewport(canvas: HTMLCanvasElement, onChange: () => void): () => void {
+  let observer: ResizeObserver | null = null
+  if (typeof ResizeObserver !== 'undefined') {
+    observer = new ResizeObserver(() => onChange())
+    observer.observe(canvas)
+  }
+  const onWindowResize = (): void => onChange()
+  if (typeof window !== 'undefined') window.addEventListener('resize', onWindowResize)
+
+  let cancelled = false
+  let dprQuery: MediaQueryList | null = null
+  const onDprChange = (): void => {
+    if (cancelled) return
+    onChange()
+    bindDpr()
+  }
+  const bindDpr = (): void => {
+    if (cancelled) return
+    try {
+      const query = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
+      dprQuery?.removeEventListener?.('change', onDprChange)
+      dprQuery = query
+      dprQuery.addEventListener?.('change', onDprChange)
+    } catch {
+      dprQuery = null
+    }
+  }
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') bindDpr()
+
+  return () => {
+    cancelled = true
+    observer?.disconnect()
+    if (typeof window !== 'undefined') window.removeEventListener('resize', onWindowResize)
+    dprQuery?.removeEventListener?.('change', onDprChange)
+  }
+}
+
 export function drawPlan(
   canvas: HTMLCanvasElement,
   ctx: CanvasRenderingContext2D,
   plan: WallpaperPlan,
   options: DrawOptions,
 ): () => void {
-  const resize = () => {
-    const ratio = Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2)
-    const w = canvas.clientWidth || 1280
-    const h = canvas.clientHeight || 720
-    canvas.width = Math.max(1, Math.round(w * ratio))
-    canvas.height = Math.max(1, Math.round(h * ratio))
-  }
-  resize()
+  resizeCanvas(canvas)
 
   const targetFps = TIER_TARGET_FPS[options.tier]
   if (!options.animate || targetFps <= 0 || plan.animation.kind === 'none') {
-    if (plan.style === 'gradient-field') {
-      const composition =
-        plan.fieldId !== undefined ? fieldCompositionById(plan.fieldId) : undefined
-      if (composition) drawGradientField(ctx, canvas.width, canvas.height, composition, plan.seed)
-      return () => undefined
+    const paintStatic = (): void => {
+      if (plan.style === 'gradient-field') {
+        const composition =
+          plan.fieldId !== undefined ? fieldCompositionById(plan.fieldId) : undefined
+        if (composition) {
+          drawGradientField(ctx, canvas.width, canvas.height, composition, plan.seed)
+        }
+        return
+      }
+      paintFrame(ctx, canvas.width, canvas.height, plan, 0)
     }
-    paintFrame(ctx, canvas.width, canvas.height, plan, 0)
-    return () => undefined
+    paintStatic()
+    const unwatch = watchViewport(canvas, () => {
+      if (resizeCanvas(canvas)) paintStatic()
+    })
+    return unwatch
   }
 
   const requestFrame =
@@ -273,8 +344,13 @@ export function drawPlan(
     handle = requestFrame(loop)
   }
   handle = requestFrame(loop)
+  // 动画帧每帧读 canvas.width/height：尺寸/DPR 变化在下一帧自动生效。
+  const unwatch = watchViewport(canvas, () => {
+    resizeCanvas(canvas)
+  })
   return () => {
     stopped = true
     cancelFrame(handle)
+    unwatch()
   }
 }

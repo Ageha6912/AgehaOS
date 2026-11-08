@@ -7,6 +7,7 @@ import { AuthError, isRemoteAuthActive, systemAuthService } from '@/core/auth'
 import type { SessionInfo } from '@/core/auth'
 import { useSessionStore } from '@/store/session-store'
 import { isSyncEnabled, setSyncEnabled } from '@/services/settings-sync'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ToggleSwitch } from '@/components/toggle-switch'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -44,6 +45,14 @@ export function AccountSection() {
   const [passwordNotice, setPasswordNotice] = useState<MessageKey | null>(null)
 
   const [revokeNotice, setRevokeNotice] = useState<MessageKey | null>(null)
+  // 危险操作二次确认 + 在途禁用（D2 审查：此前单击即登出其他设备）。
+  const [confirmRevoke, setConfirmRevoke] = useState(false)
+  const [revoking, setRevoking] = useState(false)
+  // 账户操作在途禁用（D2 审查）：连点两次改密会用旧密码再打一次，成功提示
+  // 随后被「当前密码错误」覆盖；资料/头像同理。
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [savingPassword, setSavingPassword] = useState(false)
+  const [revokingSessionId, setRevokingSessionId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [syncOn, setSyncOn] = useState(isSyncEnabled())
@@ -62,9 +71,15 @@ export function AccountSection() {
   if (!user) return null
 
   const applyAvatar = async (dataUrl: string | null): Promise<void> => {
+    if (savingProfile) return
     setProfileNotice(null)
-    const result = await updateProfile({ avatar: dataUrl })
-    if (!result.ok) setProfileNotice(actionErrorKey(result.error))
+    setSavingProfile(true)
+    try {
+      const result = await updateProfile({ avatar: dataUrl })
+      if (!result.ok) setProfileNotice(actionErrorKey(result.error))
+    } finally {
+      setSavingProfile(false)
+    }
   }
 
   const onAvatarFile = async (file: File | undefined): Promise<void> => {
@@ -79,19 +94,26 @@ export function AccountSection() {
   }
 
   const saveProfile = async (): Promise<void> => {
+    if (savingProfile) return
     setProfileNotice(null)
     if (email !== '' && !EMAIL_PATTERN.test(email)) {
       setProfileNotice('settings.account.emailInvalid')
       return
     }
-    const result = await updateProfile({
-      displayName: displayName.trim() === '' ? null : displayName.trim(),
-      email: email.trim() === '' ? null : email.trim(),
-    })
-    setProfileNotice(result.ok ? 'settings.account.saved' : actionErrorKey(result.error))
+    setSavingProfile(true)
+    try {
+      const result = await updateProfile({
+        displayName: displayName.trim() === '' ? null : displayName.trim(),
+        email: email.trim() === '' ? null : email.trim(),
+      })
+      setProfileNotice(result.ok ? 'settings.account.saved' : actionErrorKey(result.error))
+    } finally {
+      setSavingProfile(false)
+    }
   }
 
   const submitPassword = async (): Promise<void> => {
+    if (savingPassword) return
     setPasswordNotice(null)
     if (newPassword.length < 6) {
       setPasswordNotice('auth.error.weakPassword')
@@ -101,21 +123,50 @@ export function AccountSection() {
       setPasswordNotice('settings.account.passwordMismatch')
       return
     }
-    const result = await changePassword(currentPassword, newPassword)
-    if (result.ok) {
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-      setPasswordNotice('settings.account.passwordChanged')
-    } else {
-      setPasswordNotice(actionErrorKey(result.error))
+    setSavingPassword(true)
+    try {
+      const result = await changePassword(currentPassword, newPassword)
+      if (result.ok) {
+        setCurrentPassword('')
+        setNewPassword('')
+        setConfirmPassword('')
+        setPasswordNotice('settings.account.passwordChanged')
+      } else {
+        setPasswordNotice(actionErrorKey(result.error))
+      }
+    } finally {
+      setSavingPassword(false)
+    }
+  }
+
+  const revokeSession = async (id: string): Promise<void> => {
+    if (revokingSessionId !== null) return
+    setRevokeNotice(null)
+    setRevokingSessionId(id)
+    try {
+      await systemAuthService.revokeSession(id)
+      setSessions((previous) => previous.filter((row) => row.id !== id))
+    } catch {
+      setRevokeNotice('auth.error.generic')
+    } finally {
+      setRevokingSessionId(null)
     }
   }
 
   const revokeOthers = async (): Promise<void> => {
     setRevokeNotice(null)
+    setRevoking(true)
     const result = await revokeOtherSessions()
-    setRevokeNotice(result.ok ? 'settings.account.revokeDone' : actionErrorKey(result.error))
+    setRevoking(false)
+    setConfirmRevoke(false)
+    if (result.ok) {
+      setRevokeNotice('settings.account.revokeDone')
+      // 其他会话已撤销：列表只保留当前会话（此前成功后列表不刷新，用户以为
+      // 其他设备仍在线，且还能对已失效会话重复点「撤下」——D2 审查）。
+      setSessions((previous) => previous.filter((row) => row.current))
+    } else {
+      setRevokeNotice(actionErrorKey(result.error))
+    }
   }
 
   const fieldClass =
@@ -157,7 +208,8 @@ export function AccountSection() {
             <button
               type="button"
               data-testid="avatar-change"
-              className="rounded-md border border-border px-3 py-1.5 text-xs text-text hover:bg-surface-raised"
+              disabled={savingProfile}
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-text hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-40"
               onClick={() => fileInputRef.current?.click()}
             >
               {t('settings.account.avatarChange')}
@@ -166,7 +218,8 @@ export function AccountSection() {
               <button
                 type="button"
                 data-testid="avatar-remove"
-                className="rounded-md px-3 py-1.5 text-xs text-text-muted hover:bg-surface-raised hover:text-text"
+                disabled={savingProfile}
+                className="rounded-md px-3 py-1.5 text-xs text-text-muted hover:bg-surface-raised hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
                 onClick={() => void applyAvatar(null)}
               >
                 {t('settings.account.avatarRemove')}
@@ -203,7 +256,10 @@ export function AccountSection() {
             id="account-display-name"
             value={displayName}
             maxLength={32}
-            onChange={(event) => setDisplayName(event.target.value)}
+            onChange={(event) => {
+              setDisplayName(event.target.value)
+              setProfileNotice(null)
+            }}
             className={fieldClass}
           />
           <p className="mt-1 text-xs text-text-muted">{t('settings.account.displayNameHint')}</p>
@@ -217,14 +273,18 @@ export function AccountSection() {
             type="email"
             value={email}
             maxLength={254}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) => {
+              setEmail(event.target.value)
+              setProfileNotice(null)
+            }}
             className={fieldClass}
           />
         </div>
         <div className="flex items-center gap-3">
           <button
             type="button"
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-contrast hover:opacity-90"
+            disabled={savingProfile}
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-contrast hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             onClick={() => void saveProfile()}
           >
             {t('settings.account.save')}
@@ -248,7 +308,10 @@ export function AccountSection() {
               id="account-current-password"
               type="password"
               value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
+              onChange={(event) => {
+                setCurrentPassword(event.target.value)
+                setPasswordNotice(null)
+              }}
               className={fieldClass}
             />
           </div>
@@ -260,7 +323,10 @@ export function AccountSection() {
               id="account-new-password"
               type="password"
               value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
+              onChange={(event) => {
+                setNewPassword(event.target.value)
+                setPasswordNotice(null)
+              }}
               className={fieldClass}
             />
           </div>
@@ -272,14 +338,18 @@ export function AccountSection() {
               id="account-confirm-password"
               type="password"
               value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
+              onChange={(event) => {
+                setConfirmPassword(event.target.value)
+                setPasswordNotice(null)
+              }}
               className={fieldClass}
             />
           </div>
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-contrast hover:opacity-90"
+              disabled={savingPassword}
+              className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-contrast hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
               onClick={() => void submitPassword()}
             >
               {t('settings.account.updatePassword')}
@@ -320,13 +390,9 @@ export function AccountSection() {
                   <button
                     type="button"
                     data-testid="session-revoke"
-                    className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] text-text-muted hover:bg-surface-raised hover:text-text"
-                    onClick={() => {
-                      void systemAuthService
-                        .revokeSession(session.id)
-                        .then(() => setSessions((prev) => prev.filter((row) => row.id !== session.id)))
-                        .catch(() => setRevokeNotice('auth.error.generic'))
-                    }}
+                    disabled={revokingSessionId !== null}
+                    className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] text-text-muted hover:bg-surface-raised hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={() => void revokeSession(session.id)}
                   >
                     {t('settings.account.sessionRevoke')}
                   </button>
@@ -336,21 +402,27 @@ export function AccountSection() {
           </ul>
         )}
 
-        <p className="mb-3 text-xs text-text-muted">{t('settings.account.revokeOthersHint')}</p>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-text hover:bg-surface-raised"
-            onClick={() => void revokeOthers()}
-          >
-            {t('settings.account.revokeOthers')}
-          </button>
-          {revokeNotice && (
-            <p role="status" className="text-xs text-text-muted">
-              {t(revokeNotice)}
-            </p>
-          )}
-        </div>
+        {/* 本地认证恒只有一个会话：不摆「登出其他设备」（本地 provider 恒返回
+            0，旧实现会提示成功但什么都没发生——D2 审查）。 */}
+        {isRemoteAuthActive() && (
+          <>
+            <p className="mb-3 text-xs text-text-muted">{t('settings.account.revokeOthersHint')}</p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-1.5 text-xs text-text hover:bg-surface-raised"
+                onClick={() => setConfirmRevoke(true)}
+              >
+                {t('settings.account.revokeOthers')}
+              </button>
+              {revokeNotice && (
+                <p role="status" className="text-xs text-text-muted">
+                  {t(revokeNotice)}
+                </p>
+              )}
+            </div>
+          </>
+        )}
 
         {isRemoteAuthActive() && (
           <div className="mt-4 border-t border-border pt-3">
@@ -371,6 +443,18 @@ export function AccountSection() {
           </div>
         )}
       </div>
+
+      {confirmRevoke && (
+        <ConfirmDialog
+          title={t('settings.account.revokeOthers')}
+          body={t('settings.account.revokeConfirm')}
+          confirmLabel={t('settings.account.revokeOthers')}
+          cancelLabel={t('settings.account.revokeCancel')}
+          busy={revoking}
+          onConfirm={() => void revokeOthers()}
+          onCancel={() => setConfirmRevoke(false)}
+        />
+      )}
     </section>
   )
 }

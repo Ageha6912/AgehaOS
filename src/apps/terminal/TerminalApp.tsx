@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useNarrowContainer } from '@/apps/use-narrow-container'
+import { isImeComposing } from '@/components/ime-guard'
 import { useTranslation } from '@/core/i18n'
 import { formatMessage } from '@/core/i18n'
 import type { MessageKey } from '@/core/i18n'
@@ -11,6 +12,10 @@ import { TERMINAL_COMMANDS, TerminalShell } from '@/core/terminal/shell'
 import type { TerminalLine } from '@/core/terminal/shell'
 
 import { keyboardInsetPx } from './keyboard-inset'
+
+/** 会话历史与输出行上限（D1 审查：长会话内存/DOM 不再无界增长）。 */
+const TERMINAL_HISTORY_LIMIT = 500
+const TERMINAL_OUTPUT_LIMIT = 800
 import { completeCommandLine, sequenceAction, TERMINAL_KEY_ROW, TERMINAL_KEY_SEQUENCES } from './terminal-keys'
 import type { TerminalActionKey } from './terminal-keys'
 
@@ -139,7 +144,8 @@ export function TerminalApp() {
     if (command.trim().length === 0) return
     setInput('')
     setEntries((prev) => [...prev, { kind: 'text', text: shell.prompt } , { kind: 'text', text: command }])
-    setHistory((prev) => [...prev, command])
+    // 会话历史封顶（D1 审查：长会话 setHistory 永久增长，内存/召回遍历膨胀）。
+    setHistory((prev) => [...prev.slice(-(TERMINAL_HISTORY_LIMIT - 1)), command])
     setHistoryIndex(null)
     setBusy(true)
     try {
@@ -148,7 +154,21 @@ export function TerminalApp() {
       if (result.clear) {
         setEntries([])
       } else {
-        setEntries((prev) => [...prev, ...result.lines])
+        // 输出行保留最近 N 行（D1 审查：entries 无上限长会话 DOM 膨胀）。
+        setEntries((prev) => [...prev, ...result.lines].slice(-TERMINAL_OUTPUT_LIMIT))
+      }
+    } catch (cause) {
+      // 兜底（shell 已内建映射）：任何意外异常也不留 unhandled rejection。
+      if (aliveRef.current) {
+        setEntries((prev) => [
+          ...prev,
+          {
+            kind: 'message',
+            key: 'terminal.err.failed',
+            params: { message: cause instanceof Error ? cause.message : String(cause) },
+            tone: 'error',
+          },
+        ])
       }
     } finally {
       if (aliveRef.current) setBusy(false)
@@ -220,7 +240,7 @@ export function TerminalApp() {
         data-testid="terminal-output"
       >
         {entries.map((line, index) => (
-          <pre key={index} className={`whitespace-pre-wrap break-all ${toneClass(line)}`}>
+          <pre key={index} data-testid="terminal-line" className={`whitespace-pre-wrap break-all ${toneClass(line)}`}>
             {renderLine(line)}
           </pre>
         ))}
@@ -249,6 +269,9 @@ export function TerminalApp() {
             disabled={busy}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
+              // 输入法组合期（选词确认 / 候选翻页）的 Enter/↑/↓ 属于 IME，
+              // 不是提交或召回历史（D1 审查：中文文件名/参数必现提前提交）。
+              if (isImeComposing(event.nativeEvent)) return
               if (event.key === 'Enter') {
                 event.preventDefault()
                 void submit()

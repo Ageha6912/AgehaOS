@@ -99,6 +99,8 @@ export function launchApp(
     title,
     width,
     height,
+    // manifest 约束透传（B2 审查）：固定尺寸应用（计算器）不再带缩放手柄。
+    resizable: manifest.window?.resizable ?? true,
     ...geometry,
   })
   if (windowId !== null && !geometry) {

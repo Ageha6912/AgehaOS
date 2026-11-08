@@ -23,6 +23,60 @@ const PLAN_A = planOf('plan-a', 'midnight-ink')
 const PLAN_B = planOf('plan-b', 'nebula-violet')
 const PLAN_C = planOf('plan-c', 'deep-ocean')
 
+/** jsdom 无 2D context：用 Proxy 造一个「记录调用」的假上下文（E2 画布测试用）。 */
+function stubCanvasContext() {
+  const gradient = { addColorStop: vi.fn() }
+  const target: Record<string | symbol, unknown> = {}
+  let callCount = 0
+  const ctx = new Proxy(target, {
+    get(object, prop) {
+      if (prop === '__callCount') return () => callCount
+      if (prop === 'createLinearGradient' || prop === 'createRadialGradient') {
+        return () => {
+          callCount += 1
+          return gradient
+        }
+      }
+      if (prop in object) return object[prop]
+      const fn = vi.fn(() => {
+        callCount += 1
+      })
+      object[prop] = fn
+      return fn
+    },
+    set(object, prop, value) {
+      object[prop] = value
+      return true
+    },
+  }) as unknown as CanvasRenderingContext2D
+  const spy = vi
+    .spyOn(HTMLCanvasElement.prototype, 'getContext')
+    .mockReturnValue(ctx as never)
+  return {
+    ctx,
+    callCount: () => (ctx as unknown as { __callCount: () => number }).__callCount(),
+    restore: () => spy.mockRestore(),
+  }
+}
+
+class FakeResizeObserver {
+  static instances: FakeResizeObserver[] = []
+  private readonly callback: ResizeObserverCallback
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    FakeResizeObserver.instances.push(this)
+  }
+
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+
+  trigger(): void {
+    this.callback([], this as unknown as ResizeObserver)
+  }
+}
+
 beforeEach(() => {
   vi.useFakeTimers()
   resetDynamicDesktopStore()
@@ -113,6 +167,66 @@ describe('WallpaperLayer (§4.5，验收 ⑧)', () => {
     })
     render(<WallpaperLayer />)
     expect(screen.queryByTestId('ai-badge')).toBeNull()
+  })
+})
+
+describe('WallpaperLayer 画布尺寸与上下文（E2 审查）', () => {
+  it('resizes the canvas backing store on viewport and DPR changes', () => {
+    const { restore } = stubCanvasContext()
+    FakeResizeObserver.instances = []
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+    try {
+      useDynamicDesktopStore.setState({ currentPlan: PLAN_A, tier: 'low' })
+      render(<WallpaperLayer />)
+      const canvas = screen.getByTestId('wallpaper-surface-canvas') as HTMLCanvasElement
+      Object.defineProperty(canvas, 'clientWidth', { configurable: true, value: 640 })
+      Object.defineProperty(canvas, 'clientHeight', { configurable: true, value: 360 })
+
+      act(() => FakeResizeObserver.instances.at(-1)?.trigger())
+      expect(canvas.width).toBe(640)
+      expect(canvas.height).toBe(360)
+
+      // 窗口缩放：backing store 跟随（旧实现只在启动时 resize 一次）。
+      Object.defineProperty(canvas, 'clientWidth', { configurable: true, value: 900 })
+      act(() => FakeResizeObserver.instances.at(-1)?.trigger())
+      expect(canvas.width).toBe(900)
+      expect(canvas.height).toBe(360)
+
+      // 换 DPR 显示器：按新 DPR 重算（旧实现只读一次 devicePixelRatio）。
+      Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 2 })
+      act(() => FakeResizeObserver.instances.at(-1)?.trigger())
+      expect(canvas.width).toBe(1800)
+      expect(canvas.height).toBe(720)
+    } finally {
+      Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1 })
+      vi.unstubAllGlobals()
+      restore()
+    }
+  })
+
+  it('stops drawing when the context is lost and repaints after restore', () => {
+    const { callCount, restore } = stubCanvasContext()
+    try {
+      useDynamicDesktopStore.setState({ currentPlan: PLAN_A, tier: 'low' })
+      render(<WallpaperLayer />)
+      const canvas = screen.getByTestId('wallpaper-surface-canvas') as HTMLCanvasElement
+      expect(callCount()).toBeGreaterThan(0)
+
+      const lost = new Event('contextlost', { cancelable: true })
+      act(() => {
+        canvas.dispatchEvent(lost)
+      })
+      // 阻止默认行为才能让浏览器有机会恢复上下文。
+      expect(lost.defaultPrevented).toBe(true)
+
+      const afterLost = callCount()
+      act(() => {
+        canvas.dispatchEvent(new Event('contextrestored'))
+      })
+      expect(callCount()).toBeGreaterThan(afterLost)
+    } finally {
+      restore()
+    }
   })
 })
 

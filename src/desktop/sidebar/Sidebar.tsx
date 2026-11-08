@@ -455,7 +455,9 @@ function WorkspacePanelBody({ expanded }: { expanded: boolean }) {
 
 export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
   const { t } = useTranslation()
-  const windows = useWindowStore((s) => s.windows)
+  // 不订阅全量 windows（E2 审查）：Sidebar 只在「显示桌面」点击时用一次，
+  // 订阅会让每次 move/resize/focus commit 连带重渲染面板内容。动作保持
+  // 订阅（函数引用稳定，不触发重渲染），数据点击时 getState() 现取。
   const minimize = useWindowStore((s) => s.minimize)
   const items = useNotificationStore((s) => s.items)
   const panelOpen = useNotificationStore((s) => s.panelOpen)
@@ -475,7 +477,7 @@ export function Sidebar({ panel }: { panel: WorkspacePanelController }) {
   // 最小化当前 Space 的可见窗口，其他 Space 不受波及。
   const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
   const showDesktop = (): void => {
-    for (const win of [...windows]) {
+    for (const win of useWindowStore.getState().windows) {
       if (win.spaceId !== activeSpaceId) continue
       if (win.state !== 'minimized') minimize(win.id)
     }

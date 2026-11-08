@@ -7,6 +7,7 @@ import { systemEclosion } from '@/services/eclosion'
 import type { EclosionReplayEntry } from '@/services/eclosion-cache'
 import { applyReplayTheme } from '@/services/world-theme'
 import { useEclosionStore } from '@/store/eclosion-store'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ScrollFadeList } from '@/components/scroll-fade-list'
 import { ToggleSwitch } from '@/components/toggle-switch'
 
@@ -30,6 +31,17 @@ export function EclosionSection() {
   const setThemeFollow = useEclosionStore((s) => s.setThemeFollow)
   const [cleared, setCleared] = useState(false)
   const [replay, setReplay] = useState<EclosionReplayEntry[] | null>(null)
+  // 清除数据 = 不可逆操作：二次确认 + 在途禁用 + 失败可见（D2 审查）。
+  const [clearOpen, setClearOpen] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [clearError, setClearError] = useState(false)
+
+  // 「已清除」是瞬时反馈：6s 后复位，避免此后永久宣称已清除（D2 审查）。
+  useEffect(() => {
+    if (!cleared) return
+    const timer = window.setTimeout(() => setCleared(false), 6_000)
+    return () => window.clearTimeout(timer)
+  }, [cleared])
 
   // 蝶谱（§8）：开关开时读当前用户的 replay 记录（≤60 条，不存 HTML）。
   useEffect(() => {
@@ -46,13 +58,31 @@ export function EclosionSection() {
   const remoteAuth = isRemoteAuthActive()
   const aiConfigured = quota?.configured !== false
   // §9.3 准入：本地认证置灰；quota 快照显式 configured:false（未配置 Key 或
-  // 服务端不可达）也置灰。额度未知（null，尚未探测）不置灰——开错会自动回落。
-  const toggleDisabled = !remoteAuth || !aiConfigured
+  // 服务端不可达）只在**开启方向**置灰——已持久化 enabled:true 的用户必须还能
+  // 关掉（旧实现双向置灰，开关被锁死在开——D2 审查）。额度未知（null，尚未
+  // 探测）不置灰——开错会自动回落。
+  const toggleDisabled = !remoteAuth || (!enabled && !aiConfigured)
 
   // 打开分区即拉一次额度快照（Settings 是唯一的额度展示位）。
   useEffect(() => {
     void systemEclosion.refreshQuota()
   }, [])
+
+  const clearEclosionData = async (): Promise<void> => {
+    setClearing(true)
+    setClearError(false)
+    try {
+      await systemEclosion.clearData()
+      setCleared(true)
+      // 蝶谱随缓存整段删除：时间线同步清空，不再显示已删条目。
+      setReplay([])
+      setClearOpen(false)
+    } catch {
+      setClearError(true)
+    } finally {
+      setClearing(false)
+    }
+  }
 
   return (
     <section aria-label={t('settings.eclosion.section')}>
@@ -218,7 +248,8 @@ export function EclosionSection() {
           data-testid="eclosion-clear"
           className="rounded-md border border-border px-3 py-1.5 text-xs text-text hover:bg-surface-raised"
           onClick={() => {
-            void systemEclosion.clearData().then(() => setCleared(true))
+            setClearError(false)
+            setClearOpen(true)
           }}
         >
           {t('settings.eclosion.clearData')}
@@ -230,6 +261,19 @@ export function EclosionSection() {
           </p>
         )}
       </div>
+
+      {clearOpen && (
+        <ConfirmDialog
+          title={t('settings.eclosion.clearData')}
+          body={t('settings.eclosion.clearConfirm')}
+          confirmLabel={t('settings.eclosion.clearData')}
+          cancelLabel={t('settings.eclosion.clearCancel')}
+          busy={clearing}
+          error={clearError ? t('settings.eclosion.clearFailed') : null}
+          onConfirm={() => void clearEclosionData()}
+          onCancel={() => setClearOpen(false)}
+        />
+      )}
     </section>
   )
 }

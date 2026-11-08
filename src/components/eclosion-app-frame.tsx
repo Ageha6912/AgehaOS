@@ -34,6 +34,13 @@ import { WebAppFrame } from '@/components/web-app-frame'
 import { version as appVersion } from '../../package.json'
 
 /**
+ * 握手超时（E3 审查）：iframe load 后这么久仍未收到 `agehaos:ready`（runner
+ * 脚本异常 / CSP 拦截 / 扩展拦截 / 消息丢失）→ 走质量回退重试，避免窗口
+ * 永久停在「结茧中」且无任何反馈。
+ */
+export const ECLOSION_HANDSHAKE_TIMEOUT_MS = 8_000
+
+/**
  * 羽化宿主容器（AI-GENERATED-APPS-DESIGN §4/§5.4）：把 AI 生成的自包含 HTML
  * 经分片协议装进 `sandbox="allow-scripts"`（不透明 origin）的 iframe。
  *
@@ -104,6 +111,10 @@ export function EclosionTitleExtras({
   const { t } = useTranslation()
   const status = useEclosionStore((s) => s.statuses[appId])
   const keptAlready = useEclosionStore((s) => s.keptAppIds.includes(appId))
+  // 治理门禁（E3 审查）：已举报封禁/羽化总开关关时，标题栏三维动作一律禁用
+  // ——旧实现重开窗口后「重新羽化/获取」照样可点，会白烧额度/把封禁内容写回。
+  const banned = useEclosionStore((s) => s.bannedAppIds.includes(appId))
+  const enabled = useEclosionStore((s) => s.enabled)
   const [keptNow, setKeptNow] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const [reportBusy, setReportBusy] = useState(false)
@@ -120,10 +131,11 @@ export function EclosionTitleExtras({
         data-testid="eclosion-regenerate"
         aria-label={t('eclosion.regenerate')}
         title={t('eclosion.regenerate')}
+        disabled={banned || !enabled}
         // 标题栏拖拽会吃指针：按下即拦（与红绿灯同款）。
         onPointerDown={(event) => event.stopPropagation()}
         onClick={() => (onRegenerate ?? ((id: string) => systemEclosion.regenerate(id)))(appId)}
-        className="shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none text-text-muted hover:bg-surface-soft hover:text-text"
+        className="shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none text-text-muted hover:bg-surface-soft hover:text-text disabled:cursor-default disabled:opacity-40"
       >
         ↻ {t('eclosion.regenerate')}
       </button>
@@ -134,7 +146,7 @@ export function EclosionTitleExtras({
           data-testid="eclosion-keep"
           aria-label={kept ? t('eclosion.kept') : t('eclosion.keep')}
           title={kept ? t('eclosion.kept') : t('eclosion.keep')}
-          disabled={kept}
+          disabled={kept || banned || !enabled}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => {
             void (onKeep ?? ((id: string) => systemEclosion.keepApp(id)))(appId).then((ok) => {
@@ -152,12 +164,13 @@ export function EclosionTitleExtras({
         data-testid="eclosion-report"
         aria-label={t('eclosion.report')}
         title={t('eclosion.report')}
+        disabled={banned || !enabled}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={() => {
           setReportFailed(false)
           setReportOpen(true)
         }}
-        className="shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none text-text-muted hover:bg-danger/10 hover:text-danger"
+        className="shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none text-text-muted hover:bg-danger/10 hover:text-danger disabled:cursor-default disabled:opacity-40"
       >
         ⚑ {t('eclosion.report')}
       </button>
@@ -301,12 +314,18 @@ export function EclosionAppFrame({
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   // 懒取会话（幂等；开关关/未知 id/已封禁时不建——L1 落原生兜底、L2 落错误卡、
-  // 封禁落封禁卡）。
-  const sessionRef = useRef<EclosionSession | null>(null)
-  if (enabled && kind !== null && !banned && sessionRef.current === null) {
-    sessionRef.current = orchestrator.ensureSession(appId)
+  // 封禁落封禁卡）。按 appId 记忆：同一组件实例被复用于另一个羽化应用时
+  // （移动端最近任务 A→B）必须重建，否则会把 A 的会话内容下发给 B。
+  const sessionRef = useRef<{ appId: string; session: EclosionSession | null } | null>(null)
+  if (
+    enabled &&
+    kind !== null &&
+    !banned &&
+    (sessionRef.current === null || sessionRef.current.appId !== appId)
+  ) {
+    sessionRef.current = { appId, session: orchestrator.ensureSession(appId) }
   }
-  const session = sessionRef.current
+  const session = sessionRef.current?.appId === appId ? sessionRef.current.session : null
 
   const snapshot = useSyncExternalStore(
     session?.subscribe ?? (() => () => undefined),
@@ -317,6 +336,10 @@ export function EclosionAppFrame({
   const [fellBack, setFellBack] = useState(false)
   const [renderedOk, setRenderedOk] = useState(false)
   const [handshakeTick, setHandshakeTick] = useState(0)
+  /** 回落后写入的标题（E3 审查）：重试/重新羽化时只撤销这一条，不覆盖 SDK 自定义标题。 */
+  const fallbackTitleRef = useRef<string | null>(null)
+  const titleRef = useRef(title)
+  titleRef.current = title
 
   // 流式状态机（refs：消息回调与定时器读到的一律是最新值）。
   const runnerReadyRef = useRef(false)
@@ -328,11 +351,28 @@ export function EclosionAppFrame({
   const renderedOkRef = useRef(false)
   const fellBackRef = useRef(false)
   const renderTimerRef = useRef<number | null>(null)
+  const handshakeTimerRef = useRef<number | null>(null)
+  /** 当前渲染的 attempt（事件回调读最新值）。 */
+  const attemptRef = useRef(snapshot.attempt)
+  attemptRef.current = snapshot.attempt
+  /**
+   * 本 attempt 已请求过重试（E3 审查）：同一 iframe 连续上报 runner error /
+   * 握手超时不得叠出第二轮 attempt。新 attempt 从新 iframe 来，attempt 变化时
+   * 复位——生成期（phase=generating）的首次 runner error 仍能正常回炉。
+   */
+  const retriedAttemptRef = useRef<number | null>(null)
 
   const clearRenderTimer = useCallback(() => {
     if (renderTimerRef.current !== null) {
       window.clearTimeout(renderTimerRef.current)
       renderTimerRef.current = null
+    }
+  }, [])
+
+  const clearHandshakeTimer = useCallback(() => {
+    if (handshakeTimerRef.current !== null) {
+      window.clearTimeout(handshakeTimerRef.current)
+      handshakeTimerRef.current = null
     }
   }, [])
 
@@ -354,18 +394,25 @@ export function EclosionAppFrame({
   const handleRunFailure = useCallback(
     (reason: string) => {
       if (fellBackRef.current) return
+      // 同一 attempt 的连续失败事件只回炉一次（第二次是旧 iframe 的残留
+      // runner error / 超时；新 attempt 的失败来自新 iframe、attempt 已变化）。
+      if (retriedAttemptRef.current === attemptRef.current) return
       if (renderedOkRef.current) {
         const powerOnAt = powerOnAtRef.current
         if (powerOnAt === null || Date.now() - powerOnAt > ECLOSION_RENDER_TIMEOUT_MS) return
       }
       clearRenderTimer()
       const retried = orchestrator.requestRetry(appId, reason)
-      if (!retried) {
+      if (retried) {
+        retriedAttemptRef.current = attemptRef.current
+      } else {
         fellBackRef.current = true
         setFellBack(true)
         // 「已回落经典版」标题后缀只对 L1 有意义；L2/留存走错误卡。
         if (spec !== null) {
-          useWindowStore.getState().setTitle(windowId, `${title} · ${t('eclosion.fallbackNotice')}`)
+          const fallbackTitle = `${title} · ${t('eclosion.fallbackNotice')}`
+          fallbackTitleRef.current = fallbackTitle
+          useWindowStore.getState().setTitle(windowId, fallbackTitle)
         }
       }
     },
@@ -386,11 +433,29 @@ export function EclosionAppFrame({
     nextSeqRef.current = 0
     renderedOkRef.current = false
     fellBackRef.current = false
+    retriedAttemptRef.current = null
     setRenderedOk(false)
     setFellBack(false)
     clearRenderTimer()
-    return clearRenderTimer
-  }, [appId, snapshot.attempt, clearRenderTimer])
+    clearHandshakeTimer()
+    // 新一轮生成开始：撤销回落后缀（E3 审查：旧实现只写不还原，成功重羽化后
+    // 标题长期宣称「已回落」）。仅在窗口标题仍是当初写入的回落标题时还原，
+    // 不覆盖用户/SDK 的自定义标题。
+    const fallbackTitle = fallbackTitleRef.current
+    if (fallbackTitle !== null) {
+      fallbackTitleRef.current = null
+      const currentTitle = useWindowStore
+        .getState()
+        .windows.find((win) => win.id === windowId)?.title
+      if (currentTitle === fallbackTitle) {
+        useWindowStore.getState().setTitle(windowId, titleRef.current)
+      }
+    }
+    return () => {
+      clearRenderTimer()
+      clearHandshakeTimer()
+    }
+  }, [appId, snapshot.attempt, clearRenderTimer, clearHandshakeTimer, windowId])
 
   // 关注者计数：卸载且无人关注 → 编排器中止生成（§5.3 断开即中止）。
   useEffect(() => {
@@ -459,9 +524,26 @@ export function EclosionAppFrame({
   }, [session, snapshot, handshakeTick, fellBack, flushToRunner])
 
   const onIframeLoad = useCallback(() => {
+    // 同一 attempt 内 iframe 重载（runner location.reload / 浏览器恢复框架）：
+    // 握手与下发游标全部归零，否则新文档收不到任何 chunk/power-on（E3 审查）。
+    runnerReadyRef.current = false
+    themeSentRef.current = false
+    poweredOnRef.current = false
+    powerOnAtRef.current = null
+    sentChunksRef.current = 0
+    nextSeqRef.current = 0
+    renderedOkRef.current = false
+    setRenderedOk(false)
+    clearRenderTimer()
+    clearHandshakeTimer()
+    // ready 超时 = 质量回退（重试一轮；预算耗尽落原生/错误卡），不再永久结茧。
+    handshakeTimerRef.current = window.setTimeout(() => {
+      handshakeTimerRef.current = null
+      if (!runnerReadyRef.current) requestRetryRef.current('handshake-timeout')
+    }, ECLOSION_HANDSHAKE_TIMEOUT_MS)
     // 握手第一步：文档加载完成后再发 hello，runner 此时才注册了 listener。
     postToRunner(hostHelloMessage())
-  }, [postToRunner])
+  }, [clearHandshakeTimer, clearRenderTimer, postToRunner])
 
   const handleMessage = useCallback(
     (event: MessageEvent) => {
@@ -472,6 +554,7 @@ export function EclosionAppFrame({
 
       if (message.type === 'agehaos:ready') {
         runnerReadyRef.current = true
+        clearHandshakeTimer()
         setHandshakeTick((tick) => tick + 1)
         return
       }
@@ -543,6 +626,7 @@ export function EclosionAppFrame({
     },
     [
       appId,
+      clearHandshakeTimer,
       clearRenderTimer,
       hasSpecPermission,
       orchestrator,
@@ -564,7 +648,9 @@ export function EclosionAppFrame({
       fellBackRef.current = true
       setFellBack(true)
       if (spec !== null) {
-        useWindowStore.getState().setTitle(windowId, `${title} · ${t('eclosion.fallbackNotice')}`)
+        const fallbackTitle = `${title} · ${t('eclosion.fallbackNotice')}`
+        fallbackTitleRef.current = fallbackTitle
+        useWindowStore.getState().setTitle(windowId, fallbackTitle)
       }
       return
     }
@@ -720,7 +806,12 @@ export function EclosionAppFrame({
                   aria-hidden="true"
                   className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary"
                 />
-                {formatMessage(t('eclosion.generating'), { count: String(snapshot.thinkChars) })}
+                {/* 每帧变化的字数对读屏 aria-hidden（E3 审查）：live region 只留
+                    稳定文案，避免高频「结茧中·N 字」播报把别的提示压住。 */}
+                <span aria-hidden="true">
+                  {formatMessage(t('eclosion.generating'), { count: String(snapshot.thinkChars) })}
+                </span>
+                <span className="sr-only">{t('eclosion.generatingLabel')}</span>
               </span>
             )}
           </div>

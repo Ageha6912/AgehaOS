@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 
 import { GlassSurface } from './GlassSurface'
 
-describe('GlassSurface (空间玻璃面壳，空间化地基切片)', () => {
+// 全量套件并行跑时，该文件首个用例承担 jsdom 环境冷启动（模块 transform +
+// 环境创建），曾两次超过默认 5s；用例本身是纯渲染断言，给文件级宽限。
+describe('GlassSurface (空间玻璃面壳，空间化地基切片)', { timeout: 15_000 }, () => {
   it('renders a div with the spatial-window base class and content by default', () => {
     const { container } = render(<GlassSurface>面板内容</GlassSurface>)
 

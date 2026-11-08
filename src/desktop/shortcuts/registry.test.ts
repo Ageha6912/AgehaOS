@@ -233,4 +233,16 @@ describe('shortcut registry keyup 分发（W6）', () => {
     release('x')
     expect(onKeyUp).toHaveBeenCalledTimes(1) // 已摘除，不再分发
   })
+
+  it('组合期按键不分发（IME 守卫：Esc 取消候选词不误关面板）', () => {
+    mountShortcutRegistry()
+    const run = vi.fn()
+    registerShortcut({ id: 'esc', test: (event) => event.key === 'Escape', run })
+
+    press('Escape', { isComposing: true })
+    expect(run).not.toHaveBeenCalled()
+
+    press('Escape')
+    expect(run).toHaveBeenCalledTimes(1)
+  })
 })

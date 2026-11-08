@@ -42,6 +42,9 @@ import { useNotificationStore } from '@/store/notification-store'
 
 const PANEL_ID = 'com.ageha.dynamic.panel'
 
+/** 样本上传超时（D2 审查）：fetch 悬挂时确认框 busy 不再无限期挂住。 */
+const SAMPLE_UPLOAD_TIMEOUT_MS = 15_000
+
 const SOURCE_KEYS: Record<'local' | 'llm' | 'cache', MessageKey> = {
   local: 'dynamicDesktop.source.local',
   llm: 'dynamicDesktop.source.llm',
@@ -71,6 +74,8 @@ export function DynamicPanelApp() {
   const [pendingSample, setPendingSample] = useState<string | null>(null)
   const [uploadBusy, setUploadBusy] = useState(false)
   const aliveRef = useRef(true)
+  /** 装配代次（D2 审查）：快速连点刷新时，先发后返的 LLM 响应不得覆盖新装配。 */
+  const assemblySeqRef = useRef(0)
 
   useEffect(() => {
     aliveRef.current = true
@@ -80,6 +85,9 @@ export function DynamicPanelApp() {
   }, [])
 
   const runAssembly = useCallback(() => {
+    // 每次重装配推进代次：晚到的 LLM/缓存响应只允许落在发起它的那一轮。
+    const seq = assemblySeqRef.current + 1
+    assemblySeqRef.current = seq
     // 全部本地信号（§2.1 白名单）：时间相/季节/主题 + 动态桌面状态 + 已安装应用。
     const dynamic = useDynamicDesktopStore.getState()
     const installed = useAppStore.getState().apps.map((app) => app.id)
@@ -119,7 +127,10 @@ export function DynamicPanelApp() {
     if (dynamic.prefs.enabled && dynamic.prefs.llmEnhance) {
       void (async () => {
         const applyTip = (text: string): boolean => {
-          if (!aliveRef.current) return false
+          // 代次 + 存活 + 应用前重读开关（D2 审查）：关闭 llmEnhance 后在途响应
+          // 不再贴上；快速连点刷新时旧响应不得覆盖新装配。
+          if (!aliveRef.current || assemblySeqRef.current !== seq) return false
+          if (!useDynamicDesktopStore.getState().prefs.llmEnhance) return false
           if (TIP_IDS.includes(text as never)) {
             setEnhancedTipId(text)
             setEnhancedTipText(null)
@@ -168,11 +179,15 @@ export function DynamicPanelApp() {
   // 失败经通知中心透明告知。撤销/失败都不影响已完成的本机撤下。
   const submitSample = useCallback(async (text: string) => {
     setUploadBusy(true)
+    // 悬挂的 fetch 不能无限期占住确认框（D2 审查）。
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), SAMPLE_UPLOAD_TIMEOUT_MS)
     try {
       const response = await fetch('/api/dynamic/samples', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ text }),
+        signal: controller.signal,
       })
       if (!response.ok) throw new Error(`sample-http-${response.status}`)
       setPendingSample(null)
@@ -184,9 +199,16 @@ export function DynamicPanelApp() {
         bodyKey: 'cards.tip.uploadFailedBody',
       })
     } finally {
+      window.clearTimeout(timer)
       setUploadBusy(false)
     }
   }, [])
+
+  // 卡片徽标来源（D2 审查）：tip 卡一旦用了 LLM/缓存增强，徽标必须如实显示
+  // 来源；其余卡片（问候/壁纸/建议/布局）均由本地规则产出。
+  const tipUsesEnhanced = enhancedTipText !== null || enhancedTipId !== null
+  const cardSource = (kind: ContentCardMeta['card']['kind']): 'local' | 'llm' | 'cache' =>
+    kind === 'tip' && tipUsesEnhanced ? enhanceSource : 'local'
 
   return (
     <div ref={rootRef} className="surface-panel flex h-full flex-col text-sm">
@@ -343,7 +365,7 @@ export function DynamicPanelApp() {
             })()}
             <p className="mt-2 flex items-center gap-1 text-[11px] text-text-muted">
               <Sparkle size={10} weight="fill" className="text-primary" />
-              {t('dynamicDesktop.badgeLabel')} · {t('dynamicDesktop.source.local')}
+              {t('dynamicDesktop.badgeLabel')} · {t(SOURCE_KEYS[cardSource(meta.card.kind)])}
             </p>
           </li>
         ))}

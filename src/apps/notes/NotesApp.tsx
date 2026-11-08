@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { CaretLeft, FilePlus, FileText, NoteBlank } from '@phosphor-icons/react'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { PromptDialog } from '@/components/prompt-dialog'
 import { systemBus } from '@/core/events'
 import { useTranslation } from '@/core/i18n'
@@ -44,14 +45,53 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogError, setDialogError] = useState<MessageKey | null>(null)
   const [error, setError] = useState<MessageKey | null>(null)
+  // 有未保存草稿时切换笔记的确认目标（null = 无待确认切换）。
+  const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null)
   // 窄容器单面切换状态：仅 narrow 时被消费；宽容器恒渲染双栏不读它。
   const [pane, setPane] = useState<'list' | 'editor'>('list')
+  // 异步落点归属（D2 审查）：保存/刷新的 await 返回时必须知道「当前选中的
+  // 还是不是发起时的笔记」，否则晚到的结果会把另一条笔记误标 dirty。
+  const selectedPathRef = useRef<string | null>(null)
+  const draftRef = useRef('')
+  const savedContentRef = useRef('')
+  draftRef.current = draft
+  savedContentRef.current = savedContent
+  useEffect(() => {
+    selectedPathRef.current = selectedPath
+  }, [selectedPath])
 
   const refresh = useCallback(async () => {
     try {
       const nodes = await vfs.list(NOTES_DIR)
-      setFiles(nodes.filter((node) => node.type === 'file'))
+      const next = nodes.filter((node) => node.type === 'file')
+      setFiles(next)
       setError(null)
+      // 外部变更对齐（D2 审查）：选中的笔记被外部删除 → 退出编辑器（否则
+      // 再保存会用 writeFile 把已删文件复活）；被外部改写 → 草稿干净时跟随
+      // 内容，有未保存修改时只更新磁盘基线（保存与否由用户决定）。
+      const path = selectedPathRef.current
+      if (path === null) return
+      const exists = next.some((node) => joinPath(NOTES_DIR, node.name) === path)
+      if (!exists) {
+        selectedPathRef.current = null
+        setSelectedPath(null)
+        setDraft('')
+        setSavedContent('')
+        setError('files.error.notFound')
+        return
+      }
+      try {
+        const latest = await vfs.readFile(path)
+        if (selectedPathRef.current !== path) return
+        if (draftRef.current === savedContentRef.current) {
+          setDraft(latest)
+          setSavedContent(latest)
+        } else {
+          setSavedContent(latest)
+        }
+      } catch {
+        /* 读取竞态：下一次文件事件再对齐 */
+      }
     } catch (cause) {
       setError(vfsErrorMessageKey(cause))
       setFiles((current) => current ?? [])
@@ -87,9 +127,13 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
 
   const save = async () => {
     if (!selectedPath) return
+    const path = selectedPath
+    const content = draft
     try {
-      await vfs.writeFile(selectedPath, draft)
-      setSavedContent(draft)
+      await vfs.writeFile(path, content)
+      // 写盘期间用户可能已切到另一条笔记：旧内容不得记到新笔记的
+      // savedContent 上（会把 B 误标 dirty——D2 审查）。
+      if (selectedPathRef.current === path) setSavedContent(content)
     } catch (cause) {
       setError(vfsErrorMessageKey(cause))
     }
@@ -114,6 +158,20 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
   }
 
   const dirty = draft !== savedContent
+
+  /** 列表点击入口：脏草稿先确认，避免 openFile 直接覆盖丢失。 */
+  const requestOpen = (path: string) => {
+    if (path === selectedPath) {
+      // 窄容器从列表面点回当前笔记：直接回到编辑器面（草稿原样保留）。
+      if (narrow) setPane('editor')
+      return
+    }
+    if (dirty) {
+      setPendingOpenPath(path)
+      return
+    }
+    void openFile(path)
+  }
 
   // ---- 共享 JSX 片段（宽窄同源，窄分支只追加命中区/结构差异）------------
 
@@ -167,7 +225,7 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
                       ? 'bg-primary/10 font-medium text-primary'
                       : 'text-text hover:bg-surface-raised'
                   }`}
-                  onClick={() => void openFile(joinPath(NOTES_DIR, file.name))}
+                  onClick={() => requestOpen(joinPath(NOTES_DIR, file.name))}
                 >
                   <FileText
                     aria-hidden="true"
@@ -278,6 +336,21 @@ export function NotesApp({ vfs = systemVfs }: NotesAppProps) {
             )}
           </div>
         </>
+      )}
+
+      {pendingOpenPath !== null && (
+        <ConfirmDialog
+          title={t('notes.switchConfirmTitle')}
+          body={t('notes.switchConfirmBody')}
+          confirmLabel={t('notes.switchConfirmAction')}
+          cancelLabel={t('notes.switchConfirmCancel')}
+          onCancel={() => setPendingOpenPath(null)}
+          onConfirm={() => {
+            const path = pendingOpenPath
+            setPendingOpenPath(null)
+            void openFile(path)
+          }}
+        />
       )}
 
       {dialogOpen && (

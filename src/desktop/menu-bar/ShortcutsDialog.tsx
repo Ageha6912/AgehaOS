@@ -18,15 +18,52 @@ interface ShortcutRow {
 export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const closeRef = useRef<HTMLButtonElement | null>(null)
+  const dialogRef = useRef<HTMLDivElement | null>(null)
+  // MenuBar 的时钟每秒重渲染 → onClose 内联函数每次都是新引用。若把它放进
+  // effect 依赖，每秒都会 cleanup/re-run 并 focus() 一次，读屏焦点被周期
+  // 抢回（E2 审查）。改存 ref：挂载只执行一次，Escape 始终调用最新回调。
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     closeRef.current?.focus()
+    const focusables = (): HTMLElement[] => {
+      const root = dialogRef.current
+      if (!root) return []
+      return Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      )
+    }
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') {
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+      // aria-modal 弹层补焦点陷阱（E2 审查）：Tab 不再跑进背景顶栏/窗口。
+      const items = focusables()
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (!first || !last) return
+      const active = document.activeElement
+      const inside = dialogRef.current?.contains(active) ?? false
+      if (event.shiftKey) {
+        if (!inside || active === first) {
+          event.preventDefault()
+          last.focus()
+        }
+      } else if (!inside || active === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', onKeyDown, true)
     return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [onClose])
+  }, [])
 
   const rows: ShortcutRow[] = [
     { keys: shortcutLabel('K'), labelKey: 'shortcuts.search' },
@@ -50,7 +87,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className="surface-glass popover-panel animate-os-pop-in w-full max-w-sm p-5">
+      <div ref={dialogRef} className="surface-glass popover-panel animate-os-pop-in w-full max-w-sm p-5">
         <h2 id="shortcuts-dialog-title" className="text-base font-semibold text-text">
           {t('shortcuts.title')}
         </h2>

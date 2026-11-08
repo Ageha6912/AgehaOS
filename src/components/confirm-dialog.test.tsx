@@ -43,6 +43,7 @@ describe('ConfirmDialog', () => {
 
   it('disables both buttons while busy', () => {
     const onConfirm = vi.fn()
+    const onCancel = vi.fn()
     render(
       <ConfirmDialog
         title="t"
@@ -51,13 +52,19 @@ describe('ConfirmDialog', () => {
         cancelLabel="no"
         busy
         onConfirm={onConfirm}
-        onCancel={vi.fn()}
+        onCancel={onCancel}
       />,
     )
     expect(screen.getByTestId('confirm-dialog-confirm')).toBeDisabled()
-    expect(screen.getByTestId('confirm-dialog-cancel')).toBeDisabled()
+    // 忙态不得锁死弹层（网络悬挂时用户必须能退出）。
+    expect(screen.getByTestId('confirm-dialog-cancel')).toBeEnabled()
     fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
     expect(onConfirm).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTestId('confirm-dialog-cancel'))
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onCancel).toHaveBeenCalledTimes(2)
   })
 
   it('shows an inline error with role=alert', () => {

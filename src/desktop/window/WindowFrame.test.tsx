@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetClosingGhosts } from './closing-ghosts'
 import { resetSnapPreview } from './snap-preview'
+import { registerRuntimeApp, resetAppStore } from '@/store/app-store'
 import { resetMotionPrefsStore, useMotionPrefsStore } from '@/store/motion-prefs-store'
 import { resetWindowStore, useWindowStore } from '@/store/window-store'
 import { resetEclosionStore, seedEclosionForTests } from '@/store/eclosion-store'
@@ -27,6 +28,20 @@ describe('WindowFrame (via WindowLayer)', () => {
     }
   })
 
+  it('focuses the window when focus enters through an iframe or child control (E1 审查)', () => {
+    const first = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
+    render(<WindowLayer />)
+
+    // 另一个窗口被聚焦；焦点经子控件（iframe 点击后同等路径）进入记事窗口。
+    const notes = screen.getByRole('region', { name: '记事' })
+    act(() => {
+      within(notes).getByRole('button', { name: '最小化窗口' }).focus()
+    })
+
+    expect(useWindowStore.getState().windows.find((win) => win.id === first)?.focused).toBe(true)
+  })
+
   it('resizes from the south-east handle and clamps at min width', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     render(<WindowLayer />)
@@ -46,6 +61,49 @@ describe('WindowFrame (via WindowLayer)', () => {
     fireEvent.pointerMove(se, { clientX: before.x + 10, clientY: before.y + 10 })
     fireEvent.pointerUp(se)
     expect(useWindowStore.getState().windows[0]!.width).toBe(320)
+  })
+
+  it('resize 只认发起手势的 pointerId；鼠标悬停 move 结束手势', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+    const before = useWindowStore.getState().windows[0]!
+    const se = screen.getByTestId('window-resize-se')
+    const x = before.x + before.width
+    const y = before.y + before.height
+
+    fireEvent.pointerDown(se, { button: 0, pointerId: 7, clientX: x, clientY: y })
+    // 第二个 pointerId 的 move 不得驱动 resize。
+    fireEvent.pointerMove(se, { pointerId: 8, clientX: x - 80, clientY: y - 40 })
+    expect(useWindowStore.getState().windows[0]!.width).toBe(before.width)
+
+    // 鼠标悬停 move（buttons=0）= pointerup 丢失 → 手势收尾。
+    fireEvent.pointerMove(se, {
+      pointerId: 7,
+      pointerType: 'mouse',
+      buttons: 0,
+      clientX: x - 80,
+      clientY: y - 40,
+    })
+    expect(useWindowStore.getState().windows[0]!.width).toBe(before.width)
+
+    // 收尾后同一 id 再 move 也不生效。
+    fireEvent.pointerMove(se, {
+      pointerId: 7,
+      pointerType: 'mouse',
+      buttons: 1,
+      clientX: x - 80,
+      clientY: y - 40,
+    })
+    expect(useWindowStore.getState().windows[0]!.width).toBe(before.width)
+  })
+
+  it('双击标题栏控制按钮不触发最大化（按钮事件不冒泡成 dblclick 切换）', () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+
+    fireEvent.doubleClick(screen.getByRole('button', { name: '最大化窗口' }))
+
+    expect(useWindowStore.getState().windows[0]?.state).toBe('normal')
   })
 
   it('compensates position when resizing from the west handle', () => {
@@ -369,7 +427,8 @@ describe('WindowFrame (via WindowLayer)', () => {
     // setPointerCapture，后续 pointerup/click 被重定到标题栏，同意框按钮的
     // onClick 收不到（真实浏览器里取消/确认双双失效）。守卫后：portal 按压
     // 不是标题栏 DOM 后代 → 直接放过。
-    resetEclosionStore()
+    // 标题栏三维动作在总开关关闭时禁用（E3 治理门禁）：举报链路测试需开启。
+    seedEclosionForTests('u-frame-report', true)
     useWindowStore.getState().open({ appId: 'com.ageha.eclosion.calculator', title: '计算器' })
     render(<WindowLayer />)
 
@@ -452,6 +511,43 @@ describe('WindowFrame 窗口动效（WAAPI 就绪）', () => {
     expect(frames[0]).toEqual({ transform: 'scale(0.9)', opacity: 0 })
     expect(options.duration).toBe(200)
     expect(options.easing).toBe('cubic-bezier(0.32, 0.72, 0, 1)')
+  })
+
+  it('grabs an in-flight open back as close instead of stacking a second flight (E1 审查)', async () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    const { container } = render(<WindowLayer />)
+    expect(animateMock).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭窗口' }))
+
+    // 反向抓回：不新开 close 动画，直接把打开动画 reverse。
+    expect(animateMock).toHaveBeenCalledTimes(1)
+    expect(flights[0].reverse).toHaveBeenCalledTimes(1)
+    expect(useWindowStore.getState().windows).toHaveLength(0)
+    const ghost = container.querySelector('section[aria-label="记事"]')
+    expect(ghost).not.toBeNull()
+    expect(ghost).toHaveAttribute('aria-hidden', 'true')
+
+    await act(async () => {
+      flights[0].resolve()
+    })
+    expect(container.querySelector('section[aria-label="记事"]')).toBeNull()
+  })
+
+  it('settles a running genie before closing instead of overlaying two flights (E1 审查)', async () => {
+    useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    render(<WindowLayer />)
+    await act(async () => {
+      flights[0].resolve() // 打开飞行先落定
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '最小化窗口' }))
+    expect(animateMock).toHaveBeenCalledTimes(2)
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭窗口' }))
+    // 旧 genie 先被落定（cancel），随后才起 close 飞行。
+    expect(flights[1].cancel).toHaveBeenCalled()
+    expect(animateMock).toHaveBeenCalledTimes(3)
   })
 
   it('releases the flight effect on settle so the class stack owns transform/opacity', async () => {
@@ -739,26 +835,31 @@ describe('WindowFrame × Window Snap（W4 组合层转换点）', () => {
     expect(win).toMatchObject({ x: 500, y: 400 })
   })
 
-  it('snapped 窗标题栏按下即脱 snap，拖动以还原几何为基线（指针零跳变）', () => {
+  it('snapped 窗标题栏按下不脱 snap（单击=聚焦）；首次位移才脱并落回还原几何（E1 审查）', () => {
     const id = openWindow({ x: 100, y: 100, width: 600, height: 400 })
     useWindowStore.getState().snap(id, 'left', BAND)
     render(<WindowLayer />)
     const header = headerOf('记事')
     expect(useWindowStore.getState().windows[0]?.state).toBe('snapped')
 
-    // 按下瞬间：unsnap 完成、几何已还原。
+    // 按下无位移：保持吸附（旧实现按下即弹回吸附前几何）。
     fireEvent.pointerDown(header, { button: 0, clientX: 200, clientY: 50 })
     let win = useWindowStore.getState().windows[0]!
+    expect(win.state).toBe('snapped')
+
+    // 首次位移：unsnap + 基线重置到还原几何（首拍落位）。
+    fireEvent.pointerMove(header, { clientX: 230, clientY: 70 })
+    win = useWindowStore.getState().windows[0]!
     expect(win.state).toBe('normal')
     expect(win).toMatchObject({ x: 100, y: 100, width: 600, height: 400 })
 
-    // 位移 +30/+20：以还原几何为基线 → x=130（若以 snapped 几何为基线会是 110）。
-    fireEvent.pointerMove(header, { clientX: 230, clientY: 70 })
+    // 后续位移从还原基线跟随：再 +30/+20 → x=130。
+    fireEvent.pointerMove(header, { clientX: 260, clientY: 90 })
     win = useWindowStore.getState().windows[0]!
     expect(win).toMatchObject({ x: 130, y: 120, width: 600, height: 400 })
 
     // 带外放手：保持 normal。
-    fireEvent.pointerUp(header, { clientX: 230, clientY: 70 })
+    fireEvent.pointerUp(header, { clientX: 260, clientY: 90 })
     expect(useWindowStore.getState().windows[0]?.state).toBe('normal')
   })
 
@@ -920,7 +1021,7 @@ describe('WindowFrame × Snap Preview（W5 拖拽中实时预览）', () => {
 
   it('pointerup 全路径清预览（含带外早退路径），命中时吸附提交成功', () => {
     openWindow({ x: 300, y: 300 })
-    render(<WindowLayer />)
+    const { unmount } = render(<WindowLayer />)
     const header = headerOf('记事')
 
     fireEvent.pointerDown(header, { button: 0, clientX: 500, clientY: 400 })
@@ -933,13 +1034,20 @@ describe('WindowFrame × Snap Preview（W5 拖拽中实时预览）', () => {
     expect(win.state).toBe('snapped')
     expect(win).toMatchObject({ x: BAND.left, y: BAND.top, width: HALF, height: BAND.height })
 
-    // 带外放手的早退判定路径同样清预览（先 set 再带外 up）。
-    useWindowStore.getState().unsnap(win.id)
-    fireEvent.pointerDown(header, { button: 0, clientX: 100, clientY: 100 })
-    fireEvent.pointerMove(header, { clientX: 90, clientY: 400 })
+    // 带外放手的早退判定路径同样清预览（先 set 再带外 up）。以全新 normal
+    // 窗口重演（E1 审查：deferred unsnap 后旧段落的 snap/unsnap 前置不再成立）。
+    // 卸载上一棵渲染树（testing-library 自动 cleanup 只在每个用例后跑）。
+    unmount()
+    useWindowStore.getState().close(win.id)
+    openWindow({ x: 300, y: 300 })
+    render(<WindowLayer />)
+    const header2 = headerOf('记事')
+
+    fireEvent.pointerDown(header2, { button: 0, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(header2, { clientX: 90, clientY: 400 })
     expect(screen.queryByTestId('snap-preview')).not.toBeNull()
-    fireEvent.pointerMove(header, { clientX: 530, clientY: 420 })
-    fireEvent.pointerUp(header, { clientX: 530, clientY: 420 })
+    fireEvent.pointerMove(header2, { clientX: 530, clientY: 420 })
+    fireEvent.pointerUp(header2, { clientX: 530, clientY: 420 })
     expect(screen.queryByTestId('snap-preview')).toBeNull()
   })
 
@@ -976,5 +1084,26 @@ describe('WindowFrame × Snap Preview（W5 拖拽中实时预览）', () => {
       window.dispatchEvent(new Event('blur'))
     })
     expect(screen.queryByTestId('snap-preview')).toBeNull()
+  })
+
+  it('运行时应用：先落 MissingApp，注册完成后自动切换为 Type B 内容', async () => {
+    resetAppStore()
+    const appId = 'com.example.runtime-demo'
+    useWindowStore.getState().open({ appId, title: '运行时应用' })
+    render(<WindowLayer />)
+    expect(screen.getByText('未找到该应用，窗口即将关闭。')).toBeInTheDocument()
+
+    const registered = registerRuntimeApp({
+      id: appId,
+      name: '运行时应用',
+      version: '1.0.0',
+      entry: '/apps/sites/demo/index.html',
+    })
+    expect(registered.ok).toBe(true)
+
+    await waitFor(() => {
+      const iframe = document.querySelector('iframe')
+      expect(iframe?.getAttribute('src')).toBe('/apps/sites/demo/index.html')
+    })
   })
 })

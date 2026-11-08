@@ -114,15 +114,27 @@ describe('SettingsApp 动态桌面 section', () => {
     expect(state.lastDecisionSource).toBe('cache')
   })
 
-  it('clears all AI data and removes the persisted key (§6.5 一键恢复默认)', () => {
+  it('clears all AI data after confirmation and removes the persisted key (§6.5 一键恢复默认)', async () => {
     useDynamicDesktopStore.getState().setEnabled(true)
     render(<SettingsApp />)
     openDynamicSection()
 
+    // 不可逆操作二次确认：取消不执行。
     fireEvent.click(screen.getByTestId('dynamic-desktop-clear'))
+    const dialog = screen.getByRole('dialog', { name: '清除全部 AI 数据' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+    expect(useDynamicDesktopStore.getState().prefs.enabled).toBe(true)
+
+    fireEvent.click(screen.getByTestId('dynamic-desktop-clear'))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '清除全部 AI 数据' })).getByRole('button', {
+        name: '清除全部 AI 数据',
+      }),
+    )
+
+    await waitFor(() => expect(useDynamicDesktopStore.getState().prefs.enabled).toBe(false))
     const state = useDynamicDesktopStore.getState()
     // §6.5 恢复默认 = 出厂偏好（§32 动态桌面默认关）。
-    expect(state.prefs.enabled).toBe(false)
     expect(state.currentPlan).toBeNull()
     expect(localStorage.getItem(`${DYNAMIC_DESKTOP_KEY_PREFIX}u1`)).toBeNull()
   })

@@ -83,6 +83,45 @@ describe('MenuBar', () => {
     delete (document as unknown as Record<string, unknown>).execCommand
   })
 
+  it('keeps the editable focused when menu commands run (E2 审查)', async () => {
+    render(<MenuBar />)
+    const execCommand = vi.fn(() => true)
+    Object.defineProperty(document, 'execCommand', { value: execCommand, configurable: true })
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { readText: vi.fn(async () => '粘贴内容') },
+      configurable: true,
+    })
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    input.focus()
+
+    // 指针按在触发器/菜单项上不得把焦点移走（否则 execCommand 无目标）。
+    const trigger = screen.getByRole('button', { name: '文件' })
+    const down = new MouseEvent('pointerdown', { bubbles: true, cancelable: true })
+    trigger.dispatchEvent(down)
+    expect(down.defaultPrevented).toBe(true)
+    fireEvent.click(trigger)
+    const item = screen.getByRole('menuitem', { name: '撤销' })
+    const itemDown = new MouseEvent('pointerdown', { bubbles: true, cancelable: true })
+    item.dispatchEvent(itemDown)
+    expect(itemDown.defaultPrevented).toBe(true)
+    fireEvent.click(item)
+    expect(document.activeElement).toBe(input)
+    expect(execCommand).toHaveBeenCalledWith('undo', false, undefined)
+
+    // 粘贴：菜单关闭后异步读剪贴板，仍命中原焦点（不再落回 body）。
+    fireEvent.click(screen.getByRole('button', { name: '文件' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '粘贴' }))
+    await vi.waitFor(() =>
+      expect(execCommand).toHaveBeenCalledWith('insertText', false, '粘贴内容'),
+    )
+    expect(document.activeElement).toBe(input)
+
+    input.remove()
+    delete (document as unknown as Record<string, unknown>).execCommand
+    delete (navigator as unknown as Record<string, unknown>).clipboard
+  })
+
   it('file menu opens the file manager and the search palette', () => {
     render(<MenuBar />)
 
@@ -104,12 +143,16 @@ describe('MenuBar', () => {
     expect(systemDynamicDesktop.refresh).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: '视图' }))
-    const lightItem = screen.getByRole('menuitem', { name: '浅色' })
+    const lightItem = screen.getByRole('menuitemradio', { name: '浅色' })
     // §32 起浅色为出厂默认（参考图明亮基线）——浅色项带勾，深色不带。
     expect(lightItem.querySelector('svg')).not.toBeNull()
-    expect(screen.getByRole('menuitem', { name: '深色' }).querySelector('svg')).toBeNull()
+    // 勾选语义暴露给读屏（E2 审查：此前只有 aria-hidden 图标）。
+    expect(lightItem).toHaveAttribute('aria-checked', 'true')
+    const darkItem = screen.getByRole('menuitemradio', { name: '深色' })
+    expect(darkItem.querySelector('svg')).toBeNull()
+    expect(darkItem).toHaveAttribute('aria-checked', 'false')
 
-    fireEvent.click(screen.getByRole('menuitem', { name: '深色' }))
+    fireEvent.click(darkItem)
     expect(useSettingsStore.getState().theme).toBe('dark')
     expect(document.documentElement.classList.contains('dark')).toBe(true)
   })
@@ -120,10 +163,14 @@ describe('MenuBar', () => {
     render(<MenuBar />)
 
     fireEvent.click(screen.getByRole('button', { name: '窗口' }))
-    expect(screen.getByRole('menuitem', { name: '文件' }).querySelector('svg')).not.toBeNull()
-    expect(screen.getByRole('menuitem', { name: '记事' }).querySelector('svg')).toBeNull()
+    const focusedItem = screen.getByRole('menuitemradio', { name: '文件' })
+    expect(focusedItem.querySelector('svg')).not.toBeNull()
+    expect(focusedItem).toHaveAttribute('aria-checked', 'true')
+    const otherItem = screen.getByRole('menuitemradio', { name: '记事' })
+    expect(otherItem.querySelector('svg')).toBeNull()
+    expect(otherItem).toHaveAttribute('aria-checked', 'false')
 
-    fireEvent.click(screen.getByRole('menuitem', { name: '记事' }))
+    fireEvent.click(otherItem)
     // focus() 会把聚焦窗口移到数组末尾（z 序驱动）——按 appId 断言。
     const focused = useWindowStore
       .getState()
@@ -173,9 +220,9 @@ describe('MenuBar', () => {
     render(<MenuBar />)
 
     fireEvent.click(screen.getByRole('button', { name: '窗口' }))
-    expect(screen.getByRole('menuitem', { name: '记事' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: '记事' })).toBeInTheDocument()
     // 其他 Space 的窗口不进菜单。
-    expect(screen.queryByRole('menuitem', { name: '文件' })).toBeNull()
+    expect(screen.queryByRole('menuitemradio', { name: '文件' })).toBeNull()
 
     fireEvent.click(screen.getByRole('menuitem', { name: '关闭全部窗口' }))
 
@@ -242,6 +289,36 @@ describe('MenuBar', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: '帮助' }))
   })
 
+  it('traps Tab inside the shortcuts dialog (E2 审查)', () => {
+    render(<MenuBar />)
+    fireEvent.click(screen.getByRole('button', { name: '帮助' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '键盘快捷键' }))
+    const close = screen.getByRole('button', { name: '知道了' })
+    expect(document.activeElement).toBe(close)
+
+    // 只有「知道了」一个可聚焦元素：Tab/Shift+Tab 都必须被拦下，
+    // 不得跑进背景顶栏/窗口（aria-modal 的焦点陷阱）。
+    expect(fireEvent.keyDown(document, { key: 'Tab' })).toBe(false)
+    expect(document.activeElement).toBe(close)
+    expect(fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })).toBe(false)
+    expect(document.activeElement).toBe(close)
+  })
+
+  it('does not steal focus from the shortcuts dialog on every clock tick (E2 审查)', () => {
+    render(<MenuBar />)
+    fireEvent.click(screen.getByRole('button', { name: '帮助' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '键盘快捷键' }))
+    const close = screen.getByRole('button', { name: '知道了' })
+    const focusSpy = vi.spyOn(close, 'focus')
+
+    // 顶栏时钟每秒重渲染；对话框的挂载 effect 不得随之重跑并重新 focus。
+    act(() => {
+      vi.advanceTimersByTime(3_000)
+    })
+    expect(focusSpy).not.toHaveBeenCalled()
+    focusSpy.mockRestore()
+  })
+
   it('shows platform shortcut hints on menu items without polluting their names', () => {
     useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
     useWindowStore.getState().open({ appId: 'com.ageha.files', title: '文件' })
@@ -258,6 +335,27 @@ describe('MenuBar', () => {
     expect(next).toHaveAttribute('aria-keyshortcuts', 'Alt+W')
     fireEvent.click(next)
     expect(useWindowStore.getState().windows.find((win) => win.focused)?.appId).toBe('com.ageha.notes')
+  })
+
+  it('truncates long display names and hides the date below sm (E2 审查)', () => {
+    seedSessionForTests({
+      id: 'u1',
+      username: 'alice',
+      displayName: '超长的显示名称'.repeat(6),
+      createdAt: '2026-09-01T00:00:00.000Z',
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+    render(<MenuBar />)
+
+    const userButton = screen.getByRole('button', { name: /超长的显示名称/ })
+    const name = userButton.querySelector('span')
+    expect(name?.className).toContain('truncate')
+    expect(name?.className).toContain('max-w-24')
+
+    // 窄屏只留时间：日期 span 在 sm 以下隐藏，时钟不被挤出视口。
+    const date = screen.getByTestId('menu-bar-clock').querySelector('span')
+    expect(date?.className).toContain('hidden')
+    expect(date?.className).toContain('sm:inline')
   })
 
   it('shows only real status indicators (no decorative Wi-Fi/Bluetooth)', () => {

@@ -36,16 +36,23 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
     if (busy) return
     setBusy(true)
     setErrorKey(null)
-    const result =
-      mode === 'login'
-        ? await login(username.trim(), password)
-        : await register(username.trim(), password)
-    setBusy(false)
-    if (result.ok) {
-      onSuccess()
-      return
+    try {
+      const result =
+        mode === 'login'
+          ? await login(username.trim(), password)
+          : await register(username.trim(), password)
+      if (result.ok) {
+        onSuccess()
+        return
+      }
+      setErrorKey(AUTH_ERROR_KEYS[result.error?.code ?? 'not-authenticated'])
+    } catch {
+      // 服务层意外异常也必须复位 busy（E2 审查：请求悬挂/抛错时提交键
+      // 永久禁用）；错误按通用认证失败展示。
+      setErrorKey(AUTH_ERROR_KEYS['not-authenticated'])
+    } finally {
+      setBusy(false)
     }
-    setErrorKey(AUTH_ERROR_KEYS[result.error?.code ?? 'not-authenticated'])
   }
 
   const switchMode = (next: 'login' | 'register') => {
@@ -120,7 +127,8 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
         </button>
         <button
           type="button"
-          className="mt-2 w-full text-center text-xs text-text-muted hover:text-text"
+          disabled={busy}
+          className="mt-2 w-full text-center text-xs text-text-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => {
             clearExpiredNotice()
             switchMode(mode === 'login' ? 'register' : 'login')

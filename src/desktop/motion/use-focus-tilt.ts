@@ -69,11 +69,18 @@ export function useFocusTilt(
   enabled: boolean,
 ): void {
   const prevFocused = useRef<boolean | null>(null)
+  // 还原飞行让位（E2 审查）：最小化→正常同一次提交里 focused 也变 true，
+  // 若继续播聚焦转场，后创建的 WAAPI 会覆盖 genie 的 transform/opacity
+  // （表现为瞬移到终点+闪一下）。
+  const prevMinimized = useRef(minimized)
   useEffect(() => {
     const was = prevFocused.current
+    const wasMinimized = prevMinimized.current
     prevFocused.current = focused
+    prevMinimized.current = minimized
     const el = sectionRef.current
     if (!el || !enabled || minimized) return
+    if (wasMinimized) return
     if (was === null || was === focused || !focused) return
     const rect = el.getBoundingClientRect()
     const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }

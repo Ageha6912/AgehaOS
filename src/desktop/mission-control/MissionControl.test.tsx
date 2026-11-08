@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_SPACE_ID } from '@/core/window'
@@ -759,5 +759,52 @@ describe('W11 卡片激活聚焦与关闭钮（审计 §13 B）', () => {
     // jsdom 零尺寸几何 → 全卡同带 → 纵向漫游停在原位。
     fireEvent.keyDown(getByTestId('mission-control-cards'), { key: 'ArrowUp' })
     expect(document.activeElement).toBe(cards[0])
+  })
+})
+
+describe('被取消拖拽后的激活（E1 审查）', () => {
+  it('pointerCancel 复位 didDrag：其后卡片激活（click/键盘 Enter 同路）恢复生效', async () => {
+    const view = renderOpen()
+    const winId = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    await waitFor(() => expect(useWindowStore.getState().windows.length).toBeGreaterThan(0))
+    const card = (await waitFor(() => {
+      const el = document.querySelector(`[data-window-id="${winId}"]`)
+      expect(el).not.toBeNull()
+      return el as HTMLElement
+    })) as HTMLElement
+
+    fireEvent.pointerDown(card, { button: 0, clientX: 100, clientY: 100, pointerId: 1 })
+    fireEvent.pointerMove(view.getByTestId('mission-control-layer'), {
+      clientX: 180,
+      clientY: 80,
+      pointerId: 1,
+    })
+    fireEvent.pointerCancel(view.getByTestId('mission-control-layer'), { pointerId: 1 })
+
+    // 取消后先最小化以观察激活效果；卡片激活（click/Enter 同一 onActivate
+    // 路径）不再被残留的 didDrag 抑制。
+    useWindowStore.getState().minimize(winId)
+    fireEvent.click(card)
+    await waitFor(() => {
+      const win = useWindowStore.getState().windows.find((candidate) => candidate.id === winId)
+      expect(win?.state).not.toBe('minimized')
+      expect(win?.focused).toBe(true)
+    })
+  })
+})
+
+describe('卡片 ❌ 关闭走动效路径（E1 审查）', () => {
+  it('onCardClose 经 requestMotionClose（ghost 登记或 store.close 回退），窗口移除', async () => {
+    renderOpen()
+    const winId = useWindowStore.getState().open({ appId: 'com.ageha.notes', title: '记事' })
+    await waitFor(() => {
+      expect(document.querySelector(`[data-window-id="${winId}"]`)).not.toBeNull()
+    })
+    const closeBtn = screen.getByTestId('mission-control-card-close')
+    expect(closeBtn.getAttribute('data-window-id')).toBe(winId)
+    fireEvent.click(closeBtn)
+    await waitFor(() => {
+      expect(useWindowStore.getState().windows.find((w) => w.id === winId)).toBeUndefined()
+    })
   })
 })

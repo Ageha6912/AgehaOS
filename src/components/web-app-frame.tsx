@@ -103,6 +103,12 @@ export function WebAppFrame({ entry, appId, windowId, title }: WebAppFrameProps)
     return () => window.removeEventListener('message', handleMessage)
   }, [handleMessage])
 
+  // entry 切换（同一实例复用于另一站点）：加载遮罩复位，配合 iframe key
+  // 强制重挂——旧文档导航期间的 SDK 回执也不会落到新文档（E3 审查）。
+  useEffect(() => {
+    setLoaded(false)
+  }, [entry])
+
   const onLoaded = useCallback(() => {
     setLoaded(true)
     // 握手第一步：文档加载完成后再发 hello，应用此时才注册了 listener。
@@ -120,6 +126,7 @@ export function WebAppFrame({ entry, appId, windowId, title }: WebAppFrameProps)
   return (
     <div className="relative h-full bg-surface">
       <iframe
+        key={entry}
         ref={iframeRef}
         src={entry}
         sandbox={WEB_APP_SANDBOX}
