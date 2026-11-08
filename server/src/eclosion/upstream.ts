@@ -43,6 +43,11 @@ export interface StreamCompletionResult {
   usageTokens: number | null
 }
 
+/** 流式累积上限（A3 审查）：异常/恶意上游在 240s 时限内可灌入数百 MB——
+ *  max_tokens 只是请求参数，上游不保证遵守；超限按 ai-upstream 中止。 */
+export const MAX_CONTENT_CHARS = 1_000_000
+export const MAX_REASONING_CHARS = 2_000_000
+
 interface ChatChunk {
   choices?: Array<{
     delta?: {
@@ -96,6 +101,12 @@ export async function streamEclosionCompletion(params: {
     throw new EclosionUpstreamError('ai-upstream', `upstream fetch failed: ${String(cause)}`)
   }
   if (!response.ok) {
+    // 非 2xx 也要释放连接（undici 连接池在 body 未消费/cancel 前会被占用）。
+    try {
+      await response.body?.cancel()
+    } catch {
+      /* 已消费/已关闭：忽略 */
+    }
     throw new EclosionUpstreamError('ai-upstream', `upstream status ${response.status}`)
   }
   if (!response.body) {
@@ -126,10 +137,16 @@ export async function streamEclosionCompletion(params: {
             ? delta.reasoning
             : ''
       if (reasoning.length > 0) {
+        if (reasoningChars + reasoning.length > MAX_REASONING_CHARS) {
+          throw new EclosionUpstreamError('ai-upstream', 'reasoning output exceeds size limit')
+        }
         reasoningChars += reasoning.length
         callbacks?.onReasoningDelta?.(reasoning)
       }
       if (typeof delta.content === 'string' && delta.content.length > 0) {
+        if (content.length + delta.content.length > MAX_CONTENT_CHARS) {
+          throw new EclosionUpstreamError('ai-upstream', 'content output exceeds size limit')
+        }
         content += delta.content
         callbacks?.onContentDelta?.(delta.content)
       }

@@ -42,6 +42,16 @@ export function startWorldScheduler(params: {
   const now = params.now ?? ((): Date => new Date())
 
   const checkNow = async (): Promise<void> => {
+    // 羽化面老化清理搭车调度 tick（A2 审查轻微项）：10 分钟一次的有界 DELETE，
+    // 覆盖「长运行进程启动后日计数/缓存/锁缓慢积累」；失败只记日志。
+    await store
+      .pruneEclosionAged()
+      .catch((cause: unknown) => {
+        logger.warn(
+          { audit: 'eclosion.prune', detail: cause instanceof Error ? cause.message : String(cause) },
+          'eclosion aged prune failed',
+        )
+      })
     // 未配置 Key：无事可做（懒触发路径会回 503，L1 走原生）。
     if (!eclosion.apiKey) return
     const day = utcDayKey(now())

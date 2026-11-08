@@ -73,9 +73,29 @@ export class GitHubTrendingRssSource implements TrendingSource {
     if (!response.ok) {
       throw new Error(`trending source status ${response.status}`)
     }
-    const xml = await response.text()
-    if (xml.length > MAX_FEED_BYTES) {
-      throw new Error(`trending feed exceeds ${MAX_FEED_BYTES} chars`)
+    const body = response.body
+    if (!body) throw new Error('trending source returned no body')
+    // 边读边限量（A3 审查）：先 text() 后检查会把异常超大源整体读进内存，
+    // 上限形同虚设；分块累计超限即停止并释放连接。
+    const reader = body.getReader()
+    const decoder = new TextDecoder()
+    let xml = ''
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        xml += decoder.decode(value, { stream: true })
+        if (xml.length > MAX_FEED_BYTES) {
+          throw new Error(`trending feed exceeds ${MAX_FEED_BYTES} chars`)
+        }
+      }
+      xml += decoder.decode()
+    } finally {
+      try {
+        await reader.cancel()
+      } catch {
+        /* 已正常收尾/已中止：忽略 */
+      }
     }
     return parseRssItems(xml)
   }

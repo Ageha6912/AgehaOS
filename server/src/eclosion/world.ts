@@ -3,7 +3,12 @@ import { randomUUID } from 'node:crypto'
 import type { EclosionConfig } from '../config'
 import { classifyContentText } from '../classifier'
 import type { DataStore } from '../store/types'
-import { ECLOSION_BUDGET_KEY } from './quota'
+import {
+  ECLOSION_BUDGET_KEY,
+  budgetReservationTokens,
+  reserveEclosionQuota,
+  type EclosionQuotaLease,
+} from './quota'
 import { buildWorldMessages } from './prompts'
 import type { TrendingService } from './trending'
 import { estimateTokens, streamEclosionCompletion } from './upstream'
@@ -320,8 +325,10 @@ export interface WorldParseContext {
 /** JSON Lines 逐行解析 + 校验（§6.2：非法行丢弃；合法 app 行 6–10 否则整段 invalid）。 */
 export function parseWorldLines(raw: string, context: WorldParseContext): WorldParseResult {
   if (raw.length > MAX_WORLD_OUTPUT_CHARS) return { ok: false, reason: 'oversize' }
+  // 空输入（含纯空白）必须归 empty：''.split(/\r?\n/) 返回 ['']，旧判定
+  // `lines.length === 0` 永假，空响应被误标成 no-theme（A3 审查）。
+  if (raw.trim().length === 0) return { ok: false, reason: 'empty' }
   const lines = raw.split(/\r?\n/).map((line) => line.trim())
-  if (lines.length === 0) return { ok: false, reason: 'empty' }
 
   let theme: WorldThemeLine | null = null
   const apps: WorldAppLine[] = []
@@ -383,6 +390,20 @@ export function worldPersonalKey(day: string, userId: string): string {
 /** 世界生成单飞锁（懒触发与 scheduler 共用，坑 73 次序：acquire → 补读缓存）。 */
 export function worldGenLockKey(day: string): string {
   return `world:gen:${day}`
+}
+
+/** 个人世界重生成的单飞锁（A3 审查轻微项：双击不再并发两次真实上游生成）。 */
+export function worldPersonalGenLockKey(day: string, userId: string): string {
+  return `world:gen:${day}:u:${userId}`
+}
+
+/**
+ * 世界生成单飞锁 TTL：必须覆盖 invalid-output 重试的**两次完整生成**
+ * （每次各持独立 timeoutMs 的 AbortController）。若只是 timeoutMs + 10s，
+ * 第一次非法输出后锁在第二次尝试期间过期，竞争者会抢锁重复生成。
+ */
+export function worldLockTtlMs(timeoutMs: number): number {
+  return timeoutMs * 2 + 30_000
 }
 
 /** L2 HTML 全局缓存键（§9.2：(worldDate, slug, model)）。 */
@@ -515,10 +536,21 @@ export async function synthesizeWorld(params: SynthesizeWorldParams): Promise<
   const now = params.now ?? ((): Date => new Date())
   if (!eclosion.apiKey) return { ok: false, code: 'ai-not-configured' }
 
-  // 全局 token 预算是硬顶（§9.3）：世界生成同样计入、超顶不再发起。
+  // 全局 token 预算是硬顶（§9.3）：每次真实尝试前原子预占（A3 审查 TOCTOU），
+  // 结束后按实际用量结算（多退少补）。读取只用于计算预占额度——剩余不足按
+  // 剩余额度预占，避免 used 略低于上限就永远预占不到；并发预占只有一个能成。
   const day = params.day ?? now().toISOString().slice(0, 10)
-  const budgetUsed = await store.getEclosionDaily(ECLOSION_BUDGET_KEY, day)
-  if (budgetUsed >= eclosion.dailyTokenBudget) return { ok: false, code: 'budget-exceeded' }
+  const reserveAttemptBudget = async (): Promise<EclosionQuotaLease | null> => {
+    const used = await store.getEclosionDaily(ECLOSION_BUDGET_KEY, day)
+    if (used >= eclosion.dailyTokenBudget) return null
+    return reserveEclosionQuota(
+      store,
+      ECLOSION_BUDGET_KEY,
+      day,
+      eclosion.dailyTokenBudget,
+      budgetReservationTokens(eclosion.maxTokens, eclosion.dailyTokenBudget, used),
+    )
+  }
 
   const snapshot = await trending.getSnapshot()
   const messages = buildWorldMessages(
@@ -533,17 +565,23 @@ export async function synthesizeWorld(params: SynthesizeWorldParams): Promise<
 
   /**
    * 单次尝试计入全局预算：上游 usage 优先，缺省按提示词+已收流估算。每次真实
-   * 上游调用（无论 invalid-output / 超时 / 上游失败）都立即记账——两次尝试全败
-   * 不得绕过 §9.3 的预算硬顶。
+   * 上游调用（无论 invalid-output / 超时 / 上游失败）都把本次预占租约结算到
+   * 实际用量——两次尝试全败不得绕过 §9.3 的预算硬顶。
    */
-  const accountAttempt = async (usageTokens: number | null, streamedChars: number): Promise<void> => {
+  const accountAttempt = async (
+    lease: EclosionQuotaLease,
+    usageTokens: number | null,
+    streamedChars: number,
+  ): Promise<void> => {
     const attemptTokens = usageTokens ?? estimateTokens(promptChars, streamedChars)
     tokens += attemptTokens
-    await store.incrementEclosionDaily(ECLOSION_BUDGET_KEY, day, attemptTokens)
+    await lease.settle(attemptTokens, day)
   }
 
   // invalid-output 重试一次（§12 P2：全非法降级重试或失败）。
   for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const budgetLease = await reserveAttemptBudget()
+    if (!budgetLease) return { ok: false, code: 'budget-exceeded' }
     const controller = new AbortController()
     let timedOut = false
     const timer = setTimeout(() => {
@@ -567,7 +605,7 @@ export async function synthesizeWorld(params: SynthesizeWorldParams): Promise<
           },
         },
       })
-      await accountAttempt(result.usageTokens, streamedChars)
+      await accountAttempt(budgetLease, result.usageTokens, streamedChars)
       const parsed = parseWorldLines(result.content, {
         worldDate: day,
         generatedAt: now().toISOString(),
@@ -579,7 +617,7 @@ export async function synthesizeWorld(params: SynthesizeWorldParams): Promise<
         return { ok: true, record: parsed.record, tokens, attempts: attempt }
       }
     } catch (cause) {
-      await accountAttempt(null, streamedChars)
+      await accountAttempt(budgetLease, null, streamedChars)
       if (cause instanceof Error && cause.name === 'AbortError') {
         return { ok: false, code: 'ai-timeout', detail: timedOut ? 'timeout' : 'aborted' }
       }
@@ -630,7 +668,13 @@ export async function ensureWorldForDay(params: EnsureWorldParams): Promise<Ensu
   const deadline = now().getTime() + (params.waitDeadlineMs ?? params.eclosion.timeoutMs)
   let acquired = false
   while (true) {
-    if (await store.acquireEclosionLock(worldGenLockKey(day), holder, params.eclosion.timeoutMs + 10_000)) {
+    if (
+      await store.acquireEclosionLock(
+        worldGenLockKey(day),
+        holder,
+        worldLockTtlMs(params.eclosion.timeoutMs),
+      )
+    ) {
       acquired = true
       // 抢到锁也可能撞上对端刚写完的缓存：命中即让锁直接服务。
       const fresh = await store.getEclosionCache(worldGlobalKey(day))

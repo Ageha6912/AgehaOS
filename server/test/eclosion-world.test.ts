@@ -36,6 +36,7 @@ import {
   resolveAccentHue,
   todayCacheKey,
   worldGlobalKey,
+  worldLockTtlMs,
   WORLD_ICON_WHITELIST,
   WORLD_NAME_BLOCKLIST,
   WORLD_PALETTES,
@@ -342,6 +343,11 @@ describe('parseWorldLines (server JSON Lines gate, §6.2)', () => {
     })
   })
 
+  it('empty/whitespace output is empty (not no-theme)', () => {
+    expect(parseWorldLines('', context)).toEqual({ ok: false, reason: 'empty' })
+    expect(parseWorldLines('  \n\t\r\n', context)).toEqual({ ok: false, reason: 'empty' })
+  })
+
   it('accentHue failing the contrast gate falls back to the palette default hue', () => {
     // 黄（60°）在浅色面上过不了 3:1 门。
     expect(accentHuePassesGate(60)).toBe(false)
@@ -544,6 +550,25 @@ describe('trending (§6.1 抓取/清洗/缓存/降级)', () => {
     const source = new GitHubTrendingRssSource()
     expect(source.url).toContain('GitHubTrendingRSS')
     expect(source.url).toContain('daily/all.xml')
+  })
+
+  it('GitHubTrendingRssSource caps the feed while streaming (A3 审查)', async () => {
+    const chunk = new TextEncoder().encode('x'.repeat(1024 * 1024))
+    const fetcher = (async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(chunk)
+            controller.enqueue(chunk)
+            controller.enqueue(chunk)
+            controller.close()
+          },
+        }),
+        { status: 200 },
+      )) as typeof fetch
+    const source = new GitHubTrendingRssSource('https://rss.example/all.xml', 1000, fetcher)
+
+    await expect(source.fetch()).rejects.toThrow(/exceeds/)
   })
 
   it('createTrendingService: memory→store double cache, TTL refresh, stale fallback, pure-imagination degrade', async () => {
@@ -932,6 +957,44 @@ describe('POST /api/eclosion/world/regenerate', () => {
     expect(global.statusCode).toBe(429)
     expect(global.json()).toMatchObject({ error: 'quota-exceeded', scope: 'global' })
   })
+
+  it('个人单飞锁：生成进行中再点返回 409 world-in-progress（A3 审查）', async () => {
+    const handle = await startUpstream(async (_record, res) => {
+      await streamChat(res, [{ content: worldJsonl(6) }], 10)
+    })
+    upstream = handle.server
+    const made = await makeApp({ eclosion: { baseUrl: handle.baseUrl } })
+    app = made.app
+    store = made.store
+    const day = utcDayKey()
+    const cookie = await registerUser(app, 'regen-singleflight')
+    const user = await store.findUserByUsername('regen-singleflight')
+    // 手动占住个人锁（模拟上一次生成仍在跑）。
+    const lockKey = `world:gen:${day}:u:${user?.id}`
+    expect(await store.acquireEclosionLock(lockKey, 'holder-a', 60_000)).toBe(true)
+
+    const second = await app.inject({
+      method: 'POST',
+      url: '/api/eclosion/world/regenerate',
+      headers: { cookie },
+    })
+    expect(second.statusCode).toBe(409)
+    expect(second.json()).toEqual({ error: 'world-in-progress' })
+    // 在途 409 不计个人额度（预占已退还）。
+    expect(
+      await store.getEclosionDaily(eclosionUsageKey(user?.id as string, 'today'), day),
+    ).toBe(0)
+
+    // 锁释放后可正常生成；生成结束锁被释放（可再次生成）。
+    expect(await store.releaseEclosionLock(lockKey, 'holder-a')).toBeUndefined()
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/api/eclosion/world/regenerate',
+      headers: { cookie },
+    })
+    expect(ok.statusCode).toBe(200)
+    expect(await store.acquireEclosionLock(lockKey, 'holder-b', 60_000)).toBe(true)
+  })
 })
 
 // ── kind=today on POST /api/eclosion/generate（§5.3/§9.2 L2） ───────────────
@@ -1293,5 +1356,13 @@ describe('eclosion world config chain', () => {
     expect(config.eclosion.trendingTimeoutMs).toBe(2500)
     expect(config.eclosion.worldSchedulerEnabled).toBe(false)
     expect(config.eclosion.worldSchedulerIntervalMs).toBe(120000)
+  })
+})
+
+describe('world single-flight lock TTL', () => {
+  it('covers two full generation attempts (invalid-output retry is not preempted)', () => {
+    // 最坏路径：第一次流式完整返回但 JSON 非法 → 第二次重试各持独立 timeoutMs。
+    expect(worldLockTtlMs(240_000)).toBeGreaterThanOrEqual(240_000 * 2)
+    expect(worldLockTtlMs(240_000)).toBe(510_000)
   })
 })
